@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapsh
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -85,7 +85,7 @@ public class ShardSnapshotsService {
             .stream()
             .filter(repositoryMetadata -> BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.get(repositoryMetadata.settings()))
             .map(RepositoryMetadata::name)
-            .collect(Collectors.toList());
+            .toList();
 
         if (repositories.isEmpty() || masterSupportsFetchingLatestSnapshots() == false) {
             logger.debug(

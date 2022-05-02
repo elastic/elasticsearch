@@ -103,6 +103,7 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
         Map<String, Set<String>> contexts = Collections.singletonMap("key", Collections.singleton("value"));
         CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(1, new Text("someText"), 1.3f, contexts);
         BytesReference xContent = toXContent(option, XContentType.JSON, randomBoolean());
-        assertEquals("{\"text\":\"someText\",\"score\":1.3,\"contexts\":{\"key\":[\"value\"]}}", xContent.utf8ToString());
+        assertEquals("""
+            {"text":"someText","score":1.3,"contexts":{"key":["value"]}}""", xContent.utf8ToString());
     }
 }

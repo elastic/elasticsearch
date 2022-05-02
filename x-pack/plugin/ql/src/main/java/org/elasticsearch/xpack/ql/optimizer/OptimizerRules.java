@@ -382,8 +382,7 @@ public final class OptimizerRules {
                         } else {
                             exps.add(ex);
                         }
-                    } else if (ex instanceof NotEquals) {
-                        NotEquals otherNotEq = (NotEquals) ex;
+                    } else if (ex instanceof NotEquals otherNotEq) {
                         if (otherNotEq.right().foldable()) {
                             notEquals.add(otherNotEq);
                         } else {
@@ -488,15 +487,13 @@ public final class OptimizerRules {
 
             // split expressions by type
             for (Expression ex : Predicates.splitOr(or)) {
-                if (ex instanceof Equals) {
-                    Equals eq = (Equals) ex;
+                if (ex instanceof Equals eq) {
                     if (eq.right().foldable()) {
                         equals.add(eq);
                     } else {
                         exps.add(ex);
                     }
-                } else if (ex instanceof NotEquals) {
-                    NotEquals neq = (NotEquals) ex;
+                } else if (ex instanceof NotEquals neq) {
                     if (neq.right().foldable()) {
                         notEquals.add(neq);
                     } else {
@@ -504,8 +501,7 @@ public final class OptimizerRules {
                     }
                 } else if (ex instanceof Range) {
                     ranges.add((Range) ex);
-                } else if (ex instanceof BinaryComparison) {
-                    BinaryComparison bc = (BinaryComparison) ex;
+                } else if (ex instanceof BinaryComparison bc) {
                     if (bc.right().foldable()) {
                         inequalities.add(bc);
                     } else {
@@ -680,23 +676,20 @@ public final class OptimizerRules {
                 }
             });
             for (Expression ex : andExps) {
-                if (ex instanceof Range) {
-                    Range r = (Range) ex;
+                if (ex instanceof Range r) {
                     if (findExistingRange(r, ranges, true)) {
                         changed = true;
                     } else {
                         ranges.add(r);
                     }
-                } else if (ex instanceof BinaryComparison && (ex instanceof Equals || ex instanceof NotEquals) == false) {
-                    BinaryComparison bc = (BinaryComparison) ex;
+                } else if (ex instanceof BinaryComparison bc && (ex instanceof Equals || ex instanceof NotEquals) == false) {
 
                     if (bc.right().foldable() && (findConjunctiveComparisonInRange(bc, ranges) || findExistingComparison(bc, bcs, true))) {
                         changed = true;
                     } else {
                         bcs.add(bc);
                     }
-                } else if (ex instanceof NotEquals) {
-                    NotEquals neq = (NotEquals) ex;
+                } else if (ex instanceof NotEquals neq) {
                     if (neq.right().foldable() && notEqualsIsRemovableFromConjunction(neq, ranges, bcs)) {
                         // the non-equality can simply be dropped: either superfluous or has been merged with an updated range/inequality
                         changed = true;
@@ -778,15 +771,13 @@ public final class OptimizerRules {
             boolean changed = false;
 
             for (Expression ex : Predicates.splitOr(or)) {
-                if (ex instanceof Range) {
-                    Range r = (Range) ex;
+                if (ex instanceof Range r) {
                     if (findExistingRange(r, ranges, false)) {
                         changed = true;
                     } else {
                         ranges.add(r);
                     }
-                } else if (ex instanceof BinaryComparison) {
-                    BinaryComparison bc = (BinaryComparison) ex;
+                } else if (ex instanceof BinaryComparison bc) {
                     if (bc.right().foldable() && findExistingComparison(bc, bcs, false)) {
                         changed = true;
                     } else {
@@ -1227,8 +1218,7 @@ public final class OptimizerRules {
             List<Expression> ors = new LinkedList<>();
 
             for (Expression exp : exps) {
-                if (exp instanceof Equals) {
-                    Equals eq = (Equals) exp;
+                if (exp instanceof Equals eq) {
                     // consider only equals against foldables
                     if (eq.right().foldable()) {
                         found.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
@@ -1238,8 +1228,7 @@ public final class OptimizerRules {
                     if (zoneId == null) {
                         zoneId = eq.zoneId();
                     }
-                } else if (exp instanceof In) {
-                    In in = (In) exp;
+                } else if (exp instanceof In in) {
                     found.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
                     if (zoneId == null) {
                         zoneId = in.zoneId();
@@ -1287,13 +1276,11 @@ public final class OptimizerRules {
             LogicalPlan child = filter.child();
             Expression condition = filter.condition();
 
-            if (child instanceof Filter) {
-                Filter f = (Filter) child;
+            if (child instanceof Filter f) {
                 plan = f.with(new And(f.source(), f.condition(), condition));
             }
             // as it stands, all other unary plans should allow filters to be pushed down
-            else if (child instanceof UnaryPlan) {
-                UnaryPlan unary = (UnaryPlan) child;
+            else if (child instanceof UnaryPlan unary) {
                 // in case of aggregates, worry about filters that contain aggregations
                 if (unary instanceof Aggregate && condition.anyMatch(Functions::isAggregate)) {
                     List<Expression> conjunctions = new ArrayList<>(splitAnd(condition));
@@ -1536,8 +1523,7 @@ public final class OptimizerRules {
                     sign = sign(((Literal) obj).value());
                 } else if (obj instanceof Neg) {
                     sign = -sign(((Neg) obj).field());
-                } else if (obj instanceof ArithmeticOperation) {
-                    ArithmeticOperation operation = (ArithmeticOperation) obj;
+                } else if (obj instanceof ArithmeticOperation operation) {
                     if (isMulOrDiv(operation.symbol())) {
                         sign = sign(operation.left()) * sign(operation.right());
                     }
@@ -1571,8 +1557,7 @@ public final class OptimizerRules {
         protected abstract LogicalPlan skipPlan(Filter filter);
 
         private static Expression foldBinaryLogic(BinaryLogic binaryLogic) {
-            if (binaryLogic instanceof Or) {
-                Or or = (Or) binaryLogic;
+            if (binaryLogic instanceof Or or) {
                 boolean nullLeft = Expressions.isNull(or.left());
                 boolean nullRight = Expressions.isNull(or.right());
                 if (nullLeft && nullRight) {
@@ -1585,8 +1570,7 @@ public final class OptimizerRules {
                     return or.left();
                 }
             }
-            if (binaryLogic instanceof And) {
-                And and = (And) binaryLogic;
+            if (binaryLogic instanceof And and) {
                 if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
                     return new Literal(binaryLogic.source(), null, DataTypes.NULL);
                 }

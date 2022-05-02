@@ -32,20 +32,20 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
             "beats_system",
             "remote_monitoring_user"
         );
-        MockTerminal mockTerminal = new MockTerminal();
+        MockTerminal mockTerminal = MockTerminal.create();
         ResetPasswordTool resetPasswordTool = new ResetPasswordTool();
         final int status;
         final String password;
         if (randomBoolean()) {
             possiblyDecryptKeystore(mockTerminal);
-            status = resetPasswordTool.main(new String[] { "-a", "-b", "-u", user }, mockTerminal);
+            status = resetPasswordTool.main(new String[] { "-a", "-b", "-u", user }, mockTerminal, getToolProcessInfo());
             password = readPasswordFromOutput(mockTerminal.getOutput());
         } else {
             password = randomAlphaOfLengthBetween(14, 20);
             possiblyDecryptKeystore(mockTerminal);
             mockTerminal.addSecretInput(password);
             mockTerminal.addSecretInput(password);
-            status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", user }, mockTerminal);
+            status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", user }, mockTerminal, getToolProcessInfo());
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());
         assertEquals(0, status);
@@ -70,19 +70,14 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
             + Base64.getEncoder().encodeToString(("test_admin:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
         try {
             Request putUserRequest = new Request("PUT", "/_security/user/" + nativeUser);
-            putUserRequest.setJsonEntity(
-                "{\n"
-                    + "   \"password\" : \"l0ng-r4nd0m-p@ssw0rd\",\n"
-                    + "   \"roles\" : [ \"admin\", \"other_role1\" ],\n"
-                    + "   \"full_name\" : \""
-                    + randomAlphaOfLength(5)
-                    + "\",\n"
-                    + "   \"email\" : \""
-                    + nativeUser
-                    + "@example.com\",\n"
-                    + "   \"enabled\": true\n"
-                    + "}"
-            );
+            putUserRequest.setJsonEntity("""
+                {
+                   "password" : "l0ng-r4nd0m-p@ssw0rd",
+                   "roles" : [ "admin", "other_role1" ],
+                   "full_name" : "%s",
+                   "email" : "%s@example.com",
+                   "enabled": true
+                }""".formatted(randomAlphaOfLength(5), nativeUser));
             RequestOptions.Builder options = putUserRequest.getOptions().toBuilder();
             options.addHeader("Authorization", adminBasicHeader);
             putUserRequest.setOptions(options);
@@ -107,20 +102,20 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
         }
 
         // Now change the password
-        MockTerminal mockTerminal = new MockTerminal();
+        MockTerminal mockTerminal = MockTerminal.create();
         ResetPasswordTool resetPasswordTool = new ResetPasswordTool();
         final int status;
         final String password;
         if (randomBoolean()) {
             possiblyDecryptKeystore(mockTerminal);
-            status = resetPasswordTool.main(new String[] { "-a", "-b", "-u", nativeUser }, mockTerminal);
+            status = resetPasswordTool.main(new String[] { "-a", "-b", "-u", nativeUser }, mockTerminal, getToolProcessInfo());
             password = readPasswordFromOutput(mockTerminal.getOutput());
         } else {
             password = randomAlphaOfLengthBetween(14, 20);
             possiblyDecryptKeystore(mockTerminal);
             mockTerminal.addSecretInput(password);
             mockTerminal.addSecretInput(password);
-            status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", nativeUser }, mockTerminal);
+            status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", nativeUser }, mockTerminal, getToolProcessInfo());
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());
         assertEquals(0, status);

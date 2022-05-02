@@ -8,8 +8,8 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -48,7 +48,13 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
-    private static final String CONTROLLER_SOURCE = "#!/bin/bash\n" + "\n" + "echo I am alive\n" + "\n" + "read SOMETHING\n";
+    private static final String CONTROLLER_SOURCE = """
+        #!/bin/bash
+
+        echo I am alive
+
+        read SOMETHING
+        """;
 
     /**
      * Simplest case: a module with no controller daemon.

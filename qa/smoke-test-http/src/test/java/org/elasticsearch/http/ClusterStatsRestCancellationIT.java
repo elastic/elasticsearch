@@ -83,8 +83,8 @@ public class ClusterStatsRestCancellationIT extends HttpSmokeTestCase {
             for (final IndexService indexService : indicesService) {
                 for (final IndexShard indexShard : indexService) {
                     final Engine engine = IndexShardTestCase.getEngine(indexShard);
-                    if (engine instanceof StatsBlockingEngine) {
-                        statsBlocks.add(((StatsBlockingEngine) engine).statsBlock);
+                    if (engine instanceof StatsBlockingEngine statsBlockingEngine) {
+                        statsBlocks.add(statsBlockingEngine.statsBlock);
                     }
                 }
             }

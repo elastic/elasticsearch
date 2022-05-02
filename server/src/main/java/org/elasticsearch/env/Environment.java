@@ -28,7 +28,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * The environment of where things exists.
@@ -152,10 +151,7 @@ public class Environment {
         final Settings.Builder finalSettings = Settings.builder().put(settings);
         if (PATH_DATA_SETTING.exists(settings)) {
             if (dataPathUsesList(settings)) {
-                finalSettings.putList(
-                    PATH_DATA_SETTING.getKey(),
-                    Arrays.stream(dataFiles).map(Path::toString).collect(Collectors.toList())
-                );
+                finalSettings.putList(PATH_DATA_SETTING.getKey(), Arrays.stream(dataFiles).map(Path::toString).toList());
             } else {
                 assert dataFiles.length == 1;
                 finalSettings.put(PATH_DATA_SETTING.getKey(), dataFiles[0]);
@@ -164,10 +160,7 @@ public class Environment {
         finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
         finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile.toString());
         if (PATH_REPO_SETTING.exists(settings)) {
-            finalSettings.putList(
-                Environment.PATH_REPO_SETTING.getKey(),
-                Arrays.stream(repoFiles).map(Path::toString).collect(Collectors.toList())
-            );
+            finalSettings.putList(Environment.PATH_REPO_SETTING.getKey(), Arrays.stream(repoFiles).map(Path::toString).toList());
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             assert sharedDataFile != null;

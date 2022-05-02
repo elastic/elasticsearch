@@ -51,20 +51,10 @@ public class AllocationRoutedStepInfoTests extends AbstractXContentTestCase<Allo
         boolean allShardsActive = instance.allShardsActive();
         var message = instance.getMessage();
         switch (between(0, 2)) {
-            case 0:
-                shardsToAllocate += between(1, 20);
-                break;
-            case 1:
-                allShardsActive = allShardsActive == false;
-                break;
-            case 2:
-                actualReplicas += between(1, 20);
-                break;
-            case 3:
-                message = randomValueOtherThan(message, () -> randomAlphaOfLengthBetween(5, 10));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> shardsToAllocate += between(1, 20);
+            case 1 -> allShardsActive = allShardsActive == false;
+            case 2 -> actualReplicas += between(1, 20);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new AllocationInfo(actualReplicas, shardsToAllocate, allShardsActive, message);
     }

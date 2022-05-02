@@ -10,6 +10,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
@@ -68,7 +69,9 @@ public class MockScriptEngine implements ScriptEngine {
         Map<ScriptContext<?>, ContextCompiler> contexts
     ) {
 
-        Map<String, MockDeterministicScript> scriptMap = new HashMap<>(deterministicScripts.size() + nonDeterministicScripts.size());
+        Map<String, MockDeterministicScript> scriptMap = Maps.newMapWithExpectedSize(
+            deterministicScripts.size() + nonDeterministicScripts.size()
+        );
         deterministicScripts.forEach((key, value) -> scriptMap.put(key, MockDeterministicScript.asDeterministic(value)));
         nonDeterministicScripts.forEach((key, value) -> scriptMap.put(key, MockDeterministicScript.asNonDeterministic(value)));
 

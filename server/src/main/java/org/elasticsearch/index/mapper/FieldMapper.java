@@ -12,10 +12,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.Script;
@@ -35,7 +37,6 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -223,39 +224,59 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public void parse(DocumentParserContext context) throws IOException {
         try {
             if (hasScript) {
-                throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
+                throwIndexingWithScriptParam();
             }
             parseCreateField(context);
         } catch (Exception e) {
-            String valuePreview = "";
-            try {
-                XContentParser parser = context.parser();
-                Object complexValue = AbstractXContentParser.readValue(parser, HashMap::new);
-                if (complexValue == null) {
-                    valuePreview = "null";
-                } else {
-                    valuePreview = complexValue.toString();
-                }
-            } catch (Exception innerException) {
-                throw new MapperParsingException(
-                    "failed to parse field [{}] of type [{}] in document with id '{}'. " + "Could not parse field value preview,",
-                    e,
-                    fieldType().name(),
-                    fieldType().typeName(),
-                    context.sourceToParse().id()
-                );
-            }
+            rethrowAsMapperParsingException(context, e);
+        }
+        // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
+        // of the mappings
+        if (multiFields.mappers.length != 0) {
+            doParseMultiFields(context);
+        }
+    }
 
+    private void doParseMultiFields(DocumentParserContext context) throws IOException {
+        context.path().add(simpleName());
+        for (FieldMapper mapper : multiFields.mappers) {
+            mapper.parse(context);
+        }
+        context.path().remove();
+    }
+
+    private static void throwIndexingWithScriptParam() {
+        throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
+    }
+
+    private void rethrowAsMapperParsingException(DocumentParserContext context, Exception e) {
+        String valuePreview;
+        try {
+            XContentParser parser = context.parser();
+            Object complexValue = AbstractXContentParser.readValue(parser, HashMap::new);
+            if (complexValue == null) {
+                valuePreview = "null";
+            } else {
+                valuePreview = complexValue.toString();
+            }
+        } catch (Exception innerException) {
             throw new MapperParsingException(
-                "failed to parse field [{}] of type [{}] in document with id '{}'. " + "Preview of field's value: '{}'",
+                "failed to parse field [{}] of type [{}] in {}. Could not parse field value preview,",
                 e,
                 fieldType().name(),
                 fieldType().typeName(),
-                context.sourceToParse().id(),
-                valuePreview
+                context.documentDescription()
             );
         }
-        multiFields.parse(this, context);
+
+        throw new MapperParsingException(
+            "failed to parse field [{}] of type [{}] in {}. Preview of field's value: '{}'",
+            e,
+            fieldType().name(),
+            fieldType().typeName(),
+            context.documentDescription(),
+            valuePreview
+        );
     }
 
     /**
@@ -319,18 +340,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     @Override
     public Iterator<Mapper> iterator() {
-        Iterator<FieldMapper> multiFieldsIterator = multiFields.iterator();
-        return new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                return multiFieldsIterator.hasNext();
-            }
-
-            @Override
-            public Mapper next() {
-                return multiFieldsIterator.next();
-            }
-        };
+        return Iterators.forArray(multiFields.mappers);
     }
 
     @Override
@@ -340,7 +350,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + this.name() + "]");
             }
 
-            final String sourceScope = mappers.getNestedParent(this.name());
+            final String sourceScope = mappers.nestedLookup().getNestedParent(this.name());
             for (String copyTo : this.copyTo().copyToFields()) {
                 if (mappers.isMultiField(copyTo)) {
                     throw new IllegalArgumentException("[copy_to] may not be used to copy to a multi-field: [" + copyTo + "]");
@@ -349,11 +359,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
                 }
 
-                final String targetScope = mappers.getNestedParent(copyTo);
+                final String targetScope = mappers.nestedLookup().getNestedParent(copyTo);
                 checkNestedScopeCompatibility(sourceScope, targetScope);
             }
         }
-        for (Mapper multiField : multiFields()) {
+        for (Mapper multiField : multiFields().mappers) {
             multiField.validate(mappers);
         }
         doValidate(mappers);
@@ -390,7 +400,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     @Override
     public final FieldMapper merge(Mapper mergeWith) {
-
+        if (mergeWith == this) {
+            return this;
+        }
         if (mergeWith instanceof FieldMapper == false) {
             throw new IllegalArgumentException(
                 "mapper ["
@@ -447,9 +459,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return indexAnalyzers;
     }
 
-    public static class MultiFields implements Iterable<FieldMapper>, ToXContent {
+    public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {
 
-        private static final MultiFields EMPTY = new MultiFields(Collections.emptyMap());
+        private static final MultiFields EMPTY = new MultiFields(new FieldMapper[0]);
 
         public static MultiFields empty() {
             return EMPTY;
@@ -487,51 +499,49 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (mapperBuilders.isEmpty()) {
                     return empty();
                 } else {
-                    Map<String, FieldMapper> mappers = new HashMap<>();
+                    FieldMapper[] mappers = new FieldMapper[mapperBuilders.size()];
                     context = context.createChildContext(mainFieldBuilder.name());
+                    int i = 0;
                     for (Map.Entry<String, Function<MapperBuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
-                        String key = entry.getKey();
-                        FieldMapper mapper = entry.getValue().apply(context);
-                        mappers.put(key, mapper);
+                        mappers[i++] = entry.getValue().apply(context);
                     }
-                    return new MultiFields(Collections.unmodifiableMap(mappers));
+                    return new MultiFields(mappers);
                 }
             }
         }
 
-        private final Map<String, FieldMapper> mappers;
+        private final FieldMapper[] mappers;
 
-        private MultiFields(Map<String, FieldMapper> mappers) {
+        private MultiFields(FieldMapper[] mappers) {
             this.mappers = mappers;
+            // sort for consistent iteration order + serialization
+            Arrays.sort(this.mappers, Comparator.comparing(FieldMapper::name));
         }
 
-        public void parse(FieldMapper mainField, DocumentParserContext context) throws IOException {
+        public void parse(FieldMapper mainField, DocumentParserContext context, Supplier<DocumentParserContext> multiFieldContextSupplier)
+            throws IOException {
             // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
             // of the mappings
-            if (mappers.isEmpty()) {
+            if (mappers.length == 0) {
                 return;
             }
-
             context.path().add(mainField.simpleName());
-            for (FieldMapper mapper : mappers.values()) {
-                mapper.parse(context);
+            for (FieldMapper mapper : mappers) {
+                mapper.parse(multiFieldContextSupplier.get());
             }
             context.path().remove();
         }
 
         @Override
         public Iterator<FieldMapper> iterator() {
-            return mappers.values().iterator();
+            return Iterators.forArray(mappers);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (mappers.isEmpty() == false) {
-                // sort the mappers so we get consistent serialization format
-                List<FieldMapper> sortedMappers = new ArrayList<>(mappers.values());
-                sortedMappers.sort(Comparator.comparing(FieldMapper::name));
+            if (mappers.length != 0) {
                 builder.startObject("fields");
-                for (Mapper mapper : sortedMappers) {
+                for (Mapper mapper : mappers) {
                     mapper.toXContent(builder, params);
                 }
                 builder.endObject();
@@ -630,21 +640,21 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final class Parameter<T> implements Supplier<T> {
 
         public final String name;
-        private final List<String> deprecatedNames = new ArrayList<>();
+        private List<String> deprecatedNames = List.of();
         private final Supplier<T> defaultValue;
         private final TriFunction<String, MappingParserContext, Object, T> parser;
         private final Function<FieldMapper, T> initializer;
         private boolean acceptsNull = false;
-        private List<Consumer<T>> validators = new ArrayList<>();
-        private Serializer<T> serializer = XContentBuilder::field;
+        private Consumer<T> validator;
+        private final Serializer<T> serializer;
         private SerializerCheck<T> serializerCheck = (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured;
-        private Function<T, String> conflictSerializer = Objects::toString;
+        private final Function<T, String> conflictSerializer;
         private boolean deprecated;
         private MergeValidator<T> mergeValidator;
         private T value;
         private boolean isSet;
-        private final List<Parameter<?>> requires = new ArrayList<>();
-        private final List<Parameter<?>> precludes = new ArrayList<>();
+        private List<Parameter<?>> requires = List.of();
+        private List<Parameter<?>> precludes = List.of();
 
         /**
          * Creates a new Parameter
@@ -653,20 +663,31 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param defaultValue  the default value for the parameter, used if unspecified in mappings
          * @param parser        a function that converts an object to a parameter value
          * @param initializer   a function that reads a parameter value from an existing mapper
+         * @param serializer    a function that serializes a parameter value, prefer type specific x-content generation methods here for
+         *                      good performance as this is used on the hot-path during cluster state updates.
+         *                      This should explicitly not be linked with {@link XContentBuilder#field(String, Object)} by callers through
+         *                      the use of default values or other indirection to this constructor.
+         * @param conflictSerializer a function that serializes a parameter value on conflict
          */
         public Parameter(
             String name,
             boolean updateable,
             Supplier<T> defaultValue,
             TriFunction<String, MappingParserContext, Object, T> parser,
-            Function<FieldMapper, T> initializer
+            Function<FieldMapper, T> initializer,
+            Serializer<T> serializer,
+            Function<T, String> conflictSerializer
         ) {
             this.name = name;
             this.defaultValue = Objects.requireNonNull(defaultValue);
             this.value = null;
             this.parser = parser;
             this.initializer = initializer;
-            this.mergeValidator = (previous, toMerge, conflicts) -> updateable || Objects.equals(previous, toMerge);
+            this.mergeValidator = updateable
+                ? (previous, toMerge, conflicts) -> true
+                : (previous, toMerge, conflicts) -> Objects.equals(previous, toMerge);
+            this.serializer = serializer;
+            this.conflictSerializer = conflictSerializer;
         }
 
         /**
@@ -719,7 +740,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * be emitted.  The parameter will be serialized with its main name.
          */
         public Parameter<T> addDeprecatedName(String deprecatedName) {
-            this.deprecatedNames.add(deprecatedName);
+            this.deprecatedNames = CollectionUtils.appendToCopyNoNullElements(this.deprecatedNames, deprecatedName);
             return this;
         }
 
@@ -739,16 +760,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * validators can be added and all of them will be executed.
          */
         public Parameter<T> addValidator(Consumer<T> validator) {
-            this.validators.add(validator);
-            return this;
-        }
-
-        /**
-         * Configure a custom serializer for this parameter
-         */
-        public Parameter<T> setSerializer(Serializer<T> serializer, Function<T, String> conflictSerializer) {
-            this.serializer = serializer;
-            this.conflictSerializer = conflictSerializer;
+            this.validator = this.validator == null ? validator : this.validator.andThen(validator);
             return this;
         }
 
@@ -785,20 +797,20 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        public Parameter<T> requiresParameters(Parameter<?>... ps) {
-            this.requires.addAll(Arrays.asList(ps));
+        public Parameter<T> requiresParameter(Parameter<?> ps) {
+            this.requires = CollectionUtils.appendToCopyNoNullElements(this.requires, ps);
             return this;
         }
 
         public Parameter<T> precludesParameters(Parameter<?>... ps) {
-            this.precludes.addAll(Arrays.asList(ps));
+            this.precludes = CollectionUtils.appendToCopyNoNullElements(this.precludes, ps);
             return this;
         }
 
         void validate() {
             // Iterate over the list of validators and execute them one by one.
-            for (Consumer<T> v : validators) {
-                v.accept(getValue());
+            if (validator != null) {
+                validator.accept(getValue());
             }
             if (this.isConfigured()) {
                 for (Parameter<?> p : requires) {
@@ -857,7 +869,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, Boolean> initializer,
             boolean defaultValue
         ) {
-            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), initializer);
+            return new Parameter<>(
+                name,
+                updateable,
+                defaultValue ? () -> true : () -> false,
+                (n, c, o) -> XContentMapValues.nodeBooleanValue(o),
+                initializer,
+                XContentBuilder::field,
+                Objects::toString
+            );
         }
 
         /**
@@ -874,14 +894,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, Explicit<Boolean>> initializer,
             boolean defaultValue
         ) {
-            Explicit<Boolean> defaultExplicit = new Explicit<>(defaultValue, false);
             return new Parameter<>(
                 name,
                 updateable,
-                () -> defaultExplicit,
-                (n, c, o) -> new Explicit<>(XContentMapValues.nodeBooleanValue(o), true),
-                initializer
-            ).setSerializer((b, n, v) -> b.field(n, v.value()), v -> Boolean.toString(v.value()));
+                defaultValue ? () -> Explicit.IMPLICIT_TRUE : () -> Explicit.IMPLICIT_FALSE,
+                (n, c, o) -> Explicit.explicitBoolean(XContentMapValues.nodeBooleanValue(o)),
+                initializer,
+                (b, n, v) -> b.field(n, v.value()),
+                v -> Boolean.toString(v.value())
+            );
         }
 
         /**
@@ -897,7 +918,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, Integer> initializer,
             int defaultValue
         ) {
-            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeIntegerValue(o), initializer);
+            return new Parameter<>(
+                name,
+                updateable,
+                () -> defaultValue,
+                (n, c, o) -> XContentMapValues.nodeIntegerValue(o),
+                initializer,
+                XContentBuilder::field,
+                Objects::toString
+            );
         }
 
         /**
@@ -913,50 +942,41 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, String> initializer,
             String defaultValue
         ) {
-            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeStringValue(o), initializer);
+            return stringParam(name, updateable, initializer, defaultValue, XContentBuilder::field);
+        }
+
+        public static Parameter<String> stringParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, String> initializer,
+            String defaultValue,
+            Serializer<String> serializer
+        ) {
+            return new Parameter<>(
+                name,
+                updateable,
+                defaultValue == null ? () -> null : () -> defaultValue,
+                (n, c, o) -> XContentMapValues.nodeStringValue(o),
+                initializer,
+                serializer,
+                Function.identity()
+            );
         }
 
         @SuppressWarnings("unchecked")
         public static Parameter<List<String>> stringArrayParam(
             String name,
             boolean updateable,
-            Function<FieldMapper, List<String>> initializer,
-            List<String> defaultValue
+            Function<FieldMapper, List<String>> initializer
         ) {
-            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> {
+            return new Parameter<>(name, updateable, List::of, (n, c, o) -> {
                 List<Object> values = (List<Object>) o;
                 List<String> strValues = new ArrayList<>();
                 for (Object item : values) {
                     strValues.add(item.toString());
                 }
                 return strValues;
-            }, initializer);
-        }
-
-        /**
-         * Defines a parameter that takes one of a restricted set of string values
-         * @param name          the parameter name
-         * @param updateable    whether the parameter can be changed by a mapping update
-         * @param initializer   a function that reads the parameter value from an existing mapper
-         * @param values        the set of values that the parameter can take.  The first value in the list
-         *                      is the default value, to be used if the parameter is undefined in a mapping
-         */
-        public static Parameter<String> restrictedStringParam(
-            String name,
-            boolean updateable,
-            Function<FieldMapper, String> initializer,
-            String... values
-        ) {
-            assert values.length > 0;
-            Set<String> acceptedValues = new LinkedHashSet<>(Arrays.asList(values));
-            return stringParam(name, updateable, initializer, values[0]).addValidator(v -> {
-                if (acceptedValues.contains(v)) {
-                    return;
-                }
-                throw new MapperParsingException(
-                    "Unknown value [" + v + "] for field [" + name + "] - accepted values are " + acceptedValues.toString()
-                );
-            });
+            }, initializer, XContentBuilder::stringListField, Objects::toString);
         }
 
         /**
@@ -1009,7 +1029,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 } catch (IllegalArgumentException e) {
                     throw new MapperParsingException("Unknown value [" + o + "] for field [" + name + "] - accepted values are " + values);
                 }
-            }, initializer).addValidator(v -> {
+            }, initializer, XContentBuilder::field, Objects::toString).addValidator(v -> {
                 if (v != null && values.contains(v) == false) {
                     throw new MapperParsingException("Unknown value [" + v + "] for field [" + name + "] - accepted values are " + values);
                 }
@@ -1036,7 +1056,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     throw new IllegalArgumentException("analyzer [" + analyzerName + "] has not been configured in mappings");
                 }
                 return a;
-            }, initializer).setSerializer((b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
+            }, initializer, (b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
         }
 
         /**
@@ -1048,7 +1068,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 true,
                 Collections::emptyMap,
                 (n, c, o) -> TypeParsers.parseMeta(n, o),
-                m -> m.fieldType().meta()
+                m -> m.fieldType().meta(),
+                XContentBuilder::stringStringMap,
+                Objects::toString
             );
         }
 
@@ -1079,7 +1101,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     throw new IllegalArgumentException("stored scripts are not supported on field [" + n + "]");
                 }
                 return script;
-            }, initializer).acceptsNull();
+            }, initializer, XContentBuilder::field, Objects::toString).acceptsNull();
         }
 
         /**
@@ -1092,8 +1114,25 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, String> initializer,
             Parameter<Script> dependentScriptParam
         ) {
-            return Parameter.restrictedStringParam("on_script_error", true, initializer, "fail", "continue")
-                .requiresParameters(dependentScriptParam);
+            return new Parameter<>(
+                "on_script_error",
+                true,
+                () -> "fail",
+                (n, c, o) -> XContentMapValues.nodeStringValue(o),
+                initializer,
+                XContentBuilder::field,
+                Function.identity()
+            ).addValidator(v -> {
+                switch (v) {
+                    case "fail":
+                    case "continue":
+                        return;
+                    default:
+                        throw new MapperParsingException(
+                            "Unknown value [" + v + "] for field [on_script_error] - accepted values are [fail, continue]"
+                        );
+                }
+            }).requiresParameter(dependentScriptParam);
         }
     }
 
@@ -1146,17 +1185,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             for (Parameter<?> param : getParameters()) {
                 param.init(initializer);
             }
-            for (FieldMapper subField : initializer.multiFields) {
+            for (FieldMapper subField : initializer.multiFields.mappers) {
                 multiFieldsBuilder.add(subField);
             }
             return this;
         }
 
-        private void merge(FieldMapper in, Conflicts conflicts) {
+        protected void merge(FieldMapper in, Conflicts conflicts) {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
-            for (FieldMapper newSubField : in.multiFields) {
+            for (FieldMapper newSubField : in.multiFields.mappers) {
                 multiFieldsBuilder.update(newSubField, MapperBuilderContext.forPath(parentPath(newSubField.name())));
             }
             this.copyTo.reset(in.copyTo);
@@ -1199,7 +1238,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * Writes the current builder parameter values as XContent
          */
         @Override
-        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
@@ -1265,6 +1304,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     parameter = paramsMap.get(propName);
                 }
                 if (parameter == null) {
+                    if (parserContext.indexVersionCreated().isLegacyIndexVersion()) {
+                        // ignore unknown parameters on legacy indices
+                        handleUnknownParamOnLegacyIndex(propName, propNode);
+                        iterator.remove();
+                        continue;
+                    }
                     if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
                         deprecationLogger.warn(
                             DeprecationCategory.API,
@@ -1313,6 +1358,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             validate();
         }
 
+        protected void handleUnknownParamOnLegacyIndex(String propName, Object propNode) {
+            // ignore
+        }
+
         protected static ContentPath parentPath(String name) {
             int endPos = name.lastIndexOf(".");
             if (endPos == -1) {
@@ -1349,21 +1398,39 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         private final BiFunction<String, MappingParserContext, Builder> builderFunction;
         private final BiConsumer<String, MappingParserContext> contextValidator;
+        private final Version minimumCompatibilityVersion; // see Mapper.TypeParser#supportsVersion()
 
         /**
          * Creates a new TypeParser
          * @param builderFunction a function that produces a Builder from a name and parsercontext
          */
         public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction) {
-            this(builderFunction, (n, c) -> {});
+            this(builderFunction, (n, c) -> {}, Version.CURRENT.minimumIndexCompatibilityVersion());
+        }
+
+        /**
+         * Variant of {@link #TypeParser(BiFunction)} that allows to defining a minimumCompatibilityVersion to
+         * allow parsing mapping definitions of legacy indices (see {@link Mapper.TypeParser#supportsVersion(Version)}).
+         */
+        public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, Version minimumCompatibilityVersion) {
+            this(builderFunction, (n, c) -> {}, minimumCompatibilityVersion);
         }
 
         public TypeParser(
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             BiConsumer<String, MappingParserContext> contextValidator
         ) {
+            this(builderFunction, contextValidator, Version.CURRENT.minimumIndexCompatibilityVersion());
+        }
+
+        private TypeParser(
+            BiFunction<String, MappingParserContext, Builder> builderFunction,
+            BiConsumer<String, MappingParserContext> contextValidator,
+            Version minimumCompatibilityVersion
+        ) {
             this.builderFunction = builderFunction;
             this.contextValidator = contextValidator;
+            this.minimumCompatibilityVersion = minimumCompatibilityVersion;
         }
 
         @Override
@@ -1372,6 +1439,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Builder builder = builderFunction.apply(name, parserContext);
             builder.parse(name, parserContext, node);
             return builder;
+        }
+
+        @Override
+        public boolean supportsVersion(Version indexCreatedVersion) {
+            return indexCreatedVersion.onOrAfter(minimumCompatibilityVersion);
         }
     }
 

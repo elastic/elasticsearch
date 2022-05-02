@@ -111,30 +111,36 @@ that the index is managed and in the `new` phase:
   "indices": {
     "my-index-000001": {
       "index": "my-index-000001",
-      "managed": true, <1>
-      "policy": "my_policy", <2>
-      "lifecycle_date_millis": 1538475653281, <3>
-      "age": "15s", <4>
+      "index_creation_date_millis": 1538475653281,  <1>
+      "time_since_index_creation": "15s",           <2>
+      "managed": true,                              <3>
+      "policy": "my_policy",                        <4>
+      "lifecycle_date_millis": 1538475653281,       <5>
+      "age": "15s",                                 <6>
       "phase": "new",
-      "phase_time_millis": 1538475653317, <5>
-      "action": "complete",
-      "action_time_millis": 1538475653317, <6>
+      "phase_time_millis": 1538475653317,           <7>
+      "action": "complete"
+      "action_time_millis": 1538475653317,          <8>
       "step": "complete",
-      "step_time_millis": 1538475653317 <7>
+      "step_time_millis": 1538475653317             <9>
     }
   }
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
 
-<1> Shows if the index is being managed by {ilm-init}. If the index is not managed by
+<1> When the index was created, this timestamp is used to determine when to
+rollover
+<2> The time since the index creation (used for calculating when to rollover
+the index via the `max_age`)
+<3> Shows if the index is being managed by {ilm-init}. If the index is not managed by
 {ilm-init} the other fields will not be shown
-<2> The name of the policy which {ilm-init} is using for this index
-<3> The timestamp used for the `min_age`
-<4> The age of the index (used for calculating when to enter the next phase)
-<5> When the index entered the current phase
-<6> When the index entered the current action
-<7> When the index entered the current step
+<4> The name of the policy which {ilm-init} is using for this index
+<5> The timestamp used for the `min_age`
+<6> The age of the index (used for calculating when to enter the next phase)
+<7> When the index entered the current phase
+<8> When the index entered the current action
+<9> When the index entered the current step
 
 Once the policy is running on the index, the response includes a
 `phase_execution` object that shows the definition of the current phase.
@@ -147,6 +153,8 @@ phase completes.
   "indices": {
     "test-000069": {
       "index": "test-000069",
+      "index_creation_date_millis": 1538475653281,
+      "time_since_index_creation": "25.14s",
       "managed": true,
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
@@ -196,6 +204,8 @@ information for the step that's being performed on the index.
   "indices": {
     "test-000020": {
       "index": "test-000020",
+      "index_creation_date_millis": 1538475653281,
+      "time_since_index_creation": "4.12m",
       "managed": true,
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
@@ -260,6 +270,8 @@ the case.
   "indices": {
     "test-000056": {
       "index": "test-000056",
+      "index_creation_date_millis": 1538475653281,
+      "time_since_index_creation": "50.1d",
       "managed": true,
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,

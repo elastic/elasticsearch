@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -59,12 +59,12 @@ public class TrainedModelStatsService {
     private static final Logger logger = LogManager.getLogger(TrainedModelStatsService.class);
     private static final TimeValue PERSISTENCE_INTERVAL = TimeValue.timeValueSeconds(1);
 
-    private static final String STATS_UPDATE_SCRIPT_TEMPLATE = ""
-        + "    ctx._source.{0} += params.{0};\n"
-        + "    ctx._source.{1} += params.{1};\n"
-        + "    ctx._source.{2} += params.{2};\n"
-        + "    ctx._source.{3} += params.{3};\n"
-        + "    ctx._source.{4} = params.{4};";
+    private static final String STATS_UPDATE_SCRIPT_TEMPLATE = """
+        ctx._source.{0} += params.{0};
+        ctx._source.{1} += params.{1};
+        ctx._source.{2} += params.{2};
+        ctx._source.{3} += params.{3};
+        ctx._source.{4} = params.{4};""".indent(4);
     // Script to only update if stats have increased since last persistence
     private static final String STATS_UPDATE_SCRIPT = Messages.getMessage(
         STATS_UPDATE_SCRIPT_TEMPLATE,

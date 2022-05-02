@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlAsyncGetResultsAction;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.junit.After;
 
 import java.io.InputStream;

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.scroll;
 
-import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -26,6 +25,8 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -124,7 +125,7 @@ public class DuelScrollIT extends ESIntegTestCase {
         boolean unevenRouting = randomBoolean();
 
         int numMissingDocs = scaledRandomIntBetween(0, numDocs / 100);
-        IntHashSet missingDocs = new IntHashSet(numMissingDocs);
+        Set<Integer> missingDocs = new HashSet<>(numMissingDocs);
         for (int i = 0; i < numMissingDocs; i++) {
             while (missingDocs.add(randomInt(numDocs)) == false) {
             }

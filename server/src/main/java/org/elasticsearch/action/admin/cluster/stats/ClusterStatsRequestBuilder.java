@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<
     ClusterStatsRequest,

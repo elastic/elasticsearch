@@ -20,6 +20,7 @@
           cancel-builds-on-update: true
           black-list-target-branches:
             - 6.8
+            - feature/desired-balance-allocator
           excluded-regions:
             - ^docs/.*
           black-list-labels:

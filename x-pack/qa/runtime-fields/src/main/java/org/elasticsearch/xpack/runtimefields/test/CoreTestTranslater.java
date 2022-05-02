@@ -11,6 +11,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
@@ -290,6 +291,18 @@ public abstract class CoreTestTranslater {
                 }
                 if (propertyMap.containsKey("ignore_malformed")) {
                     // Our source reading script doesn't emulate ignore_malformed
+                    continue;
+                }
+                if (propertyMap.containsKey("time_series_dimension")) {
+                    // time_series_dimension field can't emulate with scripts.
+                    continue;
+                }
+                if (propertyMap.containsKey("time_series_metric")) {
+                    // time_series_metric field can't emulate with scripts.
+                    continue;
+                }
+                if (name.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)) {
+                    // time_series and data stream indices need timestamp field
                     continue;
                 }
                 if (RUNTIME_TYPES.contains(type) == false) {

@@ -42,7 +42,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -76,8 +78,12 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     public void setupTestNodes(Settings settings) {
         nodesCount = randomIntBetween(2, 10);
         testNodes = new TestNode[nodesCount];
+        final Settings reservedPortRangeSettings = Settings.builder()
+            .put(TransportSettings.PORT.getKey(), getPortRange())
+            .put(settings)
+            .build();
         for (int i = 0; i < testNodes.length; i++) {
-            testNodes[i] = new TestNode("node" + i, threadPool, settings);
+            testNodes[i] = new TestNode("node" + i, threadPool, reservedPortRangeSettings);
         }
     }
 
@@ -174,14 +180,15 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             };
             transportService = new TransportService(
                 settings,
-                new MockNioTransport(
+                new Netty4Transport(
                     settings,
                     Version.CURRENT,
                     threadPool,
                     new NetworkService(Collections.emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,
                     new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                    new NoneCircuitBreakerService()
+                    new NoneCircuitBreakerService(),
+                    new SharedGroupFactory(settings)
                 ),
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,

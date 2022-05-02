@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -205,40 +204,6 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 analysisStats = in.readOptionalNamedWriteable(AnalysisStats.class);
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
-            }
-
-            private static List<PhaseProgress> readProgressFromLegacy(DataFrameAnalyticsState state, StreamInput in) throws IOException {
-                Integer legacyProgressPercent = in.readOptionalInt();
-                if (legacyProgressPercent == null) {
-                    return Collections.emptyList();
-                }
-
-                int reindexingProgress = 0;
-                int loadingDataProgress = 0;
-                int analyzingProgress = 0;
-                switch (state) {
-                    case ANALYZING:
-                        reindexingProgress = 100;
-                        loadingDataProgress = 100;
-                        analyzingProgress = legacyProgressPercent;
-                        break;
-                    case REINDEXING:
-                        reindexingProgress = legacyProgressPercent;
-                        break;
-                    case STARTING:
-                    case STARTED:
-                    case STOPPED:
-                    case STOPPING:
-                    default:
-                        return null;
-                }
-
-                return Arrays.asList(
-                    new PhaseProgress("reindexing", reindexingProgress),
-                    new PhaseProgress("loading_data", loadingDataProgress),
-                    new PhaseProgress("analyzing", analyzingProgress),
-                    new PhaseProgress("writing_results", 0)
-                );
             }
 
             public String getId() {

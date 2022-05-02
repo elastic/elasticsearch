@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 
-import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.client.internal.Requests.indexRequest;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;

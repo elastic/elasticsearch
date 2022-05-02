@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;

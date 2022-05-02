@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -79,7 +79,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         ImmutableOpenMap<String, DiscoveryNode> coordinatingNodes = clusterStateResponse.getState().nodes().getCoordinatingOnlyNodes();
         assertEquals(1, coordinatingNodes.size());
 
-        String coordinatingNodeId = coordinatingNodes.valuesIt().next().getId();
+        String coordinatingNodeId = coordinatingNodes.values().iterator().next().getId();
         NodesStatsResponse statsResponse = client.admin().cluster().prepareNodesStats().setAdaptiveSelection(true).get();
         NodeStats nodeStats = statsResponse.getNodesMap().get(coordinatingNodeId);
         assertNotNull(nodeStats);

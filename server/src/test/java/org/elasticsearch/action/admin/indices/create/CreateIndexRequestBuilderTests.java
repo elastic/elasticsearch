@@ -52,11 +52,11 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
 
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> { builder.setSource("{\"" + KEY + "\" : \"" + VALUE + "\"}", XContentType.JSON); }
+            () -> builder.setSource("{ \"%s\": \"%s\" }".formatted(KEY, VALUE), XContentType.JSON)
         );
         assertEquals(String.format(Locale.ROOT, "unknown key [%s] for create index", KEY), e.getMessage());
 
-        builder.setSource("{\"settings\" : {\"" + KEY + "\" : \"" + VALUE + "\"}}", XContentType.JSON);
+        builder.setSource("{ \"settings\": { \"%s\": \"%s\" }}".formatted(KEY, VALUE), XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
         XContentBuilder xContent = XContentFactory.jsonBuilder()

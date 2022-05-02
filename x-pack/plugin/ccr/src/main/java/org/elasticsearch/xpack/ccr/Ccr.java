@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -390,7 +390,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(
             metadata,
             client,
-            ccrLicenseChecker,
             settings,
             ccrSettings.get(),
             clusterService.getClusterApplierService().threadPool()

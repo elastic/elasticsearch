@@ -26,16 +26,11 @@ public class SetSecurityUserProcessorWithSecurityDisabledIT extends ESRestTestCa
         final String index = "index-" + getTestName();
         {
             final Request putPipeline = new Request("PUT", "/_ingest/pipeline/" + pipeline);
-            putPipeline.setJsonEntity(
-                "{"
-                    + " \"description\": \"Test pipeline ("
-                    + getTestName()
-                    + ")\","
-                    + " \"processors\":[{"
-                    + "  \"set_security_user\":{ \"field\": \"user\" }"
-                    + " }]"
-                    + "}"
-            );
+            putPipeline.setJsonEntity("""
+                {
+                  "description": "Test pipeline (%s)",
+                  "processors": [ { "set_security_user": { "field": "user" } } ]
+                }""".formatted(getTestName()));
             final Response response = client().performRequest(putPipeline);
             assertOK(response);
         }

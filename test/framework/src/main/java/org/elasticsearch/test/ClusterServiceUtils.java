@@ -75,7 +75,7 @@ public class ClusterServiceUtils {
 
     public static void setState(MasterService executor, ClusterState clusterState) {
         CountDownLatch latch = new CountDownLatch(1);
-        executor.submitStateUpdateTask("test setting state", new ClusterStateUpdateTask() {
+        executor.submitUnbatchedStateUpdateTask("test setting state", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 // make sure we increment versions as listener may depend on it for change
@@ -83,12 +83,12 @@ public class ClusterServiceUtils {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 latch.countDown();
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 fail("unexpected exception" + e);
             }
         });

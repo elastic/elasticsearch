@@ -36,16 +36,12 @@ public abstract class AbstractBenchmark<T extends Closeable> {
             System.exit(1);
         }
         switch (args[0]) {
-            case "search":
-                runSearchBenchmark(args);
-                break;
-            case "bulk":
-                runBulkIndexBenchmark(args);
-                break;
-            default:
+            case "search" -> runSearchBenchmark(args);
+            case "bulk" -> runBulkIndexBenchmark(args);
+            default -> {
                 System.err.println("Unknown benchmark type [" + args[0] + "]");
                 System.exit(1);
-
+            }
         }
 
     }

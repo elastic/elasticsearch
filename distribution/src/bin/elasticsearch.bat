@@ -102,12 +102,9 @@ SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
 SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
 
 IF "%attemptautoconfig%"=="Y" (
-    ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% ^
-      -Des.path.home="%ES_HOME%" ^
-      -Des.path.conf="%ES_PATH_CONF%" ^
-      -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
-      -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
-      -cp "!ES_CLASSPATH!;!ES_HOME!/lib/tools/security-cli/*;!ES_HOME!/modules/x-pack-core/*;!ES_HOME!/modules/x-pack-security/*" "org.elasticsearch.xpack.security.cli.AutoConfigureNode" !newparams!
+    SET CLI_NAME=auto-configure-node
+    SET CLI_LIBS=modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli
+    ECHO.!KEYSTORE_PASSWORD!|call "%~dp0elasticsearch-cli.bat" !newparams!
     SET SHOULDEXIT=Y
     IF !ERRORLEVEL! EQU 0 SET SHOULDEXIT=N
     IF !ERRORLEVEL! EQU 73 SET SHOULDEXIT=N
@@ -119,20 +116,16 @@ IF "%attemptautoconfig%"=="Y" (
 )
 
 IF "!enrolltocluster!"=="Y" (
-    ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% ^
-      -Des.path.home="%ES_HOME%" ^
-      -Des.path.conf="%ES_PATH_CONF%" ^
-      -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
-      -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
-      -cp "!ES_CLASSPATH!;!ES_HOME!/lib/tools/security-cli/*;!ES_HOME!/modules/x-pack-core/*;!ES_HOME!/modules/x-pack-security/*" "org.elasticsearch.xpack.security.cli.AutoConfigureNode" ^
-      !newparams! --enrollment-token %enrollmenttoken%
+    SET CLI_NAME=auto-configure-node
+    SET CLI_LIBS=modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli
+    ECHO.!KEYSTORE_PASSWORD!|call "%~dp0elasticsearch-cli.bat" !newparams! --enrollment-token %enrollmenttoken%
 	IF !ERRORLEVEL! NEQ 0 (
 	    exit /b !ERRORLEVEL!
 	)
 )
 
 if not defined ES_TMPDIR (
-  for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory"`) do set  ES_TMPDIR=%%a
+  for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!SERVER_CLI_CLASSPATH!" "org.elasticsearch.server.cli.TempDirectory"`) do set  ES_TMPDIR=%%a
 )
 
 rem The JVM options parser produces the final JVM options to start
@@ -145,7 +138,7 @@ rem     jvm.options.d/*.options
 rem   - third, JVM options from ES_JAVA_OPTS are applied
 rem   - fourth, ergonomic JVM options are applied
 @setlocal
-for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.JvmOptionsParser" "!ES_PATH_CONF!" "!ES_HOME!"/plugins ^|^| echo jvm_options_parser_failed`) do set ES_JAVA_OPTS=%%a
+for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!SERVER_CLI_CLASSPATH!" "org.elasticsearch.server.cli.JvmOptionsParser" "!ES_PATH_CONF!" "!ES_HOME!"/plugins ^|^| echo jvm_options_parser_failed`) do set ES_JAVA_OPTS=%%a
 @endlocal & set "MAYBE_JVM_OPTIONS_PARSER_FAILED=%ES_JAVA_OPTS%" & set ES_JAVA_OPTS=%ES_JAVA_OPTS%
 
 if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
@@ -154,9 +147,7 @@ if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
 
 ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% -Delasticsearch ^
   -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" ^
-  -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
   -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
-  -Des.bundled_jdk="%ES_BUNDLED_JDK%" ^
   -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
 
 endlocal

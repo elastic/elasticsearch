@@ -47,7 +47,7 @@ public class PasswordToolsTests extends PackagingTestCase {
         assertWhileRunning(() -> {
             ServerUtils.waitForElasticsearch(installation);
             Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
-            Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
+            Map<String, String> userpasses = parseUsersAndPasswords(result.stdout());
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
                 String response = ServerUtils.makeRequest(
                     Request.Get("http://localhost:9200"),
@@ -115,7 +115,7 @@ public class PasswordToolsTests extends PackagingTestCase {
         assertWhileRunning(() -> {
 
             Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
-            Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
+            Map<String, String> userpasses = parseUsersAndPasswords(result.stdout());
             assertThat(userpasses, hasKey("elastic"));
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
                 String response = ServerUtils.makeRequest(

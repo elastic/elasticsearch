@@ -12,10 +12,10 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -171,11 +171,10 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.index.recovery.timeout] setting was deprecated in Elasticsearch and will be "
-                + "removed in a future release! See the breaking changes documentation for the next major version.",
+                + "removed in a future release.",
             "[xpack.monitoring.collection.index.recovery.active_only] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release! See the breaking changes documentation for the next major version.",
-            "[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version."
+                + "in a future release.",
+            "[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed in a future release."
         );
     }
 
@@ -233,7 +232,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.index.recovery.timeout] setting was deprecated in Elasticsearch and will be "
-                + "removed in a future release! See the breaking changes documentation for the next major version."
+                + "removed in a future release."
         );
     }
 

@@ -67,34 +67,28 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                 return new LocalExec(p.source(), ((LocalRelation) p).executable());
             }
 
-            if (p instanceof Project) {
-                Project pj = (Project) p;
+            if (p instanceof Project pj) {
                 return new ProjectExec(p.source(), map(pj.child()), pj.projections());
             }
 
-            if (p instanceof Filter) {
-                Filter fl = (Filter) p;
+            if (p instanceof Filter fl) {
                 return new FilterExec(p.source(), map(fl.child()), fl.condition());
             }
 
-            if (p instanceof OrderBy) {
-                OrderBy o = (OrderBy) p;
+            if (p instanceof OrderBy o) {
                 return new OrderExec(p.source(), map(o.child()), o.order());
             }
 
-            if (p instanceof Aggregate) {
-                Aggregate a = (Aggregate) p;
+            if (p instanceof Aggregate a) {
                 // analysis and optimizations have converted the grouping into actual attributes
                 return new AggregateExec(p.source(), map(a.child()), a.groupings(), a.aggregates());
             }
 
-            if (p instanceof Pivot) {
-                Pivot pv = (Pivot) p;
+            if (p instanceof Pivot pv) {
                 return new PivotExec(pv.source(), map(pv.child()), pv);
             }
 
-            if (p instanceof EsRelation) {
-                EsRelation c = (EsRelation) p;
+            if (p instanceof EsRelation c) {
                 List<Attribute> output = c.output();
                 QueryContainer container = new QueryContainer();
                 if (c.frozen()) {
@@ -103,8 +97,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                 return new EsQueryExec(p.source(), c.index().name(), output, container);
             }
 
-            if (p instanceof Limit) {
-                Limit l = (Limit) p;
+            if (p instanceof Limit l) {
                 return new LimitExec(p.source(), map(l.child()), l.limit());
             }
             // TODO: Translate With in a subplan

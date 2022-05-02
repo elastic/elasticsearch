@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -102,6 +103,11 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
     }
 
     @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_8_0_0;
+    }
+
+    @Override
     public InferenceConfig apply(InferenceConfig originalConfig) {
         if (originalConfig instanceof FillMaskConfig == false) {
             throw ExceptionsHelper.badRequestException(
@@ -191,6 +197,7 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
             return this;
         }
 
+        @Override
         public FillMaskConfigUpdate build() {
             return new FillMaskConfigUpdate(this.numTopClasses, this.resultsField, this.tokenizationUpdate);
         }

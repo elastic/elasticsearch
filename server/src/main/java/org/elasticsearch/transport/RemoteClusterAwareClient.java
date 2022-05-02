@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.support.AbstractClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,7 +57,7 @@ final class RemoteClusterAwareClient extends AbstractClient {
             } catch (NoSuchRemoteClusterException e) {
                 if (ensureConnected == false) {
                     // trigger another connection attempt, but don't wait for it to complete
-                    remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(() -> {}));
+                    remoteClusterService.ensureConnected(clusterAlias, ActionListener.noop());
                 }
                 throw e;
             }

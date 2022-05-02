@@ -41,6 +41,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.discovery.ec2.AwsEc2Utils.X_AWS_EC_2_METADATA_TOKEN;
+
 public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReloadablePlugin {
 
     private static final Logger logger = LogManager.getLogger(Ec2DiscoveryPlugin.class);
@@ -122,13 +124,14 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         // Adds a node attribute for the ec2 availability zone
         final String azMetadataUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService()
             + "/latest/meta-data/placement/availability-zone";
-        builder.put(getAvailabilityZoneNodeAttributes(settings, azMetadataUrl));
+        String azMetadataTokenUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService() + "/latest/api/token";
+        builder.put(getAvailabilityZoneNodeAttributes(settings, azMetadataUrl, azMetadataTokenUrl));
         return builder.build();
     }
 
     // pkg private for testing
     @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
-    static Settings getAvailabilityZoneNodeAttributes(Settings settings, String azMetadataUrl) {
+    static Settings getAvailabilityZoneNodeAttributes(Settings settings, String azMetadataUrl, String azMetadataTokenUrl) {
         if (AwsEc2Service.AUTO_ATTRIBUTE_SETTING.get(settings) == false) {
             return Settings.EMPTY;
         }
@@ -141,6 +144,8 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
             urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
             urlConnection.setConnectTimeout(2000);
+            AwsEc2Utils.getMetadataToken(azMetadataTokenUrl)
+                .ifPresent(token -> urlConnection.setRequestProperty(X_AWS_EC_2_METADATA_TOKEN, token));
         } catch (final IOException e) {
             // should not happen, we know the url is not malformed, and openConnection does not actually hit network
             throw new UncheckedIOException(e);

@@ -11,10 +11,10 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
 public abstract class AbstractTermsTestCase extends ESIntegTestCase {
@@ -35,7 +35,7 @@ public abstract class AbstractTermsTestCase extends ESIntegTestCase {
         for (String fieldName : fieldNames) {
             SearchResponse allTerms = client().prepareSearch("idx")
                 .addAggregation(
-                    terms("terms").executionHint(randomExecutionHint())
+                    new TermsAggregationBuilder("terms").executionHint(randomExecutionHint())
                         .field(fieldName)
                         .size(10000)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -52,7 +52,7 @@ public abstract class AbstractTermsTestCase extends ESIntegTestCase {
                 for (int shardSize = size; shardSize <= totalNumTerms + 2; shardSize += randomIntBetween(1, 5)) {
                     SearchResponse resp = client().prepareSearch("idx")
                         .addAggregation(
-                            terms("terms").executionHint(randomExecutionHint())
+                            new TermsAggregationBuilder("terms").executionHint(randomExecutionHint())
                                 .field(fieldName)
                                 .size(size)
                                 .shardSize(shardSize)

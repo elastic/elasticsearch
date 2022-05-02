@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentType;
 

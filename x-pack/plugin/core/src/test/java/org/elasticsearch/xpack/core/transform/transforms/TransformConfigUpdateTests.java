@@ -31,6 +31,8 @@ import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigT
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomSyncConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomTransformConfig;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransformConfigUpdateTests extends AbstractWireSerializingTransformTestCase<TransformConfigUpdate> {
 
@@ -43,7 +45,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : randomMetadata(),
-            randomBoolean() ? null : randomRetentionPolicyConfig()
+            randomBoolean() ? null : randomBoolean() ? randomRetentionPolicyConfig() : NullRetentionPolicyConfig.INSTANCE
         );
     }
 
@@ -113,7 +115,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         TimeValue frequency = TimeValue.timeValueSeconds(10);
         SyncConfig syncConfig = new TimeSyncConfig("time_field", TimeValue.timeValueSeconds(30));
         String newDescription = "new description";
-        SettingsConfig settings = new SettingsConfig(4_000, 4_000.400F, true, true, true);
+        SettingsConfig settings = new SettingsConfig(4_000, 4_000.400F, true, true, true, true);
         Map<String, Object> newMetadata = randomMetadata();
         RetentionPolicyConfig retentionPolicyConfig = new TimeRetentionPolicyConfig("time_field", new TimeValue(60_000));
         update = new TransformConfigUpdate(
@@ -144,6 +146,40 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertThat(updatedConfig.getVersion(), equalTo(Version.CURRENT));
     }
 
+    public void testApplyRetentionPolicy() {
+        TransformConfig config = TransformConfigTests.randomTransformConfig();
+
+        RetentionPolicyConfig timeRetentionPolicyConfig = new TimeRetentionPolicyConfig("field", TimeValue.timeValueDays(1));
+        TransformConfigUpdate setRetentionPolicy = new TransformConfigUpdate(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            timeRetentionPolicyConfig
+        );
+        config = setRetentionPolicy.apply(config);
+        assertThat(config.getRetentionPolicyConfig(), is(equalTo(timeRetentionPolicyConfig)));
+
+        TransformConfigUpdate clearRetentionPolicy = new TransformConfigUpdate(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            NullRetentionPolicyConfig.INSTANCE
+        );
+        config = clearRetentionPolicy.apply(config);
+        assertThat(config.getRetentionPolicyConfig(), is(nullValue()));
+
+        config = setRetentionPolicy.apply(config);
+        assertThat(config.getRetentionPolicyConfig(), is(equalTo(timeRetentionPolicyConfig)));
+    }
+
     public void testApplySettings() {
         TransformConfig config = new TransformConfig(
             "time-transform",
@@ -168,7 +204,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             null,
             null,
-            new SettingsConfig(4_000, null, (Boolean) null, null, null),
+            new SettingsConfig(4_000, null, (Boolean) null, null, null, null),
             null,
             null
         );
@@ -187,7 +223,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             null,
             null,
-            new SettingsConfig(null, 43.244F, (Boolean) null, null, null),
+            new SettingsConfig(null, 43.244F, (Boolean) null, null, null, null),
             null,
             null
         );
@@ -204,7 +240,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             null,
             null,
-            new SettingsConfig(-1, null, (Boolean) null, null, null),
+            new SettingsConfig(-1, null, (Boolean) null, null, null, null),
             null,
             null
         );
@@ -220,7 +256,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             null,
             null,
-            new SettingsConfig(-1, -1F, (Boolean) null, null, null),
+            new SettingsConfig(-1, -1F, (Boolean) null, null, null, null),
             null,
             null
         );
@@ -354,9 +390,13 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             builder.field(TransformField.METADATA.getPreferredName(), update.getMetadata());
         }
         if (update.getRetentionPolicyConfig() != null) {
-            builder.startObject(TransformField.RETENTION_POLICY.getPreferredName());
-            builder.field(update.getRetentionPolicyConfig().getWriteableName(), update.getRetentionPolicyConfig());
-            builder.endObject();
+            if (NullRetentionPolicyConfig.INSTANCE.equals(update.getRetentionPolicyConfig())) {
+                builder.nullField(TransformField.RETENTION_POLICY.getPreferredName());
+            } else {
+                builder.startObject(TransformField.RETENTION_POLICY.getPreferredName());
+                builder.field(update.getRetentionPolicyConfig().getWriteableName(), update.getRetentionPolicyConfig());
+                builder.endObject();
+            }
         }
 
         builder.endObject();

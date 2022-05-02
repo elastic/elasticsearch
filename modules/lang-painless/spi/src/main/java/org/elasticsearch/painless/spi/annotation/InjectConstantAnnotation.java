@@ -16,9 +16,8 @@ import java.util.List;
  * Format: {@code inject_constant["1=foo_compiler_setting", 2="bar_compiler_setting"]} injects "foo_compiler_setting and
  * "bar_compiler_setting" as the first two arguments (other than receiver reference for instance methods) to the annotated method.
  */
-public class InjectConstantAnnotation {
+public record InjectConstantAnnotation(List<String> injects) {
     public static final String NAME = "inject_constant";
-    public final List<String> injects;
 
     public InjectConstantAnnotation(List<String> injects) {
         this.injects = Collections.unmodifiableList(injects);

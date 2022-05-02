@@ -18,7 +18,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -441,7 +441,7 @@ public class TransformIndexerTests extends ESTestCase {
         TransformContext context
     ) {
         CheckpointProvider checkpointProvider = new MockTimebasedCheckpointProvider(config);
-        transformConfigManager.putTransformConfiguration(config, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putTransformConfiguration(config, ActionListener.noop());
         TransformServices transformServices = new TransformServices(
             transformConfigManager,
             mock(TransformCheckpointService.class),

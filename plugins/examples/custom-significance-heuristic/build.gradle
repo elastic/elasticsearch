@@ -15,3 +15,7 @@ esplugin {
   licenseFile rootProject.file('SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
+
+dependencies {
+  yamlRestTestRuntimeOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+}

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -122,7 +122,7 @@ public class ExportersTests extends ESTestCase {
         assertThat(e.getCause(), hasToString(containsString("host list for [" + prefix + ".host] is empty")));
         assertWarnings(
             "[xpack.monitoring.exporters.example.type] setting was deprecated in Elasticsearch and will be removed in a "
-                + "future release! See the breaking changes documentation for the next major version."
+                + "future release."
         );
     }
 
@@ -140,7 +140,7 @@ public class ExportersTests extends ESTestCase {
         assertThat(e.getCause(), hasToString(containsString("Unknown pattern letter: j")));
         assertWarnings(
             "[xpack.monitoring.exporters.example.index.name.time_format] setting was deprecated in Elasticsearch and will "
-                + "be removed in a future release! See the breaking changes documentation for the next major version."
+                + "be removed in a future release."
         );
     }
 
@@ -198,7 +198,7 @@ public class ExportersTests extends ESTestCase {
 
         assertWarnings(
             "[xpack.monitoring.exporters._name.enabled] setting was deprecated in Elasticsearch and will be removed in a "
-                + "future release! See the breaking changes documentation for the next major version."
+                + "future release."
         );
     }
 
@@ -294,14 +294,12 @@ public class ExportersTests extends ESTestCase {
         assertEquals(settings.get("xpack.monitoring.exporters._name1.cluster_alerts.management.blacklist"), "false");
 
         assertWarnings(
-            "[xpack.monitoring.exporters._name1.type] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version.",
-            "[xpack.monitoring.exporters._name0.type] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters._name1.type] setting was deprecated in Elasticsearch and will be removed in a future release.",
+            "[xpack.monitoring.exporters._name0.type] setting was deprecated in Elasticsearch and will be removed in a future release.",
             "[xpack.monitoring.exporters._name0.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch and will "
-                + "be removed in a future release! See the breaking changes documentation for the next major version.",
+                + "be removed in a future release.",
             "[xpack.monitoring.exporters._name1.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch and will "
-                + "be removed in a future release! See the breaking changes documentation for the next major version."
+                + "be removed in a future release."
         );
     }
 
@@ -348,7 +346,7 @@ public class ExportersTests extends ESTestCase {
 
         assertWarnings(
             "[xpack.monitoring.exporters.explicitly_disabled.enabled] setting was deprecated in Elasticsearch and will be "
-                + "removed in a future release! See the breaking changes documentation for the next major version."
+                + "removed in a future release."
         );
     }
 

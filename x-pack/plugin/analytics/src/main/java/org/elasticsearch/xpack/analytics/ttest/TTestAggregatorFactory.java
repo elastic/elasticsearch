@@ -59,16 +59,21 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        switch (testType) {
-            case PAIRED:
-                return new PairedTTestAggregator(name, null, tails, format, context, parent, metadata);
-            case HOMOSCEDASTIC:
-                return new UnpairedTTestAggregator(name, null, tails, true, this::getWeights, format, context, parent, metadata);
-            case HETEROSCEDASTIC:
-                return new UnpairedTTestAggregator(name, null, tails, false, this::getWeights, format, context, parent, metadata);
-            default:
-                throw new IllegalArgumentException("Unsupported t-test type " + testType);
-        }
+        return switch (testType) {
+            case PAIRED -> new PairedTTestAggregator(name, null, tails, format, context, parent, metadata);
+            case HOMOSCEDASTIC -> new UnpairedTTestAggregator(name, null, tails, true, this::getWeights, format, context, parent, metadata);
+            case HETEROSCEDASTIC -> new UnpairedTTestAggregator(
+                name,
+                null,
+                tails,
+                false,
+                this::getWeights,
+                format,
+                context,
+                parent,
+                metadata
+            );
+        };
     }
 
     @Override

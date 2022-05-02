@@ -23,10 +23,11 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -142,7 +143,10 @@ public class Reindexer {
         }).setHttpClientConfigCallback(c -> {
             // Enable basic auth if it is configured
             if (remoteInfo.getUsername() != null) {
-                UsernamePasswordCredentials creds = new UsernamePasswordCredentials(remoteInfo.getUsername(), remoteInfo.getPassword());
+                UsernamePasswordCredentials creds = new UsernamePasswordCredentials(
+                    remoteInfo.getUsername(),
+                    remoteInfo.getPassword().toString()
+                );
                 CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
                 credentialsProvider.setCredentials(AuthScope.ANY, creds);
                 c.setDefaultCredentialsProvider(credentialsProvider);
@@ -213,7 +217,7 @@ public class Reindexer {
         }
 
         @Override
-        protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
+        protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
@@ -227,11 +231,11 @@ public class Reindexer {
                     this::onScrollResponse,
                     this::finishHim,
                     restClient,
-                    remoteInfo.getQuery(),
-                    mainRequest.getSearchRequest()
+                    remoteInfo,
+                    searchRequest
                 );
             }
-            return super.buildScrollableResultSource(backoffPolicy);
+            return super.buildScrollableResultSource(backoffPolicy, searchRequest);
         }
 
         @Override
@@ -335,14 +339,9 @@ public class Reindexer {
                 return;
             }
             switch (routingSpec) {
-                case "keep":
-                    super.copyRouting(request, routing);
-                    break;
-                case "discard":
-                    super.copyRouting(request, null);
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unsupported routing command");
+                case "keep" -> super.copyRouting(request, routing);
+                case "discard" -> super.copyRouting(request, null);
+                default -> throw new IllegalArgumentException("Unsupported routing command");
             }
         }
 

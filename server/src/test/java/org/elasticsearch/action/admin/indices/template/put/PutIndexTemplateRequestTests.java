@@ -88,7 +88,8 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
         {
             request1 = new PutIndexTemplateRequest("foo");
             request2 = new PutIndexTemplateRequest("bar");
-            String nakedMapping = "{\"properties\": {\"foo\": {\"type\": \"integer\"}}}";
+            String nakedMapping = """
+                {"properties": {"foo": {"type": "integer"}}}""";
             request1.mapping(nakedMapping, XContentType.JSON);
             request2.mapping("{\"_doc\": " + nakedMapping + "}", XContentType.JSON);
             assertEquals(request1.mappings(), request2.mappings());

@@ -434,11 +434,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         AtomicBoolean updateSent = new AtomicBoolean(false);
         Runnable updateMappings = () -> {
             if (updateSent.compareAndSet(false, true)) {
-                leaderClient().admin()
-                    .indices()
-                    .preparePutMapping(leaderIndex)
-                    .setSource("{\"properties\":{\"k\":{\"type\":\"long\"}}}", XContentType.JSON)
-                    .execute(ActionListener.wrap(latch::countDown));
+                leaderClient().admin().indices().preparePutMapping(leaderIndex).setSource("""
+                    {"properties":{"k":{"type":"long"}}}""", XContentType.JSON).execute(ActionListener.wrap(latch::countDown));
             }
             try {
                 latch.await();
@@ -622,8 +619,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             final MockTransportService mockTransportService = (MockTransportService) transportService;
             transportServices.add(mockTransportService);
             mockTransportService.addRequestHandlingBehavior(IndicesStatsAction.NAME, (handler, request, channel, task) -> {
-                if (request instanceof IndicesStatsRequest) {
-                    IndicesStatsRequest indicesStatsRequest = (IndicesStatsRequest) request;
+                if (request instanceof IndicesStatsRequest indicesStatsRequest) {
                     if (Arrays.equals(indicesStatsRequest.indices(), new String[] { leaderIndex })
                         && indicesStatsRequest.store()
                         && indicesStatsRequest.search() == false

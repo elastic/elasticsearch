@@ -8,10 +8,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -20,6 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ObjectMapperTests extends MapperServiceTestCase {
 
@@ -27,29 +30,22 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         DocumentMapper defaultMapper = createDocumentMapper(mapping(b -> {}));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> defaultMapper.parse(
-                new SourceToParse(
-                    "1",
-                    new BytesArray(
-                        " {\n"
-                            + "      \"object\": {\n"
-                            + "        \"array\":[\n"
-                            + "        {\n"
-                            + "          \"object\": { \"value\": \"value\" }\n"
-                            + "        },\n"
-                            + "        {\n"
-                            + "          \"object\":\"value\"\n"
-                            + "        }\n"
-                            + "        ]\n"
-                            + "      },\n"
-                            + "      \"value\":\"value\"\n"
-                            + "    }"
-                    ),
-                    XContentType.JSON
-                )
-            )
+            () -> defaultMapper.parse(new SourceToParse("1", new BytesArray("""
+                {
+                     "object": {
+                       "array":[
+                       {
+                         "object": { "value": "value" }
+                       },
+                       {
+                         "object":"value"
+                       }
+                       ]
+                     },
+                     "value":"value"
+                   }""".indent(1)), XContentType.JSON))
         );
-        assertTrue(e.getMessage(), e.getMessage().contains("cannot be changed from type"));
+        assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.array.object] with an object mapping"));
     }
 
     public void testEmptyArrayProperties() throws Exception {
@@ -329,5 +325,25 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         // Empty name not allowed in index created after 5.0
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    public void testUnknownLegacyFields() throws Exception {
+        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+            b.startObject("name");
+            b.field("type", "unknown");
+            b.field("unknown_setting", 5);
+            b.endObject();
+        }));
+        assertThat(service.fieldType("name"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+    }
+
+    public void testUnmappedLegacyFields() throws Exception {
+        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.field("unknown_setting", 5);
+            b.endObject();
+        }));
+        assertThat(service.fieldType("name"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
     }
 }

@@ -11,7 +11,7 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * Java API support for changing the throttle on reindex tasks while they are running.

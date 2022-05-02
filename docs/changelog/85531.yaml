@@ -1,0 +1,6 @@
+pr: 85531
+summary: Fix SQLCompatIT.testCursorFromOldNodeFailsOnNewNode
+area: SQL
+type: bug
+issues:
+ - 85520

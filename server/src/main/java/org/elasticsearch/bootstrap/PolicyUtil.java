@@ -8,9 +8,9 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.script.ClassPermission;
 
@@ -357,9 +357,9 @@ public class PolicyUtil {
         if (info == null) {
             return;
         }
-        validatePolicyPermissionsForJar(type, info.file, null, info.policy, allowedPermissions, tmpDir);
-        for (URL jar : info.jars) {
-            validatePolicyPermissionsForJar(type, info.file, jar, info.policy, allowedPermissions, tmpDir);
+        validatePolicyPermissionsForJar(type, info.file(), null, info.policy(), allowedPermissions, tmpDir);
+        for (URL jar : info.jars()) {
+            validatePolicyPermissionsForJar(type, info.file(), jar, info.policy(), allowedPermissions, tmpDir);
         }
     }
 

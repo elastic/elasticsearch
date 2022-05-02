@@ -13,7 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -184,8 +184,8 @@ public class InferenceProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) {
-        throw new UnsupportedOperationException("should never be called");
+    public boolean isAsync() {
+        return true;
     }
 
     @Override

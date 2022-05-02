@@ -71,16 +71,12 @@ public class JsonVsSmileTests extends ESTestCase {
             }
             assertThat(token1, equalTo(token2));
             switch (token1) {
-                case FIELD_NAME:
-                    assertThat(parser1.currentName(), equalTo(parser2.currentName()));
-                    break;
-                case VALUE_STRING:
-                    assertThat(parser1.text(), equalTo(parser2.text()));
-                    break;
-                case VALUE_NUMBER:
+                case FIELD_NAME -> assertThat(parser1.currentName(), equalTo(parser2.currentName()));
+                case VALUE_STRING -> assertThat(parser1.text(), equalTo(parser2.text()));
+                case VALUE_NUMBER -> {
                     assertThat(parser1.numberType(), equalTo(parser2.numberType()));
                     assertThat(parser1.numberValue(), equalTo(parser2.numberValue()));
-                    break;
+                }
             }
         }
     }

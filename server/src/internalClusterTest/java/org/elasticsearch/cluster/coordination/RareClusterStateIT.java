@@ -80,7 +80,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         final String masterName = internalCluster().getMasterName();
         final ClusterService clusterService = internalCluster().clusterService(masterName);
         final AllocationService allocationService = internalCluster().getInstance(AllocationService.class, masterName);
-        clusterService.submitStateUpdateTask("test-inject-node-and-reroute", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("test-inject-node-and-reroute", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // inject a node
@@ -107,11 +107,11 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {}
+            public void onFailure(Exception e) {}
         });
         ensureGreen(index);
         // remove the extra node
-        clusterService.submitStateUpdateTask("test-remove-injected-node", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("test-remove-injected-node", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 ClusterState.Builder builder = ClusterState.builder(currentState);
@@ -122,7 +122,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {}
+            public void onFailure(Exception e) {}
         });
     }
 

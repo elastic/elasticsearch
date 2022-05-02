@@ -142,19 +142,12 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
                     assertEquals("different meta data version", state.metadata().version(), nodeState.metadata().version());
                     assertEquals("different routing", state.routingTable().toString(), nodeState.routingTable().toString());
                 } catch (AssertionError t) {
-                    fail(
-                        "failed comparing cluster state: "
-                            + t.getMessage()
-                            + "\n"
-                            + "--- cluster state of node ["
-                            + nodes.get(0)
-                            + "]: ---\n"
-                            + state
-                            + "\n--- cluster state ["
-                            + node
-                            + "]: ---\n"
-                            + nodeState
-                    );
+                    fail("""
+                        failed comparing cluster state: %s
+                        --- cluster state of node [%s]: ---
+                        %s
+                        --- cluster state [%s]: ---
+                        %s""".formatted(t.getMessage(), nodes.get(0), state, node, nodeState));
                 }
 
             }
@@ -209,12 +202,9 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
                 success = false;
             }
             if (success == false) {
-                fail(
-                    "node ["
-                        + node
-                        + "] has no master or has blocks, despite of being on the right side of the partition. State dump:\n"
-                        + nodeState
-                );
+                fail("""
+                    node [%s] has no master or has blocks, despite of being on the right side of the partition. State dump:
+                    %s""".formatted(node, nodeState));
             }
         }
 

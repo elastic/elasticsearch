@@ -162,43 +162,44 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"span_not\" : {\n"
-            + "    \"include\" : {\n"
-            + "      \"span_term\" : {\n"
-            + "        \"field1\" : {\n"
-            + "          \"value\" : \"hoya\",\n"
-            + "          \"boost\" : 1.0\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"exclude\" : {\n"
-            + "      \"span_near\" : {\n"
-            + "        \"clauses\" : [ {\n"
-            + "          \"span_term\" : {\n"
-            + "            \"field1\" : {\n"
-            + "              \"value\" : \"la\",\n"
-            + "              \"boost\" : 1.0\n"
-            + "            }\n"
-            + "          }\n"
-            + "        }, {\n"
-            + "          \"span_term\" : {\n"
-            + "            \"field1\" : {\n"
-            + "              \"value\" : \"hoya\",\n"
-            + "              \"boost\" : 1.0\n"
-            + "            }\n"
-            + "          }\n"
-            + "        } ],\n"
-            + "        \"slop\" : 0,\n"
-            + "        \"in_order\" : true,\n"
-            + "        \"boost\" : 1.0\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"pre\" : 0,\n"
-            + "    \"post\" : 0,\n"
-            + "    \"boost\" : 2.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "span_not" : {
+                "include" : {
+                  "span_term" : {
+                    "field1" : {
+                      "value" : "hoya",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "exclude" : {
+                  "span_near" : {
+                    "clauses" : [ {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "la",
+                          "boost" : 1.0
+                        }
+                      }
+                    }, {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "hoya",
+                          "boost" : 1.0
+                        }
+                      }
+                    } ],
+                    "slop" : 0,
+                    "in_order" : true,
+                    "boost" : 1.0
+                  }
+                },
+                "pre" : 0,
+                "post" : 0,
+                "boost" : 2.0
+              }
+            }""";
 
         SpanNotQueryBuilder parsed = (SpanNotQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
@@ -209,86 +210,88 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
     }
 
     public void testFromJsonWithNonDefaultBoostInIncludeQuery() {
-        String json = "{\n"
-            + "  \"span_not\" : {\n"
-            + "    \"exclude\" : {\n"
-            + "      \"span_term\" : {\n"
-            + "        \"field1\" : {\n"
-            + "          \"value\" : \"hoya\",\n"
-            + "          \"boost\" : 1.0\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"include\" : {\n"
-            + "      \"span_near\" : {\n"
-            + "        \"clauses\" : [ {\n"
-            + "          \"span_term\" : {\n"
-            + "            \"field1\" : {\n"
-            + "              \"value\" : \"la\",\n"
-            + "              \"boost\" : 1.0\n"
-            + "            }\n"
-            + "          }\n"
-            + "        }, {\n"
-            + "          \"span_term\" : {\n"
-            + "            \"field1\" : {\n"
-            + "              \"value\" : \"hoya\",\n"
-            + "              \"boost\" : 1.0\n"
-            + "            }\n"
-            + "          }\n"
-            + "        } ],\n"
-            + "        \"slop\" : 0,\n"
-            + "        \"in_order\" : true,\n"
-            + "        \"boost\" : 2.0\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"pre\" : 0,\n"
-            + "    \"post\" : 0,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "span_not" : {
+                "exclude" : {
+                  "span_term" : {
+                    "field1" : {
+                      "value" : "hoya",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "include" : {
+                  "span_near" : {
+                    "clauses" : [ {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "la",
+                          "boost" : 1.0
+                        }
+                      }
+                    }, {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "hoya",
+                          "boost" : 1.0
+                        }
+                      }
+                    } ],
+                    "slop" : 0,
+                    "in_order" : true,
+                    "boost" : 2.0
+                  }
+                },
+                "pre" : 0,
+                "post" : 0,
+                "boost" : 1.0
+              }
+            }""";
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(exception.getMessage(), equalTo("span_not [include] as a nested span clause can't have non-default boost value [2.0]"));
     }
 
     public void testFromJsonWithNonDefaultBoostInExcludeQuery() {
-        String json = "{\n"
-            + "  \"span_not\" : {\n"
-            + "    \"include\" : {\n"
-            + "      \"span_term\" : {\n"
-            + "        \"field1\" : {\n"
-            + "          \"value\" : \"hoya\",\n"
-            + "          \"boost\" : 1.0\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"exclude\" : {\n"
-            + "      \"span_near\" : {\n"
-            + "        \"clauses\" : [ {\n"
-            + "          \"span_term\" : {\n"
-            + "            \"field1\" : {\n"
-            + "              \"value\" : \"la\",\n"
-            + "              \"boost\" : 1.0\n"
-            + "            }\n"
-            + "          }\n"
-            + "        }, {\n"
-            + "          \"span_term\" : {\n"
-            + "            \"field1\" : {\n"
-            + "              \"value\" : \"hoya\",\n"
-            + "              \"boost\" : 1.0\n"
-            + "            }\n"
-            + "          }\n"
-            + "        } ],\n"
-            + "        \"slop\" : 0,\n"
-            + "        \"in_order\" : true,\n"
-            + "        \"boost\" : 2.0\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"pre\" : 0,\n"
-            + "    \"post\" : 0,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "span_not" : {
+                "include" : {
+                  "span_term" : {
+                    "field1" : {
+                      "value" : "hoya",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "exclude" : {
+                  "span_near" : {
+                    "clauses" : [ {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "la",
+                          "boost" : 1.0
+                        }
+                      }
+                    }, {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "hoya",
+                          "boost" : 1.0
+                        }
+                      }
+                    } ],
+                    "slop" : 0,
+                    "in_order" : true,
+                    "boost" : 2.0
+                  }
+                },
+                "pre" : 0,
+                "post" : 0,
+                "boost" : 1.0
+              }
+            }""";
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(exception.getMessage(), equalTo("span_not [exclude] as a nested span clause can't have non-default boost value [2.0]"));

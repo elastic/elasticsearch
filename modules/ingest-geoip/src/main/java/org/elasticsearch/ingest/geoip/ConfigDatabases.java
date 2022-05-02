@@ -59,7 +59,7 @@ final class ConfigDatabases implements Closeable {
         watcher.addListener(new GeoipDirectoryListener());
         resourceWatcher.add(watcher, ResourceWatcherService.Frequency.HIGH);
 
-        LOGGER.info("initialized config databases [{}] and watching [{}] for changes", configDatabases.keySet(), geoipConfigDir);
+        LOGGER.debug("initialized config databases [{}] and watching [{}] for changes", configDatabases.keySet(), geoipConfigDir);
     }
 
     DatabaseReaderLazyLoader getDatabase(String name) {

@@ -8,12 +8,10 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import com.carrotsearch.hppc.cursors.ObjectLongCursor;
-
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.rest.RestRequest;
@@ -80,14 +78,14 @@ public class RestFielddataAction extends AbstractCatAction {
 
         for (NodeStats nodeStats : nodeStatses.getNodes()) {
             if (nodeStats.getIndices().getFieldData().getFields() != null) {
-                for (ObjectLongCursor<String> cursor : nodeStats.getIndices().getFieldData().getFields()) {
+                for (var field : nodeStats.getIndices().getFieldData().getFields()) {
                     table.startRow();
                     table.addCell(nodeStats.getNode().getId());
                     table.addCell(nodeStats.getNode().getHostName());
                     table.addCell(nodeStats.getNode().getHostAddress());
                     table.addCell(nodeStats.getNode().getName());
-                    table.addCell(cursor.key);
-                    table.addCell(new ByteSizeValue(cursor.value));
+                    table.addCell(field.getKey());
+                    table.addCell(new ByteSizeValue(field.getValue()));
                     table.endRow();
                 }
             }

@@ -148,7 +148,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             final ClusterState state,
             final ActionListener<UpdateInternalOrPrivateAction.Response> listener
         ) throws Exception {
-            clusterService.submitStateUpdateTask("update-index-internal-or-private", new ClusterStateUpdateTask() {
+            clusterService.submitUnbatchedStateUpdateTask("update-index-internal-or-private", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(final ClusterState currentState) throws Exception {
                     final Metadata.Builder builder = Metadata.builder(currentState.metadata());
@@ -163,12 +163,12 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                 }
 
                 @Override
-                public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
+                public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
                     listener.onResponse(new UpdateInternalOrPrivateAction.Response());
                 }
 
                 @Override
-                public void onFailure(final String source, final Exception e) {
+                public void onFailure(final Exception e) {
                     listener.onFailure(e);
                 }
 

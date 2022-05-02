@@ -58,22 +58,15 @@ enum GrokCaptureType {
     abstract <T> T nativeExtracter(int[] backRefs, NativeExtracterMap<T> map);
 
     static GrokCaptureType fromString(String str) {
-        switch (str) {
-            case "string":
-                return STRING;
-            case "int":
-                return INTEGER;
-            case "long":
-                return LONG;
-            case "float":
-                return FLOAT;
-            case "double":
-                return DOUBLE;
-            case "boolean":
-                return BOOLEAN;
-            default:
-                return STRING;
-        }
+        return switch (str) {
+            case "string" -> STRING;
+            case "int" -> INTEGER;
+            case "long" -> LONG;
+            case "float" -> FLOAT;
+            case "double" -> DOUBLE;
+            case "boolean" -> BOOLEAN;
+            default -> STRING;
+        };
     }
 
     protected final GrokCaptureExtracter rawExtracter(int[] backRefs, Consumer<? super String> emit) {

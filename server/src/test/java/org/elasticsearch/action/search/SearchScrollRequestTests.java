@@ -96,7 +96,8 @@ public class SearchScrollRequestTests extends ESTestCase {
         searchScrollRequest.scroll("1m");
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             searchScrollRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertEquals("{\"scroll_id\":\"SCROLL_ID\",\"scroll\":\"1m\"}", Strings.toString(builder));
+            assertEquals("""
+                {"scroll_id":"SCROLL_ID","scroll":"1m"}""", Strings.toString(builder));
         }
     }
 

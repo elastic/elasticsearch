@@ -168,14 +168,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         Settings settings
     ) {
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        switch (mode) {
-            case SNIFF:
-                return new SniffConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
-            case PROXY:
-                return new ProxyConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
-            default:
-                throw new AssertionError("Invalid connection strategy" + mode);
-        }
+        return switch (mode) {
+            case SNIFF -> new SniffConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
+            case PROXY -> new ProxyConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
+        };
     }
 
     static Set<String> getRemoteClusters(Settings settings) {
@@ -396,7 +392,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         return result;
     }
 
-    private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
+    private static boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
         return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
             || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false
             || Objects.equals(oldProfile.getCompressionScheme(), newProfile.getCompressionScheme()) == false;
@@ -431,15 +427,14 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             ConnectionStrategy modeType = (ConnectionStrategy) settings.get(concrete);
             if (isPresent && modeType.equals(expectedStrategy) == false) {
                 throw new IllegalArgumentException(
-                    "Setting \""
-                        + key
-                        + "\" cannot be used with the configured \""
-                        + concrete.getKey()
-                        + "\" [required="
-                        + expectedStrategy.name()
-                        + ", configured="
-                        + modeType.name()
-                        + "]"
+                    String.format(
+                        Locale.ROOT,
+                        "Setting \"%s\" cannot be used with the configured \"%s\" [required=%s, configured=%s]",
+                        key,
+                        concrete.getKey(),
+                        expectedStrategy.name(),
+                        modeType.name()
+                    )
                 );
             }
         }

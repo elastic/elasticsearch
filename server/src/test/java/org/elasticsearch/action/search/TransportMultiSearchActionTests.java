@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -169,7 +169,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                     counter.decrementAndGet();
                     listener.onResponse(
                         new SearchResponse(
-                            InternalSearchResponse.empty(),
+                            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                             null,
                             0,
                             0,

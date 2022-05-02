@@ -13,9 +13,9 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -70,7 +70,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release! See the breaking changes documentation for the next major version."
+                + "in a future release."
         );
     }
 
@@ -128,7 +128,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release! See the breaking changes documentation for the next major version."
+                + "in a future release."
         );
     }
 
@@ -162,7 +162,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release! See the breaking changes documentation for the next major version."
+                + "in a future release."
         );
     }
 

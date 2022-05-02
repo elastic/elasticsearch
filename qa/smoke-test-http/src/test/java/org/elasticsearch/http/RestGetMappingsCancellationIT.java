@@ -96,8 +96,8 @@ public class RestGetMappingsCancellationIT extends HttpSmokeTestCase {
         };
 
         PlainActionFuture<AcknowledgedResponse> future = PlainActionFuture.newFuture();
-        internalCluster().getMasterNodeInstance(ClusterService.class)
-            .submitStateUpdateTask("get_mappings_cancellation_test", new AckedClusterStateUpdateTask(ackedRequest, future) {
+        internalCluster().getAnyMasterNodeInstance(ClusterService.class)
+            .submitUnbatchedStateUpdateTask("get_mappings_cancellation_test", new AckedClusterStateUpdateTask(ackedRequest, future) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     return transformationFn.apply(currentState);

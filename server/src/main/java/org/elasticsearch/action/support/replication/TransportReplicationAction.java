@@ -22,7 +22,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.client.transport.NoNodeAvailableException;
+import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -313,13 +313,13 @@ public abstract class TransportReplicationAction<
         return null;
     }
 
-    protected boolean retryPrimaryException(final Throwable e) {
+    protected static boolean retryPrimaryException(final Throwable e) {
         return e.getClass() == ReplicationOperation.RetryOnPrimaryException.class
             || TransportActions.isShardNotAvailableException(e)
             || isRetryableClusterBlockException(e);
     }
 
-    boolean isRetryableClusterBlockException(final Throwable e) {
+    static boolean isRetryableClusterBlockException(final Throwable e) {
         if (e instanceof ClusterBlockException) {
             return ((ClusterBlockException) e).retryable();
         }

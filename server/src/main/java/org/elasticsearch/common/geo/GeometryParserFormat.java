@@ -80,14 +80,11 @@ public enum GeometryParserFormat {
      * This method automatically recognizes the format by examining the provided {@link XContentParser}.
      */
     public static GeometryParserFormat geometryFormat(XContentParser parser) {
-        switch (parser.currentToken()) {
-            case START_OBJECT:
-            case VALUE_NULL: // We don't know the format of the original geometry - so going with default
-                return GEOJSON;
-            case VALUE_STRING:
-                return WKT;
-            default:
-                throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
-        }
+        return switch (parser.currentToken()) {
+            // We don't know the format of the original geometry - so going with default
+            case START_OBJECT, VALUE_NULL -> GEOJSON;
+            case VALUE_STRING -> WKT;
+            default -> throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
+        };
     }
 }

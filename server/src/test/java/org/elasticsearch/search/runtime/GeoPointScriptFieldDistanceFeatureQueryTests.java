@@ -9,14 +9,14 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.geo.GeoTestUtil;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.geo.GeoTestUtil;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -64,23 +64,12 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
         double lon = orig.lon();
         double pivot = orig.pivot();
         switch (randomInt(4)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
-                lat = randomValueOtherThan(lat, GeoTestUtil::nextLatitude);
-                break;
-            case 3:
-                lon = randomValueOtherThan(lon, GeoTestUtil::nextLongitude);
-                break;
-            case 4:
-                pivot = randomValueOtherThan(pivot, () -> randomDouble() * GeoUtils.EARTH_EQUATOR);
-                break;
-            default:
-                fail();
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> lat = randomValueOtherThan(lat, GeoTestUtil::nextLatitude);
+            case 3 -> lon = randomValueOtherThan(lon, GeoTestUtil::nextLongitude);
+            case 4 -> pivot = randomValueOtherThan(pivot, () -> randomDouble() * GeoUtils.EARTH_EQUATOR);
+            default -> fail();
         }
         return new GeoPointScriptFieldDistanceFeatureQuery(script, leafFactory, fieldName, lat, lon, pivot);
     }
@@ -99,11 +88,9 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
                     searchLookup,
                     ctx
                 ) {
-                    final GeoPoint point = new GeoPoint();
-
                     @Override
                     public void execute() {
-                        GeoUtils.parseGeoPoint(searchLookup.source().get("location"), point, true);
+                        GeoPoint point = GeoUtils.parseGeoPoint(searchLookup.source().get("location"), true);
                         emit(point.lat(), point.lon());
                     }
                 };

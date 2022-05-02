@@ -13,8 +13,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -24,9 +24,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.client.Requests.refreshRequest;
-import static org.elasticsearch.client.Requests.searchRequest;
+import static org.elasticsearch.client.internal.Requests.clusterHealthRequest;
+import static org.elasticsearch.client.internal.Requests.refreshRequest;
+import static org.elasticsearch.client.internal.Requests.searchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;

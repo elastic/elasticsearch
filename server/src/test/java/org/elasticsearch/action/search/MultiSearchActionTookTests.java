@@ -10,7 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -122,7 +122,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
-            null,
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
             null,
@@ -152,7 +152,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
                     counter.decrementAndGet();
                     listener.onResponse(
                         new SearchResponse(
-                            InternalSearchResponse.empty(),
+                            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                             null,
                             0,
                             0,

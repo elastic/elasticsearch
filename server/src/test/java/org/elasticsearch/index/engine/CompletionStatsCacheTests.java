@@ -8,7 +8,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene90.Lucene90Codec;
+import org.apache.lucene.codecs.lucene91.Lucene91Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -19,7 +19,7 @@ import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 
@@ -46,7 +46,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
     public void testCompletionStatsCache() throws IOException, InterruptedException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         final PostingsFormat postingsFormat = new Completion90PostingsFormat();
-        indexWriterConfig.setCodec(new Lucene90Codec() {
+        indexWriterConfig.setCodec(new Lucene91Codec() {
             @Override
             public PostingsFormat getPostingsFormatForField(String field) {
                 return postingsFormat; // all fields are suggest fields

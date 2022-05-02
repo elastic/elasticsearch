@@ -14,7 +14,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -64,7 +64,7 @@ public class AutoscalingMemoryInfoService {
     void onClusterChanged(ClusterChangedEvent event) {
         boolean master = event.localNodeMaster();
         final ClusterState state = event.state();
-        final Set<DiscoveryNode> currentNodes = master ? Set.copyOf(state.nodes().getAllNodes()) : Set.of();
+        final Set<DiscoveryNode> currentNodes = master ? Set.copyOf(state.nodes()) : Set.of();
         Set<DiscoveryNode> missingNodes = null;
         synchronized (mutex) {
             retainAliveNodes(currentNodes);
@@ -136,8 +136,7 @@ public class AutoscalingMemoryInfoService {
     private void retainAliveNodes(Set<DiscoveryNode> currentNodes) {
         assert Thread.holdsLock(mutex);
         Set<String> ephemeralIds = currentNodes.stream().map(DiscoveryNode::getEphemeralId).collect(Collectors.toSet());
-        Set<String> toRemove = StreamSupport.stream(nodeToMemory.keys().spliterator(), false)
-            .map(c -> c.value)
+        Set<String> toRemove = StreamSupport.stream(nodeToMemory.keySet().spliterator(), false)
             .filter(Predicate.not(ephemeralIds::contains))
             .collect(Collectors.toSet());
         if (toRemove.isEmpty() == false) {

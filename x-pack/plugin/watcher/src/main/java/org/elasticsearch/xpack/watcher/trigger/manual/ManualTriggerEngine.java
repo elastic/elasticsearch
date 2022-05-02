@@ -63,8 +63,8 @@ public class ManualTriggerEngine implements TriggerEngine<ManualTrigger, ManualT
             return new ManualTriggerEvent(jobId, service.simulateEvent(type, jobId, data));
         }
         Object type = data.get("type");
-        if (type instanceof String) {
-            return new ManualTriggerEvent(jobId, service.simulateEvent((String) type, jobId, data));
+        if (type instanceof String s) {
+            return new ManualTriggerEvent(jobId, service.simulateEvent(s, jobId, data));
         }
         throw illegalArgument("could not simulate manual trigger event. could not resolve simulated trigger type");
     }

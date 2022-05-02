@@ -62,8 +62,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
         @Override
         protected PhysicalPlan map(LogicalPlan p) {
 
-            if (p instanceof Sequence) {
-                Sequence s = (Sequence) p;
+            if (p instanceof Sequence s) {
                 List<List<Attribute>> keys = new ArrayList<>(s.children().size());
                 List<PhysicalPlan> matches = new ArrayList<>(keys.size());
 
@@ -89,29 +88,24 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                 return new LocalExec(p.source(), ((LocalRelation) p).executable());
             }
 
-            if (p instanceof Project) {
-                Project pj = (Project) p;
+            if (p instanceof Project pj) {
                 return new ProjectExec(p.source(), map(pj.child()), pj.projections());
             }
 
-            if (p instanceof Filter) {
-                Filter fl = (Filter) p;
+            if (p instanceof Filter fl) {
                 return new FilterExec(p.source(), map(fl.child()), fl.condition());
             }
 
-            if (p instanceof OrderBy) {
-                OrderBy o = (OrderBy) p;
+            if (p instanceof OrderBy o) {
                 return new OrderExec(p.source(), map(o.child()), o.order());
             }
 
-            if (p instanceof LimitWithOffset) {
-                LimitWithOffset l = (LimitWithOffset) p;
+            if (p instanceof LimitWithOffset l) {
                 int limit = (Integer) DataTypeConverter.convert(Foldables.valueOf(l.limit()), DataTypes.INTEGER);
                 return new LimitWithOffsetExec(p.source(), map(l.child()), new Limit(limit, l.offset()));
             }
 
-            if (p instanceof EsRelation) {
-                EsRelation c = (EsRelation) p;
+            if (p instanceof EsRelation c) {
                 List<Attribute> output = c.output();
                 QueryContainer container = new QueryContainer();
                 if (c.frozen()) {

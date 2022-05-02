@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ccr;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.user.User;
 

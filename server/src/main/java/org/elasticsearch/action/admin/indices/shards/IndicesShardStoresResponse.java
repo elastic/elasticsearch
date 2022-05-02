@@ -69,29 +69,21 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             }
 
             private static AllocationStatus fromId(byte id) {
-                switch (id) {
-                    case 0:
-                        return PRIMARY;
-                    case 1:
-                        return REPLICA;
-                    case 2:
-                        return UNUSED;
-                    default:
-                        throw new IllegalArgumentException("unknown id for allocation status [" + id + "]");
-                }
+                return switch (id) {
+                    case 0 -> PRIMARY;
+                    case 1 -> REPLICA;
+                    case 2 -> UNUSED;
+                    default -> throw new IllegalArgumentException("unknown id for allocation status [" + id + "]");
+                };
             }
 
             public String value() {
-                switch (id) {
-                    case 0:
-                        return "primary";
-                    case 1:
-                        return "replica";
-                    case 2:
-                        return "unused";
-                    default:
-                        throw new IllegalArgumentException("unknown id for allocation status [" + id + "]");
-                }
+                return switch (id) {
+                    case 0 -> "primary";
+                    case 1 -> "replica";
+                    case 2 -> "unused";
+                    default -> throw new IllegalArgumentException("unknown id for allocation status [" + id + "]");
+                };
             }
 
             private static AllocationStatus readFrom(StreamInput in) throws IOException {
@@ -240,13 +232,10 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
     }
 
-    private final ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses;
+    private final Map<String, Map<Integer, List<StoreStatus>>> storeStatuses;
     private final List<Failure> failures;
 
-    public IndicesShardStoresResponse(
-        ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses,
-        List<Failure> failures
-    ) {
+    public IndicesShardStoresResponse(Map<String, Map<Integer, List<StoreStatus>>> storeStatuses, List<Failure> failures) {
         this.storeStatuses = storeStatuses;
         this.failures = failures;
     }
@@ -272,7 +261,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
      * Returns {@link StoreStatus}s
      * grouped by their index names and shard ids.
      */
-    public ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> getStoreStatuses() {
+    public Map<String, Map<Integer, List<StoreStatus>>> getStoreStatuses() {
         return storeStatuses;
     }
 
@@ -307,7 +296,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
 
         builder.startObject(Fields.INDICES);
-        for (Map.Entry<String, ImmutableOpenIntMap<List<StoreStatus>>> indexShards : storeStatuses.entrySet()) {
+        for (Map.Entry<String, Map<Integer, List<StoreStatus>>> indexShards : storeStatuses.entrySet()) {
             builder.startObject(indexShards.getKey());
 
             builder.startObject(Fields.SHARDS);

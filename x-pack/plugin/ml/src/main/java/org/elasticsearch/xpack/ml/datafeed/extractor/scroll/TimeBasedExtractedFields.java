@@ -47,8 +47,8 @@ public class TimeBasedExtractedFields extends ExtractedFields {
                 "Time field [" + timeField.getName() + "] expected a single value; actual was: " + Arrays.toString(value)
             );
         }
-        if (value[0] instanceof Long) {
-            return (Long) value[0];
+        if (value[0]instanceof Long longValue) {
+            return longValue;
         }
         throw new RuntimeException("Time field [" + timeField.getName() + "] expected a long value; actual was: " + value[0]);
     }

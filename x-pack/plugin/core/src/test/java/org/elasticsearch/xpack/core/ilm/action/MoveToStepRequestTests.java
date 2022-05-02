@@ -52,17 +52,10 @@ public class MoveToStepRequestTests extends AbstractSerializingTestCase<Request>
         Request.PartialStepKey nextStepKey = request.getNextStepKey();
 
         switch (between(0, 2)) {
-            case 0:
-                indexName += randomAlphaOfLength(5);
-                break;
-            case 1:
-                currentStepKey = stepKeyTests.mutateInstance(currentStepKey);
-                break;
-            case 2:
-                nextStepKey = randomValueOtherThan(nextStepKey, MoveToStepRequestTests::randomStepSpecification);
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> indexName += randomAlphaOfLength(5);
+            case 1 -> currentStepKey = stepKeyTests.mutateInstance(currentStepKey);
+            case 2 -> nextStepKey = randomValueOtherThan(nextStepKey, MoveToStepRequestTests::randomStepSpecification);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new Request(indexName, currentStepKey, nextStepKey);

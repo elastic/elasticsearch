@@ -137,28 +137,18 @@ public final class GeometryIO {
 
     public static Geometry readGeometry(StreamInput in) throws IOException {
         String type = in.readString();
-        switch (type) {
-            case "geometrycollection":
-                return readGeometryCollection(in);
-            case "polygon":
-                return readPolygon(in);
-            case "point":
-                return readPoint(in);
-            case "linestring":
-                return readLine(in);
-            case "multilinestring":
-                return readMultiLine(in);
-            case "multipoint":
-                return readMultiPoint(in);
-            case "multipolygon":
-                return readMultiPolygon(in);
-            case "envelope":
-                return readRectangle(in);
-            case "circle":
-                return readCircle(in);
-            default:
-                throw new UnsupportedOperationException("unsupported shape type " + type);
-        }
+        return switch (type) {
+            case "geometrycollection" -> readGeometryCollection(in);
+            case "polygon" -> readPolygon(in);
+            case "point" -> readPoint(in);
+            case "linestring" -> readLine(in);
+            case "multilinestring" -> readMultiLine(in);
+            case "multipoint" -> readMultiPoint(in);
+            case "multipolygon" -> readMultiPolygon(in);
+            case "envelope" -> readRectangle(in);
+            case "circle" -> readCircle(in);
+            default -> throw new UnsupportedOperationException("unsupported shape type " + type);
+        };
     }
 
     private static GeometryCollection<Geometry> readGeometryCollection(StreamInput in) throws IOException {

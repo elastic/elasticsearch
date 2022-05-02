@@ -17,7 +17,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -119,7 +119,10 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         }
 
         // set headers to run transform as calling user
-        Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+        Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+            threadPool.getThreadContext(),
+            clusterService.state()
+        );
 
         TransformConfigUpdate update = request.getUpdate();
         update.setHeaders(filteredHeaders);
@@ -149,10 +152,10 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     checkTransformConfigAndLogWarnings(updatedConfig);
 
                     if (update.changesSettings(configAndVersion.v1())) {
-                        PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
+                        PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
+                            request.getId(),
                             clusterState
                         );
-                        PersistentTasksCustomMetadata.PersistentTask<?> transformTask = tasksMetadata.getTask(request.getId());
 
                         // to send a request to apply new settings at runtime, several requirements must be met:
                         // - transform must be running, meaning a task exists

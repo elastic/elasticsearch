@@ -14,7 +14,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregator;
 import org.elasticsearch.search.aggregations.metrics.MinAggregator;
 import org.elasticsearch.search.aggregations.metrics.SumAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -23,7 +25,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -74,12 +75,12 @@ public abstract class AggregatorBase extends Aggregator {
         context.addReleasable(this);
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
-            void badState() {
+            static void badState() {
                 throw new IllegalStateException("preCollection not called on new Aggregator before use");
             }
 
             @Override
-            public LeafBucketCollector getLeafCollector(LeafReaderContext reader) {
+            public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) {
                 badState();
                 assert false;
                 return null; // unreachable but compiler does not agree
@@ -109,6 +110,9 @@ public abstract class AggregatorBase extends Aggregator {
      * doc values.  Generally, this means that the query has no filters or scripts, the aggregation is
      * top level, and the underlying field is indexed, and the index is sorted in the right order.
      *
+     * Also, using the pointReader is acceptable if within a sampling context and all other requirements are satisfied.
+     * But, this means that the numbers gathered from the point reader must not be scaled when gathered within a sampling context.
+     *
      * If those conditions aren't met, return <code>null</code> to indicate a point reader cannot
      * be used in this case.
      *
@@ -118,7 +122,7 @@ public abstract class AggregatorBase extends Aggregator {
         if (topLevelQuery() != null && topLevelQuery().getClass() != MatchAllDocsQuery.class) {
             return null;
         }
-        if (parent != null) {
+        if (parent != null && parent instanceof RandomSamplerAggregator == false) {
             return null;
         }
         return config.getPointReaderOrNull();
@@ -201,6 +205,12 @@ public abstract class AggregatorBase extends Aggregator {
      */
     protected abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException;
 
+    // TODO: Remove this method in refactoring
+    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
+        throws IOException {
+        return getLeafCollector(ctx, sub);
+    }
+
     /**
      * Collect results for this leaf.
      * <p>
@@ -210,10 +220,10 @@ public abstract class AggregatorBase extends Aggregator {
      * for more details on what this does.
      */
     @Override
-    public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        preGetSubLeafCollectors(ctx);
-        final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
-        return getLeafCollector(ctx, sub);
+    public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+        preGetSubLeafCollectors(aggCtx.getLeafReaderContext());
+        final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(aggCtx);
+        return getLeafCollector(aggCtx.getLeafReaderContext(), sub, aggCtx);
     }
 
     /**
@@ -261,7 +271,7 @@ public abstract class AggregatorBase extends Aggregator {
     @Override
     public Aggregator subAggregator(String aggName) {
         if (subAggregatorbyName == null) {
-            subAggregatorbyName = new HashMap<>(subAggregators.length);
+            subAggregatorbyName = Maps.newMapWithExpectedSize(subAggregators.length);
             for (int i = 0; i < subAggregators.length; i++) {
                 subAggregatorbyName.put(subAggregators[i].name(), subAggregators[i]);
             }

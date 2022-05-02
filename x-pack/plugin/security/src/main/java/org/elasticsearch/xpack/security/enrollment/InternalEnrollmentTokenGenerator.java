@@ -14,8 +14,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -24,8 +24,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -51,7 +51,7 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
     public InternalEnrollmentTokenGenerator(Environment environment, SSLService sslService, Client client) {
         this.environment = environment;
         this.sslService = sslService;
-        // enrollment tokens API keys will be owned by the "_xpack_security" system user ("superuser" role)
+        // enrollment tokens API keys will be owned by the "_xpack_security" system user ("_xpack_security" role)
         this.client = new OriginSettingClient(client, SECURITY_ORIGIN);
     }
 

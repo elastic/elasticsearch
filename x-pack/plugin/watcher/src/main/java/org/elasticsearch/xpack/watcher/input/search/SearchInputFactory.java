@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.search;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.ScriptService;

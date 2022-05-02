@@ -33,17 +33,10 @@ public class IpScriptFieldTermQueryTests extends AbstractIpScriptFieldQueryTestC
         String fieldName = orig.fieldName();
         InetAddress term = orig.address();
         switch (randomInt(2)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
-                term = randomValueOtherThan(term, () -> randomIp(randomBoolean()));
-                break;
-            default:
-                fail();
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> term = randomValueOtherThan(term, () -> randomIp(randomBoolean()));
+            default -> fail();
         }
         return new IpScriptFieldTermQuery(script, leafFactory, fieldName, encode(term));
     }

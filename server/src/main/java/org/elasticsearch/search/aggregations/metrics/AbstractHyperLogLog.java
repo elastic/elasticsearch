@@ -21,7 +21,7 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
     private static final int BIAS_K = 6;
 
     // these static tables come from the appendix of the paper
-    // @formatter:off
+    // tag::noformat
     private static final double[][] RAW_ESTIMATE_DATA = {
             // precision 4
             { 11, 11.717, 12.207, 12.7896, 13.2882, 13.8204, 14.3772, 14.9342, 15.5202, 16.161, 16.7722, 17.4636, 18.0396, 18.6766, 19.3566,
@@ -689,7 +689,7 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
                     -404.317000000039, -528.898999999976, -506.621000000043, -513.205000000075, -479.351000000024, -596.139999999898,
                     -527.016999999993, -664.681000000099, -680.306000000099, -704.050000000047, -850.486000000034, -757.43200000003,
                     -713.308999999892, } };
-    // @formatter:on
+    // end::noformat
 
     private static final long[] THRESHOLDS = new long[] {
         10,
@@ -714,18 +714,11 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
     public AbstractHyperLogLog(int precision) {
         super(precision);
         m = 1 << p;
-        final double alpha;
-        switch (p) {
-            case 4:
-                alpha = 0.673;
-                break;
-            case 5:
-                alpha = 0.697;
-                break;
-            default:
-                alpha = 0.7213 / (1 + 1.079 / m);
-                break;
-        }
+        final double alpha = switch (p) {
+            case 4 -> 0.673;
+            case 5 -> 0.697;
+            default -> 0.7213 / (1 + 1.079 / m);
+        };
         alphaMM = alpha * m * m;
     }
 

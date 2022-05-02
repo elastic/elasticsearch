@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -43,7 +43,6 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -180,7 +179,10 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         validate(request, leaderIndexMetadata, followIndexMetadata, leaderIndexHistoryUUIDs, mapperService);
         final int numShards = followIndexMetadata.getNumberOfShards();
         final ResponseHandler handler = new ResponseHandler(numShards, listener);
-        Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+        Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+            threadPool.getThreadContext(),
+            clusterService.state()
+        );
 
         for (int shardId = 0; shardId < numShards; shardId++) {
             String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
@@ -246,7 +248,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
                 "leader index [" + leaderIndex.getIndex().getName() + "] does not have soft deletes enabled"
             );
         }
-        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndex.getSettings())) {
+        if (leaderIndex.isSearchableSnapshot()) {
             throw new IllegalArgumentException(
                 "leader index ["
                     + leaderIndex.getIndex().getName()
@@ -256,7 +258,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(followIndex.getSettings()) == false) {
             throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() + "] does not have soft deletes enabled");
         }
-        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(followIndex.getSettings())) {
+        if (followIndex.isSearchableSnapshot()) {
             throw new IllegalArgumentException(
                 "follower index ["
                     + request.getFollowerIndex()

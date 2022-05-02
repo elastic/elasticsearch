@@ -11,7 +11,7 @@ import com.nimbusds.jose.util.StandardCharset;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -34,8 +34,8 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.junit.Before;
@@ -265,7 +265,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
             authcServiceRequest.set((RestRequest) i.getArguments()[0]);
-            callback.onResponse(new Authentication(XPackUser.INSTANCE, new RealmRef("test", "test", "t"), null));
+            callback.onResponse(AuthenticationTestHelper.builder().realmRef(new RealmRef("test", "test", "t")).build(false));
             return Void.TYPE;
         }).when(authcService).authenticate(any(RestRequest.class), anyActionListener());
         filter = new SecurityRestFilter(Settings.EMPTY, threadContext, authcService, secondaryAuthenticator, restHandler, false);

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -84,6 +85,7 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
         return numTopFeatureImportanceValues;
     }
 
+    @Override
     public String getResultsField() {
         return resultsField;
     }
@@ -107,6 +109,11 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
     @Override
     public String getName() {
         return NAME.getPreferredName();
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_8_0;
     }
 
     @Override
@@ -186,6 +193,7 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
             return this;
         }
 
+        @Override
         public RegressionConfigUpdate build() {
             return new RegressionConfigUpdate(resultsField, numTopFeatureImportanceValues);
         }

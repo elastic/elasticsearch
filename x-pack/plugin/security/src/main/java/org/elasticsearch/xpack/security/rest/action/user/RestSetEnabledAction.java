@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;

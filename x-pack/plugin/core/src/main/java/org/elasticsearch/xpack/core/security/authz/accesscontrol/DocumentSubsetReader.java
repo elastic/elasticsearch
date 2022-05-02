@@ -140,8 +140,7 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
         }
 
         private static void verifyNoOtherDocumentSubsetDirectoryReaderIsWrapped(DirectoryReader reader) {
-            if (reader instanceof FilterDirectoryReader) {
-                FilterDirectoryReader filterDirectoryReader = (FilterDirectoryReader) reader;
+            if (reader instanceof FilterDirectoryReader filterDirectoryReader) {
                 if (filterDirectoryReader instanceof DocumentSubsetDirectoryReader) {
                     throw new IllegalArgumentException(
                         LoggerMessageFormat.format("Can't wrap [{}] twice", DocumentSubsetDirectoryReader.class)

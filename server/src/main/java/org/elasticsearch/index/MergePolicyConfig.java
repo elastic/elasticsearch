@@ -38,7 +38,7 @@ import org.elasticsearch.core.SuppressForbidden;
  * <ul>
  * <li><code>index.merge.policy.expunge_deletes_allowed</code>:
  *
- *     When expungeDeletes is called, we only merge away a segment if its delete
+ *     When forceMergeDeletes is called, we only merge away a segment if its delete
  *     percentage is over this threshold. Default is <code>10</code>.
  *
  * <li><code>index.merge.policy.floor_segment</code>:
@@ -101,7 +101,7 @@ import org.elasticsearch.core.SuppressForbidden;
  */
 
 public final class MergePolicyConfig {
-    private final EsTieredMergePolicy mergePolicy = new EsTieredMergePolicy();
+    private final TieredMergePolicy mergePolicy = new TieredMergePolicy();
     private final Logger logger;
     private final boolean mergesEnabled;
 

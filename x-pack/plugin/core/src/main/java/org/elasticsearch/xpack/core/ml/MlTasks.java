@@ -29,8 +29,8 @@ import java.util.stream.Collectors;
 
 public final class MlTasks {
 
-    public static final String TRAINED_MODEL_ALLOCATION_TASK_TYPE = "trained_model_allocation";
-    public static final String TRAINED_MODEL_ALLOCATION_TASK_ACTION = "xpack/ml/trained_model_allocation[n]";
+    public static final String TRAINED_MODEL_ASSIGNMENT_TASK_TYPE = "trained_model_assignment";
+    public static final String TRAINED_MODEL_ASSIGNMENT_TASK_ACTION = "xpack/ml/trained_model_assignment[n]";
 
     public static final String JOB_TASK_NAME = "xpack/ml/job";
     public static final String DATAFEED_TASK_NAME = "xpack/ml/datafeed";
@@ -99,7 +99,7 @@ public final class MlTasks {
         return taskId.substring(DATA_FRAME_ANALYTICS_TASK_ID_PREFIX.length());
     }
 
-    public static String trainedModelAllocationTaskDescription(String modelId) {
+    public static String trainedModelAssignmentTaskDescription(String modelId) {
         return TrainedModelConfig.MODEL_ID.getPreferredName() + "[" + modelId + "]";
     }
 
@@ -313,6 +313,16 @@ public final class MlTasks {
         });
     }
 
+    public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasks(
+        @Nullable PersistentTasksCustomMetadata tasks
+    ) {
+        if (tasks == null) {
+            return Collections.emptyList();
+        }
+
+        return tasks.findTasks(JOB_SNAPSHOT_UPGRADE_TASK_NAME, task -> true);
+    }
+
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasksOnNode(
         @Nullable PersistentTasksCustomMetadata tasks,
         String nodeId
@@ -431,15 +441,11 @@ public final class MlTasks {
 
     public static MemoryTrackedTaskState getMemoryTrackedTaskState(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         String taskName = task.getTaskName();
-        switch (taskName) {
-            case JOB_TASK_NAME:
-                return getJobStateModifiedForReassignments(task);
-            case JOB_SNAPSHOT_UPGRADE_TASK_NAME:
-                return getSnapshotUpgradeState(task);
-            case DATA_FRAME_ANALYTICS_TASK_NAME:
-                return getDataFrameAnalyticsState(task);
-            default:
-                throw new IllegalStateException("unexpected task type [" + task.getTaskName() + "]");
-        }
+        return switch (taskName) {
+            case JOB_TASK_NAME -> getJobStateModifiedForReassignments(task);
+            case JOB_SNAPSHOT_UPGRADE_TASK_NAME -> getSnapshotUpgradeState(task);
+            case DATA_FRAME_ANALYTICS_TASK_NAME -> getDataFrameAnalyticsState(task);
+            default -> throw new IllegalStateException("unexpected task type [" + task.getTaskName() + "]");
+        };
     }
 }

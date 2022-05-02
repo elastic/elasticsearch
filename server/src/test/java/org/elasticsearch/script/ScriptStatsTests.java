@@ -37,37 +37,38 @@ public class ScriptStatsTests extends ESTestCase {
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        String expected = "{\n"
-            + "  \"script\" : {\n"
-            + "    \"compilations\" : 1100,\n"
-            + "    \"cache_evictions\" : 2211,\n"
-            + "    \"compilation_limit_triggered\" : 3322,\n"
-            + "    \"contexts\" : [\n"
-            + "      {\n"
-            + "        \"context\" : \"contextA\",\n"
-            + "        \"compilations\" : 1000,\n"
-            + "        \"cache_evictions\" : 2010,\n"
-            + "        \"compilation_limit_triggered\" : 3020\n"
-            + "      },\n"
-            + "      {\n"
-            + "        \"context\" : \"contextB\",\n"
-            + "        \"compilations\" : 100,\n"
-            + "        \"compilations_history\" : {\n"
-            + "          \"5m\" : 1000,\n"
-            + "          \"15m\" : 1001,\n"
-            + "          \"24h\" : 1002\n"
-            + "        },\n"
-            + "        \"cache_evictions\" : 201,\n"
-            + "        \"cache_evictions_history\" : {\n"
-            + "          \"5m\" : 2000,\n"
-            + "          \"15m\" : 2001,\n"
-            + "          \"24h\" : 2002\n"
-            + "        },\n"
-            + "        \"compilation_limit_triggered\" : 302\n"
-            + "      }\n"
-            + "    ]\n"
-            + "  }\n"
-            + "}";
+        String expected = """
+            {
+              "script" : {
+                "compilations" : 1100,
+                "cache_evictions" : 2211,
+                "compilation_limit_triggered" : 3322,
+                "contexts" : [
+                  {
+                    "context" : "contextA",
+                    "compilations" : 1000,
+                    "cache_evictions" : 2010,
+                    "compilation_limit_triggered" : 3020
+                  },
+                  {
+                    "context" : "contextB",
+                    "compilations" : 100,
+                    "compilations_history" : {
+                      "5m" : 1000,
+                      "15m" : 1001,
+                      "24h" : 1002
+                    },
+                    "cache_evictions" : 201,
+                    "cache_evictions_history" : {
+                      "5m" : 2000,
+                      "15m" : 2001,
+                      "24h" : 2002
+                    },
+                    "compilation_limit_triggered" : 302
+                  }
+                ]
+              }
+            }""";
         assertThat(Strings.toString(builder), equalTo(expected));
     }
 
@@ -77,12 +78,13 @@ public class ScriptStatsTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        String expected = "{\n"
-            + "  \"context\" : \"c\",\n"
-            + "  \"compilations\" : 1111,\n"
-            + "  \"cache_evictions\" : 2222,\n"
-            + "  \"compilation_limit_triggered\" : 3333\n"
-            + "}";
+        String expected = """
+            {
+              "context" : "c",
+              "compilations" : 1111,
+              "cache_evictions" : 2222,
+              "compilation_limit_triggered" : 3333
+            }""";
 
         assertThat(Strings.toString(builder), equalTo(expected));
     }
@@ -91,17 +93,18 @@ public class ScriptStatsTests extends ESTestCase {
         Function<TimeSeries, ScriptContextStats> mkContextStats = (ts) -> new ScriptContextStats("c", 3333, new TimeSeries(1111), ts);
 
         TimeSeries series = new TimeSeries(0, 0, 5, 2222);
-        String format = "{\n"
-            + "  \"context\" : \"c\",\n"
-            + "  \"compilations\" : 1111,\n"
-            + "  \"cache_evictions\" : %d,\n"
-            + "  \"cache_evictions_history\" : {\n"
-            + "    \"5m\" : %d,\n"
-            + "    \"15m\" : %d,\n"
-            + "    \"24h\" : %d\n"
-            + "  },\n"
-            + "  \"compilation_limit_triggered\" : 3333\n"
-            + "}";
+        String format = """
+            {
+              "context" : "c",
+              "compilations" : 1111,
+              "cache_evictions" : %s,
+              "cache_evictions_history" : {
+                "5m" : %s,
+                "15m" : %s,
+                "24h" : %s
+              },
+              "compilation_limit_triggered" : 3333
+            }""";
 
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         mkContextStats.apply(series).toXContent(builder, ToXContent.EMPTY_PARAMS);

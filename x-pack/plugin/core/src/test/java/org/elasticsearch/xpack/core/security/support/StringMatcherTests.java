@@ -30,16 +30,13 @@ public class StringMatcherTests extends ESTestCase {
     public void testMatchAllWildcard() throws Exception {
         Supplier<String> randomPattern = () -> {
             final String s = randomAlphaOfLengthBetween(3, 5);
-            switch (randomIntBetween(1, 4)) {
-                case 1:
-                    return s;
-                case 2:
-                    return s + "*";
-                case 3:
-                    return "*" + s;
-                default:
-                    return "*" + s + "*";
-            }
+            return switch (randomIntBetween(1, 4)) {
+                case 1 -> s;
+                case 2 -> s + "*";
+                case 3 -> "*" + s;
+                case 4 -> "*" + s + "*";
+                default -> throw new AssertionError();
+            };
         };
         final List<String> patterns = Stream.of(randomList(0, 3, randomPattern), List.of("*"), randomList(0, 3, randomPattern))
             .flatMap(List::stream)

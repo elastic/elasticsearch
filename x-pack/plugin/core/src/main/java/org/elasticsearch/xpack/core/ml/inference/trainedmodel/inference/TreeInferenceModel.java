@@ -111,8 +111,8 @@ public class TreeInferenceModel implements InferenceModel {
         this.highOrderCategory = maxLeafValue();
         int leafSize = 1;
         for (Node node : this.nodes) {
-            if (node instanceof LeafNode) {
-                leafSize = ((LeafNode) node).leafValue.length;
+            if (node instanceof LeafNode leafNode) {
+                leafSize = leafNode.leafValue.length;
                 break;
             }
         }
@@ -372,8 +372,7 @@ public class TreeInferenceModel implements InferenceModel {
         }
         double max = 0.0;
         for (Node node : this.nodes) {
-            if (node instanceof LeafNode) {
-                LeafNode leafNode = (LeafNode) node;
+            if (node instanceof LeafNode leafNode) {
                 if (leafNode.leafValue.length > 1) {
                     return leafNode.leafValue.length;
                 } else {

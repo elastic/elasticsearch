@@ -122,7 +122,7 @@ The `sources` parameter can be any of the following types:
 [[_terms]]
 ===== Terms
 
-The `terms` value source is equivalent to a simple `terms` aggregation.
+The `terms` value source is similar to a simple `terms` aggregation.
 The values are extracted from a field exactly like the `terms` aggregation.
 
 Example:
@@ -204,6 +204,13 @@ GET /_search
 }
 ----
 ////
+
+Although similar, the `terms` value source doesn't support the same set of
+parameters as the `terms` aggregation. For other supported value source
+parameters, see:
+
+* <<_order>>
+* <<_missing_bucket>>
 
 [[_histogram]]
 ===== Histogram
@@ -556,6 +563,7 @@ GET /_search
 }
 --------------------------------------------------
 
+[[_order]]
 ==== Order
 
 By default the composite buckets are sorted by their natural ordering. Values are sorted
@@ -588,6 +596,7 @@ GET /_search
 \... will sort the composite bucket in descending order when comparing values from the `date_histogram` source
 and in ascending order when comparing values from the `terms` source.
 
+[[_missing_bucket]]
 ==== Missing bucket
 
 By default documents without a value for a given source are ignored.

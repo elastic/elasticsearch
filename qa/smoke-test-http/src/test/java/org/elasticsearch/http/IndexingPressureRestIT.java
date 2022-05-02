@@ -49,9 +49,16 @@ public class IndexingPressureRestIT extends HttpSmokeTestCase {
     @SuppressWarnings("unchecked")
     public void testIndexingPressureStats() throws IOException {
         Request createRequest = new Request("PUT", "/index_name");
-        createRequest.setJsonEntity(
-            "{\"settings\": {\"index\": {\"number_of_shards\": 1, \"number_of_replicas\": 1, " + "\"write.wait_for_active_shards\": 2}}}"
-        );
+        createRequest.setJsonEntity("""
+            {
+              "settings": {
+                "index": {
+                  "number_of_shards": 1,
+                  "number_of_replicas": 1,
+                  "write.wait_for_active_shards": 2
+                }
+              }
+            }""");
         final Response indexCreatedResponse = getRestClient().performRequest(createRequest);
         assertThat(indexCreatedResponse.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 

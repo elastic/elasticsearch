@@ -15,11 +15,21 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
 public class DeleteIndexBlocksIT extends ESIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false) // we control the read-only-allow-delete block
+            .build();
+    }
+
     public void testDeleteIndexWithBlocks() {
         createIndex("test");
         ensureGreen("test");
@@ -42,10 +52,6 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
             assertSearchHits(client().prepareSearch().get(), "1");
             assertBlocked(
                 client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
-                IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
-            );
-            assertBlocked(
-                client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 2)),
                 IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
             );
             assertSearchHits(client().prepareSearch().get(), "1");

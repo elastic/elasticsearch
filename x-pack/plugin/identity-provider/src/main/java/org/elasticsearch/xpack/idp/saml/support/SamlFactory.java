@@ -208,8 +208,7 @@ public class SamlFactory {
                 return "<null>";
             }
             byte[] encoded;
-            if (c instanceof X509Credential) {
-                X509Credential x = (X509Credential) c;
+            if (c instanceof X509Credential x) {
                 try {
                     encoded = x.getEntityCertificate().getEncoded();
                 } catch (CertificateEncodingException e) {
@@ -284,20 +283,14 @@ public class SamlFactory {
     }
 
     public String getJavaAlorithmNameFromUri(String sigAlg) {
-        switch (sigAlg) {
-            case "http://www.w3.org/2000/09/xmldsig#dsa-sha1":
-                return "SHA1withDSA";
-            case "http://www.w3.org/2000/09/xmldsig#dsa-sha256":
-                return "SHA256withDSA";
-            case "http://www.w3.org/2000/09/xmldsig#rsa-sha1":
-                return "SHA1withRSA";
-            case "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256":
-                return "SHA256withRSA";
-            case "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256":
-                return "SHA256withECDSA";
-            default:
-                throw new IllegalArgumentException("Unsupported signing algorithm identifier: " + sigAlg);
-        }
+        return switch (sigAlg) {
+            case "http://www.w3.org/2000/09/xmldsig#dsa-sha1" -> "SHA1withDSA";
+            case "http://www.w3.org/2000/09/xmldsig#dsa-sha256" -> "SHA256withDSA";
+            case "http://www.w3.org/2000/09/xmldsig#rsa-sha1" -> "SHA1withRSA";
+            case "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256" -> "SHA256withRSA";
+            case "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256" -> "SHA256withECDSA";
+            default -> throw new IllegalArgumentException("Unsupported signing algorithm identifier: " + sigAlg);
+        };
     }
 
     private static String[] resolveSchemaFilePaths(String[] relativePaths) {

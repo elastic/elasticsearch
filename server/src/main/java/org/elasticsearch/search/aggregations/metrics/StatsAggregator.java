@@ -126,35 +126,21 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
     @Override
     public double metric(String name, long owningBucketOrd) {
         if (valuesSource == null || owningBucketOrd >= counts.size()) {
-            switch (InternalStats.Metrics.resolve(name)) {
-                case count:
-                    return 0;
-                case sum:
-                    return 0;
-                case min:
-                    return Double.POSITIVE_INFINITY;
-                case max:
-                    return Double.NEGATIVE_INFINITY;
-                case avg:
-                    return Double.NaN;
-                default:
-                    throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
-            }
+            return switch (InternalStats.Metrics.resolve(name)) {
+                case count -> 0;
+                case sum -> 0;
+                case min -> Double.POSITIVE_INFINITY;
+                case max -> Double.NEGATIVE_INFINITY;
+                case avg -> Double.NaN;
+            };
         }
-        switch (InternalStats.Metrics.resolve(name)) {
-            case count:
-                return counts.get(owningBucketOrd);
-            case sum:
-                return sums.get(owningBucketOrd);
-            case min:
-                return mins.get(owningBucketOrd);
-            case max:
-                return maxes.get(owningBucketOrd);
-            case avg:
-                return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
-            default:
-                throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
-        }
+        return switch (InternalStats.Metrics.resolve(name)) {
+            case count -> counts.get(owningBucketOrd);
+            case sum -> sums.get(owningBucketOrd);
+            case min -> mins.get(owningBucketOrd);
+            case max -> maxes.get(owningBucketOrd);
+            case avg -> sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
+        };
     }
 
     @Override

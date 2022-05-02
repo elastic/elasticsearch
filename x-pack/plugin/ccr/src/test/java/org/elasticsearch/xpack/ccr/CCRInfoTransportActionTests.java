@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -108,7 +109,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         metadata.put(regularIndex);
 
         int numAutoFollowPatterns = randomIntBetween(0, 32);
-        Map<String, AutoFollowMetadata.AutoFollowPattern> patterns = new HashMap<>(numAutoFollowPatterns);
+        Map<String, AutoFollowMetadata.AutoFollowPattern> patterns = Maps.newMapWithExpectedSize(numAutoFollowPatterns);
         for (int i = 0; i < numAutoFollowPatterns; i++) {
             AutoFollowMetadata.AutoFollowPattern pattern = new AutoFollowMetadata.AutoFollowPattern(
                 "remote_cluser",

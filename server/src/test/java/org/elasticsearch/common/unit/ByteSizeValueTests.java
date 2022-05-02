@@ -233,12 +233,12 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         final long mutateSize;
         final ByteSizeUnit mutateUnit;
         switch (between(0, 1)) {
-            case 0:
+            case 0 -> {
                 final long unitBytes = instanceUnit.toBytes(1);
                 mutateSize = randomValueOtherThan(instanceSize, () -> randomNonNegativeLong() / unitBytes);
                 mutateUnit = instanceUnit;
-                break;
-            case 1:
+            }
+            case 1 -> {
                 mutateUnit = randomValueOtherThan(instanceUnit, () -> randomFrom(ByteSizeUnit.values()));
                 final long newUnitBytes = mutateUnit.toBytes(1);
                 /*
@@ -255,9 +255,8 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
                 } else {
                     mutateSize = instanceSize;
                 }
-                break;
-            default:
-                throw new AssertionError("Invalid randomisation branch");
+            }
+            default -> throw new AssertionError("Invalid randomisation branch");
         }
         return new ByteSizeValue(mutateSize, mutateUnit);
     }

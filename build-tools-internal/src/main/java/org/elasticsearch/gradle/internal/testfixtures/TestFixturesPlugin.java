@@ -108,11 +108,10 @@ public class TestFixturesPlugin implements Plugin<Project> {
             maybeSkipTask(dockerSupport, buildFixture);
 
             ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
-            composeExtension.setUseComposeFiles(Collections.singletonList(DOCKER_COMPOSE_YML));
-            composeExtension.setRemoveContainers(true);
-            composeExtension.setExecutable(
-                project.file("/usr/local/bin/docker-compose").exists() ? "/usr/local/bin/docker-compose" : "/usr/bin/docker-compose"
-            );
+            composeExtension.getUseComposeFiles().addAll(Collections.singletonList(DOCKER_COMPOSE_YML));
+            composeExtension.getRemoveContainers().set(true);
+            composeExtension.getExecutable()
+                .set(project.file("/usr/local/bin/docker-compose").exists() ? "/usr/local/bin/docker-compose" : "/usr/bin/docker-compose");
 
             tasks.named("composeUp").configure(t -> {
                 // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions
@@ -169,7 +168,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
     private void maybeSkipTask(Provider<DockerSupportService> dockerSupport, Task task) {
         task.onlyIf(spec -> {
-            boolean isComposeAvailable = dockerSupport.get().getDockerAvailability().isComposeAvailable;
+            boolean isComposeAvailable = dockerSupport.get().getDockerAvailability().isComposeAvailable();
             if (isComposeAvailable == false) {
                 LOGGER.info("Task {} requires docker-compose but it is unavailable. Task will be skipped.", task.getPath());
             }

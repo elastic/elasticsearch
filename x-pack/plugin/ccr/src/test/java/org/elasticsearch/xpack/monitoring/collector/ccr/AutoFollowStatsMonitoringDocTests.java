@@ -107,61 +107,56 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
         assertThat(
             xContent.utf8ToString(),
             equalTo(
-                "{"
-                    + "\"cluster_uuid\":\"_cluster\","
-                    + "\"timestamp\":\""
-                    + DATE_TIME_FORMATTER.formatMillis(timestamp)
-                    + "\","
-                    + "\"interval_ms\":"
-                    + intervalMillis
-                    + ","
-                    + "\"type\":\"ccr_auto_follow_stats\","
-                    + "\"source_node\":{"
-                    + "\"uuid\":\"_uuid\","
-                    + "\"host\":\"_host\","
-                    + "\"transport_address\":\"_addr\","
-                    + "\"ip\":\"_ip\","
-                    + "\"name\":\"_name\","
-                    + "\"timestamp\":\""
-                    + DATE_TIME_FORMATTER.formatMillis(nodeTimestamp)
-                    + "\""
-                    + "},"
-                    + "\"ccr_auto_follow_stats\":{"
-                    + "\"number_of_failed_follow_indices\":"
-                    + autoFollowStats.getNumberOfFailedFollowIndices()
-                    + ","
-                    + "\"number_of_failed_remote_cluster_state_requests\":"
-                    + autoFollowStats.getNumberOfFailedRemoteClusterStateRequests()
-                    + ","
-                    + "\"number_of_successful_follow_indices\":"
-                    + autoFollowStats.getNumberOfSuccessfulFollowIndices()
-                    + ","
-                    + "\"recent_auto_follow_errors\":["
-                    + "{"
-                    + "\"leader_index\":\""
-                    + recentAutoFollowExceptions.keySet().iterator().next()
-                    + "\","
-                    + "\"timestamp\":1,"
-                    + "\"auto_follow_exception\":{"
-                    + "\"type\":\"exception\","
-                    + "\"reason\":\"cannot follow index\""
-                    + "}"
-                    + "}"
-                    + "],"
-                    + "\"auto_followed_clusters\":["
-                    + "{"
-                    + "\"cluster_name\":\""
-                    + trackingClusters.keySet().iterator().next()
-                    + "\","
-                    + "\"time_since_last_check_millis\":"
-                    + trackingClusters.values().iterator().next().getTimeSinceLastCheckMillis()
-                    + ","
-                    + "\"last_seen_metadata_version\":"
-                    + trackingClusters.values().iterator().next().getLastSeenMetadataVersion()
-                    + "}"
-                    + "]"
-                    + "}"
-                    + "}"
+                XContentHelper.stripWhitespace(
+                    """
+                        {
+                          "cluster_uuid": "_cluster",
+                          "timestamp": "%s",
+                          "interval_ms": %s,
+                          "type": "ccr_auto_follow_stats",
+                          "source_node": {
+                            "uuid": "_uuid",
+                            "host": "_host",
+                            "transport_address": "_addr",
+                            "ip": "_ip",
+                            "name": "_name",
+                            "timestamp": "%s"
+                          },
+                          "ccr_auto_follow_stats": {
+                            "number_of_failed_follow_indices": %s,
+                            "number_of_failed_remote_cluster_state_requests": %s,
+                            "number_of_successful_follow_indices": %s,
+                            "recent_auto_follow_errors": [
+                              {
+                                "leader_index": "%s",
+                                "timestamp": 1,
+                                "auto_follow_exception": {
+                                  "type": "exception",
+                                  "reason": "cannot follow index"
+                                }
+                              }
+                            ],
+                            "auto_followed_clusters": [
+                              {
+                                "cluster_name": "%s",
+                                "time_since_last_check_millis": %s,
+                                "last_seen_metadata_version": %s
+                              }
+                            ]
+                          }
+                        }""".formatted(
+                        DATE_TIME_FORMATTER.formatMillis(timestamp),
+                        intervalMillis,
+                        DATE_TIME_FORMATTER.formatMillis(nodeTimestamp),
+                        autoFollowStats.getNumberOfFailedFollowIndices(),
+                        autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(),
+                        autoFollowStats.getNumberOfSuccessfulFollowIndices(),
+                        recentAutoFollowExceptions.keySet().iterator().next(),
+                        trackingClusters.keySet().iterator().next(),
+                        trackingClusters.values().iterator().next().getTimeSinceLastCheckMillis(),
+                        trackingClusters.values().iterator().next().getLastSeenMetadataVersion()
+                    )
+                )
             )
         );
     }

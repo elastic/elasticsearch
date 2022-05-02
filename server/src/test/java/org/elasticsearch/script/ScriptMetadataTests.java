@@ -49,33 +49,20 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
 
     public void testDiff() throws Exception {
         ScriptMetadata.Builder builder = new ScriptMetadata.Builder(null);
-        builder.storeScript(
-            "1",
-            StoredScriptSource.parse(new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"abc\"}}}"), XContentType.JSON)
-        );
-        builder.storeScript(
-            "2",
-            StoredScriptSource.parse(new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"def\"}}}"), XContentType.JSON)
-        );
-        builder.storeScript(
-            "3",
-            StoredScriptSource.parse(new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"ghi\"}}}"), XContentType.JSON)
-        );
+        builder.storeScript("1", StoredScriptSource.parse(new BytesArray("""
+            {"script":{"lang":"mustache","source":{"foo":"abc"}}}"""), XContentType.JSON));
+        builder.storeScript("2", StoredScriptSource.parse(new BytesArray("""
+            {"script":{"lang":"mustache","source":{"foo":"def"}}}"""), XContentType.JSON));
+        builder.storeScript("3", StoredScriptSource.parse(new BytesArray("""
+            {"script":{"lang":"mustache","source":{"foo":"ghi"}}}"""), XContentType.JSON));
         ScriptMetadata scriptMetadata1 = builder.build();
 
         builder = new ScriptMetadata.Builder(scriptMetadata1);
-        builder.storeScript(
-            "2",
-            StoredScriptSource.parse(
-                new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"changed\"}}}"),
-                XContentType.JSON
-            )
-        );
+        builder.storeScript("2", StoredScriptSource.parse(new BytesArray("""
+            {"script":{"lang":"mustache","source":{"foo":"changed"}}}"""), XContentType.JSON));
         builder.deleteScript("3");
-        builder.storeScript(
-            "4",
-            StoredScriptSource.parse(new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"jkl\"}}}"), XContentType.JSON)
-        );
+        builder.storeScript("4", StoredScriptSource.parse(new BytesArray("""
+            {"script":{"lang":"mustache","source":{"foo":"jkl"}}}"""), XContentType.JSON));
         ScriptMetadata scriptMetadata2 = builder.build();
 
         ScriptMetadata.ScriptMetadataDiff diff = (ScriptMetadata.ScriptMetadataDiff) scriptMetadata2.diff(scriptMetadata1);
@@ -94,10 +81,8 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
 
     public void testBuilder() {
         ScriptMetadata.Builder builder = new ScriptMetadata.Builder(null);
-        builder.storeScript(
-            "_id",
-            StoredScriptSource.parse(new BytesArray("{\"script\": {\"lang\": \"painless\", \"source\": \"1 + 1\"} }"), XContentType.JSON)
-        );
+        builder.storeScript("_id", StoredScriptSource.parse(new BytesArray("""
+            {"script": {"lang": "painless", "source": "1 + 1"} }"""), XContentType.JSON));
 
         ScriptMetadata result = builder.build();
         assertEquals("1 + 1", result.getStoredScript("_id").getSource());

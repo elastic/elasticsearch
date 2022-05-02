@@ -37,33 +37,33 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body: {bytes_source_field: "1kb"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
 # default pipeline via alias
   - do:
       index:
         index: test_alias
-        id: 2
+        id: "2"
         body: {bytes_source_field: "1kb"}
 
   - do:
       get:
         index: test
-        id: 2
+        id: "2"
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
 # default pipeline via upsert
   - do:
       update:
         index: test
-        id: 3
+        id: "3"
         body:
           script:
             source: "ctx._source.ran_script = true"
@@ -72,14 +72,14 @@ teardown:
   - do:
       get:
         index: test
-        id: 3
+        id: "3"
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
 # default pipeline via scripted upsert
   - do:
       update:
         index: test
-        id: 4
+        id: "4"
         body:
           script:
             source: "ctx._source.bytes_source_field = '1kb'"
@@ -89,21 +89,21 @@ teardown:
   - do:
       get:
         index: test
-        id: 4
+        id: "4"
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
 # default pipeline via doc_as_upsert
   - do:
       update:
         index: test
-        id: 5
+        id: "5"
         body:
           doc: { "bytes_source_field":"1kb" }
           doc_as_upsert: true
   - do:
       get:
         index: test
-        id: 5
+        id: "5"
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
 # default pipeline via bulk upsert
@@ -169,14 +169,14 @@ teardown:
   - do:
       index:
         index: test
-        id: 9
+        id: "9"
         pipeline: "_none"
         body: {bytes_source_field: "1kb"}
 
   - do:
       get:
         index: test
-        id: 9
+        id: "9"
   - match: { _source.bytes_source_field: "1kb" }
   - is_false: _source.bytes_target_field
 # bad request
@@ -184,7 +184,7 @@ teardown:
       catch:  bad_request
       index:
         index: test
-        id: 10
+        id: "10"
         pipeline: ""
         body: {bytes_source_field: "1kb"}
 

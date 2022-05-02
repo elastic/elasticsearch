@@ -58,12 +58,12 @@ import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ContextParser;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
@@ -178,7 +178,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         private final Map<String, Double> values;
 
         TestNumericMultiValueAggregation(String name, Map<String, Double> values) {
-            super(name, emptyMap());
+            super(name, null, emptyMap());
             this.values = values;
         }
 
@@ -221,9 +221,9 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testExtractCompositeAggregationResults() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
 
-        GroupConfig groupBy = parseGroupConfig(
-            "{ \"" + targetField + "\" : {" + "\"terms\" : {" + "   \"field\" : \"doesn't_matter_for_this_test\"" + "} } }"
-        );
+        GroupConfig groupBy = parseGroupConfig("""
+            { "%s" : {"terms" : {   "field" : "doesn't_matter_for_this_test"} } }
+            """.formatted(targetField));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -251,22 +251,19 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig(
-            "{"
-                + "\""
-                + targetField
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } },"
-                + "\""
-                + targetField2
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } }"
-                + "}"
-        );
+        GroupConfig groupBy = parseGroupConfig("""
+            {
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              },
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              }
+            }""".formatted(targetField, targetField2));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -295,9 +292,14 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testExtractCompositeAggregationResultsMultiAggregations() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
 
-        GroupConfig groupBy = parseGroupConfig(
-            "{\"" + targetField + "\" : {" + "\"terms\" : {" + "   \"field\" : \"doesn't_matter_for_this_test\"" + "} } }"
-        );
+        GroupConfig groupBy = parseGroupConfig("""
+            {
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              }
+            }""".formatted(targetField));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -356,22 +358,19 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig(
-            "{"
-                + "\""
-                + targetField
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } },"
-                + "\""
-                + targetField2
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } }"
-                + "}"
-        );
+        GroupConfig groupBy = parseGroupConfig("""
+            {
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              },
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              }
+            }""".formatted(targetField, targetField2));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -450,22 +449,19 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig(
-            "{"
-                + "\""
-                + targetField
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } },"
-                + "\""
-                + targetField2
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } }"
-                + "}"
-        );
+        GroupConfig groupBy = parseGroupConfig("""
+            {
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              },
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              }
+            }""".formatted(targetField, targetField2));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "scripted_metric#" + aggName;
@@ -517,22 +513,19 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig(
-            "{"
-                + "\""
-                + targetField
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } },"
-                + "\""
-                + targetField2
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } }"
-                + "}"
-        );
+        GroupConfig groupBy = parseGroupConfig("""
+            {
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              },
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              }
+            }""".formatted(targetField, targetField2));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -608,22 +601,19 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig(
-            "{"
-                + "\""
-                + targetField
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } },"
-                + "\""
-                + targetField2
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } }"
-                + "}"
-        );
+        GroupConfig groupBy = parseGroupConfig("""
+            {
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              },
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              }
+            }""".formatted(targetField, targetField2));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -1116,7 +1106,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
     private GroupConfig parseGroupConfig(String json) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent()
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json);
         return GroupConfig.fromXContent(parser, false);
     }
 

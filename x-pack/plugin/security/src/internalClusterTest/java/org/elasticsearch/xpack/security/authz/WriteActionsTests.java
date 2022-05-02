@@ -14,7 +14,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.rest.RestStatus;
@@ -33,19 +33,19 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return SecuritySettingsSource.TEST_ROLE
-            + ":\n"
-            + "  cluster: [ ALL ]\n"
-            + "  indices:\n"
-            + "    - names: 'missing'\n"
-            + "      privileges: [ 'indices:admin/create', 'indices:admin/auto_create', "
-            + "'indices:admin/delete' ]\n"
-            + "    - names: ['/index.*/']\n"
-            + "      privileges: [ manage ]\n"
-            + "    - names: ['/test.*/']\n"
-            + "      privileges: [ manage, write ]\n"
-            + "    - names: '/test.*/'\n"
-            + "      privileges: [ read ]\n";
+        return """
+            %s:
+              cluster: [ ALL ]
+              indices:
+                - names: 'missing'
+                  privileges: [ 'indices:admin/create', 'indices:admin/auto_create', 'indices:admin/delete' ]
+                - names: ['/index.*/']
+                  privileges: [ manage ]
+                - names: ['/test.*/']
+                  privileges: [ manage, write ]
+                - names: '/test.*/'
+                  privileges: [ read ]
+            """.formatted(SecuritySettingsSource.TEST_ROLE);
     }
 
     public void testIndex() {

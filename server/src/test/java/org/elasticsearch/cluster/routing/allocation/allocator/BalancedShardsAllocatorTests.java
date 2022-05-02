@@ -46,7 +46,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         ShardRouting shard = clusterState.routingTable().index("idx_new").shard(0).primaryShard();
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.emptyList()),
-            new RoutingNodes(clusterState, false),
+            RoutingNodes.mutable(clusterState.routingTable(), clusterState.nodes()),
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,

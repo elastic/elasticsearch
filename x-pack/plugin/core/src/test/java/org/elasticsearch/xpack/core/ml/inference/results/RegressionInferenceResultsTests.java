@@ -83,7 +83,9 @@ public class RegressionInferenceResultsTests extends InferenceResultsTestCase<Re
         RegressionFeatureImportance fi = new RegressionFeatureImportance("foo", 1.0);
         result = new RegressionInferenceResults(1.0, resultsField, Collections.singletonList(fi));
         stringRep = Strings.toString(result);
-        expected = "{\"" + resultsField + "\":1.0,\"feature_importance\":[{\"feature_name\":\"foo\",\"importance\":1.0}]}";
+        expected = """
+            {"%s":1.0,"feature_importance":[{"feature_name":"foo","importance":1.0}]}\
+            """.formatted(resultsField);
         assertEquals(expected, stringRep);
     }
 

@@ -133,26 +133,19 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
         long version = instance.getVersion();
         long creationDate = instance.getModifiedDate();
         switch (between(0, 3)) {
-            case 0:
-                policy = new LifecyclePolicy(
-                    TimeseriesLifecycleType.INSTANCE,
-                    policy.getName() + randomAlphaOfLengthBetween(1, 5),
-                    policy.getPhases(),
-                    randomMeta()
-                );
-                break;
-            case 1:
+            case 0 -> policy = new LifecyclePolicy(
+                TimeseriesLifecycleType.INSTANCE,
+                policy.getName() + randomAlphaOfLengthBetween(1, 5),
+                policy.getPhases(),
+                randomMeta()
+            );
+            case 1 -> {
                 headers = new HashMap<>(headers);
                 headers.put(randomAlphaOfLength(11), randomAlphaOfLength(11));
-                break;
-            case 2:
-                version++;
-                break;
-            case 3:
-                creationDate++;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            case 2 -> version++;
+            case 3 -> creationDate++;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new LifecyclePolicyMetadata(policy, headers, version, creationDate);
     }

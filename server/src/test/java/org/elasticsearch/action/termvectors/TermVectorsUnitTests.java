@@ -161,9 +161,8 @@ public class TermVectorsUnitTests extends ESTestCase {
     }
 
     public void testRestRequestParsing() throws Exception {
-        BytesReference inputBytes = new BytesArray(
-            " {\"fields\" : [\"a\",  \"b\",\"c\"], \"offsets\":false, \"positions\":false, \"payloads\":true}"
-        );
+        BytesReference inputBytes = new BytesArray("""
+            {"fields" : ["a",  "b","c"], "offsets":false, "positions":false, "payloads":true}""");
 
         TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
@@ -199,9 +198,8 @@ public class TermVectorsUnitTests extends ESTestCase {
     }
 
     public void testRequestParsingThrowsException() throws Exception {
-        BytesReference inputBytes = new BytesArray(
-            " {\"fields\" : \"a,  b,c   \", \"offsets\":false, \"positions\":false, \"payloads\":true, \"meaningless_term\":2}"
-        );
+        BytesReference inputBytes = new BytesArray("""
+            {"fields" : "a,  b,c   ", "offsets":false, "positions":false, "payloads":true, "meaningless_term":2}""");
         TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         boolean threwException = false;
         try {

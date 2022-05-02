@@ -64,8 +64,7 @@ public final class ExceptionRootCauseFinder {
                 return unwrappedThrowable;
             }
 
-            if (unwrappedThrowable instanceof ElasticsearchException) {
-                ElasticsearchException elasticsearchException = (ElasticsearchException) unwrappedThrowable;
+            if (unwrappedThrowable instanceof ElasticsearchException elasticsearchException) {
                 if (IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
                     return elasticsearchException;
                 }

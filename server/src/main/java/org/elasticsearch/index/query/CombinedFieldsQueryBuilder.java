@@ -21,6 +21,7 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -241,7 +242,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         return autoGenerateSynonymsPhraseQuery;
     }
 
-    private void validateFieldBoost(float boost) {
+    private static void validateFieldBoost(float boost) {
         if (boost < 1.0f) {
             throw new IllegalArgumentException("[" + NAME + "] requires field boosts to be >= 1.0");
         }
@@ -333,7 +334,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         return query;
     }
 
-    private void validateSimilarity(SearchExecutionContext context, Map<String, Float> fields) {
+    private static void validateSimilarity(SearchExecutionContext context, Map<String, Float> fields) {
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
             String name = entry.getKey();
             MappedFieldType fieldType = context.getFieldType(name);
@@ -444,5 +445,10 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
             && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
             && Objects.equals(zeroTermsQuery, other.zeroTermsQuery)
             && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_13_0;
     }
 }

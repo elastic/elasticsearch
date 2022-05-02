@@ -14,7 +14,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -234,7 +234,12 @@ public class AutodetectResultProcessor {
 
     public void setProcessKilled() {
         processKilled = true;
-        renormalizer.shutdown();
+        try {
+            renormalizer.shutdown();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
     }
 
     void handleOpenForecasts() {
@@ -538,7 +543,7 @@ public class AutodetectResultProcessor {
         flushListener.clear(flushId);
     }
 
-    public void waitUntilRenormalizerIsIdle() {
+    public void waitUntilRenormalizerIsIdle() throws InterruptedException {
         renormalizer.waitUntilIdle();
     }
 

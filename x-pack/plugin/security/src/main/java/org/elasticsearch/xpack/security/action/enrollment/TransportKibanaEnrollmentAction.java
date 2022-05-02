@@ -13,8 +13,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.StoreKeyConfig;
@@ -60,7 +60,7 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
     @Override
     protected void doExecute(Task task, KibanaEnrollmentRequest request, ActionListener<KibanaEnrollmentResponse> listener) {
 
-        final SslKeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().getKeyConfig();
+        final SslKeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().keyConfig();
         if (keyConfig instanceof StoreKeyConfig == false) {
             listener.onFailure(
                 new ElasticsearchException(

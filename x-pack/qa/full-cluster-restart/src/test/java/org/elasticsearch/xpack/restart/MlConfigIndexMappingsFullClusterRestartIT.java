@@ -72,19 +72,18 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     }
 
     private void createAnomalyDetectorJob(String jobId) throws IOException {
-        String jobConfig = "{\n"
-            + "    \"job_id\": \""
-            + jobId
-            + "\",\n"
-            + "    \"analysis_config\": {\n"
-            + "        \"bucket_span\": \"10m\",\n"
-            + "        \"detectors\": [{\n"
-            + "            \"function\": \"metric\",\n"
-            + "            \"field_name\": \"responsetime\"\n"
-            + "        }]\n"
-            + "    },\n"
-            + "    \"data_description\": {}\n"
-            + "}";
+        String jobConfig = """
+            {
+                "job_id": "%s",
+                "analysis_config": {
+                    "bucket_span": "10m",
+                    "detectors": [{
+                        "function": "metric",
+                        "field_name": "responsetime"
+                    }]
+                },
+                "data_description": {}
+            }""".formatted(jobId);
 
         Request putJobRequest = new Request("PUT", "/_ml/anomaly_detectors/" + jobId);
         putJobRequest.setJsonEntity(jobConfig);

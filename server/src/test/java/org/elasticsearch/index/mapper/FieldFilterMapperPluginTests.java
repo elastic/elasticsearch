@@ -280,71 +280,69 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         "properties.value.keyword_visible"
     );
 
-    private static final String TEST_ITEM = "{\n"
-        + "  \"_doc\": {\n"
-        + "      \"_meta\": {\n"
-        + "        \"version\":0.19\n"
-        + "      },"
-        + "      \"_routing\": {\n"
-        + "        \"required\":true\n"
-        + "      },"
-        + "      \"_source\": {\n"
-        + "        \"enabled\":false\n"
-        + "      },"
-        + "      \"properties\": {\n"
-        + "        \"name\": {\n"
-        + "          \"properties\": {\n"
-        + "            \"first\": {\n"
-        + "              \"type\": \"keyword\"\n"
-        + "            },\n"
-        + "            \"last_visible\": {\n"
-        + "              \"type\": \"keyword\"\n"
-        + "            }\n"
-        + "          }\n"
-        + "        },\n"
-        + "        \"birth\": {\n"
-        + "          \"type\": \"date\"\n"
-        + "        },\n"
-        + "        \"age_visible\": {\n"
-        + "          \"type\": \"integer\"\n"
-        + "        },\n"
-        + "        \"address\": {\n"
-        + "          \"type\": \"object\",\n"
-        + "          \"properties\": {\n"
-        + "            \"street\": {\n"
-        + "              \"type\": \"keyword\"\n"
-        + "            },\n"
-        + "            \"location\": {\n"
-        + "              \"type\": \"geo_point\"\n"
-        + "            },\n"
-        + "            \"area_visible\": {\n"
-        + "              \"type\": \"geo_shape\""
-        + "            }\n"
-        + "          }\n"
-        + "        },\n"
-        + "        \"properties\": {\n"
-        + "          \"type\": \"nested\",\n"
-        + "          \"properties\": {\n"
-        + "            \"key_visible\" : {\n"
-        + "              \"type\": \"text\",\n"
-        + "              \"fields\": {\n"
-        + "                \"keyword\" : {\n"
-        + "                  \"type\" : \"keyword\"\n"
-        + "                }\n"
-        + "              }\n"
-        + "            },\n"
-        + "            \"value\" : {\n"
-        + "              \"type\": \"text\",\n"
-        + "              \"fields\": {\n"
-        + "                \"keyword_visible\" : {\n"
-        + "                  \"type\" : \"keyword\"\n"
-        + "                }\n"
-        + "              }\n"
-        + "            }\n"
-        + "          }\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    private static final String TEST_ITEM = """
+        {
+          "_doc": {
+              "_meta": {
+                "version":0.19
+              },      "_routing": {
+                "required":true
+              },      "_source": {
+                "enabled":false
+              },      "properties": {
+                "name": {
+                  "properties": {
+                    "first": {
+                      "type": "keyword"
+                    },
+                    "last_visible": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "birth": {
+                  "type": "date"
+                },
+                "age_visible": {
+                  "type": "integer"
+                },
+                "address": {
+                  "type": "object",
+                  "properties": {
+                    "street": {
+                      "type": "keyword"
+                    },
+                    "location": {
+                      "type": "geo_point"
+                    },
+                    "area_visible": {
+                      "type": "geo_shape"
+                    }
+                  }
+                },
+                "properties": {
+                  "type": "nested",
+                  "properties": {
+                    "key_visible" : {
+                      "type": "text",
+                      "fields": {
+                        "keyword" : {
+                          "type" : "keyword"
+                        }
+                      }
+                    },
+                    "value" : {
+                      "type": "text",
+                      "fields": {
+                        "keyword_visible" : {
+                          "type" : "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }""";
 }

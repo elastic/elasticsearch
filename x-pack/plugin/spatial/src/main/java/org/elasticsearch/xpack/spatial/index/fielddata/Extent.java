@@ -97,38 +97,37 @@ class Extent {
         final int posRight;
         byte type = input.readByte();
         switch (type) {
-            case NONE_SET:
+            case NONE_SET -> {
                 negLeft = Integer.MAX_VALUE;
                 negRight = Integer.MIN_VALUE;
                 posLeft = Integer.MAX_VALUE;
                 posRight = Integer.MIN_VALUE;
-                break;
-            case POSITIVE_SET:
+            }
+            case POSITIVE_SET -> {
                 posLeft = input.readVInt();
                 posRight = Math.toIntExact(input.readVLong() + posLeft);
                 negLeft = Integer.MAX_VALUE;
                 negRight = Integer.MIN_VALUE;
-                break;
-            case NEGATIVE_SET:
+            }
+            case NEGATIVE_SET -> {
                 negRight = -input.readVInt();
                 negLeft = Math.toIntExact(negRight - input.readVLong());
                 posLeft = Integer.MAX_VALUE;
                 posRight = Integer.MIN_VALUE;
-                break;
-            case CROSSES_LAT_AXIS:
+            }
+            case CROSSES_LAT_AXIS -> {
                 posRight = input.readVInt();
                 negLeft = -input.readVInt();
                 posLeft = 0;
                 negRight = 0;
-                break;
-            case ALL_SET:
+            }
+            case ALL_SET -> {
                 posLeft = input.readVInt();
                 posRight = Math.toIntExact(input.readVLong() + posLeft);
                 negRight = -input.readVInt();
                 negLeft = Math.toIntExact(negRight - input.readVLong());
-                break;
-            default:
-                throw new IllegalArgumentException("invalid extent values-set byte read [" + type + "]");
+            }
+            default -> throw new IllegalArgumentException("invalid extent values-set byte read [" + type + "]");
         }
         extent.reset(top, bottom, negLeft, negRight, posLeft, posRight);
     }

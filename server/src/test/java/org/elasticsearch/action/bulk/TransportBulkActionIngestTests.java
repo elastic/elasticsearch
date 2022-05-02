@@ -202,7 +202,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         Metadata metadata = Metadata.builder()
             .indices(
                 ImmutableOpenMap.<String, IndexMetadata>builder()
-                    .putAll(
+                    .putAllFromMap(
                         Map.of(
                             WITH_DEFAULT_PIPELINE,
                             IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
@@ -739,6 +739,43 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             eq(Names.WRITE)
         );
+    }
+
+    public void testIngestCallbackExceptionHandled() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("index");
+        indexRequest1.source(Collections.emptyMap());
+        indexRequest1.setPipeline("testpipeline");
+        bulkRequest.add(indexRequest1);
+
+        AtomicBoolean responseCalled = new AtomicBoolean(false);
+        AtomicBoolean failureCalled = new AtomicBoolean(false);
+        ActionTestUtils.execute(
+            action,
+            null,
+            bulkRequest,
+            ActionListener.wrap(response -> { responseCalled.set(true); }, e -> { failureCalled.set(true); })
+        );
+
+        // check failure works, and passes through to the listener
+        assertFalse(action.isExecuted); // haven't executed yet
+        assertFalse(responseCalled.get());
+        assertFalse(failureCalled.get());
+        verify(ingestService).executeBulkRequest(
+            eq(bulkRequest.numberOfActions()),
+            bulkDocsItr.capture(),
+            failureHandler.capture(),
+            completionHandler.capture(),
+            any(),
+            eq(Names.WRITE)
+        );
+        indexRequest1.autoGenerateId();
+        completionHandler.getValue().accept(Thread.currentThread(), null);
+
+        // check failure passed through to the listener
+        assertFalse(action.isExecuted);
+        assertFalse(responseCalled.get());
+        assertTrue(failureCalled.get());
     }
 
     private void validateDefaultPipeline(IndexRequest indexRequest) {

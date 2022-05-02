@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -35,17 +36,10 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         String policy = instance.getPolicy();
 
         switch (between(0, 2)) {
-            case 0:
-                key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                policy = randomValueOtherThan(policy, () -> randomAlphaOfLengthBetween(1, 10));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> policy = randomValueOtherThan(policy, () -> randomAlphaOfLengthBetween(1, 10));
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new WaitForSnapshotStep(key, nextKey, policy);

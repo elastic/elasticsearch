@@ -16,7 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -243,7 +243,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
 
     private static final ToXContent.Params PARAMS = new ToXContent.MapParams(singletonMap("reduce_mappings", "true"));
 
-    private BytesReference toBytesReference(IndexTemplateMetadata templateMetadata) {
+    private static BytesReference toBytesReference(IndexTemplateMetadata templateMetadata) {
         try {
             return XContentHelper.toXContent((builder, params) -> {
                 IndexTemplateMetadata.Builder.toInnerXContentWithTypes(templateMetadata, builder, params);

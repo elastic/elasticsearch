@@ -17,7 +17,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
@@ -59,7 +59,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
@@ -138,7 +137,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         final List<Exception> exceptedExceptions = new CopyOnWriteArrayList<>();
 
         final ConflictMode conflictMode = ConflictMode.randomMode();
-        final List<String> fieldNames = IntStream.rangeClosed(0, randomInt(10)).mapToObj(n -> "f" + n).collect(Collectors.toList());
+        final List<String> fieldNames = IntStream.rangeClosed(0, randomInt(10)).mapToObj(n -> "f" + n).toList();
 
         logger.info("starting indexers using conflict mode " + conflictMode);
         try {
@@ -231,8 +230,8 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 }
                 // in case of a bridge partition, shard allocation can fail "index.allocation.max_retries" times if the master
                 // is the super-connected node and recovery source and target are on opposite sides of the bridge
-                if (disruptionScheme instanceof NetworkDisruption
-                    && ((NetworkDisruption) disruptionScheme).getDisruptedLinks() instanceof Bridge) {
+                if (disruptionScheme instanceof NetworkDisruption networkDisruption
+                    && networkDisruption.getDisruptedLinks() instanceof Bridge) {
                     assertBusy(() -> assertAcked(client().admin().cluster().prepareReroute().setRetryFailed(true)));
                 }
                 ensureGreen("test");
@@ -328,7 +327,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     public void testSendingShardFailure() throws Exception {
         List<String> nodes = startCluster(3);
         String masterNode = internalCluster().getMasterName();
-        List<String> nonMasterNodes = nodes.stream().filter(node -> node.equals(masterNode) == false).collect(Collectors.toList());
+        List<String> nonMasterNodes = nodes.stream().filter(node -> node.equals(masterNode) == false).toList();
         String nonMasterNode = randomFrom(nonMasterNodes);
         assertAcked(
             prepareCreate("test").setSettings(

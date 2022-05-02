@@ -225,7 +225,7 @@ public class ShapeBuilderTests extends ESTestCase {
             new CoordinatesBuilder().coordinate(-40.0, 50.0).coordinate(40.0, 50.0).coordinate(-40.0, -50.0).coordinate(40.0, -50.0).close()
         );
         Exception e = expectThrows(InvalidShapeException.class, () -> newPolygon.buildS4J());
-        assertThat(e.getMessage(), containsString("Cannot determine orientation: signed area equal to 0"));
+        assertThat(e.getMessage(), containsString("Self-intersection at or near point (0.0, 0.0, NaN)"));
     }
 
     /** note: only supported by S4J at the moment */
@@ -738,39 +738,40 @@ public class ShapeBuilderTests extends ESTestCase {
     }
 
     public void testPolygon3D() {
-        String expected = "{\n"
-            + "  \"type\" : \"polygon\",\n"
-            + "  \"orientation\" : \"right\",\n"
-            + "  \"coordinates\" : [\n"
-            + "    [\n"
-            + "      [\n"
-            + "        -45.0,\n"
-            + "        30.0,\n"
-            + "        100.0\n"
-            + "      ],\n"
-            + "      [\n"
-            + "        45.0,\n"
-            + "        30.0,\n"
-            + "        75.0\n"
-            + "      ],\n"
-            + "      [\n"
-            + "        45.0,\n"
-            + "        -30.0,\n"
-            + "        77.0\n"
-            + "      ],\n"
-            + "      [\n"
-            + "        -45.0,\n"
-            + "        -30.0,\n"
-            + "        101.0\n"
-            + "      ],\n"
-            + "      [\n"
-            + "        -45.0,\n"
-            + "        30.0,\n"
-            + "        110.0\n"
-            + "      ]\n"
-            + "    ]\n"
-            + "  ]\n"
-            + "}";
+        String expected = """
+            {
+              "type" : "polygon",
+              "orientation" : "right",
+              "coordinates" : [
+                [
+                  [
+                    -45.0,
+                    30.0,
+                    100.0
+                  ],
+                  [
+                    45.0,
+                    30.0,
+                    75.0
+                  ],
+                  [
+                    45.0,
+                    -30.0,
+                    77.0
+                  ],
+                  [
+                    -45.0,
+                    -30.0,
+                    101.0
+                  ],
+                  [
+                    -45.0,
+                    30.0,
+                    110.0
+                  ]
+                ]
+              ]
+            }""";
 
         PolygonBuilder pb = new PolygonBuilder(
             new CoordinatesBuilder().coordinate(new Coordinate(-45, 30, 100))

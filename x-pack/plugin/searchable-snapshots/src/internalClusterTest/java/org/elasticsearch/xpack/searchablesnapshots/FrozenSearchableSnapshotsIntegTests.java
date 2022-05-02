@@ -20,7 +20,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -59,6 +59,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
@@ -303,7 +304,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         // TODO: fix
         // assertSearchableSnapshotStats(restoredIndexName, true, nonCachedExtensions);
         ensureGreen(restoredIndexName);
-        assertBusy(() -> assertShardFolders(restoredIndexName, true));
+        assertBusy(() -> assertShardFolders(restoredIndexName, true), 30, TimeUnit.SECONDS);
 
         assertThat(
             client().admin()

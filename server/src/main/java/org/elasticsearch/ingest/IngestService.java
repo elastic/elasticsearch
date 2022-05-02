@@ -24,11 +24,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -43,6 +45,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -87,8 +90,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public static final String INGEST_ORIGIN = "ingest";
 
     private static final Logger logger = LogManager.getLogger(IngestService.class);
-    private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_EXPRESSION_RESOLVER =
-        new IndexNameExpressionResolver.DateMathExpressionResolver();
 
     private final ClusterService clusterService;
     private final ScriptService scriptService;
@@ -263,7 +264,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private static String resolveIndexName(final String unresolvedIndexName, final long epochMillis) {
-        List<String> resolvedNames = DATE_MATH_EXPRESSION_RESOLVER.resolve(
+        List<String> resolvedNames = IndexNameExpressionResolver.DateMathExpressionResolver.resolve(
             new IndexNameExpressionResolver.ResolverContext(epochMillis),
             List.of(unresolvedIndexName)
         );
@@ -283,12 +284,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Deletes the pipeline specified by id in the request.
      */
     public void delete(DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("delete-pipeline-" + request.getId(), new AckedClusterStateUpdateTask(request, listener) {
+        submitUnbatchedTask("delete-pipeline-" + request.getId(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return innerDelete(request, currentState);
             }
         });
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static ClusterState innerDelete(DeletePipelineRequest request, ClusterState currentState) {
@@ -436,7 +442,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
 
             validatePipeline(ingestInfos, request.getId(), config);
-            clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(), new AckedClusterStateUpdateTask(request, listener) {
+            submitUnbatchedTask("put-pipeline-" + request.getId(), new AckedClusterStateUpdateTask(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return innerPut(request, currentState);
@@ -490,12 +496,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         for (Tuple<Processor, IngestMetric> processorWithMetric : compoundProcessor.getProcessorsWithMetrics()) {
             Processor processor = processorWithMetric.v1();
             IngestMetric metric = processorWithMetric.v2();
-            if (processor instanceof CompoundProcessor) {
-                getProcessorMetrics((CompoundProcessor) processor, processorMetrics);
+            if (processor instanceof CompoundProcessor cp) {
+                getProcessorMetrics(cp, processorMetrics);
             } else {
                 // Prefer the conditional's metric since it only includes metrics when the conditional evaluated to true.
-                if (processor instanceof ConditionalProcessor) {
-                    metric = ((ConditionalProcessor) processor).getMetric();
+                if (processor instanceof ConditionalProcessor cp) {
+                    metric = (cp.getMetric());
                 }
                 processorMetrics.add(new Tuple<>(processor, metric));
             }
@@ -793,14 +799,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     // package private for testing
     static String getProcessorName(Processor processor) {
         // conditionals are implemented as wrappers around the real processor, so get the real processor for the correct type for the name
-        if (processor instanceof ConditionalProcessor) {
-            processor = ((ConditionalProcessor) processor).getInnerProcessor();
+        if (processor instanceof ConditionalProcessor conditionalProcessor) {
+            processor = conditionalProcessor.getInnerProcessor();
         }
         StringBuilder sb = new StringBuilder(5);
         sb.append(processor.getType());
 
-        if (processor instanceof PipelineProcessor) {
-            String pipelineName = ((PipelineProcessor) processor).getPipelineTemplate().newInstance(Map.of()).execute();
+        if (processor instanceof PipelineProcessor pipelineProcessor) {
+            String pipelineName = pipelineProcessor.getPipelineTemplate().newInstance(Map.of()).execute();
             sb.append(":");
             sb.append(pipelineName);
         }
@@ -871,9 +877,19 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     mergedDynamicTemplates.putAll(map);
                     indexRequest.setDynamicTemplates(mergedDynamicTemplates);
                 }
+                postIngest(ingestDocument, indexRequest);
+
                 handler.accept(null);
             }
         });
+    }
+
+    private void postIngest(IngestDocument ingestDocument, IndexRequest indexRequest) {
+        // cache timestamp from ingest source map
+        Object rawTimestamp = ingestDocument.getSourceAndMetadata().get(TimestampField.FIXED_TIMESTAMP_FIELD);
+        if (rawTimestamp != null && indexRequest.getRawTimestamp() == null) {
+            indexRequest.setRawTimestamp(rawTimestamp);
+        }
     }
 
     @Override
@@ -1015,8 +1031,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 processors.add(clazz.cast(processor));
             }
 
-            while (processor instanceof WrappingProcessor) {
-                WrappingProcessor wrappingProcessor = (WrappingProcessor) processor;
+            while (processor instanceof WrappingProcessor wrappingProcessor) {
                 if (clazz.isAssignableFrom(wrappingProcessor.getInnerProcessor().getClass())) {
                     processors.add(clazz.cast(wrappingProcessor.getInnerProcessor()));
                 }

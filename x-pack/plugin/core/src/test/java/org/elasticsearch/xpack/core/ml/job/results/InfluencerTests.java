@@ -76,8 +76,15 @@ public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600,"
-            + "\"influencer_field_name\":\"foo_1\", \"influencer_field_value\": \"foo_2\", \"foo\":\"bar\"}";
+        String json = """
+            {
+              "job_id": "job_1",
+              "timestamp": 123544456,
+              "bucket_span": 3600,
+              "influencer_field_name": "foo_1",
+              "influencer_field_value": "foo_2",
+              "foo": "bar"
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             Influencer.LENIENT_PARSER.apply(parser, null);
         }

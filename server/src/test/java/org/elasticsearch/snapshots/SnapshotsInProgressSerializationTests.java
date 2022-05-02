@@ -21,13 +21,14 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
-import org.elasticsearch.test.AbstractDiffableWireSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -46,7 +47,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireSerializationTestCase<Custom> {
+public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSerializationTestCase<Custom> {
 
     @Override
     protected Custom createTestInstance() {
@@ -71,10 +72,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         long startTime = randomLong();
         long repositoryStateId = randomLong();
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
-        final List<Index> esIndices = indices.keySet()
-            .stream()
-            .map(i -> new Index(i, randomAlphaOfLength(10)))
-            .collect(Collectors.toList());
+        final List<Index> esIndices = indices.keySet().stream().map(i -> new Index(i, randomAlphaOfLength(10))).toList();
         List<String> dataStreams = Arrays.asList(generateRandomStringArray(10, 10, false));
         for (Index idx : esIndices) {
             int shardsCount = randomIntBetween(1, 10);
@@ -192,7 +190,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
 
     private Entry mutateEntry(Entry entry) {
         switch (randomInt(8)) {
-            case 0:
+            case 0 -> {
                 boolean includeGlobalState = entry.includeGlobalState() == false;
                 return new Entry(
                     entry.snapshot(),
@@ -209,7 +207,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            case 1:
+            }
+            case 1 -> {
                 boolean partial = entry.partial() == false;
                 return new Entry(
                     entry.snapshot(),
@@ -226,9 +225,9 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            case 2:
-                List<String> dataStreams = Stream.concat(entry.dataStreams().stream(), Stream.of(randomAlphaOfLength(10)))
-                    .collect(Collectors.toList());
+            }
+            case 2 -> {
+                List<String> dataStreams = Stream.concat(entry.dataStreams().stream(), Stream.of(randomAlphaOfLength(10))).toList();
                 return new Entry(
                     entry.snapshot(),
                     entry.includeGlobalState(),
@@ -244,7 +243,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            case 3:
+            }
+            case 3 -> {
                 long startTime = randomValueOtherThan(entry.startTime(), ESTestCase::randomLong);
                 return new Entry(
                     entry.snapshot(),
@@ -261,7 +261,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            case 4:
+            }
+            case 4 -> {
                 long repositoryStateId = randomValueOtherThan(entry.startTime(), ESTestCase::randomLong);
                 return new Entry(
                     entry.snapshot(),
@@ -278,7 +279,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            case 5:
+            }
+            case 5 -> {
                 String failure = randomValueOtherThan(entry.failure(), () -> randomAlphaOfLengthBetween(2, 10));
                 return new Entry(
                     entry.snapshot(),
@@ -295,7 +297,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            case 6:
+            }
+            case 6 -> {
                 Map<String, IndexId> indices = new HashMap<>(entry.indices());
                 ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = entry.shards();
                 IndexId indexId = new IndexId(randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -322,7 +325,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            case 7:
+            }
+            case 7 -> {
                 Map<String, Object> userMetadata = entry.userMetadata() != null ? new HashMap<>(entry.userMetadata()) : new HashMap<>();
                 String key = randomAlphaOfLengthBetween(2, 10);
                 if (userMetadata.containsKey(key)) {
@@ -345,7 +349,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     userMetadata,
                     entry.version()
                 );
-            case 8:
+            }
+            case 8 -> {
                 List<SnapshotFeatureInfo> featureStates = randomList(
                     1,
                     5,
@@ -366,8 +371,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            default:
-                throw new IllegalArgumentException("invalid randomization case");
+            }
+            default -> throw new IllegalArgumentException("invalid randomization case");
         }
     }
 
@@ -417,30 +422,103 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             assertThat(
                 json,
                 anyOf(
-                    equalTo(
-                        "{\"snapshots\":[{\"repository\":\"repo\",\"snapshot\":\"name\",\"uuid\":\"uuid\","
-                            + "\"include_global_state\":true,\"partial\":true,\"state\":\"SUCCESS\","
-                            + "\"indices\":[{\"name\":\"index\",\"id\":\"uuid\"}],\"start_time\":\"1970-01-01T00:20:34.567Z\","
-                            + "\"start_time_millis\":1234567,\"repository_state_id\":0,\"shards\":["
-                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":0,\"state\":\"SUCCESS\","
-                            + "\"generation\":\"shardgen\",\"node\":\"nodeId\","
-                            + "\"result\":{\"generation\":\"shardgen\",\"size\":\"1b\",\"size_in_bytes\":1,\"segments\":1}},"
-                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":1,\"state\":\"FAILED\","
-                            + "\"generation\":\"fail-gen\",\"node\":\"nodeId\",\"reason\":\"failure-reason\"}"
-                            + "],\"feature_states\":[],\"data_streams\":[]}]}"
-                    ), // or the shards might be in the other order:
-                    equalTo(
-                        "{\"snapshots\":[{\"repository\":\"repo\",\"snapshot\":\"name\",\"uuid\":\"uuid\","
-                            + "\"include_global_state\":true,\"partial\":true,\"state\":\"SUCCESS\","
-                            + "\"indices\":[{\"name\":\"index\",\"id\":\"uuid\"}],\"start_time\":\"1970-01-01T00:20:34.567Z\","
-                            + "\"start_time_millis\":1234567,\"repository_state_id\":0,\"shards\":["
-                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":1,\"state\":\"FAILED\","
-                            + "\"generation\":\"fail-gen\",\"node\":\"nodeId\",\"reason\":\"failure-reason\"},"
-                            + "{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"},\"shard\":0,\"state\":\"SUCCESS\","
-                            + "\"generation\":\"shardgen\",\"node\":\"nodeId\","
-                            + "\"result\":{\"generation\":\"shardgen\",\"size\":\"1b\",\"size_in_bytes\":1,\"segments\":1}}"
-                            + "],\"feature_states\":[],\"data_streams\":[]}]}"
-                    )
+                    equalTo(XContentHelper.stripWhitespace("""
+                        {
+                          "snapshots": [
+                            {
+                              "repository": "repo",
+                              "snapshot": "name",
+                              "uuid": "uuid",
+                              "include_global_state": true,
+                              "partial": true,
+                              "state": "SUCCESS",
+                              "indices": [ { "name": "index", "id": "uuid" } ],
+                              "start_time": "1970-01-01T00:20:34.567Z",
+                              "start_time_millis": 1234567,
+                              "repository_state_id": 0,
+                              "shards": [
+                                {
+                                  "index": {
+                                    "index_name": "index",
+                                    "index_uuid": "uuid"
+                                  },
+                                  "shard": 0,
+                                  "state": "SUCCESS",
+                                  "generation": "shardgen",
+                                  "node": "nodeId",
+                                  "result": {
+                                    "generation": "shardgen",
+                                    "size": "1b",
+                                    "size_in_bytes": 1,
+                                    "segments": 1
+                                  }
+                                },
+                                {
+                                  "index": {
+                                    "index_name": "index",
+                                    "index_uuid": "uuid"
+                                  },
+                                  "shard": 1,
+                                  "state": "FAILED",
+                                  "generation": "fail-gen",
+                                  "node": "nodeId",
+                                  "reason": "failure-reason"
+                                }
+                              ],
+                              "feature_states": [],
+                              "data_streams": []
+                            }
+                          ]
+                        }""")),
+                    // or the shards might be in the other order:
+                    equalTo(XContentHelper.stripWhitespace("""
+                        {
+                          "snapshots": [
+                            {
+                              "repository": "repo",
+                              "snapshot": "name",
+                              "uuid": "uuid",
+                              "include_global_state": true,
+                              "partial": true,
+                              "state": "SUCCESS",
+                              "indices": [ { "name": "index", "id": "uuid" } ],
+                              "start_time": "1970-01-01T00:20:34.567Z",
+                              "start_time_millis": 1234567,
+                              "repository_state_id": 0,
+                              "shards": [
+                                {
+                                  "index": {
+                                    "index_name": "index",
+                                    "index_uuid": "uuid"
+                                  },
+                                  "shard": 1,
+                                  "state": "FAILED",
+                                  "generation": "fail-gen",
+                                  "node": "nodeId",
+                                  "reason": "failure-reason"
+                                },
+                                {
+                                  "index": {
+                                    "index_name": "index",
+                                    "index_uuid": "uuid"
+                                  },
+                                  "shard": 0,
+                                  "state": "SUCCESS",
+                                  "generation": "shardgen",
+                                  "node": "nodeId",
+                                  "result": {
+                                    "generation": "shardgen",
+                                    "size": "1b",
+                                    "size_in_bytes": 1,
+                                    "segments": 1
+                                  }
+                                }
+                              ],
+                              "feature_states": [],
+                              "data_streams": []
+                            }
+                          ]
+                        }"""))
                 )
             );
         }

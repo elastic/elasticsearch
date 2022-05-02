@@ -18,8 +18,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -47,8 +47,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -62,6 +60,8 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
@@ -74,6 +74,8 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
+import org.elasticsearch.xpack.transform.action.TransportGetCheckpointAction;
+import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformStatsAction;
 import org.elasticsearch.xpack.transform.action.TransportPreviewTransformAction;
@@ -123,7 +125,6 @@ import static org.elasticsearch.xpack.core.transform.transforms.persistence.Tran
 public class Transform extends Plugin implements SystemIndexPlugin, PersistentTaskPlugin {
 
     public static final String NAME = "transform";
-    public static final String TASK_THREAD_POOL_NAME = "transform_indexing";
 
     private static final Logger logger = LogManager.getLogger(Transform.class);
 
@@ -191,28 +192,18 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(PreviewTransformAction.INSTANCE, TransportPreviewTransformAction.class),
             new ActionHandler<>(UpdateTransformAction.INSTANCE, TransportUpdateTransformAction.class),
             new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetTransformResetModeAction.class),
-            new ActionHandler<>(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
             new ActionHandler<>(UpgradeTransformsAction.INSTANCE, TransportUpgradeTransformsAction.class),
             new ActionHandler<>(ResetTransformAction.INSTANCE, TransportResetTransformAction.class),
+
+            // internal, no rest endpoint
+            new ActionHandler<>(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
+            new ActionHandler<>(GetCheckpointAction.INSTANCE, TransportGetCheckpointAction.class),
+            new ActionHandler<>(GetCheckpointNodeAction.INSTANCE, TransportGetCheckpointNodeAction.class),
 
             // usage and info
             new ActionHandler<>(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.TRANSFORM, TransformInfoTransportAction.class)
         );
-    }
-
-    @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
-        FixedExecutorBuilder indexing = new FixedExecutorBuilder(
-            settingsToUse,
-            TASK_THREAD_POOL_NAME,
-            4,
-            4,
-            "transform.task_thread_pool",
-            false
-        );
-
-        return Collections.singletonList(indexing);
     }
 
     @Override

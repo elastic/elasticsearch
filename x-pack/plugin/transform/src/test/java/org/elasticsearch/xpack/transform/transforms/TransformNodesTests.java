@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
@@ -31,9 +32,11 @@ import java.util.HashSet;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.TRANSFORM_ROLE;
+import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class TransformNodesTests extends ESTestCase {
@@ -264,6 +267,40 @@ public class TransformNodesTests extends ESTestCase {
             assertThat(TransformNodes.hasAnyTransformNode(nodes), is(true));
             TransformNodes.throwIfNoTransformNodes(newClusterState(nodes));
         }
+    }
+
+    public void testGetAssignment() {
+        TransformTaskParams transformTaskParams1 = new TransformTaskParams(
+            "transform-1",
+            Version.CURRENT,
+            TimeValue.timeValueSeconds(10),
+            false
+        );
+        TransformTaskParams transformTaskParams2 = new TransformTaskParams(
+            "transform-2",
+            Version.CURRENT,
+            TimeValue.timeValueSeconds(10),
+            false
+        );
+        PersistentTasksCustomMetadata.Assignment assignment2 = new PersistentTasksCustomMetadata.Assignment(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("some-cluster"))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        PersistentTasksCustomMetadata.TYPE,
+                        PersistentTasksCustomMetadata.builder()
+                            .addTask("transform-1", TransformTaskParams.NAME, transformTaskParams1, null)
+                            .addTask("transform-2", TransformTaskParams.NAME, transformTaskParams2, assignment2)
+                            .build()
+                    )
+            )
+            .build();
+        assertThat(TransformNodes.getAssignment("transform-1", clusterState), is(nullValue()));
+        assertThat(TransformNodes.getAssignment("transform-2", clusterState), is(equalTo(assignment2)));
+        assertThat(TransformNodes.getAssignment("transform-3", clusterState), is(equalTo(INITIAL_ASSIGNMENT)));
     }
 
     private static ClusterState newClusterState(DiscoveryNodes nodes) {

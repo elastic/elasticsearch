@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
 import static java.util.stream.Collectors.toSet;
-import static org.apache.lucene.util.LuceneTestCase.random;
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -193,17 +193,7 @@ public class CoordinationStateTestCluster {
         initialValue = randomLong();
     }
 
-    static class Message {
-        final DiscoveryNode sourceNode;
-        final DiscoveryNode targetNode;
-        final Object payload;
-
-        Message(DiscoveryNode sourceNode, DiscoveryNode targetNode, Object payload) {
-            this.sourceNode = sourceNode;
-            this.targetNode = targetNode;
-            this.payload = payload;
-        }
-    }
+    record Message(DiscoveryNode sourceNode, DiscoveryNode targetNode, Object payload) {}
 
     void reply(Message m, Object payload) {
         messages.add(new Message(m.targetNode, m.sourceNode, payload));

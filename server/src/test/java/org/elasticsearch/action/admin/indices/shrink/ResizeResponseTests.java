@@ -18,7 +18,8 @@ public class ResizeResponseTests extends AbstractSerializingTestCase<ResizeRespo
     public void testToXContent() {
         ResizeResponse response = new ResizeResponse(true, false, "index_name");
         String output = Strings.toString(response);
-        assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":\"index_name\"}", output);
+        assertEquals("""
+            {"acknowledged":true,"shards_acknowledged":false,"index":"index_name"}""", output);
     }
 
     @Override

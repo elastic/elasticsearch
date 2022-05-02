@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -93,7 +93,8 @@ public class RestValidateQueryAction extends BaseRestHandler {
         };
     }
 
-    private void handleException(final ValidateQueryRequest request, final String message, final RestChannel channel) throws IOException {
+    private static void handleException(final ValidateQueryRequest request, final String message, final RestChannel channel)
+        throws IOException {
         channel.sendResponse(buildErrorResponse(channel.newBuilder(), message, request.explain()));
     }
 

@@ -59,12 +59,13 @@ public class RangeTests extends BaseAggregationTestCase<RangeAggregationBuilder>
     }
 
     public void testParsingRangeStrict() throws IOException {
-        final String rangeAggregation = "{\n"
-            + "\"field\" : \"price\",\n"
-            + "\"ranges\" : [\n"
-            + "    { \"from\" : 50, \"to\" : 100, \"badField\" : \"abcd\" }\n"
-            + "]\n"
-            + "}";
+        final String rangeAggregation = """
+            {
+            "field" : "price",
+            "ranges" : [
+                { "from" : 50, "to" : 100, "badField" : "abcd" }
+            ]
+            }""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
         XContentParseException ex = expectThrows(
             XContentParseException.class,
@@ -78,12 +79,13 @@ public class RangeTests extends BaseAggregationTestCase<RangeAggregationBuilder>
      * We never render "null" values to xContent, but we should test that we can parse them (and they return correct defaults)
      */
     public void testParsingNull() throws IOException {
-        final String rangeAggregation = "{\n"
-            + "\"field\" : \"price\",\n"
-            + "\"ranges\" : [\n"
-            + "    { \"from\" : null, \"to\" : null }\n"
-            + "]\n"
-            + "}";
+        final String rangeAggregation = """
+            {
+            "field" : "price",
+            "ranges" : [
+                { "from" : null, "to" : null }
+            ]
+            }""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
         RangeAggregationBuilder aggregationBuilder = RangeAggregationBuilder.PARSER.parse(parser, "aggregationName");
         assertEquals(1, aggregationBuilder.ranges().size());

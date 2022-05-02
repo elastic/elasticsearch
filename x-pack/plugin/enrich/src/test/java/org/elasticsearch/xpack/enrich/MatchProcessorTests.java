@@ -6,14 +6,9 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.routing.Preference;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -22,17 +17,8 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.script.TemplateScript;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -49,7 +35,7 @@ public class MatchProcessorTests extends ESTestCase {
 
     public void testBasics() throws Exception {
         int maxMatches = randomIntBetween(1, 8);
-        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("elastic.co", Map.of("globalRank", 451, "tldRank", 23, "tld", "co")));
+        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("globalRank", 451, "tldRank", 23, "tld", "co"));
         MatchProcessor processor = new MatchProcessor(
             "_tag",
             null,
@@ -250,7 +236,7 @@ public class MatchProcessorTests extends ESTestCase {
     }
 
     public void testExistingFieldWithOverrideDisabled() throws Exception {
-        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("elastic.co", Map.of("globalRank", 451, "tldRank", 23, "tld", "co")));
+        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("globalRank", 451, "tldRank", 23, "tld", "co"));
         MatchProcessor processor = new MatchProcessor(
             "_tag",
             null,
@@ -277,7 +263,7 @@ public class MatchProcessorTests extends ESTestCase {
     }
 
     public void testExistingNullFieldWithOverrideDisabled() throws Exception {
-        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("elastic.co", Map.of("globalRank", 451, "tldRank", 23, "tld", "co")));
+        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("globalRank", 451, "tldRank", 23, "tld", "co"));
         MatchProcessor processor = new MatchProcessor(
             "_tag",
             null,
@@ -307,7 +293,7 @@ public class MatchProcessorTests extends ESTestCase {
     }
 
     public void testNumericValue() {
-        MockSearchFunction mockSearch = mockedSearchFunction(Map.of(2, Map.of("globalRank", 451, "tldRank", 23, "tld", "co")));
+        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("globalRank", 451, "tldRank", 23, "tld", "co"));
         MatchProcessor processor = new MatchProcessor(
             "_tag",
             null,
@@ -344,9 +330,7 @@ public class MatchProcessorTests extends ESTestCase {
     }
 
     public void testArray() {
-        MockSearchFunction mockSearch = mockedSearchFunction(
-            Map.of(List.of("1", "2"), Map.of("globalRank", 451, "tldRank", 23, "tld", "co"))
-        );
+        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("globalRank", 451, "tldRank", 23, "tld", "co"));
         MatchProcessor processor = new MatchProcessor(
             "_tag",
             null,
@@ -391,13 +375,13 @@ public class MatchProcessorTests extends ESTestCase {
         assertThat(entry.get("tld"), equalTo("co"));
     }
 
-    private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> {
-        private final SearchResponse mockResponse;
+    private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> {
+        private final List<Map<?, ?>> mockResponse;
         private final SetOnce<SearchRequest> capturedRequest;
         private final Exception exception;
 
-        MockSearchFunction(SearchResponse mockResponse) {
-            this.mockResponse = mockResponse;
+        MockSearchFunction(Map<?, ?> mockResponse) {
+            this.mockResponse = mockResponse.isEmpty() ? List.of() : List.of(mockResponse);
             this.exception = null;
             this.capturedRequest = new SetOnce<>();
         }
@@ -409,7 +393,7 @@ public class MatchProcessorTests extends ESTestCase {
         }
 
         @Override
-        public void accept(SearchRequest request, BiConsumer<SearchResponse, Exception> handler) {
+        public void accept(SearchRequest request, BiConsumer<List<Map<?, ?>>, Exception> handler) {
             capturedRequest.set(request);
             if (exception != null) {
                 handler.accept(null, exception);
@@ -424,48 +408,15 @@ public class MatchProcessorTests extends ESTestCase {
     }
 
     public MockSearchFunction mockedSearchFunction() {
-        return new MockSearchFunction(mockResponse(Collections.emptyMap()));
+        return new MockSearchFunction(Collections.emptyMap());
     }
 
     public MockSearchFunction mockedSearchFunction(Exception exception) {
         return new MockSearchFunction(exception);
     }
 
-    public MockSearchFunction mockedSearchFunction(Map<?, Map<String, ?>> documents) {
-        return new MockSearchFunction(mockResponse(documents));
-    }
-
-    public SearchResponse mockResponse(Map<?, Map<String, ?>> documents) {
-        SearchHit[] searchHits = documents.entrySet().stream().map(e -> {
-            SearchHit searchHit = new SearchHit(randomInt(100), e.getKey().toString(), Collections.emptyMap(), Collections.emptyMap());
-            try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
-                builder.map(e.getValue());
-                builder.flush();
-                ByteArrayOutputStream outputStream = (ByteArrayOutputStream) builder.getOutputStream();
-                searchHit.sourceRef(new BytesArray(outputStream.toByteArray()));
-            } catch (IOException ex) {
-                throw new UncheckedIOException(ex);
-            }
-            return searchHit;
-        }).toArray(SearchHit[]::new);
-        return new SearchResponse(
-            new SearchResponseSections(
-                new SearchHits(searchHits, new TotalHits(documents.size(), TotalHits.Relation.EQUAL_TO), 1.0f),
-                new Aggregations(Collections.emptyList()),
-                new Suggest(Collections.emptyList()),
-                false,
-                false,
-                null,
-                1
-            ),
-            null,
-            1,
-            1,
-            0,
-            1,
-            ShardSearchFailure.EMPTY_ARRAY,
-            new SearchResponse.Clusters(1, 1, 0)
-        );
+    public MockSearchFunction mockedSearchFunction(Map<?, ?> document) {
+        return new MockSearchFunction(document);
     }
 
     static TemplateScript.Factory str(String stringLiteral) {

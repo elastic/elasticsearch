@@ -371,24 +371,14 @@ public class JavaDateMathParserTests extends ESTestCase {
         long expectedMillis = parser.parse(expected, () -> 0).toEpochMilli();
         if (gotMillis != expectedMillis) {
             ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(gotMillis), ZoneOffset.UTC);
-            fail(
-                "Date math not equal\n"
-                    + "Original              : "
-                    + original
-                    + "\n"
-                    + "Parsed                : "
-                    + formatter.format(zonedDateTime)
-                    + "\n"
-                    + "Expected              : "
-                    + expected
-                    + "\n"
-                    + "Expected milliseconds : "
-                    + expectedMillis
-                    + "\n"
-                    + "Actual milliseconds   : "
-                    + gotMillis
-                    + "\n"
-            );
+            fail("""
+                Date math not equal
+                Original              : %s
+                Parsed                : %s
+                Expected              : %s
+                Expected milliseconds : %s
+                Actual milliseconds   : %s
+                """.formatted(original, formatter.format(zonedDateTime), expected, expectedMillis, gotMillis));
         }
     }
 }

@@ -6,15 +6,13 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import joptsimple.internal.Strings;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -27,9 +25,9 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.rest.RestStatus;
@@ -438,7 +436,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         if (filterIds.isEmpty()) {
             filtersListener.onResponse(null);
         } else {
-            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request(Strings.join(filterIds, ","));
+            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request(String.join(",", filterIds));
             getFilterRequest.setPageParams(new PageParams(0, filterIds.size()));
             executeAsyncWithOrigin(
                 client,
@@ -480,6 +478,17 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     );
                     return;
                 }
+                if (resetInProgress) {
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "Aborted upgrading snapshot [{}] for job [{}] as ML feature is being reset",
+                            snapshotId,
+                            jobId
+                        )
+                    );
+                    closeHandler.accept(null);
+                    return;
+                }
                 // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                     @Override
@@ -493,6 +502,17 @@ public class AutodetectProcessManager implements ClusterStateListener {
                             logger.info(
                                 () -> new ParameterizedMessage(
                                     "Aborted upgrading snapshot [{}] for job [{}] as node is dying",
+                                    snapshotId,
+                                    jobId
+                                )
+                            );
+                            closeHandler.accept(null);
+                            return;
+                        }
+                        if (resetInProgress) {
+                            logger.trace(
+                                () -> new ParameterizedMessage(
+                                    "Aborted upgrading snapshot [{}] for job [{}] as ML feature is being reset",
                                     snapshotId,
                                     jobId
                                 )
@@ -917,14 +937,14 @@ public class AutodetectProcessManager implements ClusterStateListener {
         } catch (Exception e) {
             // If the close failed because the process has explicitly been killed by us then just pass on that exception.
             // (Note that jobKilled may be false in this case, if the kill is executed while communicator.close() is running.)
-            if (e instanceof ElasticsearchStatusException && ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT) {
+            if (e instanceof ElasticsearchStatusException exception && exception.status() == RestStatus.CONFLICT) {
                 logger.trace(
                     "[{}] Conflict between kill and {} during autodetect process cleanup - job {} before cleanup started",
                     jobId,
                     jobTask.isVacating() ? "vacate" : "close",
                     jobKilled ? "killed" : "not killed"
                 );
-                throw (ElasticsearchStatusException) e;
+                throw exception;
             }
             String msg = jobKilled
                 ? "Exception cleaning up autodetect process started after kill"

@@ -57,18 +57,32 @@ public class DlsRequestCacheIT extends SecurityOnTrialLicenseRestTestCase {
         final RestClient client = client();
 
         final Request putScriptRequest = new Request("PUT", "_scripts/range-now");
-        putScriptRequest.setJsonEntity(
-            "{\"script\":{\"lang\":\"painless\","
-                + "\"source\":\"'{\\\"range\\\":{\\\"date\\\": {\\\"lte\\\": \\\"' + new Date().getTime() + '\\\"}}}' \"}}"
-        );
+        putScriptRequest.setJsonEntity("""
+            {
+              "script": {
+                "lang": "painless",
+                "source": "'{\\"range\\":{\\"date\\": {\\"lte\\": \\"' + new Date().getTime() + '\\"}}}' "
+              }
+            }""");
         assertOK(adminClient.performRequest(putScriptRequest));
 
         // Create the index with a date field and 1 primary shard with no replica
         final Request putIndexRequest = new Request("PUT", DLS_TEMPLATE_PAINLESS_INDEX);
-        putIndexRequest.setJsonEntity(
-            "{\"mappings\":{\"properties\":{\"date\":{\"type\":\"date\",\"format\":\"epoch_millis\"}}},"
-                + "\"settings\":{\"number_of_shards\":1,\"number_of_replicas\":0}}"
-        );
+        putIndexRequest.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "date": {
+                    "type": "date",
+                    "format": "epoch_millis"
+                  }
+                }
+              },
+              "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 0
+              }
+            }""");
         assertOK(adminClient.performRequest(putIndexRequest));
 
         // A doc in the past 1 min

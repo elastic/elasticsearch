@@ -305,8 +305,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             TopDocs in = topDocsSupplier.get();
             float maxScore = maxScoreSupplier.get();
             final TopDocs newTopDocs;
-            if (in instanceof TopFieldDocs) {
-                TopFieldDocs fieldDocs = (TopFieldDocs) in;
+            if (in instanceof TopFieldDocs fieldDocs) {
                 newTopDocs = new TopFieldDocs(totalHitsSupplier.get(), fieldDocs.scoreDocs, fieldDocs.fields);
             } else {
                 newTopDocs = new TopDocs(totalHitsSupplier.get(), in.scoreDocs);
@@ -537,8 +536,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         void checkMaxScoreInfo(Query query) {
             if (query instanceof FunctionScoreQuery || query instanceof ScriptScoreQuery || query instanceof SpanQuery) {
                 hasInfMaxScore = true;
-            } else if (query instanceof ESToParentBlockJoinQuery) {
-                ESToParentBlockJoinQuery q = (ESToParentBlockJoinQuery) query;
+            } else if (query instanceof ESToParentBlockJoinQuery q) {
                 hasInfMaxScore |= (q.getScoreMode() != org.apache.lucene.search.join.ScoreMode.None);
             }
         }

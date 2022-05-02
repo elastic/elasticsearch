@@ -106,8 +106,11 @@ public class LongGCDisruption extends SingleNodeDisruption {
                 }
                 if (suspendingThread.isAlive()) {
                     logger.warn(
-                        "failed to suspend node [{}]'s threads within [{}] millis. Suspending thread stack trace:\n {}"
-                            + "\nThreads that weren't suspended:\n {}",
+                        """
+                            failed to suspend node [{}]'s threads within [{}] millis. Suspending thread stack trace:
+                             {}
+                            Threads that weren't suspended:
+                             {}""",
                         disruptedNode,
                         getSuspendingTimeoutInMillis(),
                         stackTrace(suspendingThread.getStackTrace()),

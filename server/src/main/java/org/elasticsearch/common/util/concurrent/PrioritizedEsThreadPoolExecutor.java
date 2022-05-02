@@ -91,8 +91,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     private void addPending(List<Runnable> runnables, List<Pending> pending, boolean executing) {
         for (Runnable runnable : runnables) {
-            if (runnable instanceof TieBreakingPrioritizedRunnable) {
-                TieBreakingPrioritizedRunnable t = (TieBreakingPrioritizedRunnable) runnable;
+            if (runnable instanceof TieBreakingPrioritizedRunnable t) {
                 Runnable innerRunnable = t.runnable;
                 if (innerRunnable != null) {
                     /** innerRunnable can be null if task is finished but not removed from executor yet,
@@ -100,8 +99,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
                      */
                     pending.add(new Pending(super.unwrap(innerRunnable), t.priority(), t.insertionOrder, executing));
                 }
-            } else if (runnable instanceof PrioritizedFutureTask) {
-                PrioritizedFutureTask<?> t = (PrioritizedFutureTask<?>) runnable;
+            } else if (runnable instanceof PrioritizedFutureTask<?> t) {
                 Object task = t.task;
                 if (t.task instanceof Runnable) {
                     task = super.unwrap((Runnable) t.task);

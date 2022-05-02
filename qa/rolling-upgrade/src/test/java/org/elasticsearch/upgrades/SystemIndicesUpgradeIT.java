@@ -34,21 +34,23 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
 
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
-            bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\"}}\n" + "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+            bulk.setJsonEntity("""
+                {"index": {"_index": "test_index_old"}}
+                {"f1": "v1", "f2": "v2"}
+                """);
             client().performRequest(bulk);
 
             // start a async reindex job
             Request reindex = new Request("POST", "/_reindex");
-            reindex.setJsonEntity(
-                "{\n"
-                    + "  \"source\":{\n"
-                    + "    \"index\":\"test_index_old\"\n"
-                    + "  },\n"
-                    + "  \"dest\":{\n"
-                    + "    \"index\":\"test_index_reindex\"\n"
-                    + "  }\n"
-                    + "}"
-            );
+            reindex.setJsonEntity("""
+                {
+                  "source":{
+                    "index":"test_index_old"
+                  },
+                  "dest":{
+                    "index":"test_index_reindex"
+                  }
+                }""");
             reindex.addParameter("wait_for_completion", "false");
             Map<String, Object> response = entityAsMap(client().performRequest(reindex));
             String taskId = (String) response.get("task");
@@ -83,14 +85,13 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
             if (minimumNodeVersion().before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
                 // Create an alias to make sure it gets upgraded properly
                 Request putAliasRequest = new Request("POST", "/_aliases");
-                putAliasRequest.setJsonEntity(
-                    "{\n"
-                        + "  \"actions\": [\n"
-                        + "    {\"add\":  {\"index\":  \".tasks\", \"alias\": \"test-system-alias\"}},\n"
-                        + "    {\"add\":  {\"index\":  \"test_index_reindex\", \"alias\": \"test-system-alias\"}}\n"
-                        + "  ]\n"
-                        + "}"
-                );
+                putAliasRequest.setJsonEntity("""
+                    {
+                      "actions": [
+                        {"add":  {"index":  ".tasks", "alias": "test-system-alias"}},
+                        {"add":  {"index":  "test_index_reindex", "alias": "test-system-alias"}}
+                      ]
+                    }""");
                 putAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {
                     v.current(systemIndexWarning);
                     v.compatible(systemIndexWarning);

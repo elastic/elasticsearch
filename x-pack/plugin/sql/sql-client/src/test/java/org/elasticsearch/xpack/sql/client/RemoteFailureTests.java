@@ -74,12 +74,10 @@ public class RemoteFailureTests extends ESTestCase {
 
     public void testBogusError() {
         IOException e = expectThrows(IOException.class, () -> parse("bogus_error.json"));
-        assertEquals(
-            "Can't parse error from Elasticsearch [Expected [error] to be an object or string but was [START_ARRAY][[]] "
-                + "at [line 1 col 12]. Response:\n"
-                + "{ \"error\": [\"bogus\"] }",
-            e.getMessage()
-        );
+        assertEquals("""
+            Can't parse error from Elasticsearch [Expected [error] to be an object or string but was [START_ARRAY][[]] \
+            at [line 1 col 12]. Response:
+            { "error": ["bogus"] }""", e.getMessage());
     }
 
     public void testNoStack() {
@@ -103,13 +101,10 @@ public class RemoteFailureTests extends ESTestCase {
 
     public void testInvalidJson() {
         IOException e = expectThrows(IOException.class, () -> parse("invalid_json.txt"));
-        assertEquals(
-            "Can't parse error from Elasticsearch [Unrecognized token 'I': "
-                + "was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')] "
-                + "at [line 1 col 1]. Response:\n"
-                + "I'm not json at all",
-            e.getMessage()
-        );
+        assertEquals("""
+            Can't parse error from Elasticsearch [Unrecognized token 'I': was expecting (JSON String, Number, Array, Object or \
+            token 'null', 'true' or 'false')] at [line 1 col 1]. Response:
+            I'm not json at all""", e.getMessage());
     }
 
     public void testExceptionBuildingParser() {
@@ -151,47 +146,51 @@ public class RemoteFailureTests extends ESTestCase {
 
     public void testTooBig() {
         StringBuilder tooBig = new StringBuilder(RemoteFailure.MAX_RAW_RESPONSE);
-        tooBig.append("{\n");
-        tooBig.append("\"error\" : {\n");
-        tooBig.append("  \"type\" : \"illegal_argument_exception\",\n");
-        tooBig.append("  \"reason\" : \"something\",\n");
-        tooBig.append("  \"header\" : {\n");
+        tooBig.append("""
+            {
+              "error" : {
+                "type" : "illegal_argument_exception",
+                "reason" : "something",
+                "header" : {
+            """);
         int i = 0;
         while (tooBig.length() < RemoteFailure.MAX_RAW_RESPONSE) {
-            tooBig.append("    \"")
-                .append(String.format(Locale.ROOT, "%04d", i++))
-                .append("\" : \"lots and lots and lots and lots and lots of words\",\n");
+            tooBig.append(String.format(Locale.ROOT, """
+                "%04d" : "lots and lots and lots and lots and lots of words",
+                """, i++));
         }
-        tooBig.append("    \"end\" : \"lots and lots and lots and lots and lots of words\"\n");
-        tooBig.append("  }\n");
-        tooBig.append("}\n");
+        tooBig.append("""
+              "end" : "lots and lots and lots and lots and lots of words"
+              }
+            }
+            """);
         IOException e = expectThrows(
             IOException.class,
             () -> RemoteFailure.parseFromResponse(new BytesArray(tooBig.toString()).streamInput())
         );
         assertEquals(
             "Can't parse error from Elasticsearch [expected [stack_trace] cannot but didn't see it] "
-                + "at [line 7951 col 1]. Attempted to include response but failed because [Response too large].",
+                + "at [line 8463 col 1]. Attempted to include response but failed because [Response too large].",
             e.getMessage()
         );
     }
 
     public void testFailureWithMetadata() throws IOException {
-        final StringBuilder json = new StringBuilder();
-        json.append("{");
-        json.append("\"error\":{");
-        json.append("    \"root_cause\":[],");
-        json.append("    \"type\":\"search_phase_execution_exception\",");
-        json.append("    \"reason\":\"all shards failed\",");
-        json.append("    \"phase\":\"query\",");
-        json.append("    \"grouped\":true,");
-        json.append("    \"failed_shards\":[],");
-        json.append("    \"stack_trace\":\"Failed to execute phase [query], all shards failed at...\"");
-        json.append("  },");
-        json.append("  \"status\":503");
-        json.append("}");
+        String json = """
+            {
+              "error": {
+                "root_cause": [],
+                "type": "search_phase_execution_exception",
+                "reason": "all shards failed",
+                "phase": "query",
+                "grouped": true,
+                "failed_shards": [],
+                "stack_trace": "Failed to execute phase [query], all shards failed at..."
+              },
+              "status": 503
+            }""";
 
-        RemoteFailure failure = RemoteFailure.parseFromResponse(new BytesArray(json.toString()).streamInput());
+        RemoteFailure failure = RemoteFailure.parseFromResponse(new BytesArray(json).streamInput());
         assertEquals("search_phase_execution_exception", failure.type());
         assertEquals("all shards failed", failure.reason());
         assertThat(failure.remoteTrace(), containsString("Failed to execute phase [query], all shards failed"));
@@ -203,26 +202,26 @@ public class RemoteFailureTests extends ESTestCase {
     }
 
     public void testFailureWithMetadataAndRootCause() throws IOException {
-        final StringBuilder json = new StringBuilder();
-        json.append("{");
-        json.append("\"error\":{");
-        json.append("    \"caused_by\":{");
-        json.append("        \"type\":\"invalid_index_name_exception\",");
-        json.append("        \"reason\":\"Invalid index name [_root], must not start with '_'.\",");
-        json.append("        \"index_uuid\":\"_na_root\",");
-        json.append("        \"index\":[\"_root\",\"_foo\"],");
-        json.append("        \"stack_trace\":\"[_root] InvalidIndexNameException[Invalid index name [_root], must not start with '_'.]\"");
-        json.append("    },");
-        json.append("    \"type\":\"invalid_index_name_exception\",");
-        json.append("    \"reason\":\"Invalid index name [_foo], must not start with '_'.\",");
-        json.append("    \"index_uuid\":\"_na_foo\",");
-        json.append("    \"index\":[\"_foo\"],");
-        json.append("    \"stack_trace\":\"[_foo] InvalidIndexNameException[Invalid index name [_foo], must not start with '_'.]\"");
-        json.append("  },");
-        json.append("  \"status\":400");
-        json.append("}");
+        String json = """
+            {
+              "error": {
+                "caused_by": {
+                  "type": "invalid_index_name_exception",
+                  "reason": "Invalid index name [_root], must not start with '_'.",
+                  "index_uuid": "_na_root",
+                  "index": [ "_root", "_foo" ],
+                  "stack_trace": "[_root] InvalidIndexNameException[Invalid index name [_root], must not start with '_'.]"
+                },
+                "type": "invalid_index_name_exception",
+                "reason": "Invalid index name [_foo], must not start with '_'.",
+                "index_uuid": "_na_foo",
+                "index": [ "_foo" ],
+                "stack_trace": "[_foo] InvalidIndexNameException[Invalid index name [_foo], must not start with '_'.]"
+              },
+              "status": 400
+            }""";
 
-        RemoteFailure failure = RemoteFailure.parseFromResponse(new BytesArray(json.toString()).streamInput());
+        RemoteFailure failure = RemoteFailure.parseFromResponse(new BytesArray(json).streamInput());
         assertEquals("invalid_index_name_exception", failure.type());
         assertEquals("Invalid index name [_foo], must not start with '_'.", failure.reason());
         assertThat(

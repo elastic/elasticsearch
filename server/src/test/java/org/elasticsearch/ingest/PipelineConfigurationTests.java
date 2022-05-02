@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -47,7 +48,8 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
     }
 
     public void testMetaSerialization() throws IOException {
-        String configJson = "{\"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
+        String configJson = """
+            {"description": "blah", "_meta" : {"foo": "bar"}}""";
         PipelineConfiguration configuration = new PipelineConfiguration(
             "1",
             new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
@@ -85,7 +87,8 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
     public void testGetVersion() {
         {
             // missing version
-            String configJson = "{\"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
+            String configJson = """
+                {"description": "blah", "_meta" : {"foo": "bar"}}""";
             PipelineConfiguration configuration = new PipelineConfiguration(
                 "1",
                 new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
@@ -96,7 +99,9 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         {
             // null version
             int version = randomInt();
-            String configJson = "{\"version\": " + version + ", \"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
+            String configJson = String.format(Locale.ROOT, """
+                {"version": %d, "description": "blah", "_meta" : {"foo": "bar"}}
+                """, version);
             PipelineConfiguration configuration = new PipelineConfiguration(
                 "1",
                 new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),

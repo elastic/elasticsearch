@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -185,20 +186,12 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public double getStdDeviationBound(Bounds bound) {
-        switch (bound) {
-            case UPPER:
-            case UPPER_POPULATION:
-                return getAvg() + (getStdDeviationPopulation() * sigma);
-            case UPPER_SAMPLING:
-                return getAvg() + (getStdDeviationSampling() * sigma);
-            case LOWER:
-            case LOWER_POPULATION:
-                return getAvg() - (getStdDeviationPopulation() * sigma);
-            case LOWER_SAMPLING:
-                return getAvg() - (getStdDeviationSampling() * sigma);
-            default:
-                throw new IllegalArgumentException("Unknown bounds type " + bound);
-        }
+        return switch (bound) {
+            case UPPER, UPPER_POPULATION -> getAvg() + (getStdDeviationPopulation() * sigma);
+            case UPPER_SAMPLING -> getAvg() + (getStdDeviationSampling() * sigma);
+            case LOWER, LOWER_POPULATION -> getAvg() - (getStdDeviationPopulation() * sigma);
+            case LOWER_SAMPLING -> getAvg() - (getStdDeviationSampling() * sigma);
+        };
     }
 
     @Override
@@ -238,22 +231,14 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public String getStdDeviationBoundAsString(Bounds bound) {
-        switch (bound) {
-            case UPPER:
-                return valueAsString(Metrics.std_upper.name());
-            case LOWER:
-                return valueAsString(Metrics.std_lower.name());
-            case UPPER_POPULATION:
-                return valueAsString(Metrics.std_upper_population.name());
-            case LOWER_POPULATION:
-                return valueAsString(Metrics.std_lower_population.name());
-            case UPPER_SAMPLING:
-                return valueAsString(Metrics.std_upper_sampling.name());
-            case LOWER_SAMPLING:
-                return valueAsString(Metrics.std_lower_sampling.name());
-            default:
-                throw new IllegalArgumentException("Unknown bounds type " + bound);
-        }
+        return switch (bound) {
+            case UPPER -> valueAsString(Metrics.std_upper.name());
+            case LOWER -> valueAsString(Metrics.std_lower.name());
+            case UPPER_POPULATION -> valueAsString(Metrics.std_upper_population.name());
+            case LOWER_POPULATION -> valueAsString(Metrics.std_lower_population.name());
+            case UPPER_SAMPLING -> valueAsString(Metrics.std_upper_sampling.name());
+            case LOWER_SAMPLING -> valueAsString(Metrics.std_lower_sampling.name());
+        };
     }
 
     @Override
@@ -283,6 +268,21 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             stats.getMin(),
             stats.getMax(),
             sumOfSqrs,
+            sigma,
+            format,
+            getMetadata()
+        );
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalExtendedStats(
+            name,
+            samplingContext.scaleUp(count),
+            samplingContext.scaleUp(sum),
+            min,
+            max,
+            samplingContext.scaleUp(sumOfSqrs),
             sigma,
             format,
             getMetadata()

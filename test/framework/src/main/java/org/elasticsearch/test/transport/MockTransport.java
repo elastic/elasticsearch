@@ -39,7 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 
-import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 
 /**
  * A basic transport implementation that allows to intercept requests that have been sent
@@ -57,7 +57,9 @@ public class MockTransport extends StubbableTransport {
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders
     ) {
-        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ClusterConnectionManager(settings, this));
+        final StubbableConnectionManager connectionManager = new StubbableConnectionManager(
+            new ClusterConnectionManager(settings, this, threadPool.getThreadContext())
+        );
         connectionManager.setDefaultNodeConnectedBehavior((cm, node) -> false);
         connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> createConnection(discoveryNode));
         return new TransportService(

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.support.StatsRequestStats;
 import org.elasticsearch.cluster.coordination.ClusterStateSerializationStats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.HandlingTimeTracker;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
@@ -48,7 +50,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
@@ -283,7 +284,7 @@ public class NodeStatsTests extends ESTestCase {
                     for (ScriptContextStats generatedStats : stats) {
                         List<ScriptContextStats> maybeDeserStats = deserialized.stream()
                             .filter(s -> s.getContext().equals(generatedStats.getContext()))
-                            .collect(Collectors.toList());
+                            .toList();
 
                         assertEquals(1, maybeDeserStats.size());
                         ScriptContextStats deserStats = maybeDeserStats.get(0);
@@ -507,6 +508,21 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(evictions, sum.getCacheEvictions());
                     assertEquals(limited, sum.getCompilationLimitTriggered());
                     assertEquals(compilations, sum.getCompilations());
+                }
+                if (nodeStats.getStatsRequestStats() == null) {
+                    assertNull(deserializedNodeStats.getStatsRequestStats());
+                } else {
+                    Iterator<StatsRequestStats.Stats> statsRequestsStatsIterator = nodeStats.getStatsRequestStats().iterator();
+                    Iterator<StatsRequestStats.Stats> deserializedStatsRequestsStatsIterator = deserializedNodeStats.getStatsRequestStats()
+                        .iterator();
+                    while (statsRequestsStatsIterator.hasNext()) {
+                        StatsRequestStats.Stats stats = statsRequestsStatsIterator.next();
+                        StatsRequestStats.Stats deserializedStats = deserializedStatsRequestsStatsIterator.next();
+                        assertEquals(stats.getRequest(), deserializedStats.getRequest());
+                        assertEquals(stats.getCurrent(), deserializedStats.getCurrent());
+                        assertEquals(stats.getCompleted(), deserializedStats.getCompleted());
+                        assertEquals(stats.getRejected(), deserializedStats.getRejected());
+                    }
                 }
             }
         }
@@ -803,7 +819,7 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue)
             );
             List<IngestStats.PipelineStat> ingestPipelineStats = new ArrayList<>(numPipelines);
-            Map<String, List<IngestStats.ProcessorStat>> ingestProcessorStats = new HashMap<>(numPipelines);
+            Map<String, List<IngestStats.ProcessorStat>> ingestProcessorStats = Maps.newMapWithExpectedSize(numPipelines);
             for (int i = 0; i < numPipelines; i++) {
                 String pipelineId = randomAlphaOfLengthBetween(3, 10);
                 ingestPipelineStats.add(
@@ -884,6 +900,22 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue)
             );
         }
+        StatsRequestStats statsRequestStats = null;
+        if (frequently()) {
+            int numStatsRequestsStats = randomIntBetween(0, 10);
+            List<StatsRequestStats.Stats> statsRequestsStatsList = new ArrayList<>();
+            for (int i = 0; i < numStatsRequestsStats; i++) {
+                statsRequestsStatsList.add(
+                    new StatsRequestStats.Stats(
+                        randomAlphaOfLengthBetween(3, 10),
+                        randomIntBetween(1, 10),
+                        randomIntBetween(1, 1000),
+                        randomIntBetween(1, 1000)
+                    )
+                );
+            }
+            statsRequestStats = new StatsRequestStats(statsRequestsStatsList);
+        }
         // TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
         return new NodeStats(
             node,
@@ -902,7 +934,8 @@ public class NodeStatsTests extends ESTestCase {
             ingestStats,
             adaptiveSelectionStats,
             scriptCacheStats,
-            indexingPressureStats
+            indexingPressureStats,
+            statsRequestStats
         );
     }
 

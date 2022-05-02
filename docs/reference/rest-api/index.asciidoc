@@ -12,6 +12,7 @@ not be included yet.
 
 * <<api-conventions, API conventions>>
 * <<common-options, Common Options>>
+* <<rest-api-compatibility, REST API Compatibility>>
 * <<autoscaling-apis, Autoscaling APIs>>
 * <<cat, cat APIs>>
 * <<cluster, Cluster APIs>>
@@ -30,8 +31,10 @@ not be included yet.
 * <<info-api,Info API>>
 * <<licensing-apis,Licensing APIs>>
 * <<logstash-apis,Logstash APIs>>
-* <<ml-apis,{ml-cap} {anomaly-detect} APIs>>
+* <<ml-apis,{ml-cap} APIs>>
+* <<ml-ad-apis,{ml-cap} {anomaly-detect} APIs>>
 * <<ml-df-analytics-apis,{ml-cap} {dfanalytics} APIs>>
+* <<ml-df-trained-models-apis,{ml-cap} trained model APIs>>
 * <<migration-api,Migration APIs>>
 * <<node-lifecycle-api,Node lifecycle API>>
 * <<indices-reload-analyzers,Reload search analyzers API>>
@@ -51,6 +54,7 @@ not be included yet.
 
 include::{es-repo-dir}/api-conventions.asciidoc[]
 include::{es-repo-dir}/rest-api/common-options.asciidoc[]
+include::{es-repo-dir}/rest-api/rest-api-compatibility.asciidoc[]
 include::{es-repo-dir}/autoscaling/apis/autoscaling-apis.asciidoc[]
 include::{es-repo-dir}/cat.asciidoc[]
 include::{es-repo-dir}/cluster.asciidoc[]
@@ -69,6 +73,7 @@ include::{es-repo-dir}/ingest/apis/index.asciidoc[]
 include::info.asciidoc[]
 include::{es-repo-dir}/licensing/index.asciidoc[]
 include::{xes-repo-dir}/rest-api/logstash/index.asciidoc[]
+include::{es-repo-dir}/ml/common/apis/index.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/index.asciidoc[]
 include::{es-repo-dir}/ml/df-analytics/apis/index.asciidoc[]
 include::{es-repo-dir}/ml/trained-models/apis/index.asciidoc[]

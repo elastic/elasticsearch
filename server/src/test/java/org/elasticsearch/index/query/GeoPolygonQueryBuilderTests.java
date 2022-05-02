@@ -161,82 +161,57 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery1() throws IOException {
-        String query = "{\n"
-            + "    \"geo_polygon\":{\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":{\n"
-            + "            \"points\":[\n"
-            + "                [-70, 40],\n"
-            + "                [-80, 30],\n"
-            + "                [-90, 20]\n"
-            + "            ]\n"
-            + "        }\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+              "geo_polygon": {
+                "%s": {
+                  "points": [
+                    [ -70, 40 ],
+                    [ -80, 30 ],
+                    [ -90, 20 ]
+                  ]
+                }
+              }
+            }""".formatted(GEO_POINT_FIELD_NAME);
         assertGeoPolygonQuery(query);
         assertDeprecationWarning();
     }
 
     public void testParsingAndToQuery2() throws IOException {
-        String query = "{\n"
-            + "    \"geo_polygon\":{\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":{\n"
-            + "            \"points\":[\n"
-            + "                {\n"
-            + "                    \"lat\":40,\n"
-            + "                    \"lon\":-70\n"
-            + "                },\n"
-            + "                {\n"
-            + "                    \"lat\":30,\n"
-            + "                    \"lon\":-80\n"
-            + "                },\n"
-            + "                {\n"
-            + "                    \"lat\":20,\n"
-            + "                    \"lon\":-90\n"
-            + "                }\n"
-            + "            ]\n"
-            + "        }\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+              "geo_polygon": {
+                "%s": {
+                  "points": [ { "lat": 40, "lon": -70 }, { "lat": 30, "lon": -80 }, { "lat": 20, "lon": -90 } ]
+                }
+              }
+            }""".formatted(GEO_POINT_FIELD_NAME);
         assertGeoPolygonQuery(query);
         assertDeprecationWarning();
     }
 
     public void testParsingAndToQuery3() throws IOException {
-        String query = "{\n"
-            + "    \"geo_polygon\":{\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":{\n"
-            + "            \"points\":[\n"
-            + "                \"40, -70\",\n"
-            + "                \"30, -80\",\n"
-            + "                \"20, -90\"\n"
-            + "            ]\n"
-            + "        }\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+              "geo_polygon": {
+                "%s": {
+                  "points": [ "40, -70", "30, -80", "20, -90" ]
+                }
+              }
+            }""".formatted(GEO_POINT_FIELD_NAME);
         assertGeoPolygonQuery(query);
         assertDeprecationWarning();
     }
 
     public void testParsingAndToQuery4() throws IOException {
-        String query = "{\n"
-            + "    \"geo_polygon\":{\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":{\n"
-            + "            \"points\":[\n"
-            + "                \"drn5x1g8cu2y\",\n"
-            + "                \"30, -80\",\n"
-            + "                \"20, -90\"\n"
-            + "            ]\n"
-            + "        }\n"
-            + "    }\n"
-            + "}\n";
+        String query = """
+            {
+              "geo_polygon": {
+                "%s": {
+                  "points": [ "drn5x1g8cu2y", "30, -80", "20, -90" ]
+                }
+              }
+            }""".formatted(GEO_POINT_FIELD_NAME);
         assertGeoPolygonQuery(query);
         assertDeprecationWarning();
     }
@@ -248,16 +223,17 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"geo_polygon\" : {\n"
-            + "    \"person.location\" : {\n"
-            + "      \"points\" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]\n"
-            + "    },\n"
-            + "    \"validation_method\" : \"STRICT\",\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "geo_polygon" : {
+                "person.location" : {
+                  "points" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]
+                },
+                "validation_method" : "STRICT",
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""";
         GeoPolygonQueryBuilder parsed = (GeoPolygonQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 4, parsed.points().size());
@@ -280,36 +256,34 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
 
     public void testPointValidation() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
-        String queryInvalidLat = "{\n"
-            + "    \"geo_polygon\":{\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":{\n"
-            + "            \"points\":[\n"
-            + "                [-70, 140],\n"
-            + "                [-80, 30],\n"
-            + "                [-90, 20]\n"
-            + "            ]\n"
-            + "        }\n"
-            + "    }\n"
-            + "}\n";
+        String queryInvalidLat = """
+            {
+              "geo_polygon": {
+                "%s": {
+                  "points": [
+                    [ -70, 140 ],
+                    [ -80, 30 ],
+                    [ -90, 20 ]
+                  ]
+                }
+              }
+            }""".formatted(GEO_POINT_FIELD_NAME);
 
         QueryShardException e1 = expectThrows(QueryShardException.class, () -> parseQuery(queryInvalidLat).toQuery(context));
         assertThat(e1.getMessage(), containsString("illegal latitude value [140.0] for [geo_polygon]"));
 
-        String queryInvalidLon = "{\n"
-            + "    \"geo_polygon\":{\n"
-            + "        \""
-            + GEO_POINT_FIELD_NAME
-            + "\":{\n"
-            + "            \"points\":[\n"
-            + "                [-70, 40],\n"
-            + "                [-80, 30],\n"
-            + "                [-190, 20]\n"
-            + "            ]\n"
-            + "        }\n"
-            + "    }\n"
-            + "}\n";
+        String queryInvalidLon = """
+            {
+              "geo_polygon": {
+                "%s": {
+                  "points": [
+                    [ -70, 40 ],
+                    [ -80, 30 ],
+                    [ -190, 20 ]
+                  ]
+                }
+              }
+            }""".formatted(GEO_POINT_FIELD_NAME);
 
         QueryShardException e2 = expectThrows(QueryShardException.class, () -> parseQuery(queryInvalidLon).toQuery(context));
         assertThat(e2.getMessage(), containsString("illegal longitude value [-190.0] for [geo_polygon]"));

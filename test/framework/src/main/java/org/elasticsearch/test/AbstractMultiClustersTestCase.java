@@ -10,16 +10,15 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -96,7 +95,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             final List<Class<? extends Plugin>> mockPlugins = List.of(
                 MockHttpTransport.TestPlugin.class,
                 MockTransportService.TestPlugin.class,
-                MockNioTransportPlugin.class
+                getTestTransportPlugin()
             );
             final Collection<Class<? extends Plugin>> nodePlugins = nodePlugins(clusterAlias);
 

@@ -11,8 +11,8 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -290,22 +290,14 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
         }
 
         double stdDevBound(ExtendedStats.Bounds bounds, double sigma) {
-            switch (bounds) {
-                case UPPER:
-                    return (sum / count) + (Math.sqrt(variance()) * sigma);
-                case UPPER_POPULATION:
-                    return (sum / count) + (Math.sqrt(variancePopulation()) * sigma);
-                case UPPER_SAMPLING:
-                    return (sum / count) + (Math.sqrt(varianceSampling()) * sigma);
-                case LOWER:
-                    return (sum / count) - (Math.sqrt(variance()) * sigma);
-                case LOWER_POPULATION:
-                    return (sum / count) - (Math.sqrt(variancePopulation()) * sigma);
-                case LOWER_SAMPLING:
-                    return (sum / count) - (Math.sqrt(varianceSampling()) * sigma);
-                default:
-                    throw new IllegalArgumentException("Unknown bound " + bounds);
-            }
+            return switch (bounds) {
+                case UPPER -> (sum / count) + (Math.sqrt(variance()) * sigma);
+                case UPPER_POPULATION -> (sum / count) + (Math.sqrt(variancePopulation()) * sigma);
+                case UPPER_SAMPLING -> (sum / count) + (Math.sqrt(varianceSampling()) * sigma);
+                case LOWER -> (sum / count) - (Math.sqrt(variance()) * sigma);
+                case LOWER_POPULATION -> (sum / count) - (Math.sqrt(variancePopulation()) * sigma);
+                case LOWER_SAMPLING -> (sum / count) - (Math.sqrt(varianceSampling()) * sigma);
+            };
         }
 
         double variance() {

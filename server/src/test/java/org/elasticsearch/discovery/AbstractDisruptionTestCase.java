@@ -187,20 +187,12 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         } else {
             disruptedLinks = Bridge.random(random(), internalCluster().getNodeNames());
         }
-        final NetworkLinkDisruptionType disruptionType;
-        switch (randomInt(2)) {
-            case 0:
-                disruptionType = NetworkDisruption.UNRESPONSIVE;
-                break;
-            case 1:
-                disruptionType = NetworkDisruption.DISCONNECT;
-                break;
-            case 2:
-                disruptionType = NetworkDisruption.NetworkDelay.random(random());
-                break;
-            default:
-                throw new IllegalArgumentException();
-        }
+        final NetworkLinkDisruptionType disruptionType = switch (randomInt(2)) {
+            case 0 -> NetworkDisruption.UNRESPONSIVE;
+            case 1 -> NetworkDisruption.DISCONNECT;
+            case 2 -> NetworkDisruption.NetworkDelay.random(random());
+            default -> throw new IllegalArgumentException();
+        };
         final ServiceDisruptionScheme scheme;
         if (rarely()) {
             scheme = new SlowClusterStateProcessing(random());

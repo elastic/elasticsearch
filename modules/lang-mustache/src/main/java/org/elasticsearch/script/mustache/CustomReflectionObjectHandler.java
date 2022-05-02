@@ -11,12 +11,12 @@ package org.elasticsearch.script.mustache;
 import com.github.mustachejava.reflect.ReflectionObjectHandler;
 
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.iterable.Iterables;
 
 import java.lang.reflect.Array;
 import java.util.AbstractMap;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -54,8 +54,8 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         public Object get(Object key) {
             if ("size".equals(key)) {
                 return size();
-            } else if (key instanceof Number) {
-                return Array.get(array, ((Number) key).intValue());
+            } else if (key instanceof Number number) {
+                return Array.get(array, number.intValue());
             }
             try {
                 int index = Integer.parseInt(key.toString());
@@ -73,7 +73,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
 
         @Override
         public Set<Entry<Object, Object>> entrySet() {
-            Map<Object, Object> map = new HashMap<>(length);
+            Map<Object, Object> map = Maps.newMapWithExpectedSize(length);
             for (int i = 0; i < length; i++) {
                 map.put(i, Array.get(array, i));
             }
@@ -112,8 +112,8 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         public Object get(Object key) {
             if ("size".equals(key)) {
                 return col.size();
-            } else if (key instanceof Number) {
-                return Iterables.get(col, ((Number) key).intValue());
+            } else if (key instanceof Number number) {
+                return Iterables.get(col, number.intValue());
             }
             try {
                 int index = Integer.parseInt(key.toString());
@@ -131,7 +131,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
 
         @Override
         public Set<Entry<Object, Object>> entrySet() {
-            Map<Object, Object> map = new HashMap<>(col.size());
+            Map<Object, Object> map = Maps.newMapWithExpectedSize(col.size());
             int i = 0;
             for (Object item : col) {
                 map.put(i++, item);

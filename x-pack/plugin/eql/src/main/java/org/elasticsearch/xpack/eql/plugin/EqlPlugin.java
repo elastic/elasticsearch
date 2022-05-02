@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.eql.plugin;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -53,9 +53,9 @@ import java.util.function.Supplier;
 
 public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlugin {
 
-    private static final String CIRCUIT_BREAKER_NAME = "eql_sequence";
-    private static final long CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
-    private static final double CIRCUIT_BREAKER_OVERHEAD = 1.0D;
+    public static final String CIRCUIT_BREAKER_NAME = "eql_sequence";
+    public static final long CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
+    public static final double CIRCUIT_BREAKER_OVERHEAD = 1.0D;
     private final SetOnce<CircuitBreaker> circuitBreaker = new SetOnce<>();
 
     public static final Setting<Boolean> EQL_ENABLED_SETTING = Setting.boolSetting(

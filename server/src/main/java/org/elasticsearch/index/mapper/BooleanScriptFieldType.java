@@ -87,14 +87,11 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         if (value == null) {
             return null;
         }
-        switch (value.toString()) {
-            case "F":
-                return false;
-            case "T":
-                return true;
-            default:
-                throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
-        }
+        return switch (value.toString()) {
+            case "F" -> false;
+            case "T" -> true;
+            default -> throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
+        };
     }
 
     @Override

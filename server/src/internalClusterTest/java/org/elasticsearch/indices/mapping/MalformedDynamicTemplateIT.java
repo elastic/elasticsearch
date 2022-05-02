@@ -33,19 +33,21 @@ public class MalformedDynamicTemplateIT extends ESIntegTestCase {
      * to be able to index new documents into them. Indexing should issue a deprecation warning though.
      */
     public void testBWCMalformedDynamicTemplate() {
-        String mapping = "{ \"dynamic_templates\": [\n"
-            + "      {\n"
-            + "        \"my_template\": {\n"
-            + "          \"mapping\": {\n"
-            + "            \"ignore_malformed\": true,\n" // this parameter is not supported by "keyword" field type
-            + "            \"type\": \"keyword\"\n"
-            + "          },\n"
-            + "          \"path_match\": \"*\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    ]\n"
-            + "  }\n"
-            + "}}";
+        // this parameter is not supported by "keyword" field type
+        String mapping = """
+            { "dynamic_templates": [
+                  {
+                    "my_template": {
+                      "mapping": {
+                        "ignore_malformed": true,
+                        "type": "keyword"
+                      },
+                      "path_match": "*"
+                    }
+                  }
+                ]
+              }
+            }}""";
         String indexName = "malformed_dynamic_template";
         assertAcked(
             prepareCreate(indexName).setSettings(

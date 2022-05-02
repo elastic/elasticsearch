@@ -27,7 +27,10 @@ public class NodeTests extends ESTestCase {
                 new ChildrenAreAProperty(randomSource(), singletonList(empty), "single").toString()
             );
             assertEquals(
-                "ChildrenAreAProperty[many]\n" + "|_ChildrenAreAProperty[thing]\n" + "\\_ChildrenAreAProperty[thing]",
+                """
+                    ChildrenAreAProperty[many]
+                    |_ChildrenAreAProperty[thing]
+                    \\_ChildrenAreAProperty[thing]""",
                 new ChildrenAreAProperty(randomSource(), Arrays.asList(empty, empty), "many").toString()
             );
         }

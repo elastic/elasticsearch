@@ -155,7 +155,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
             // in case of incompatible license:
             CountDownLatch latch = new CountDownLatch(1);
             ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-            clusterService.submitStateUpdateTask("test-add-auto-follow-pattern", new ClusterStateUpdateTask() {
+            clusterService.submitUnbatchedStateUpdateTask("test-add-auto-follow-pattern", new ClusterStateUpdateTask() {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -191,12 +191,12 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     latch.countDown();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     latch.countDown();
                     fail("unexpected error [" + e.getMessage() + "]");
                 }

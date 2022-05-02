@@ -177,10 +177,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             params,
             Collections.emptyMap()
         );
-        assertThat(
-            task.setDatafeedRunner(datafeedRunner),
-            is(TransportStartDatafeedAction.DatafeedTask.StoppedOrIsolatedBeforeRunning.NEITHER)
-        );
+        assertThat(task.setDatafeedRunner(datafeedRunner), is(TransportStartDatafeedAction.DatafeedTask.StoppedOrIsolated.NEITHER));
         return task;
     }
 }

@@ -11,7 +11,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
@@ -173,7 +173,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             assertThat(children.getDocCount(), equalTo(4L));
 
             Sum count = children.getAggregations().get("counts");
-            assertThat(count.getValue(), equalTo(4.));
+            assertThat(count.value(), equalTo(4.));
 
             String idToUpdate = Integer.toString(2 + randomInt(3));
             /*

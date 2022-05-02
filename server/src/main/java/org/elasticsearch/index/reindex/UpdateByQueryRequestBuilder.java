@@ -11,7 +11,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class UpdateByQueryRequestBuilder extends AbstractBulkIndexByScrollRequestBuilder<
     UpdateByQueryRequest,

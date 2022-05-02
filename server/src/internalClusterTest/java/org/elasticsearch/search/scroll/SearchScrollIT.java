@@ -688,7 +688,9 @@ public class SearchScrollIT extends ESIntegTestCase {
                 .indices()
                 .prepareCreate("test")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards))
-                .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}")
+                .setMapping("""
+                    {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}
+                    """)
         );
         client().prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
         client().prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();

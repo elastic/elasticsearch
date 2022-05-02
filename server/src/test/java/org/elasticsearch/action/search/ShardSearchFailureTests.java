@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
@@ -95,19 +96,18 @@ public class ShardSearchFailureTests extends ESTestCase {
             new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), null)
         );
         BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
-        assertEquals(
-            "{\"shard\":123,"
-                + "\"index\":\"indexName\","
-                + "\"node\":\"nodeId\","
-                + "\"reason\":{"
-                + "\"type\":\"parsing_exception\","
-                + "\"reason\":\"some message\","
-                + "\"line\":0,"
-                + "\"col\":0"
-                + "}"
-                + "}",
-            xContent.utf8ToString()
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "shard": 123,
+              "index": "indexName",
+              "node": "nodeId",
+              "reason": {
+                "type": "parsing_exception",
+                "reason": "some message",
+                "line": 0,
+                "col": 0
+              }
+            }"""), xContent.utf8ToString());
     }
 
     public void testToXContentWithClusterAlias() throws IOException {
@@ -116,19 +116,18 @@ public class ShardSearchFailureTests extends ESTestCase {
             new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), "cluster1")
         );
         BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
-        assertEquals(
-            "{\"shard\":123,"
-                + "\"index\":\"cluster1:indexName\","
-                + "\"node\":\"nodeId\","
-                + "\"reason\":{"
-                + "\"type\":\"parsing_exception\","
-                + "\"reason\":\"some message\","
-                + "\"line\":0,"
-                + "\"col\":0"
-                + "}"
-                + "}",
-            xContent.utf8ToString()
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "shard": 123,
+              "index": "cluster1:indexName",
+              "node": "nodeId",
+              "reason": {
+                "type": "parsing_exception",
+                "reason": "some message",
+                "line": 0,
+                "col": 0
+              }
+            }"""), xContent.utf8ToString());
     }
 
     public void testSerialization() throws IOException {

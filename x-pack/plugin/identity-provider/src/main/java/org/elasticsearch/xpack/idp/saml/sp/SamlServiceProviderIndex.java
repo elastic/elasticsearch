@@ -23,8 +23,8 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -66,7 +66,7 @@ import java.util.stream.Stream;
  */
 public class SamlServiceProviderIndex implements Closeable {
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(SamlServiceProviderIndex.class);
 
     private final Client client;
     private final ClusterService clusterService;

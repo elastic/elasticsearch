@@ -11,7 +11,7 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.rest.BaseRestHandler;

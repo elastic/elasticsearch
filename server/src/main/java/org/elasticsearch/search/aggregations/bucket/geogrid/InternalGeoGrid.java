@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -38,13 +39,13 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
     protected final int requiredSize;
     protected final List<InternalGeoGridBucket> buckets;
 
-    InternalGeoGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata) {
+    protected InternalGeoGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata) {
         super(name, metadata);
         this.requiredSize = requiredSize;
         this.buckets = buckets;
     }
 
-    abstract Writeable.Reader<B> getBucketReader();
+    protected abstract Writeable.Reader<B> getBucketReader();
 
     /**
      * Read from a stream.
@@ -62,7 +63,12 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
         out.writeList(buckets);
     }
 
-    abstract InternalGeoGrid<B> create(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata);
+    protected abstract InternalGeoGrid<B> create(
+        String name,
+        int requiredSize,
+        List<InternalGeoGridBucket> buckets,
+        Map<String, Object> metadata
+    );
 
     @Override
     public List<InternalGeoGridBucket> getBuckets() {
@@ -105,6 +111,24 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
     }
 
     @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return create(
+            getName(),
+            requiredSize,
+            buckets.stream()
+                .<InternalGeoGridBucket>map(
+                    b -> this.createBucket(
+                        b.hashAsLong,
+                        samplingContext.scaleUp(b.docCount),
+                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext)
+                    )
+                )
+                .toList(),
+            getMetadata()
+        );
+    }
+
+    @Override
     protected InternalGeoGridBucket reduceBucket(List<InternalGeoGridBucket> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
         List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
@@ -117,7 +141,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
         return createBucket(buckets.get(0).hashAsLong, docCount, aggs);
     }
 
-    abstract B createBucket(long hashAsLong, long docCount, InternalAggregations aggregations);
+    protected abstract B createBucket(long hashAsLong, long docCount, InternalAggregations aggregations);
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {

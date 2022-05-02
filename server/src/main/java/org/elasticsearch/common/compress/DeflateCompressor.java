@@ -10,6 +10,7 @@ package org.elasticsearch.common.compress;
 
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Releasable;
 
@@ -132,14 +133,7 @@ public class DeflateCompressor implements Compressor {
      */
     public static InputStream inputStream(InputStream in, boolean threadLocal) throws IOException {
         final byte[] headerBytes = new byte[HEADER.length];
-        int len = 0;
-        while (len < headerBytes.length) {
-            final int read = in.read(headerBytes, len, headerBytes.length - len);
-            if (read == -1) {
-                break;
-            }
-            len += read;
-        }
+        final int len = Streams.readFully(in, headerBytes);
         if (len != HEADER.length || Arrays.equals(headerBytes, HEADER) == false) {
             throw new IllegalArgumentException("Input stream is not compressed with DEFLATE!");
         }

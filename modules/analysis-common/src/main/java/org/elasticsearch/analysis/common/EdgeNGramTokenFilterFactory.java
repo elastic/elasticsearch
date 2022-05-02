@@ -38,14 +38,11 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     static int parseSide(String side) {
-        switch (side) {
-            case "front":
-                return SIDE_FRONT;
-            case "back":
-                return SIDE_BACK;
-            default:
-                throw new IllegalArgumentException("invalid side: " + side);
-        }
+        return switch (side) {
+            case "front" -> SIDE_FRONT;
+            case "back" -> SIDE_BACK;
+            default -> throw new IllegalArgumentException("invalid side: " + side);
+        };
     }
 
     @Override

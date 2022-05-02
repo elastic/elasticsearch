@@ -74,7 +74,8 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\"field\":{\"type\":\"boolean\"}}", Strings.toString(builder));
+        assertEquals("""
+            {"field":{"type":"boolean"}}""", Strings.toString(builder));
 
         // now change some parameters
         defaultMapper = createDocumentMapper(fieldMapping(b -> {
@@ -86,7 +87,8 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\"field\":{\"type\":\"boolean\",\"doc_values\":false,\"null_value\":true}}", Strings.toString(builder));
+        assertEquals("""
+            {"field":{"type":"boolean","doc_values":false,"null_value":true}}""", Strings.toString(builder));
     }
 
     public void testParsesBooleansStrict() throws IOException {
@@ -171,18 +173,13 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        switch (between(0, 3)) {
-            case 0:
-                return randomBoolean();
-            case 1:
-                return randomBoolean() ? "true" : "false";
-            case 2:
-                return randomBoolean() ? "true" : "";
-            case 3:
-                return randomBoolean() ? "true" : null;
-            default:
-                throw new IllegalStateException();
-        }
+        return switch (between(0, 3)) {
+            case 0 -> randomBoolean();
+            case 1 -> randomBoolean() ? "true" : "false";
+            case 2 -> randomBoolean() ? "true" : "";
+            case 3 -> randomBoolean() ? "true" : null;
+            default -> throw new IllegalStateException();
+        };
     }
 
     public void testScriptAndPrecludedParameters() {

@@ -12,6 +12,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -291,7 +292,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         long settingsVersion = startSettingsVersion;
         long aliasesVersion = startAliasesVersion;
         int numResponses = randomIntBetween(16, 256);
-        Map<Long, List<TestResponse>> responses = new HashMap<>(numResponses);
+        Map<Long, List<TestResponse>> responses = Maps.newMapWithExpectedSize(numResponses);
         for (int i = 0; i < numResponses; i++) {
             long nextGlobalCheckPoint = prevGlobalCheckpoint + maxOperationCount;
             if (sometimes()) {

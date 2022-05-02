@@ -8,6 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -16,6 +17,7 @@ import java.lang.reflect.Constructor;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.function.Supplier;
@@ -28,20 +30,20 @@ public class ConsoleLoader {
 
     private static final String CONSOLE_LOADER_CLASS = "org.elasticsearch.io.ansi.AnsiConsoleLoader";
 
-    public static PrintStream loadConsole(Environment env) {
+    public static Console loadConsole(Environment env) {
         final ClassLoader classLoader = buildClassLoader(env);
-        final Supplier<PrintStream> supplier = buildConsoleLoader(classLoader);
+        final Supplier<Console> supplier = buildConsoleLoader(classLoader);
         return supplier.get();
     }
 
+    public record Console(PrintStream printStream, Supplier<Integer> width, Boolean ansiEnabled, @Nullable Charset charset) {}
+
     @SuppressWarnings("unchecked")
-    static Supplier<PrintStream> buildConsoleLoader(ClassLoader classLoader) {
+    static Supplier<Console> buildConsoleLoader(ClassLoader classLoader) {
         try {
-            final Class<? extends Supplier<PrintStream>> cls = (Class<? extends Supplier<PrintStream>>) classLoader.loadClass(
-                CONSOLE_LOADER_CLASS
-            );
-            final Constructor<? extends Supplier<PrintStream>> constructor = cls.getConstructor();
-            final Supplier<PrintStream> supplier = constructor.newInstance();
+            final Class<? extends Supplier<Console>> cls = (Class<? extends Supplier<Console>>) classLoader.loadClass(CONSOLE_LOADER_CLASS);
+            final Constructor<? extends Supplier<Console>> constructor = cls.getConstructor();
+            final Supplier<Console> supplier = constructor.newInstance();
             return supplier;
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Failed to load ANSI console", e);

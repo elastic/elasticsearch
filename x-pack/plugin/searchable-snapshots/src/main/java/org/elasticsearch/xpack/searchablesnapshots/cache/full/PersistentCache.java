@@ -44,7 +44,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -353,7 +353,7 @@ public class PersistentCache implements Closeable {
     }
 
     /**
-     * Creates a new {@link CacheIndexWriter} for the specified data path. The is a single instance per data path.
+     * Creates a new {@link CacheIndexWriter} for the specified data path. There is a single instance per data path.
      *
      * @param nodePath the data path
      * @return a new {@link CacheIndexWriter} instance

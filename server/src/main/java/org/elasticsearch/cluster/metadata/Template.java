@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,7 +38,7 @@ import java.util.Objects;
  * it is entirely independent from an index. It's a building block forming part of a regular index
  * template and a {@link ComponentTemplate}.
  */
-public class Template extends AbstractDiffable<Template> implements ToXContentObject {
+public class Template implements SimpleDiffable<Template>, ToXContentObject {
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");
     private static final ParseField ALIASES = new ParseField("aliases");

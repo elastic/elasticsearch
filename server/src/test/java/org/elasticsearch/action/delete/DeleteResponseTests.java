@@ -11,6 +11,7 @@ package org.elasticsearch.action.delete;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -29,26 +30,40 @@ import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class DeleteResponseTests extends ESTestCase {
 
-    public void testToXContent() {
+    public void testToXContent() throws IOException {
         {
             DeleteResponse response = new DeleteResponse(new ShardId("index", "index_uuid", 0), "id", 3, 17, 5, true);
             String output = Strings.toString(response);
-            assertEquals(
-                "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":5,\"result\":\"deleted\","
-                    + "\"_shards\":null,\"_seq_no\":3,\"_primary_term\":17}",
-                output
-            );
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "_index": "index",
+                  "_id": "id",
+                  "_version": 5,
+                  "result": "deleted",
+                  "_shards": null,
+                  "_seq_no": 3,
+                  "_primary_term": 17
+                }"""), output);
         }
         {
             DeleteResponse response = new DeleteResponse(new ShardId("index", "index_uuid", 0), "id", -1, 0, 7, true);
             response.setForcedRefresh(true);
             response.setShardInfo(new ReplicationResponse.ShardInfo(10, 5));
             String output = Strings.toString(response);
-            assertEquals(
-                "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":7,\"result\":\"deleted\","
-                    + "\"forced_refresh\":true,\"_shards\":{\"total\":10,\"successful\":5,\"failed\":0}}",
-                output
-            );
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "_index": "index",
+                  "_id": "id",
+                  "_version": 7,
+                  "result": "deleted",
+                  "forced_refresh": true,
+                  "_shards": {
+                    "total": 10,
+                    "successful": 5,
+                    "failed": 0
+                  }
+                }
+                """), output);
         }
     }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
@@ -165,6 +166,19 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.clusters = clusters;
     }
 
+    protected void notifyListShards(
+        SearchProgressListener progressListener,
+        SearchResponse.Clusters clusters,
+        SearchSourceBuilder sourceBuilder
+    ) {
+        progressListener.notifyListShards(
+            SearchProgressListener.buildSearchShards(this.shardsIts),
+            SearchProgressListener.buildSearchShards(toSkipShardsIts),
+            clusters,
+            sourceBuilder == null || sourceBuilder.size() > 0
+        );
+    }
+
     @Override
     public void addReleasable(Releasable releasable) {
         releasables.add(releasable);
@@ -193,18 +207,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 : request.source().trackTotalHitsUpTo();
             // total hits is null in the response if the tracking of total hits is disabled
             boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
-            listener.onResponse(
-                new SearchResponse(
-                    InternalSearchResponse.empty(withTotalHits),
-                    null,
-                    0,
-                    0,
-                    0,
-                    buildTookInMillis(),
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    clusters,
-                    null
-                )
+            sendSearchResponse(
+                withTotalHits ? InternalSearchResponse.EMPTY_WITH_TOTAL_HITS : InternalSearchResponse.EMPTY_WITHOUT_TOTAL_HITS,
+                new AtomicArray<>(0)
             );
             return;
         }
@@ -280,7 +285,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return true;
     }
 
-    private boolean assertExecuteOnStartThread() {
+    private static boolean assertExecuteOnStartThread() {
         // Ensure that the current code has the following stacktrace:
         // AbstractSearchAsyncAction#start -> AbstractSearchAsyncAction#executePhase -> AbstractSearchAsyncAction#performPhaseOnShard
         final StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
@@ -795,7 +800,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             getNumShards(),
             filter,
             indexBoost,
-            timeProvider.getAbsoluteStartMillis(),
+            timeProvider.absoluteStartMillis(),
             shardIt.getClusterAlias(),
             shardIt.getSearchContextId(),
             shardIt.getSearchContextKeepAlive()

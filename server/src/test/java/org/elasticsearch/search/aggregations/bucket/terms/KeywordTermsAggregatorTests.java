@@ -12,12 +12,12 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -108,7 +108,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
                 Document document = new Document();
                 for (String value : dataset) {
                     document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(value)));
-                    if (keywordFieldType.isSearchable()) {
+                    if (keywordFieldType.isIndexed()) {
                         document.add(new Field(KEYWORD_FIELD, new BytesRef(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
                     }
                     indexWriter.addDocument(document);

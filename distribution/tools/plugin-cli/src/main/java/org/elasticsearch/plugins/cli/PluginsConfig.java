@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins.cli;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContent;
@@ -57,10 +58,12 @@ public class PluginsConfig {
      * </ul>
      *
      * @param officialPlugins the plugins that can be installed by name only
+     * @param migratedPlugins plugins that were once official but have since become modules. These
+     *                        plugin IDs can still be specified, but do nothing.
      * @throws PluginSyncException if validation problems are found
      */
-    public void validate(Set<String> officialPlugins) throws PluginSyncException {
-        if (this.plugins.stream().anyMatch(each -> each == null || each.getId() == null || each.getId().isBlank())) {
+    public void validate(Set<String> officialPlugins, Set<String> migratedPlugins) throws PluginSyncException {
+        if (this.plugins.stream().anyMatch(each -> each == null || Strings.isNullOrBlank(each.getId()))) {
             throw new RuntimeException("Cannot have null or empty IDs in [elasticsearch-plugins.yml]");
         }
 
@@ -72,7 +75,9 @@ public class PluginsConfig {
         }
 
         for (PluginDescriptor plugin : this.plugins) {
-            if (officialPlugins.contains(plugin.getId()) == false && plugin.getLocation() == null) {
+            if (officialPlugins.contains(plugin.getId()) == false
+                && migratedPlugins.contains(plugin.getId()) == false
+                && plugin.getLocation() == null) {
                 throw new PluginSyncException(
                     "Must specify location for non-official plugin [" + plugin.getId() + "] in [elasticsearch-plugins.yml]"
                 );

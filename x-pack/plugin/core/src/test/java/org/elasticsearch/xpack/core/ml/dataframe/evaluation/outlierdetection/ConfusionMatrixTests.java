@@ -64,7 +64,8 @@ public class ConfusionMatrixTests extends AbstractSerializingTestCase<ConfusionM
         ConfusionMatrix confusionMatrix = new ConfusionMatrix(Arrays.asList(0.25, 0.5));
         EvaluationMetricResult result = confusionMatrix.evaluate(aggs);
 
-        String expected = "{\"0.25\":{\"tp\":1,\"fp\":2,\"tn\":3,\"fn\":4},\"0.5\":{\"tp\":5,\"fp\":6,\"tn\":7,\"fn\":8}}";
+        String expected = """
+            {"0.25":{"tp":1,"fp":2,"tn":3,"fn":4},"0.5":{"tp":5,"fp":6,"tn":7,"fn":8}}""";
         assertThat(Strings.toString(result), equalTo(expected));
     }
 }

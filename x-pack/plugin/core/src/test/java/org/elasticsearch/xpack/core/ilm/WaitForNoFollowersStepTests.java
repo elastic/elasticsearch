@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
@@ -147,7 +148,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         ShardStats sStats = new ShardStats(null, mockShardPath(), null, null, null, null);
         ShardStats[] shardStats = new ShardStats[1];
         shardStats[0] = sStats;
-        mockIndexStatsCall(indexName, new IndexStats(indexName, "uuid", shardStats));
+        mockIndexStatsCall(indexName, new IndexStats(indexName, "uuid", ClusterHealthStatus.GREEN, IndexMetadata.State.OPEN, shardStats));
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
@@ -233,7 +234,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         for (int i = 0; i < numOfShards; i++) {
             shardStats[i] = randomShardStats(isLeaderIndex);
         }
-        return new IndexStats(randomAlphaOfLength(5), randomAlphaOfLength(10), shardStats);
+        return new IndexStats(randomAlphaOfLength(5), randomAlphaOfLength(10), null, null, shardStats);
     }
 
     private ShardStats randomShardStats(boolean isLeaderIndex) {

@@ -70,11 +70,10 @@ class SeriesUtils {
                 }
 
                 switch (readerState) {
-                    case NAME:
+                    case NAME -> {
                         spec.name = line;
                         spec.lineNumber = lineNumber;
                         Integer previousLine = testNames.put(line, lineNumber);
-
                         if (previousLine != null) {
                             throw new IllegalArgumentException(
                                 format(
@@ -87,8 +86,8 @@ class SeriesUtils {
                             );
                         }
                         readerState = SpecItem.EVENT_STREAM;
-                        break;
-                    case EVENT_STREAM:
+                    }
+                    case EVENT_STREAM -> {
                         if (line.endsWith(";")) {
                             line = line.substring(0, line.length() - 1);
                             readerState = SpecItem.RESULTS;
@@ -96,11 +95,8 @@ class SeriesUtils {
                                 break;
                             }
                         }
-
                         String[] events = Strings.tokenizeToStringArray(line, " ");
-
                         Map<Integer, Tuple<String, String>> eventsMap = new TreeMap<>();
-
                         for (String event : events) {
                             String key = null;
                             int i = event.indexOf("|");
@@ -155,27 +151,22 @@ class SeriesUtils {
                             }
                             eventsMap.put(id, new Tuple<>(key, event));
                         }
-
                         spec.eventsPerCriterion.add(eventsMap);
-
-                        break;
-                    case RESULTS:
+                    }
+                    case RESULTS -> {
                         if (line.endsWith(";")) {
                             line = line.substring(0, line.length() - 1);
                             readerState = SpecItem.NAME;
                             specs.add(spec);
                         }
-
                         if (Strings.hasText(line)) {
                             spec.matches.add(Arrays.asList(Strings.tokenizeToStringArray(line, " ")));
                         }
-
                         if (readerState != SpecItem.RESULTS) {
                             spec = new SeriesSpec();
                         }
-                        break;
-                    default:
-                        throw new IllegalStateException("Invalid parser state " + readerState);
+                    }
+                    default -> throw new IllegalStateException("Invalid parser state " + readerState);
                 }
             }
         }

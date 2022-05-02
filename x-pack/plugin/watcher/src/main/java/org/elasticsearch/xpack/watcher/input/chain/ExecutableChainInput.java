@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.input.chain;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
@@ -24,7 +25,7 @@ import static org.elasticsearch.xpack.watcher.input.chain.ChainInput.TYPE;
 public class ExecutableChainInput extends ExecutableInput<ChainInput, ChainInput.Result> {
     private static final Logger logger = LogManager.getLogger(ExecutableChainInput.class);
 
-    private List<Tuple<String, ExecutableInput<?, ?>>> inputs;
+    private final List<Tuple<String, ExecutableInput<?, ?>>> inputs;
 
     public ExecutableChainInput(ChainInput input, List<Tuple<String, ExecutableInput<?, ?>>> inputs) {
         super(input);
@@ -45,7 +46,7 @@ public class ExecutableChainInput extends ExecutableInput<ChainInput, ChainInput
 
             return new ChainInput.Result(results, new Payload.Simple(payloads));
         } catch (Exception e) {
-            logger.error("failed to execute [{}] input for watch [{}], reason [{}]", TYPE, ctx.watch().id(), e.getMessage());
+            logger.error(new ParameterizedMessage("failed to execute [{}] input for watch [{}]", TYPE, ctx.watch().id()), e);
             return new ChainInput.Result(e);
         }
     }

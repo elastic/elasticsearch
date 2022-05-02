@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -21,6 +20,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -33,9 +33,8 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -88,8 +87,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     ) {
         Map<String, List<AbstractAllocateAllocationCommand>> stalePrimaryAllocations = new HashMap<>();
         for (AllocationCommand command : request.getCommands().commands()) {
-            if (command instanceof AllocateStalePrimaryAllocationCommand) {
-                final AllocateStalePrimaryAllocationCommand cmd = (AllocateStalePrimaryAllocationCommand) command;
+            if (command instanceof final AllocateStalePrimaryAllocationCommand cmd) {
                 stalePrimaryAllocations.computeIfAbsent(cmd.index(), k -> new ArrayList<>()).add(cmd);
             }
         }
@@ -110,12 +108,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
             IndicesShardStoresAction.NAME,
             new IndicesShardStoresRequest().indices(stalePrimaryAllocations.keySet().toArray(Strings.EMPTY_ARRAY)),
             new ActionListenerResponseHandler<>(ActionListener.wrap(response -> {
-                ImmutableOpenMap<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> status = response
-                    .getStoreStatuses();
+                Map<String, Map<Integer, List<IndicesShardStoresResponse.StoreStatus>>> status = response.getStoreStatuses();
                 Exception e = null;
                 for (Map.Entry<String, List<AbstractAllocateAllocationCommand>> entry : stalePrimaryAllocations.entrySet()) {
                     final String index = entry.getKey();
-                    final ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> indexStatus = status.get(index);
+                    final Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> indexStatus = status.get(index);
                     if (indexStatus == null) {
                         // The index in the stale primary allocation request was green and hence filtered out by the store status
                         // request. We ignore it here since the relevant exception will be thrown by the reroute action later on.
@@ -159,9 +156,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         );
     }
 
+    private static final String TASK_SOURCE = "cluster_reroute (api)";
+
     private void submitStateUpdate(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
-        clusterService.submitStateUpdateTask(
-            "cluster_reroute (api)",
+        submitUnbatchedTask(
+            TASK_SOURCE,
             new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, request, listener.map(response -> {
                 if (request.dryRun() == false) {
                     response.getExplanations().getYesDecisionMessages().forEach(logger::info);
@@ -169,6 +168,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                 return response;
             }))
         );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask {
@@ -204,9 +208,9 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
-            logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", source), e);
-            super.onFailure(source, e);
+        public void onFailure(Exception e) {
+            logger.debug("failed to perform [" + TASK_SOURCE + "]", e);
+            super.onFailure(e);
         }
 
         @Override
@@ -217,12 +221,12 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                 request.explain(),
                 request.isRetryFailed()
             );
-            clusterStateToSend = commandsResult.getClusterState();
+            clusterStateToSend = commandsResult.clusterState();
             explanations = commandsResult.explanations();
             if (request.dryRun()) {
                 return currentState;
             }
-            return commandsResult.getClusterState();
+            return commandsResult.clusterState();
         }
     }
 }

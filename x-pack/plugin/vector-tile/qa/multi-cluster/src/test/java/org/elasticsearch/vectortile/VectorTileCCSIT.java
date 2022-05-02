@@ -38,9 +38,14 @@ public class VectorTileCCSIT extends ESRestTestCase {
         Response response = client.performRequest(createRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
         final Request mappingRequest = new Request(HttpPut.METHOD_NAME, indexName + "/_mapping");
-        mappingRequest.setJsonEntity(
-            "{\n" + "  \"properties\": {\n" + "    \"location\": {\n" + "      \"type\": \"geo_shape\"\n" + "    }\n" + "  }\n" + "}"
-        );
+        mappingRequest.setJsonEntity("""
+            {
+              "properties": {
+                "location": {
+                  "type": "geo_shape"
+                }
+              }
+            }""");
         response = client.performRequest(mappingRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
 

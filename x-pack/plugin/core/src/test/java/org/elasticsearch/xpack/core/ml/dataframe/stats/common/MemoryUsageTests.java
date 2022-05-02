@@ -67,6 +67,7 @@ public class MemoryUsageTests extends AbstractSerializingTestCase<MemoryUsage> {
     public void testZeroUsage() {
         MemoryUsage memoryUsage = new MemoryUsage("zero_usage_job");
         String asJson = Strings.toString(memoryUsage);
-        assertThat(asJson, equalTo("{\"peak_usage_bytes\":0,\"status\":\"ok\"}"));
+        assertThat(asJson, equalTo("""
+            {"peak_usage_bytes":0,"status":"ok"}"""));
     }
 }

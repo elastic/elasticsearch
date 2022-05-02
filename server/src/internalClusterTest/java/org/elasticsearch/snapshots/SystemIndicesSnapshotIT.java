@@ -132,7 +132,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // snapshot by feature
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
-            .setIncludeGlobalState(false)
+            .setIncludeGlobalState(true)
             .setWaitForCompletion(true)
             .setFeatureStates(SystemIndexTestPlugin.class.getSimpleName(), AnotherSystemIndexTestPlugin.class.getSimpleName())
             .get();
@@ -738,10 +738,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
             assertNotNull(snapshotInfo);
             assertThat(snapshotInfo.failedShards(), lessThan(snapshotInfo.totalShards()));
-            List<String> statesInSnapshot = snapshotInfo.featureStates()
-                .stream()
-                .map(SnapshotFeatureInfo::getPluginName)
-                .collect(Collectors.toList());
+            List<String> statesInSnapshot = snapshotInfo.featureStates().stream().map(SnapshotFeatureInfo::getPluginName).toList();
             assertThat(statesInSnapshot, not(hasItem((new SystemIndexTestPlugin()).getFeatureName())));
             assertThat(statesInSnapshot, hasItem((new AnotherSystemIndexTestPlugin()).getFeatureName()));
         });
@@ -805,10 +802,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertNotNull(snapshotInfo);
         assertThat(snapshotInfo.indices(), not(hasItem(indexToBeDeleted)));
-        List<String> statesInSnapshot = snapshotInfo.featureStates()
-            .stream()
-            .map(SnapshotFeatureInfo::getPluginName)
-            .collect(Collectors.toList());
+        List<String> statesInSnapshot = snapshotInfo.featureStates().stream().map(SnapshotFeatureInfo::getPluginName).toList();
         assertThat(statesInSnapshot, not(hasItem((new SystemIndexTestPlugin()).getFeatureName())));
         assertThat(statesInSnapshot, hasItem((new AnotherSystemIndexTestPlugin()).getFeatureName()));
     }

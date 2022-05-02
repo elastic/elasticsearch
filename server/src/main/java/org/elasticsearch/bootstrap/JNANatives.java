@@ -92,15 +92,11 @@ class JNANatives {
                 if (Constants.LINUX) {
                     // give specific instructions for the linux case to make it easy
                     String user = System.getProperty("user.name");
-                    logger.warn(
-                        "These can be adjusted by modifying /etc/security/limits.conf, for example: \n"
-                            + "\t# allow user '{}' mlockall\n"
-                            + "\t{} soft memlock unlimited\n"
-                            + "\t{} hard memlock unlimited",
-                        user,
-                        user,
-                        user
-                    );
+                    logger.warn("""
+                        These can be adjusted by modifying /etc/security/limits.conf, for example:
+                        \t# allow user '{}' mlockall
+                        \t{} soft memlock unlimited
+                        \t{} hard memlock unlimited""", user, user, user);
                     logger.warn("If you are logged in interactively, you will have to re-login for the new limits to take effect.");
                 }
             } else {

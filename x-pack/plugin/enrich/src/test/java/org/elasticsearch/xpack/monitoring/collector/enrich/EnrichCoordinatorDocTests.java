@@ -82,42 +82,39 @@ public class EnrichCoordinatorDocTests extends BaseMonitoringDocTestCase<EnrichC
         assertThat(
             xContent.utf8ToString(),
             equalTo(
-                "{"
-                    + "\"cluster_uuid\":\"_cluster\","
-                    + "\"timestamp\":\""
-                    + DATE_TIME_FORMATTER.formatMillis(timestamp)
-                    + "\","
-                    + "\"interval_ms\":"
-                    + intervalMillis
-                    + ","
-                    + "\"type\":\"enrich_coordinator_stats\","
-                    + "\"source_node\":{"
-                    + "\"uuid\":\"_uuid\","
-                    + "\"host\":\"_host\","
-                    + "\"transport_address\":\"_addr\","
-                    + "\"ip\":\"_ip\","
-                    + "\"name\":\"_name\","
-                    + "\"timestamp\":\""
-                    + DATE_TIME_FORMATTER.formatMillis(nodeTimestamp)
-                    + "\""
-                    + "},"
-                    + "\"enrich_coordinator_stats\":{"
-                    + "\"node_id\":\""
-                    + stats.getNodeId()
-                    + "\","
-                    + "\"queue_size\":"
-                    + stats.getQueueSize()
-                    + ","
-                    + "\"remote_requests_current\":"
-                    + stats.getRemoteRequestsCurrent()
-                    + ","
-                    + "\"remote_requests_total\":"
-                    + stats.getRemoteRequestsTotal()
-                    + ","
-                    + "\"executed_searches_total\":"
-                    + stats.getExecutedSearchesTotal()
-                    + "}"
-                    + "}"
+                XContentHelper.stripWhitespace(
+                    """
+                        {
+                          "cluster_uuid": "_cluster",
+                          "timestamp": "%s",
+                          "interval_ms": %s,
+                          "type": "enrich_coordinator_stats",
+                          "source_node": {
+                            "uuid": "_uuid",
+                            "host": "_host",
+                            "transport_address": "_addr",
+                            "ip": "_ip",
+                            "name": "_name",
+                            "timestamp": "%s"
+                          },
+                          "enrich_coordinator_stats": {
+                            "node_id": "%s",
+                            "queue_size": %s,
+                            "remote_requests_current": %s,
+                            "remote_requests_total": %s,
+                            "executed_searches_total": %s
+                          }
+                        }""".formatted(
+                        DATE_TIME_FORMATTER.formatMillis(timestamp),
+                        intervalMillis,
+                        DATE_TIME_FORMATTER.formatMillis(nodeTimestamp),
+                        stats.getNodeId(),
+                        stats.getQueueSize(),
+                        stats.getRemoteRequestsCurrent(),
+                        stats.getRemoteRequestsTotal(),
+                        stats.getExecutedSearchesTotal()
+                    )
+                )
             )
         );
     }

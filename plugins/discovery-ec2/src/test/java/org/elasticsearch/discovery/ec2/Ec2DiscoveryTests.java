@@ -27,7 +27,8 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -60,14 +61,15 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
     private Map<String, TransportAddress> poorMansDNS = new ConcurrentHashMap<>();
 
     protected MockTransportService createTransportService() {
-        final Transport transport = new MockNioTransport(
+        final Transport transport = new Netty4Transport(
             Settings.EMPTY,
             Version.CURRENT,
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             writableRegistry(),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(Settings.EMPTY)
         ) {
             @Override
             public TransportAddress[] addressesFromString(String address) {

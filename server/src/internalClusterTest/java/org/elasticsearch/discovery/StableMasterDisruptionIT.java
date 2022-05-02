@@ -8,7 +8,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -43,7 +42,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
@@ -128,6 +126,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "4")
                 .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
+                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "10s")
                 .build()
         );
     }
@@ -143,9 +142,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         ensureStableCluster(3);
 
         final String master = internalCluster().getMasterName();
-        final List<String> nonMasters = Arrays.stream(internalCluster().getNodeNames())
-            .filter(n -> master.equals(n) == false)
-            .collect(Collectors.toList());
+        final List<String> nonMasters = Arrays.stream(internalCluster().getNodeNames()).filter(n -> master.equals(n) == false).toList();
         final String isolatedNode = randomFrom(nonMasters);
         final String otherNode = nonMasters.get(nonMasters.get(0).equals(isolatedNode) ? 1 : 0);
 
@@ -234,15 +231,15 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         // once the old master node un-freezes it gets executed. The old master node will send this update + the cluster state where it is
         // flagged as master to the other nodes that follow the new master. These nodes should ignore this update.
         internalCluster().getInstance(ClusterService.class, oldMasterNode)
-            .submitStateUpdateTask("sneaky-update", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+            .submitUnbatchedStateUpdateTask("sneaky-update", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return ClusterState.builder(currentState).build();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("failure [{}]", source), e);
+                public void onFailure(Exception e) {
+                    logger.warn("failure [sneaky-update]", e);
                 }
             });
 

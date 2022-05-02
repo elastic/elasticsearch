@@ -12,14 +12,14 @@ import io.netty.util.concurrent.GlobalEventExecutor;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
@@ -146,8 +146,8 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
-            .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4)
+            .put(NetworkModule.HTTP_TYPE_KEY, SecurityField.NAME4)
             .put("xpack.idp.enabled", true)
             .put(IDP_ENTITY_ID.getKey(), "urn:elastic:cloud:idp")
             .put(IDP_SSO_REDIRECT_ENDPOINT.getKey(), "https://idp.org/sso/redirect")
@@ -203,35 +203,29 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
 
     private String configRoles() {
         // test role allows for everything
-        return SAMPLE_USER_ROLE
-            + ":\n"
-            + "  cluster: [ ALL ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      allow_restricted_indices: true\n"
-            + "      privileges: [ ALL ]\n"
-            + "\n"
-            +
-            // IDP end user doesn't need any privileges on the security cluster
-            SAMPLE_IDPUSER_ROLE
-            + ":\n"
-            +
-            // Could switch to grant apikey for user and call this as console_user
-            "  cluster: ['cluster:admin/xpack/security/api_key/create']\n"
-            + "  indices: []\n"
-            + "  applications:\n "
-            + "    - application: elastic-cloud\n"
-            + "       resources: [ '"
-            + SP_ENTITY_ID
-            + "' ]\n"
-            + "       privileges: [ 'sso:superuser' ]\n"
-            + "\n"
-            +
-            // Console user should be able to call all IDP related endpoints and register application privileges
-            CONSOLE_USER_ROLE
-            + ":\n"
-            + "  cluster: ['cluster:admin/idp/*', 'cluster:admin/xpack/security/privilege/*' ]\n"
-            + "  indices: []\n";
+        // IDP end user doesn't need any privileges on the security cluster
+        // Could switch to grant apikey for user and call this as console_user
+        // Console user should be able to call all IDP related endpoints and register application privileges
+        return """
+            %s:
+              cluster: [ ALL ]
+              indices:
+                - names: '*'
+                  allow_restricted_indices: true
+                  privileges: [ ALL ]
+
+            %s:
+              cluster: ['cluster:admin/xpack/security/api_key/create']
+              indices: []
+              applications:
+                 - application: elastic-cloud
+                   resources: [ '%s' ]
+                   privileges: [ 'sso:superuser' ]
+
+            %s:
+              cluster: ['cluster:admin/idp/*', 'cluster:admin/xpack/security/privilege/*' ]
+              indices: []
+            """.formatted(SAMPLE_USER_ROLE, SAMPLE_IDPUSER_ROLE, SP_ENTITY_ID, CONSOLE_USER_ROLE);
     }
 
     private String configUsers() {

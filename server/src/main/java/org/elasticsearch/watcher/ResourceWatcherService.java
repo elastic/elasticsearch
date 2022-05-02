@@ -125,31 +125,19 @@ public class ResourceWatcherService implements Closeable {
      */
     public <W extends ResourceWatcher> WatcherHandle<W> add(W watcher, Frequency frequency) throws IOException {
         watcher.init();
-        switch (frequency) {
-            case LOW:
-                return lowMonitor.add(watcher);
-            case MEDIUM:
-                return mediumMonitor.add(watcher);
-            case HIGH:
-                return highMonitor.add(watcher);
-            default:
-                throw new IllegalArgumentException("Unknown frequency [" + frequency + "]");
-        }
+        return switch (frequency) {
+            case LOW -> lowMonitor.add(watcher);
+            case MEDIUM -> mediumMonitor.add(watcher);
+            case HIGH -> highMonitor.add(watcher);
+        };
     }
 
     public void notifyNow(Frequency frequency) {
         switch (frequency) {
-            case LOW:
-                lowMonitor.run();
-                break;
-            case MEDIUM:
-                mediumMonitor.run();
-                break;
-            case HIGH:
-                highMonitor.run();
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown frequency [" + frequency + "]");
+            case LOW -> lowMonitor.run();
+            case MEDIUM -> mediumMonitor.run();
+            case HIGH -> highMonitor.run();
+            default -> throw new IllegalArgumentException("Unknown frequency [" + frequency + "]");
         }
     }
 

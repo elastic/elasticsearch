@@ -433,7 +433,8 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
             assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
 
             // enqueue a "watcher available" response, but then a "failure to delete watch" response
-            enqueueResponse(webServer, 200, "{\"features\":{\"watcher\":{\"available\":true,\"enabled\":true}}}");
+            enqueueResponse(webServer, 200, """
+                {"features":{"watcher":{"available":true,"enabled":true}}}""");
             enqueueResponse(webServer, 500, "{\"error\":{}}");
 
             // call migration api
@@ -559,18 +560,17 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         // if the remote cluster doesn't allow watcher, then we only check for it and we're done
         if (remoteClusterAllowsWatcher) {
             // X-Pack exists and Watcher can be used
-            enqueueResponse(mockWebServer, 200, "{\"features\":{\"watcher\":{\"available\":true,\"enabled\":true}}}");
+            enqueueResponse(mockWebServer, 200, """
+                {"features":{"watcher":{"available":true,"enabled":true}}}""");
 
             // add delete responses
             enqueueDeleteClusterAlertResponses(mockWebServer);
         } else {
             // X-Pack exists but Watcher just cannot be used
             if (randomBoolean()) {
-                final String responseBody = randomFrom(
-                    "{\"features\":{\"watcher\":{\"available\":false,\"enabled\":true}}}",
-                    "{\"features\":{\"watcher\":{\"available\":true,\"enabled\":false}}}",
-                    "{}"
-                );
+                final String responseBody = randomFrom("""
+                    {"features":{"watcher":{"available":false,"enabled":true}}}""", """
+                    {"features":{"watcher":{"available":true,"enabled":false}}}""", "{}");
 
                 enqueueResponse(mockWebServer, 200, responseBody);
             } else {

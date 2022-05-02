@@ -13,12 +13,12 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
@@ -46,7 +46,8 @@ public class DatabaseFunctionTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             null,
-            null
+            null,
+            randomBoolean()
         );
         Analyzer analyzer = new Analyzer(sqlConfig, new SqlFunctionRegistry(), IndexResolution.valid(test), new Verifier(new Metrics()));
 

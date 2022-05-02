@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -50,6 +50,8 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
         fieldRequest.indicesOptions(IndicesOptions.fromRequest(request, fieldRequest.indicesOptions()));
         fieldRequest.includeUnmapped(request.paramAsBoolean("include_unmapped", false));
+        fieldRequest.filters(request.paramAsStringArray("filters", Strings.EMPTY_ARRAY));
+        fieldRequest.types(request.paramAsStringArray("types", Strings.EMPTY_ARRAY));
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser != null) {
                 PARSER.parse(parser, fieldRequest, null);

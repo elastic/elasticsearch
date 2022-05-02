@@ -10,7 +10,7 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -25,6 +25,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -53,7 +55,7 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         startPersistentTaskFuture.actionGet();
 
         assertBusy(() -> {
-            final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+            final ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
             final PersistentTasksCustomMetadata persistentTasks = clusterService.state()
                 .metadata()
                 .custom(PersistentTasksCustomMetadata.TYPE);
@@ -82,6 +84,20 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
                     PersistentTaskParams.class,
                     FailingInitializationPersistentTaskExecutor.TASK_NAME,
                     FailingInitializationTaskParams::new
+                )
+            );
+        }
+
+        @Override
+        public List<NamedXContentRegistry.Entry> getNamedXContent() {
+            return List.of(
+                new NamedXContentRegistry.Entry(
+                    PersistentTaskParams.class,
+                    new ParseField(FailingInitializationPersistentTaskExecutor.TASK_NAME),
+                    p -> {
+                        p.skipChildren();
+                        return new FailingInitializationTaskParams();
+                    }
                 )
             );
         }

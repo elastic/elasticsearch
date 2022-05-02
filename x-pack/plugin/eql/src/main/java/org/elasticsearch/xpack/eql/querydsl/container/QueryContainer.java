@@ -115,8 +115,7 @@ public class QueryContainer {
         // resolve it Expression
         Expression expression = attributes.getOrDefault(attr, attr);
 
-        if (expression instanceof FieldAttribute) {
-            FieldAttribute fa = (FieldAttribute) expression;
+        if (expression instanceof FieldAttribute fa) {
             if (fa.isNested()) {
                 throw new UnsupportedOperationException("Nested not yet supported");
             }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.stack;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -30,7 +30,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class StackTemplateRegistry extends IndexTemplateRegistry {
@@ -127,7 +126,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         new LifecyclePolicyConfig(ILM_90_DAYS_POLICY_NAME, "/" + ILM_90_DAYS_POLICY_NAME + ".json"),
         new LifecyclePolicyConfig(ILM_180_DAYS_POLICY_NAME, "/" + ILM_180_DAYS_POLICY_NAME + ".json"),
         new LifecyclePolicyConfig(ILM_365_DAYS_POLICY_NAME, "/" + ILM_365_DAYS_POLICY_NAME + ".json")
-    ).map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)).collect(Collectors.toUnmodifiableList());
+    ).map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)).toList();
 
     @Override
     protected List<LifecyclePolicy> getPolicyConfigs() {

@@ -289,9 +289,9 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
 
     private DiscoveryNodes.Builder discoveryNodesBuilder(Set<DiscoveryNode> nodes, boolean master) {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        String masterNodeId = randomAlphaOfLength(10);
-        nodesBuilder.localNodeId(masterNodeId);
-        nodesBuilder.masterNodeId(master ? masterNodeId : null);
+        final String localNodeId = nodes.isEmpty() ? null : randomFrom(nodes).getId();
+        nodesBuilder.localNodeId(localNodeId);
+        nodesBuilder.masterNodeId(master ? localNodeId : null);
         nodes.forEach(nodesBuilder::add);
         return nodesBuilder;
     }
@@ -326,6 +326,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             randomNonNegativeLong(),
             null,
             osStats,
+            null,
             null,
             null,
             null,

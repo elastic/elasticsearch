@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -70,7 +69,6 @@ public class NodeRepurposeCommandTests extends ESTestCase {
                     nodePaths,
                     nodeId,
                     xContentRegistry(),
-                    BigArrays.NON_RECYCLING_INSTANCE,
                     new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L
                 ).createWriter()
@@ -202,7 +200,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
     private static void withTerminal(boolean verbose, Matcher<String> outputMatcher, CheckedConsumer<MockTerminal, Exception> consumer)
         throws Exception {
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         if (verbose) {
             terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
         }

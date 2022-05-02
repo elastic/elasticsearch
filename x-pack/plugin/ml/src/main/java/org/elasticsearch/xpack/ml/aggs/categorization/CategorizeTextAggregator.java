@@ -201,7 +201,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
             private void processTokenStream(long owningBucketOrd, TokenStream ts, int doc, CategorizationTokenTree categorizer)
                 throws IOException {
                 ArrayList<Integer> tokens = new ArrayList<>();
-                try {
+                try (ts) {
                     CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
                     ts.reset();
                     int numTokens = 0;
@@ -215,8 +215,6 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                     if (tokens.isEmpty()) {
                         return;
                     }
-                } finally {
-                    ts.close();
                 }
                 long previousSize = categorizer.ramBytesUsed();
                 TextCategorization lg = categorizer.parseTokens(

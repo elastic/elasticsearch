@@ -153,7 +153,7 @@ public class RBACEngineTests extends ESTestCase {
 
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
             randomAlphaOfLengthBetween(3, 8),
-            randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE, randomAlphaOfLengthBetween(4, 12)),
+            randomAlphaOfLengthBetween(4, 12),
             randomAlphaOfLengthBetween(3, 8)
         );
 

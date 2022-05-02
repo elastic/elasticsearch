@@ -98,6 +98,11 @@ public abstract class Terminal {
         return read(prompt);
     }
 
+    /** Returns a Reader which can be used to read directly from the terminal using standard input. */
+    public final Reader getReader() {
+        return reader;
+    }
+
     /** Returns a Writer which can be used to write to the terminal directly using standard output. */
     public final PrintWriter getWriter() {
         return outWriter;

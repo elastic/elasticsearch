@@ -133,14 +133,16 @@ from being configured. Defaults to `true`.
 The time-to-live for cached `BitSet` entries for document level security.
 Document level security queries may depend on Lucene BitSet objects, and these are
 automatically cached to improve performance. Defaults to expire entries that are
-unused for `168h` (7 days).
+unused for `2h` (2 hours).
 
 `xpack.security.dls.bitset.cache.size`::
 (<<static-cluster-setting,Static>>)
 The maximum memory usage of cached `BitSet` entries for document level security.
 Document level security queries may depend on Lucene BitSet objects, and these are
-automatically cached to improve performance. Defaults to `50mb`, after which
-least-recently-used entries will be evicted.
+automatically cached to improve performance. Can be configured as a raw number
+of bytes (such as `200mb` or `1g`) or a percentage of the node's JVM heap
+memory (such as `5%`). When the default value is exceeded, the least recently
+used entries are evicted. Defaults to `10%` of the heap assigned to the node.
 
 [discrete]
 [[token-service-settings]]

@@ -19,7 +19,6 @@ import org.elasticsearch.env.Environment;
 import java.util.List;
 
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 

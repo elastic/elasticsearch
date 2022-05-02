@@ -64,9 +64,7 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
                     CoreValuesSourceType.KEYWORD
                 )
             );
-
         }
-
         return new FrequentItemSetsAggregator(name, context, parent, metadata, configs, minimumSupport, minimumSetSize, size);
     }
 

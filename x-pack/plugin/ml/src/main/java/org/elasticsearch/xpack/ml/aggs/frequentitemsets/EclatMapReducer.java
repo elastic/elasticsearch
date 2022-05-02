@@ -68,7 +68,7 @@ public class EclatMapReducer implements MapReducer {
     private final int minimumSetSize;
     private final int size;
 
-    private Iterable<FrequentItemSetCollector.FrequentItemSet> frequentSets = null;
+    private FrequentItemSetCollector.FrequentItemSet[] frequentSets = null;
     private TransactionStore transactionStore;
     private long eclatRuntimeNanos = 0;
 
@@ -175,10 +175,7 @@ public class EclatMapReducer implements MapReducer {
             // items
             builder.startArray("items");
 
-            TopItemIds topIds = null;
-
-            try {
-                topIds = transactionStore.getTopItemIds();
+            try (TopItemIds topIds =  transactionStore.getTopItemIds()) {
                 for (Long id : topIds) {
                     Tuple<String, String> item = transactionStore.getItem(id);
                     builder.startObject();
@@ -187,10 +184,7 @@ public class EclatMapReducer implements MapReducer {
                     builder.field(CommonFields.DOC_COUNT.getPreferredName(), transactionStore.getItemCount(id));
                     builder.endObject();
                 }
-            } finally {
-                Releasables.close(topIds);
             }
-
             builder.endArray();
             builder.endObject();
         }
@@ -255,13 +249,11 @@ public class EclatMapReducer implements MapReducer {
 
                     for (Long transactionId : topTransactionIds) {
                         // caching: if the transaction is already marked for skipping, quickly continue
-                        if (transactionNumber < cacheNumberOfTransactions) {
-                            if (transactionSkipList.get(cacheNumberOfTransactions * (depth - 2) + transactionNumber)) {
-                                // set the bit for the next iteration
-                                transactionSkipList.set(cacheNumberOfTransactions * (depth - 1) + transactionNumber);
-                                transactionNumber++;
-                                continue;
-                            }
+                        if (transactionNumber < cacheNumberOfTransactions && transactionSkipList.get(cacheNumberOfTransactions * (depth - 2) + transactionNumber)) {
+                            // set the bit for the next iteration
+                            transactionSkipList.set(cacheNumberOfTransactions * (depth - 1) + transactionNumber);
+                            transactionNumber++;
+                            continue;
                         }
 
                         long transactionCount = transactionStore.getTransactionCount(transactionId);
@@ -296,13 +288,12 @@ public class EclatMapReducer implements MapReducer {
                     occurences = 0;
                     for (Long transactionId : topTransactionIds) {
                         // caching: if the transaction is already marked for skipping, quickly continue
-                        if (transactionNumber < cacheNumberOfTransactions) {
-                            if (transactionSkipList.get(
+                        if (transactionNumber < cacheNumberOfTransactions 
+                            && transactionSkipList.get(
                                 cacheNumberOfTransactions * (BITSET_CACHE_TRAVERSAL_DEPTH - 2) + transactionNumber
                             )) {
-                                transactionNumber++;
-                                continue;
-                            }
+                            transactionNumber++;
+                            continue;
                         }
 
                         long transactionCount = transactionStore.getTransactionCount(transactionId);

@@ -101,8 +101,13 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
         super(in);
         this.fields = in.readList(MultiValuesSourceFieldConfig::new);
         this.minimumSupport = in.readDouble();
-        this.minimumSetSize = in.readInt();
-        this.size = in.readInt();
+        this.minimumSetSize = in.readVInt();
+        this.size = in.readVInt();
+    }
+    
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     @Override
@@ -119,8 +124,8 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeList(fields);
         out.writeDouble(minimumSupport);
-        out.writeInt(minimumSetSize);
-        out.writeInt(size);
+        out.writeVInt(minimumSetSize);
+        out.writeVInt(size);
     }
 
     @Override
@@ -157,7 +162,7 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
 
     @Override
     public BucketCardinality bucketCardinality() {
-        return BucketCardinality.NONE;
+        return BucketCardinality.MANY;
     }
 
     @Override

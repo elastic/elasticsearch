@@ -26,14 +26,12 @@ public final class InternalMapReduceAggregation extends InternalAggregation {
 
     InternalMapReduceAggregation(String name, Map<String, Object> metadata, MapReducer mapReducer, boolean profiling) {
         super(name, metadata);
-        this.mapReducer = mapReducer;
+        this.mapReducer = Objects.requireNonNull(mapReducer);
         this.profiling = profiling;
     }
 
     public InternalMapReduceAggregation(StreamInput in) throws IOException {
         super(in);
-
-        // TODO: what if the named writable does not exist?
         this.mapReducer = in.readNamedWriteable(MapReducer.class);
         this.profiling = in.readBoolean();
     }
@@ -86,6 +84,10 @@ public final class InternalMapReduceAggregation extends InternalAggregation {
             builder,
             new DelegatingMapParams(Map.of(SearchProfileResults.PROFILE_FIELD, String.valueOf(profiling)), params)
         );
+    }
+
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
     }
 
     // for testing only

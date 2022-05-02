@@ -147,7 +147,7 @@ public class FrequentItemSetCollector {
         this.size = size;
         this.min = min;
         queue = new FrequentItemSetPriorityQueue(size);
-        frequentItemsByCount = new HashMap<>(size / 10);
+        frequentItemsByCount = Maps.newMapWithExpectedSize(size / 10);
     }
 
     public FrequentItemSet pop() {

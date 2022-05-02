@@ -10,8 +10,14 @@ package org.elasticsearch.tasks;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -265,6 +271,9 @@ public class TaskManagerTests extends ESTestCase {
         assertNull(taskManager.childTasksPerConnection(task1.getId(), connection1));
     }
 
+    /**
+     * Check that registering a task also causes tracing to be started on that task.
+     */
     public void testRegisterTaskStartsTracing() {
         final Tracer mockTracer = Mockito.mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
@@ -272,8 +281,7 @@ public class TaskManagerTests extends ESTestCase {
         final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
 
             @Override
-            public void setParentTask(TaskId taskId) {
-            }
+            public void setParentTask(TaskId taskId) {}
 
             @Override
             public TaskId getParentTask() {
@@ -282,6 +290,74 @@ public class TaskManagerTests extends ESTestCase {
         });
 
         verify(mockTracer).onTraceStarted(any(), eq(task));
+    }
+
+    /**
+     * Check that unregistering a task also causes tracing to be stopped on that task.
+     */
+    public void testUnregisterTaskStopsTracing() {
+        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+
+        final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
+
+            @Override
+            public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return TaskId.EMPTY_TASK_ID;
+            }
+        });
+
+        taskManager.unregister(task);
+
+        verify(mockTracer).onTraceStopped(eq(task));
+    }
+
+    /**
+     * Check that registering and executing a task also causes tracing to be started and stopped on that task.
+     */
+    public void testRegisterAndExecuteStartsAndStopsTracing() {
+        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+
+        final Task task = taskManager.registerAndExecute(
+            "testType",
+            new TransportAction<ActionRequest, ActionResponse>("actionName", new ActionFilters(Set.of()), taskManager) {
+                @Override
+                protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
+                    listener.onResponse(new ActionResponse() {
+                        @Override
+                        public void writeTo(StreamOutput out) {}
+                    });
+                }
+            },
+            new ActionRequest() {
+                @Override
+                public ActionRequestValidationException validate() {
+                    return null;
+                }
+
+                @Override
+                public TaskId getParentTask() {
+                    return TaskId.EMPTY_TASK_ID;
+                }
+            },
+            null,
+            new TaskListener<>() {
+                @Override
+                public void onResponse(Task task, ActionResponse actionResponse) {}
+
+                @Override
+                public void onFailure(Task task, Exception e) {
+                    throw new AssertionError(e);
+                }
+            }
+        );
+
+        verify(mockTracer).onTraceStarted(any(), eq(task));
+        verify(mockTracer).onTraceStopped(eq(task));
     }
 
     static class CancellableRequest extends TransportRequest {

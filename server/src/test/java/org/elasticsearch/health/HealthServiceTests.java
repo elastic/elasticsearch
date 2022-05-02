@@ -66,7 +66,7 @@ public class HealthServiceTests extends ESTestCase {
         );
     }
 
-    public void testDuplicateIndicatorNamess() {
+    public void testDuplicateIndicatorNames() {
         // Same component, same indicator name, should throw exception:
         var indicator1 = new HealthIndicatorResult(
             "indicator1",

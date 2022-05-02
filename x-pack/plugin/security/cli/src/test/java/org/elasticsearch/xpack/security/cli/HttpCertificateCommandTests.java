@@ -26,6 +26,7 @@ import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequest;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.ssl.PemUtils;
@@ -125,7 +126,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(outFile);
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput("y"); // generate CSR
 
@@ -153,7 +154,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final Environment env = newEnvironment();
         final OptionSet options = command.getParser().parse(new String[0]);
-        command.execute(terminal, options, env);
+        command.execute(terminal, options, env, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
 
         Path zipRoot = getZipRoot(outFile);
 
@@ -236,7 +237,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(outFile);
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't generate CSR
         terminal.addTextInput("y"); // existing CA
@@ -284,7 +285,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final Environment env = newEnvironment();
         final OptionSet options = command.getParser().parse(new String[0]);
-        command.execute(terminal, options, env);
+        command.execute(terminal, options, env, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
 
         if (password.length() > 50) {
             assertThat(terminal.getOutput(), containsString("OpenSSL"));
@@ -357,7 +358,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(outFile);
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't generate CSR
         terminal.addTextInput(randomBoolean() ? "n" : ""); // no existing CA
@@ -430,8 +431,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
         // randomly enter an incorrect password here which will fail the "enter twice" check and prompt to try again
         if (randomBoolean()) {
             String wrongPassword = randomAlphaOfLengthBetween(8, 20);
-            terminal.addSecretInput(wrongPassword);
-            terminal.addSecretInput("__" + wrongPassword);
+            terminal.addTextInput(wrongPassword);
+            terminal.addTextInput("__" + wrongPassword);
         }
         terminal.addSecretInput(password);
         if ("".equals(password) == false) {
@@ -442,7 +443,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final Environment env = newEnvironment();
         final OptionSet options = command.getParser().parse(new String[0]);
-        command.execute(terminal, options, env);
+        command.execute(terminal, options, env, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
 
         if (expectLongPasswordWarning) {
             assertThat(terminal.getOutput(), containsString("OpenSSL"));
@@ -513,7 +514,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
     public void testParsingValidityPeriod() throws Exception {
         final HttpCertificateCommand command = new HttpCertificateCommand();
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput("2y");
         assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofYears(2)));
@@ -578,7 +579,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testGuessFileType() throws Exception {
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
 
         final Path caCert = getDataPath("ca.crt");
         final Path caKey = getDataPath("ca.key");

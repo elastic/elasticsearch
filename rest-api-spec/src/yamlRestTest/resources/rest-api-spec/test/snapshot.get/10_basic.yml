@@ -234,6 +234,43 @@ setup:
         snapshot: test_snapshot_with_index_details
 
 ---
+"Get snapshot info without index names":
+  - skip:
+      version: " - 8.2.99"
+      reason: "Introduced in 8.3.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      snapshot.create:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_without_index_names
+        wait_for_completion: true
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_without_index_names
+        index_names: false
+        human: true
+
+  - is_true: snapshots
+  - match: { snapshots.0.snapshot: test_snapshot_without_index_names }
+  - match: { snapshots.0.state: SUCCESS }
+  - is_false:  snapshots.0.indices
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_without_index_names
+
+---
 "Get snapshot info without repository names":
 
   - do:

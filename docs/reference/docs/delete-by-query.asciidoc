@@ -59,7 +59,7 @@ POST /my-index-000001/_delete_by_query
 ** `delete` or `write`
 
 +
-NOTE: If you are using an alias, please make sure the privileges are at the index level.
+NOTE: If you are using an alias, make sure the privileges are configured at the index level.
 
 [[docs-delete-by-query-api-desc]]
 ==== {api-description-title}

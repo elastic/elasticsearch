@@ -20,16 +20,113 @@ permission. For example, the following role grants permission to submit request
 on behalf of `jacknich` or `redeniro`:
 
 [source,js]
----------------------------------------------------
+----
 {
   "run_as" : [ "jacknich", "rdeniro" ]
 }
----------------------------------------------------
+----
 
 To submit a request as another user, you specify the user in the
 `es-security-runas-user` request header. For example:
 
 [source,shell]
----------------------------------------------------
+----
 curl -H "es-security-runas-user: jacknich"  -u es_admin -XGET 'http://localhost:9200/'
----------------------------------------------------
+----
+
+== Apply the `run_as` privilege to roles
+
+You can apply the `run_as` privilege when creating roles with the
+<<security-api-put-role,create or update roles API>>. Users who are assigned
+a role that contains the `run_as` privilege inherit all privileges from their
+role, and can also submit requests on behalf of the indicated users.
+
+Consider an admin role and an analyst role. The admin role has higher privileges,
+but might also want to submit requests as another user to test and verify their
+permissions.
+
+First, we'll create an admin role named `my_admin_role`. This role has `manage` 
+<<security-privileges,privileges>> on the entire cluster, and on a subset of
+indices. This role also contains the `run_as` privilege, which enables any user
+with this role to submit requests on behalf of users with the `my_analyst_role`
+role.
+
+[source,console]
+----
+POST /_security/role/my_admin_role?refresh=true
+{
+  "cluster": ["manage"],
+  "indices": [
+    {
+      "names": [ "index1", "index2" ],
+      "privileges": [ "manage" ]
+    }
+  ],
+  "applications": [
+    {
+      "application": "myapp",
+      "privileges": [ "admin", "read" ],
+      "resources": [ "*" ]
+    }
+  ],
+  "run_as": [ "my_analyst_role" ],
+  "metadata" : {
+    "version" : 1
+  }
+}
+----
+
+Next, we'll create an analyst role named `my_analyst_role`, which has `monitor`
+cluster privileges and `manage` privileges on a subset of indices.
+
+[source,console]
+----
+POST /_security/role/my_analyst_role?refresh=true
+{
+  "cluster": [ "monitor"],
+  "indices": [
+    {
+      "names": [ "index1", "index2" ],
+      "privileges": ["manage"]
+    }
+  ],
+  "applications": [
+    {
+      "application": "myapp",
+      "privileges": [ "read" ],
+      "resources": [ "*" ]
+    }
+  ],
+  "metadata" : {
+    "version" : 1
+  }
+}
+----
+
+We'll create an admin user and assign them the role named `my_admin_role`, which
+allows this user to submit requests as a user with the `my_analyst_role` role.
+
+[source,console]
+----
+POST /_security/user/admin_user?refresh=true
+{
+  "password": "l0ng-r4nd0m-p@ssw0rd",
+  "roles": [ "my_admin_role" ],
+  "full_name": "Eirian Zola",
+  "metadata": { "intelligence" : 7}
+}
+----
+
+We can also create an analyst user and assign them the role named
+`my_analyst_role`.
+
+[source,console]
+----
+POST /_security/user/analyst_user?refresh=true
+{
+  "password": "l0nger-r4nd0mer-p@ssw0rd",
+  "roles": [ "my_analyst_role" ],
+  "full_name": "Monday Jaffe",
+  "metadata": { "innovation" : 8}
+}
+----

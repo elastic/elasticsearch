@@ -132,6 +132,11 @@ public abstract class Command implements Closeable {
         }
     }
 
+    @SuppressForbidden(reason = "Allowed to exit explicitly from #main()")
+    protected static void exit(int status) {
+        System.exit(status);
+    }
+
     /**
      * Executes this command.
      *

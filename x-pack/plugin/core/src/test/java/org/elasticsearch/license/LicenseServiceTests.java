@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
+import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -75,9 +76,16 @@ public class LicenseServiceTests extends ESTestCase {
     @Mock
     private ClusterStateTaskExecutor.TaskContext<StartBasicClusterTask> taskContext;
 
+    private AutoCloseable closeable;
+
     @Before
     public void init() {
-        MockitoAnnotations.openMocks(this);
+        closeable = MockitoAnnotations.openMocks(this);
+    }
+
+    @After
+    public void releaseMocks() throws Exception {
+        closeable.close();
     }
 
     public void testLogExpirationWarning() {
@@ -157,7 +165,8 @@ public class LicenseServiceTests extends ESTestCase {
             assertThat(response.status(), equalTo(LicensesStatus.EXPIRED));
         });
     }
-    public void testStartBasicStartsNewBasicLicenseOnDifferentFields() throws Exception {
+
+    public void testStartBasicStartsNewLicenseIfFieldsDifferent() throws Exception {
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE) // So we skip TLS checks

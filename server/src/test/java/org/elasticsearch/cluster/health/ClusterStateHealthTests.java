@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +51,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -403,14 +403,14 @@ public class ClusterStateHealthTests extends ESTestCase {
         // some primaries started
         indexRoutingTable = routingTable.index(indexName);
         newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-        ImmutableOpenIntMap.Builder<Set<String>> allocationIds = ImmutableOpenIntMap.<Set<String>>builder();
+        Map<Integer, Set<String>> allocationIds = new HashMap<>();
         for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
             IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
             for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
                 ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.primary() && randomBoolean()) {
                     final ShardRouting newShardRouting = shardRouting.moveToStarted();
-                    allocationIds.fPut(newShardRouting.getId(), Sets.newHashSet(newShardRouting.allocationId().getId()));
+                    allocationIds.put(newShardRouting.getId(), Set.of(newShardRouting.allocationId().getId()));
                     newIndexRoutingTable.addShard(newShardRouting);
                 } else {
                     newIndexRoutingTable.addShard(shardRouting);
@@ -418,10 +418,8 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
         }
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
-        IndexMetadata.Builder idxMetaBuilder = IndexMetadata.builder(clusterState.metadata().index(indexName));
-        for (final Map.Entry<Integer, Set<String>> entry : allocationIds.build().entrySet()) {
-            idxMetaBuilder.putInSyncAllocationIds(entry.getKey(), entry.getValue());
-        }
+        final IndexMetadata.Builder idxMetaBuilder = IndexMetadata.builder(clusterState.metadata().index(indexName));
+        allocationIds.forEach(idxMetaBuilder::putInSyncAllocationIds);
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(idxMetaBuilder);
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metadata(metadataBuilder).build();
         clusterStates.add(clusterState);
@@ -453,14 +451,14 @@ public class ClusterStateHealthTests extends ESTestCase {
         // all primaries started
         indexRoutingTable = routingTable.index(indexName);
         newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-        allocationIds = ImmutableOpenIntMap.<Set<String>>builder();
+        allocationIds = new HashMap<>();
         for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
             IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
             for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
                 ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.primary() && shardRouting.started() == false) {
                     final ShardRouting newShardRouting = shardRouting.moveToStarted();
-                    allocationIds.fPut(newShardRouting.getId(), Sets.newHashSet(newShardRouting.allocationId().getId()));
+                    allocationIds.put(newShardRouting.getId(), Set.of(newShardRouting.allocationId().getId()));
                     newIndexRoutingTable.addShard(newShardRouting);
                 } else {
                     newIndexRoutingTable.addShard(shardRouting);
@@ -468,11 +466,9 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
         }
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
-        idxMetaBuilder = IndexMetadata.builder(clusterState.metadata().index(indexName));
-        for (final Map.Entry<Integer, Set<String>> entry : allocationIds.build().entrySet()) {
-            idxMetaBuilder.putInSyncAllocationIds(entry.getKey(), entry.getValue());
-        }
-        metadataBuilder = Metadata.builder(clusterState.metadata()).put(idxMetaBuilder);
+        final IndexMetadata.Builder idxMetaBuilder2 = IndexMetadata.builder(clusterState.metadata().index(indexName));
+        allocationIds.forEach(idxMetaBuilder2::putInSyncAllocationIds);
+        metadataBuilder = Metadata.builder(clusterState.metadata()).put(idxMetaBuilder2);
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metadata(metadataBuilder).build();
         clusterStates.add(clusterState);
 

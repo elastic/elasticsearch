@@ -1,44 +1,46 @@
 [role="xpack"]
-[[infer-trained-model]]
-= Infer trained model API
+[[infer-trained-model-deployment]]
+= Infer trained model deployment API
 [subs="attributes"]
 ++++
-<titleabbrev>Infer trained model</titleabbrev>
+<titleabbrev>Infer trained model deployment</titleabbrev>
 ++++
 
 Evaluates a trained model.
 
-[[infer-trained-model-request]]
+deprecated::[8.3.0,Replaced by <<infer-trained-model>>.]
+
+[[infer-trained-model-deployment-request]]
 == {api-request-title}
 
-`POST _ml/trained_models/<model_id>/_infer`
+`POST _ml/trained_models/<model_id>/deployment/_infer`
 
 ////
-[[infer-trained-model-prereq]]
+[[infer-trained-model-deployment-prereq]]
 == {api-prereq-title}
 
 ////
 ////
-[[infer-trained-model-desc]]
+[[infer-trained-model-deployment-desc]]
 == {api-description-title}
 
 ////
 
-[[infer-trained-model-path-params]]
+[[infer-trained-model-deployment-path-params]]
 == {api-path-parms-title}
 
 `<model_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
-[[infer-trained-model-query-params]]
+[[infer-trained-model-deployment-query-params]]
 == {api-query-parms-title}
 
 `timeout`::
 (Optional, time)
 Controls the amount of time to wait for {infer} results. Defaults to 10 seconds.
 
-[[infer-trained-model-request-body]]
+[[infer-trained-model-deployment-request-body]]
 == {api-request-body-title}
 
 `docs`::
@@ -48,7 +50,7 @@ contain a field matching your configured trained model input. Typically, the fie
 name is `text_field`. Currently, only a single value is allowed.
 
 ////
-[[infer-trained-model-results]]
+[[infer-trained-model-deployment-results]]
 == {api-response-body-title}
 ////
 ////
@@ -57,7 +59,7 @@ name is `text_field`. Currently, only a single value is allowed.
 
 ////
 
-[[infer-trained-model-example]]
+[[infer-trained-model-deployment-example]]
 == {api-examples-title}
 
 The response depends on the task the model is trained for. If it is a
@@ -65,7 +67,7 @@ text classification task, the response is the score. For example:
 
 [source,console]
 --------------------------------------------------
-POST _ml/trained_models/model2/_infer
+POST _ml/trained_models/model2/deployment/_infer
 {
 	"docs": [{"text_field": "The movie was awesome!!"}]
 }
@@ -77,10 +79,8 @@ The API returns the predicted label and the confidence.
 [source,console-result]
 ----
 {
-  "inference_results": [{
-    "predicted_value" : "POSITIVE",
-    "prediction_probability" : 0.9998667964092964
-  }]
+  "predicted_value" : "POSITIVE",
+  "prediction_probability" : 0.9998667964092964
 }
 ----
 // NOTCONSOLE
@@ -90,7 +90,7 @@ text output and the recognized entities.
 
 [source,console]
 --------------------------------------------------
-POST _ml/trained_models/model2/_infer
+POST _ml/trained_models/model2/deployment/_infer
 {
 	"docs": [{"text_field": "Hi my name is Josh and I live in Berlin"}]
 }
@@ -102,25 +102,23 @@ The API returns in this case:
 [source,console-result]
 ----
 {
-  "inference_results": [{
-    "predicted_value" : "Hi my name is [Josh](PER&Josh) and I live in [Berlin](LOC&Berlin)",
-    "entities" : [
-      {
-        "entity" : "Josh",
-        "class_name" : "PER",
-        "class_probability" : 0.9977303419824,
-        "start_pos" : 14,
-        "end_pos" : 18
-      },
-      {
-        "entity" : "Berlin",
-        "class_name" : "LOC",
-        "class_probability" : 0.9992474323902818,
-        "start_pos" : 33,
-        "end_pos" : 39
-      }
-    ]
-  }]
+  "predicted_value" : "Hi my name is [Josh](PER&Josh) and I live in [Berlin](LOC&Berlin)",
+  "entities" : [
+    {
+      "entity" : "Josh",
+      "class_name" : "PER",
+      "class_probability" : 0.9977303419824,
+      "start_pos" : 14,
+      "end_pos" : 18
+    },
+    {
+      "entity" : "Berlin",
+      "class_name" : "LOC",
+      "class_probability" : 0.9992474323902818,
+      "start_pos" : 33,
+      "end_pos" : 39
+    }
+  ]
 }
 ----
 // NOTCONSOLE
@@ -130,7 +128,7 @@ These labels are passed in the zero-shot inference config.
 
 [source,console]
 --------------------------------------------------
-POST _ml/trained_models/model2/_infer
+POST _ml/trained_models/model2/deployment/_infer
 {
   "docs": [
     {
@@ -157,32 +155,30 @@ The API returns the predicted label and the confidence, as well as the top class
 [source,console-result]
 ----
 {
-  "inference_results": [{
-    "predicted_value" : "glad",
-    "top_classes" : [
-      {
-        "class_name" : "glad",
-        "class_probability" : 0.8061155063386439,
-        "class_score" : 0.8061155063386439
-      },
-      {
-        "class_name" : "rad",
-        "class_probability" : 0.18218006158387956,
-        "class_score" : 0.18218006158387956
-      },
-      {
-        "class_name" : "bad",
-        "class_probability" : 0.006325615787634201,
-        "class_score" : 0.006325615787634201
-      },
-      {
-        "class_name" : "sad",
-        "class_probability" : 0.0053788162898424545,
-        "class_score" : 0.0053788162898424545
-      }
-    ],
-    "prediction_probability" : 0.8061155063386439
-  }]
+  "predicted_value" : "glad",
+  "top_classes" : [
+    {
+      "class_name" : "glad",
+      "class_probability" : 0.8061155063386439,
+      "class_score" : 0.8061155063386439
+    },
+    {
+      "class_name" : "rad",
+      "class_probability" : 0.18218006158387956,
+      "class_score" : 0.18218006158387956
+    },
+    {
+      "class_name" : "bad",
+      "class_probability" : 0.006325615787634201,
+      "class_score" : 0.006325615787634201
+    },
+    {
+      "class_name" : "sad",
+      "class_probability" : 0.0053788162898424545,
+      "class_score" : 0.0053788162898424545
+    }
+  ],
+  "prediction_probability" : 0.8061155063386439
 }
 ----
 // NOTCONSOLE
@@ -192,7 +188,7 @@ The tokenization truncate option can be overridden when calling the API:
 
 [source,console]
 --------------------------------------------------
-POST _ml/trained_models/model2/_infer
+POST _ml/trained_models/model2/deployment/_infer
 {
   "docs": [{"text_field": "The Amazon rainforest covers most of the Amazon basin in South America"}],
   "inference_config": {
@@ -214,26 +210,24 @@ the `is_truncated` field appears in the response.
 [source,console-result]
 ----
 {
-  "inference_results": [{
-    "predicted_value" : "The [Amazon](LOC&Amazon) rainforest covers most of the [Amazon](LOC&Amazon) basin in [South America](LOC&South+America)",
-    "entities" : [
-      {
-        "entity" : "Amazon",
-        "class_name" : "LOC",
-        "class_probability" : 0.9505460915724254,
-        "start_pos" : 4,
-        "end_pos" : 10
-      },
-      {
-        "entity" : "Amazon",
-        "class_name" : "LOC",
-        "class_probability" : 0.9969992804311777,
-        "start_pos" : 41,
-        "end_pos" : 47
-      }
-    ],
-    "is_truncated" : true
-  }]
+  "predicted_value" : "The [Amazon](LOC&Amazon) rainforest covers most of the [Amazon](LOC&Amazon) basin in [South America](LOC&South+America)",
+  "entities" : [
+    {
+      "entity" : "Amazon",
+      "class_name" : "LOC",
+      "class_probability" : 0.9505460915724254,
+      "start_pos" : 4,
+      "end_pos" : 10
+    },
+    {
+      "entity" : "Amazon",
+      "class_name" : "LOC",
+      "class_probability" : 0.9969992804311777,
+      "start_pos" : 41,
+      "end_pos" : 47
+    }
+  ],
+  "is_truncated" : true
 }
 ----
 // NOTCONSOLE

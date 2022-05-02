@@ -13,6 +13,8 @@ import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.CliToolProvider;
@@ -34,7 +36,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -50,6 +51,9 @@ import static org.elasticsearch.bootstrap.BootstrapInfo.USER_EXCEPTION_MARKER;
 import static org.elasticsearch.server.cli.JvmOptionsParser.determineJvmOptions;
 
 class ServerCli extends EnvironmentAwareCommand {
+
+    private static final Logger logger = LogManager.getLogger(ServerCli.class);
+
     private final OptionSpecBuilder versionOption;
     private final OptionSpecBuilder daemonizeOption;
     private final OptionSpec<Path> pidfileOption;
@@ -86,6 +90,8 @@ class ServerCli extends EnvironmentAwareCommand {
 
         // setup security
         final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
+        // TODO: just for debugging!
+        logger.info("keystore password: " + keystorePassword);
         var autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword);
         boolean changed = runAutoConfigTool(autoConfigTerminal, options, processInfo, env);
         if (changed) {
@@ -139,16 +145,15 @@ class ServerCli extends EnvironmentAwareCommand {
         terminal.println(versionOutput);
     }
 
-    private SecureString getKeystorePassword(Path configDir, Terminal terminal) {
-        try {
-            KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
+    private SecureString getKeystorePassword(Path configDir, Terminal terminal) throws IOException {
+        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir)) {
             if (keystore != null && keystore.hasPassword()) {
+                logger.info("keystore has password");
                 return new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
             } else {
+                logger.info("keystore does not have password");
                 return new SecureString(new char[0]);
             }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 

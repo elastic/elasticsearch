@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -116,10 +115,10 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     if (snapInfo.failedShards() == 0) {
                         long snapshotStartTime = snapInfo.startTime();
                         final long timestamp = Instant.now().toEpochMilli();
-                        clusterService.submitStateUpdateTask(
+                        submitUnbatchedTask(
+                            clusterService,
                             "slm-record-success-" + policyMetadata.getPolicy().getId(),
-                            WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), snapshotStartTime, timestamp),
-                            newExecutor()
+                            WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), snapshotStartTime, timestamp)
                         );
                         historyStore.putAsync(
                             SnapshotHistoryItem.creationSuccessRecord(timestamp, policyMetadata.getPolicy(), request.snapshot())
@@ -141,10 +140,10 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 public void onFailure(Exception e) {
                     logger.error("failed to create snapshot for snapshot lifecycle policy [{}]: {}", policyMetadata.getPolicy().getId(), e);
                     final long timestamp = Instant.now().toEpochMilli();
-                    clusterService.submitStateUpdateTask(
+                    submitUnbatchedTask(
+                        clusterService,
                         "slm-record-failure-" + policyMetadata.getPolicy().getId(),
-                        WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp, e),
-                        newExecutor()
+                        WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp, e)
                     );
                     final SnapshotHistoryItem failureRecord;
                     try {
@@ -174,8 +173,12 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private static void submitUnbatchedTask(
+        ClusterService clusterService,
+        @SuppressWarnings("SameParameterValue") String source,
+        ClusterStateUpdateTask task
+    ) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     /**

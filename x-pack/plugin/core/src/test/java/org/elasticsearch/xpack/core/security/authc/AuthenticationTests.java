@@ -493,6 +493,10 @@ public class AuthenticationTests extends ESTestCase {
      * The authentication can have any version from 7.0.0 to current and random metadata.
      */
     public static Authentication randomAuthentication(User user, RealmRef realmRef) {
+        return randomAuthentication(user, realmRef, randomBoolean());
+    }
+
+    public static Authentication randomAuthentication(User user, RealmRef realmRef, boolean isRunAs) {
         if (user == null) {
             user = randomUser();
         }
@@ -508,7 +512,7 @@ public class AuthenticationTests extends ESTestCase {
                 .distinct()
                 .collect(Collectors.toMap(s -> s, s -> randomAlphaOfLengthBetween(3, 8)));
         }
-        return AuthenticationTestHelper.builder().user(user).realmRef(realmRef).version(version).metadata(metadata).build();
+        return AuthenticationTestHelper.builder().user(user).realmRef(realmRef).version(version).metadata(metadata).build(isRunAs);
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId) {

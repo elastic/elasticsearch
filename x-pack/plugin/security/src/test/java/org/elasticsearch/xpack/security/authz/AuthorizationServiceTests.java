@@ -119,6 +119,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyActio
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
@@ -146,7 +147,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -180,6 +180,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -885,32 +886,17 @@ public class AuthorizationServiceTests extends ESTestCase {
         mockEmptyMetadata();
 
         final User serviceUser = new User(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8));
-        final User finalUser;
-        final boolean isRunAs = randomBoolean();
-        // If testing run-as, randomize whether the service account actually has the run-as permission
-        // This makes a difference in the auditing logs (runAsDenied vs accessDenied)
-        final boolean canRunAs = isRunAs && randomBoolean();
-        if (isRunAs) {
-            finalUser = new User(new User(randomAlphaOfLengthBetween(3, 8)), serviceUser);
-        } else {
-            finalUser = serviceUser;
-        }
-        final Authentication authentication = new Authentication(
-            finalUser,
-            new RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8)),
-            isRunAs ? new RealmRef(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8)) : null,
-            Version.CURRENT,
-            Authentication.AuthenticationType.TOKEN,
-            Map.of()
+        final Authentication authentication = Authentication.newServiceAccountAuthentication(
+            serviceUser,
+            randomAlphaOfLengthBetween(3, 8),
+            Map.of(
+                "_token_name",
+                randomAlphaOfLengthBetween(3, 8),
+                "_token_source",
+                randomFrom(TokenInfo.TokenSource.values()).name().toLowerCase(Locale.ROOT)
+            )
         );
-        final Role role;
-        if (canRunAs) {
-            role = Role.builder(RESTRICTED_INDICES, "can_run_as")
-                .runAs(new Privilege(finalUser.principal(), finalUser.principal()))
-                .build();
-        } else {
-            role = Role.EMPTY;
-        }
+        final Role role = Role.EMPTY;
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[1];
@@ -926,23 +912,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             securityException,
             throwableWithMessage(containsString("[" + action + "] is unauthorized for service account [" + serviceUser.principal() + "]"))
         );
-        if (isRunAs && false == canRunAs) {
-            verify(auditTrail).runAsDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
-            assertThat(
-                securityException,
-                throwableWithMessage(containsString("is unauthorized to run as [" + finalUser.principal() + "]"))
-            );
-        } else {
-            if (canRunAs) {
-                verify(auditTrail).runAsGranted(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
-                assertThat(securityException, throwableWithMessage(containsString("run as [" + finalUser.principal() + "] with roles [")));
-            }
-            verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
-            assertThat(
-                securityException,
-                throwableWithMessage(containsString("this action is granted by the index privileges [read,all]"))
-            );
-        }
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
+        assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
         verifyNoMoreInteractions(auditTrail);
     }
 

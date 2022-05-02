@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesReque
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -119,7 +118,7 @@ public class ProfileService {
      *                       to submit the request.
      */
     public void activateProfile(Authentication authentication, ActionListener<Profile> listener) {
-        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
+        final Subject subject = authentication.getEffectiveSubject();
         if (Subject.Type.USER != subject.getType()) {
             listener.onFailure(
                 new IllegalArgumentException(

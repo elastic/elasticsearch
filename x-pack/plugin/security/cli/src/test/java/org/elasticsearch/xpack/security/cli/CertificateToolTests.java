@@ -139,7 +139,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testOutputDirectory() throws Exception {
         Path outputDir = createTempDir();
         Path outputFile = outputDir.resolve("certs.zip");
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
 
         // test with a user provided file
         Path resolvedOutputFile = CertificateCommand.resolveOutputPath(terminal, outputFile.toString(), "something");
@@ -183,7 +183,7 @@ public class CertificateToolTests extends ESTestCase {
         }
 
         int count = 0;
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         for (Entry<String, Map<String, String>> entry : instanceInput.entrySet()) {
             terminal.addTextInput(entry.getKey());
             terminal.addTextInput("");
@@ -251,7 +251,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testParsingFileWithInvalidDetails() throws Exception {
         Path tempDir = initTempDir();
         Path instanceFile = writeInvalidInstanceInformation(tempDir.resolve("instances-invalid.yml"));
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         final UserException exception = expectThrows(
             UserException.class,
             () -> CertificateTool.parseAndValidateFile(terminal, instanceFile)
@@ -392,14 +392,14 @@ public class CertificateToolTests extends ESTestCase {
                 return List.of();
             }
         });
-        final UserException e = expectThrows(UserException.class, () -> certificateTool.execute(new MockTerminal(), optionSet));
+        final UserException e = expectThrows(UserException.class, () -> certificateTool.execute(MockTerminal.create(), optionSet));
         assertThat(e.getMessage(), containsString("Generating certificates without providing a CA is no longer supported"));
     }
 
     public void testHandleLongPasswords() throws Exception {
         final Path tempDir = initTempDir();
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path caFile = tempDir.resolve("ca.p12");
@@ -475,7 +475,7 @@ public class CertificateToolTests extends ESTestCase {
         Path testNodeCertPath = getDataPath("/org/elasticsearch/xpack/security/cli/testnode.crt");
         Path testNodeKeyPath = getDataPath("/org/elasticsearch/xpack/security/cli/testnode.pem");
         final boolean passwordPrompt = randomBoolean();
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         if (passwordPrompt) {
             terminal.addSecretInput("testnode");
         }
@@ -617,7 +617,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testCreateCaAndMultipleInstances() throws Exception {
         final Path tempDir = initTempDir();
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path caFile = tempDir.resolve("ca.p12");
@@ -762,7 +762,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testTrustBetweenPEMandPKCS12() throws Exception {
         final Path tempDir = initTempDir();
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path caFile = tempDir.resolve("ca.p12");
@@ -847,7 +847,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testZipOutputFromCommandLineOptions() throws Exception {
         final Path tempDir = initTempDir();
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path zip = tempDir.resolve("pem.zip");

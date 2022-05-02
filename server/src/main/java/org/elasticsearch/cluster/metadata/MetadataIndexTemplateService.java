@@ -630,6 +630,7 @@ public class MetadataIndexTemplateService {
         var finalTemplate = Optional.ofNullable(indexTemplate.template());
         var finalSettings = Settings.builder();
         final var now = Instant.now();
+        final var metadata = currentState.getMetadata();
 
         // First apply settings sourced from index setting providers:
         for (var provider : indexSettingProviders) {
@@ -637,7 +638,7 @@ public class MetadataIndexTemplateService {
                 provider.getAdditionalIndexSettings(
                     "validate-index-name",
                     indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
-                    indexTemplate.getDataStreamTemplate() != null ? indexTemplate.getDataStreamTemplate().getIndexMode() : null,
+                    indexTemplate.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(indexTemplate),
                     currentState.getMetadata(),
                     now,
                     finalTemplate.map(Template::settings).orElse(Settings.EMPTY)
@@ -743,6 +744,7 @@ public class MetadataIndexTemplateService {
         String templateName,
         ComposableIndexTemplate newTemplate
     ) {
+        Metadata currentMetadata = state.getMetadata();
         Metadata updatedMetadata = null;
         Set<String> dataStreamsWithNonTsdbTemplate = null;
 
@@ -756,7 +758,7 @@ public class MetadataIndexTemplateService {
             }
             var matchingTemplate = findV2Template(updatedMetadata, dataStream.getName(), false);
             if (templateName.equals(matchingTemplate)) {
-                if (newTemplate.getDataStreamTemplate().getIndexMode() != IndexMode.TIME_SERIES) {
+                if (currentMetadata.isTimeSeriesTemplate(newTemplate) == false) {
                     if (dataStreamsWithNonTsdbTemplate == null) {
                         dataStreamsWithNonTsdbTemplate = new HashSet<>();
                     }
@@ -766,6 +768,8 @@ public class MetadataIndexTemplateService {
         }
 
         if (dataStreamsWithNonTsdbTemplate != null) {
+            var settings = MetadataIndexTemplateService.resolveSettings(newTemplate, currentMetadata.componentTemplates());
+            var routingPaths = IndexMetadata.INDEX_ROUTING_PATH.get(settings);
             throw new IllegalArgumentException(
                 "composable template ["
                     + templateName
@@ -774,9 +778,9 @@ public class MetadataIndexTemplateService {
                     + ", priority ["
                     + newTemplate.priority()
                     + "]"
-                    + ", index_mode ["
-                    + newTemplate.getDataStreamTemplate().getIndexMode()
-                    + "] "
+                    + ", index.routing_path "
+                    + routingPaths
+                    + " "
                     + "would cause tsdb data streams "
                     + dataStreamsWithNonTsdbTemplate
                     + " to no longer match a data stream template with a time_series index_mode"

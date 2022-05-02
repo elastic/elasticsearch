@@ -12,12 +12,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public final class InternalMapReduceAggregation extends InternalAggregation {
 
@@ -86,7 +88,10 @@ public final class InternalMapReduceAggregation extends InternalAggregation {
         );
     }
 
+    @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+
+        // TODO: must be forwarded to MapReducer
         return this;
     }
 

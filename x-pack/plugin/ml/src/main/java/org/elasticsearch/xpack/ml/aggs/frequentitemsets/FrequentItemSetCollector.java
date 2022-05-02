@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.xcontent.ToXContent;

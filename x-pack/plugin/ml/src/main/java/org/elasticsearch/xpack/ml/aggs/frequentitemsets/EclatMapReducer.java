@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.ml.aggs.frequentitemsets.TransactionStore.TopTran
 import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReducer;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -175,7 +174,7 @@ public class EclatMapReducer implements MapReducer {
             // items
             builder.startArray("items");
 
-            try (TopItemIds topIds =  transactionStore.getTopItemIds()) {
+            try (TopItemIds topIds = transactionStore.getTopItemIds()) {
                 for (Long id : topIds) {
                     Tuple<String, String> item = transactionStore.getItem(id);
                     builder.startObject();
@@ -249,7 +248,8 @@ public class EclatMapReducer implements MapReducer {
 
                     for (Long transactionId : topTransactionIds) {
                         // caching: if the transaction is already marked for skipping, quickly continue
-                        if (transactionNumber < cacheNumberOfTransactions && transactionSkipList.get(cacheNumberOfTransactions * (depth - 2) + transactionNumber)) {
+                        if (transactionNumber < cacheNumberOfTransactions
+                            && transactionSkipList.get(cacheNumberOfTransactions * (depth - 2) + transactionNumber)) {
                             // set the bit for the next iteration
                             transactionSkipList.set(cacheNumberOfTransactions * (depth - 1) + transactionNumber);
                             transactionNumber++;
@@ -288,7 +288,7 @@ public class EclatMapReducer implements MapReducer {
                     occurences = 0;
                     for (Long transactionId : topTransactionIds) {
                         // caching: if the transaction is already marked for skipping, quickly continue
-                        if (transactionNumber < cacheNumberOfTransactions 
+                        if (transactionNumber < cacheNumberOfTransactions
                             && transactionSkipList.get(
                                 cacheNumberOfTransactions * (BITSET_CACHE_TRAVERSAL_DEPTH - 2) + transactionNumber
                             )) {
@@ -349,7 +349,7 @@ public class EclatMapReducer implements MapReducer {
         for (int i = topFrequentItems.length - 1; i >= 0; i--) {
             topFrequentItems[i] = collector.pop();
         }
-        this.frequentSets = Arrays.asList(topFrequentItems);
+        this.frequentSets = topFrequentItems;
 
         // TODO: we could get rid of the transactions at this point, but we still need the items
         final long relativeEndNanos = System.nanoTime();

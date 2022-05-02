@@ -97,4 +97,26 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
             response.getAcknowledgeMessage()
         );
     }
+
+    public void testStartBasicLicenseWithDifferentExpiry() throws Exception {
+        LicensingClient licensingClient = new LicensingClient(client());
+        License license = TestUtils.generateSignedLicense("trial", License.VERSION_CURRENT, -1, TimeValue.timeValueHours(24));
+        licensingClient.preparePutLicense(license).get();
+
+        assertBusy(() -> {
+            GetLicenseResponse getLicenseResponse = licensingClient.prepareGetLicense().get();
+            assertEquals("trial", getLicenseResponse.license().type());
+        });
+
+        PostStartBasicResponse response = licensingClient.preparePostStartBasic().get();
+        assertEquals(200, response.status().getStatus());
+        assertFalse(response.isAcknowledged());
+        assertFalse(response.getStatus().isBasicStarted());
+        assertEquals("Operation failed: Needs acknowledgement.", response.getStatus().getErrorMessage());
+        assertEquals(
+            "This license update requires acknowledgement. To acknowledge the license, "
+                + "please read the following messages and call /start_basic again, this time with the \"acknowledge=true\" parameter:",
+            response.getAcknowledgeMessage()
+        );
+    }
 }

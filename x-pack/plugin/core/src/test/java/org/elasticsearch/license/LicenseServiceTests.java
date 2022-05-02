@@ -6,9 +6,13 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,8 +33,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -52,9 +59,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Due to changes in JDK9 where locale data is used from CLDR, the licence message will differ in jdk 8 and jdk9+
@@ -62,6 +71,15 @@ import static org.mockito.Mockito.verify;
  * We run ES with -Djava.locale.providers=SPI,COMPAT and same option has to be applied when running this test from IDE
  */
 public class LicenseServiceTests extends ESTestCase {
+
+    // must use member mock for generic
+    @Mock
+    private ClusterStateTaskExecutor.TaskContext<StartBasicClusterTask> taskContext;
+
+    @Before
+    public void init() {
+        MockitoAnnotations.openMocks(this);
+    }
 
     public void testLogExpirationWarning() {
         long time = LocalDate.of(2018, 11, 15).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -139,6 +157,63 @@ public class LicenseServiceTests extends ESTestCase {
             PutLicenseResponse response = future.actionGet();
             assertThat(response.status(), equalTo(LicensesStatus.EXPIRED));
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testStartBasicWithDifferentFields() throws Exception {
+        final Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE) // So we skip TLS checks
+            .build();
+
+        final ClusterState clusterState = mock(ClusterState.class);
+        Mockito.when(clusterState.metadata()).thenReturn(Metadata.EMPTY_METADATA);
+        Mockito.when(clusterState.getClusterName()).thenReturn(ClusterName.DEFAULT);
+
+        final ClusterService clusterService = mock(ClusterService.class);
+        Mockito.when(clusterService.state()).thenReturn(clusterState);
+        Mockito.when(clusterService.getClusterName()).thenReturn(ClusterName.DEFAULT);
+
+        final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+        final ResourceWatcherService resourceWatcherService = mock(ResourceWatcherService.class);
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        final LicenseService service = new LicenseService(
+            settings,
+            threadPool,
+            clusterService,
+            clock,
+            env,
+            resourceWatcherService,
+            licenseState
+        );
+
+        final Consumer<PlainActionFuture<PostStartBasicResponse>> assertion = future -> {
+            PostStartBasicResponse response = future.actionGet();
+            assertThat(response.getStatus(), equalTo(PostStartBasicResponse.Status.GENERATED_BASIC));
+        };
+        final PostStartBasicRequest request = new PostStartBasicRequest();
+        final PlainActionFuture<PostStartBasicResponse> future = new PlainActionFuture<>();
+        service.startBasicLicense(request, future);
+        if (future.isDone()) {
+            // If validation failed, the future might be done without calling the updater task.
+            assertion.accept(future);
+        } else {
+            final var task = ArgumentCaptor.forClass(StartBasicClusterTask.class);
+            final var taskConfig = ArgumentCaptor.forClass(ClusterStateTaskConfig.class);
+            final var taskExecutor = ArgumentCaptor.forClass(StartBasicClusterTask.Executor.class);
+            verify(clusterService).submitStateUpdateTask(any(), task.capture(), taskConfig.capture(), taskExecutor.capture());
+            when(taskContext.getTask()).thenReturn(task.getValue());
+            final var l = ArgumentCaptor.forClass(ActionListener.class);
+            doNothing().when(taskContext).success(l.capture());
+
+            ClusterState gotState = taskExecutor.getValue().execute(ClusterState.EMPTY_STATE, List.of(taskContext));
+            verify(taskContext).success(any(ActionListener.class));
+            l.getValue().onResponse(gotState);
+
+            assertion.accept(future);
+        }
     }
 
     private void assertRegisterValidLicense(Settings baseSettings, License.LicenseType licenseType) throws IOException {

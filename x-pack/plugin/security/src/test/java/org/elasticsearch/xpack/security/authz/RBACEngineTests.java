@@ -151,12 +151,9 @@ public class RBACEngineTests extends ESTestCase {
             : new AuthenticateRequestBuilder(mock(Client.class)).username(username).request();
         final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
 
-        final String authenticationType = changePasswordRequest
-            ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE)
-            : randomAlphaOfLengthBetween(4, 12);
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
             randomAlphaOfLengthBetween(3, 8),
-            authenticationType,
+            randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE, randomAlphaOfLengthBetween(4, 12)),
             randomAlphaOfLengthBetween(3, 8)
         );
 

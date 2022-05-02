@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
@@ -15,6 +14,29 @@ apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.bwc-test'
+
+def useFixture = providers.environmentVariable("geoip_use_service")
+  .map { s -> Boolean.parseBoolean(s) == false }
+  .getOrElse(true)
+
+def fixtureAddress = {
+  assert useFixture: 'closure should not be used without a fixture'
+  int ephemeralPort = tasks.getByPath(":test:fixtures:geoip-fixture:postProcessFixture").ext."test.fixtures.geoip-fixture-restart.tcp.80"
+  assert ephemeralPort > 0
+  return "http://127.0.0.1:${ephemeralPort}/"
+}
+
+if (useFixture) {
+  apply plugin: 'elasticsearch.test.fixtures'
+  testFixtures.useFixture(':test:fixtures:geoip-fixture', 'geoip-fixture-restart')
+}
+
+tasks.withType(Test).configureEach {
+  if (useFixture) {
+    nonInputProperties.systemProperty "geoip_endpoint", "${-> fixtureAddress()}"
+  }
+}
+
 
 BuildParams.bwcVersions.withWireCompatible(v -> v.before("8.0.0")) { bwcVersion, baseName ->
   def baseCluster = testClusters.register(baseName) {
@@ -30,6 +52,9 @@ BuildParams.bwcVersions.withWireCompatible(v -> v.before("8.0.0")) { bwcVersion,
     setting 'indices.memory.shard_inactive_time', '60m'
     setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     setting 'xpack.security.enabled', 'false'
+    if (useFixture) {
+      setting 'ingest.geoip.downloader.endpoint', { "${-> fixtureAddress()}" }
+    }
     requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
   }
 

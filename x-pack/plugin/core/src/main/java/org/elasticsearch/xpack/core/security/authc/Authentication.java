@@ -43,6 +43,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -56,6 +57,8 @@ import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRe
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newServiceAccountRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
@@ -247,7 +250,9 @@ public class Authentication implements ToXContentObject {
     public Authentication runAs(User runAs, @Nullable RealmRef lookupRealmRef) {
         Objects.requireNonNull(runAs);
         assert false == runAs instanceof RunAsUser;
+        assert false == runAs instanceof AnonymousUser;
         assert false == getUser() instanceof RunAsUser;
+        assert false == hasSyntheticRealmNameOrType(lookupRealmRef) : "should not use synthetic realm name/type for lookup realms";
         assert AuthenticationType.REALM == getAuthenticationType() || AuthenticationType.API_KEY == getAuthenticationType();
         return new Authentication(
             new RunAsUser(runAs, getUser()),
@@ -546,6 +551,21 @@ public class Authentication implements ToXContentObject {
         }
     }
 
+    private boolean hasSyntheticRealmNameOrType(@Nullable RealmRef realmRef) {
+        if (realmRef == null) {
+            return false;
+        }
+        if (List.of(API_KEY_REALM_NAME, ServiceAccountSettings.REALM_NAME, ANONYMOUS_REALM_NAME, FALLBACK_REALM_NAME, ATTACH_REALM_NAME)
+            .contains(realmRef.getName())) {
+            return true;
+        }
+        if (List.of(API_KEY_REALM_TYPE, ServiceAccountSettings.REALM_TYPE, ANONYMOUS_REALM_TYPE, FALLBACK_REALM_TYPE, ATTACH_REALM_TYPE)
+            .contains(realmRef.getType())) {
+            return true;
+        }
+        return false;
+    }
+
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder("Authentication[").append(user)
@@ -689,7 +709,7 @@ public class Authentication implements ToXContentObject {
 
         static RealmRef newApiKeyRealmRef(String nodeName) {
             // no domain for API Key tokens
-            return new RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, nodeName, null);
+            return new RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, nodeName, null);
         }
     }
 

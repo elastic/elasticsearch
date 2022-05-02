@@ -88,7 +88,7 @@ public class InferenceIT extends InferenceTestCase {
     public void testInference() throws Exception {
         Response response = infer("a-complex-regression-model", "{\"item\": \"TV\", \"avg_cost\": 300}");
         assertThat(
-            (List<Double>)XContentMapValues.extractValue("inference_results.regression-value", responseAsMap(response)),
+            (List<Double>) XContentMapValues.extractValue("inference_results.regression-value", responseAsMap(response)),
             equalTo(List.of(2.0))
         );
     }
@@ -97,13 +97,8 @@ public class InferenceIT extends InferenceTestCase {
     public void testAllFieldsMissingWarning() throws IOException {
         Response response = infer("a-complex-regression-model", "{}");
         assertThat(
-            (List<String>) XContentMapValues.extractValue(
-                "inference_results.warning",
-                responseAsMap(response)
-            ),
-            equalTo(
-                List.of("Model [a-complex-regression-model] could not be inferred as all fields were missing")
-            )
+            (List<String>) XContentMapValues.extractValue("inference_results.warning", responseAsMap(response)),
+            equalTo(List.of("Model [a-complex-regression-model] could not be inferred as all fields were missing"))
         );
     }
 

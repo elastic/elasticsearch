@@ -50,6 +50,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "SLM is running",
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1)),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -76,7 +77,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                             "Scheduled snapshots are not running, which could lead to future data loss.",
                             List.of(ImpactArea.SEARCH)
                         )
-                    )
+                    ),
+                    Collections.emptyList()
                 )
             )
         );
@@ -96,6 +98,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "No policies configured",
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 0)),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -115,6 +118,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "No policies configured",
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 0)),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )

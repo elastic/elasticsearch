@@ -57,7 +57,13 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     public HealthIndicatorResult calculate(boolean includeDetails) {
         var slmMetadata = clusterService.state().metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
-            return createIndicator(GREEN, "No policies configured", createDetails(includeDetails, slmMetadata), Collections.emptyList());
+            return createIndicator(
+                GREEN,
+                "No policies configured",
+                createDetails(includeDetails, slmMetadata),
+                Collections.emptyList(),
+                Collections.emptyList()
+            );
         } else if (slmMetadata.getOperationMode() != OperationMode.RUNNING) {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
@@ -66,9 +72,21 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     List.of(ImpactArea.SEARCH)
                 )
             );
-            return createIndicator(YELLOW, "SLM is not running", createDetails(includeDetails, slmMetadata), impacts);
+            return createIndicator(
+                YELLOW,
+                "SLM is not running",
+                createDetails(includeDetails, slmMetadata),
+                impacts,
+                Collections.emptyList()
+            );
         } else {
-            return createIndicator(GREEN, "SLM is running", createDetails(includeDetails, slmMetadata), Collections.emptyList());
+            return createIndicator(
+                GREEN,
+                "SLM is running",
+                createDetails(includeDetails, slmMetadata),
+                Collections.emptyList(),
+                Collections.emptyList()
+            );
         }
     }
 

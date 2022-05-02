@@ -20,6 +20,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
@@ -79,6 +80,6 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
                 }
             });
             return builder.endObject();
-        } : HealthIndicatorDetails.EMPTY, impacts);
+        } : HealthIndicatorDetails.EMPTY, impacts, Collections.emptyList());
     }
 }

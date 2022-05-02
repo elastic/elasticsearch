@@ -62,7 +62,13 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         var snapshotMetadata = clusterService.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
 
         if (snapshotMetadata.repositories().isEmpty()) {
-            return createIndicator(GREEN, "No repositories configured.", HealthIndicatorDetails.EMPTY, Collections.emptyList());
+            return createIndicator(
+                GREEN,
+                "No repositories configured.",
+                HealthIndicatorDetails.EMPTY,
+                Collections.emptyList(),
+                Collections.emptyList()
+            );
         }
 
         var corrupted = snapshotMetadata.repositories()
@@ -81,6 +87,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 includeDetails
                     ? new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories))
                     : HealthIndicatorDetails.EMPTY,
+                Collections.emptyList(),
                 Collections.emptyList()
             );
         }
@@ -106,7 +113,8 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                     )
                 )
                 : HealthIndicatorDetails.EMPTY,
-            impacts
+            impacts,
+            Collections.emptyList()
         );
     }
 

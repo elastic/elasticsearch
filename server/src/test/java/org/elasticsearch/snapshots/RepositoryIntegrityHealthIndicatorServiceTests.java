@@ -53,6 +53,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "No corrupted repositories.",
                     new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size())),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -84,7 +85,8 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                             "Snapshots in corrupted repositories cannot be restored. Data loss is possible.",
                             List.of(ImpactArea.SEARCH)
                         )
-                    )
+                    ),
+                    Collections.emptyList()
                 )
             )
         );
@@ -103,6 +105,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "No repositories configured.",
                     HealthIndicatorDetails.EMPTY,
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )

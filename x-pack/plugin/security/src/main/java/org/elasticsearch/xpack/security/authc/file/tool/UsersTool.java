@@ -12,6 +12,7 @@ import joptsimple.OptionSpec;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MultiCommand;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
@@ -99,7 +100,7 @@ class UsersTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
 
             String username = parseUsername(arguments.values(options), env.settings());
             final boolean allowReserved = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(env.settings()) == false;
@@ -154,7 +155,7 @@ class UsersTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
 
             String username = parseUsername(arguments.values(options), env.settings());
             Path passwordFile = FileUserPasswdStore.resolveFile(env);
@@ -209,7 +210,7 @@ class UsersTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
 
             String username = parseUsername(arguments.values(options), env.settings());
             char[] passwordHash = getPasswordHash(terminal, env, passwordOption.value(options));
@@ -257,7 +258,7 @@ class UsersTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
 
             String username = parseUsername(arguments.values(options), env.settings());
             String[] addRoles = parseRoles(terminal, env, addOption.value(options));
@@ -317,7 +318,7 @@ class UsersTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
 
             String username = null;
             if (options.has(arguments)) {

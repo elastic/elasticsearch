@@ -62,7 +62,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         createKeystore(password, "reindex.ssl.keystore.password", value);
         terminal.addSecretInput(password);
         execute("reindex.ssl.keystore.password");
-        assertEquals(value + "\n", terminal.getOutput());
+        assertThat(terminal.getOutput(), equalTo(value + System.lineSeparator()));
     }
 
     public void testShowBinaryValue() throws Exception {
@@ -125,9 +125,9 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         // Not prompted for a password
 
         if (console) {
-            assertEquals(value + "\n", terminal.getOutput());
+            assertThat(terminal.getOutput(), equalTo(value + System.lineSeparator()));
         } else {
-            assertEquals(value, terminal.getOutput());
+            assertThat(terminal.getOutput(), equalTo(value));
         }
     }
 }

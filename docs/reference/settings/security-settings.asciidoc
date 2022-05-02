@@ -139,10 +139,10 @@ unused for `2h` (2 hours).
 (<<static-cluster-setting,Static>>)
 The maximum memory usage of cached `BitSet` entries for document level security.
 Document level security queries may depend on Lucene BitSet objects, and these are
-automatically cached to improve performance. Defaults to `10%` (that is, 10% of the
-heap assigned to the node), after which least-recently-used entries will be evicted.
-Can be configured as a raw number of bytes (for example, `200mb` or `1g`) or a 
-percentage of the node's JVM heap memory (for example, `5%`).
+automatically cached to improve performance. Can be configured as a raw number
+of bytes (such as `200mb` or `1g`) or a percentage of the node's JVM heap
+memory (such as `5%`). When the default value is exceeded, the least recently
+used entries are evicted. Defaults to `10%` of the heap assigned to the node).
 
 [discrete]
 [[token-service-settings]]

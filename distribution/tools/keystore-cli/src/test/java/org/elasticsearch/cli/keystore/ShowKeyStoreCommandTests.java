@@ -12,6 +12,7 @@ import joptsimple.OptionSet;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.env.Environment;
@@ -26,7 +27,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new ShowKeyStoreCommand() {
             @Override
-            protected Environment createEnv(OptionSet options) throws UserException {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                 return env;
             }
         };
@@ -61,7 +62,6 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         final String value = randomAlphaOfLengthBetween(6, 12);
         createKeystore(password, "reindex.ssl.keystore.password", value);
         terminal.addSecretInput(password);
-        terminal.setHasOutputStream(false);
         execute("reindex.ssl.keystore.password");
         assertEquals(value + "\n", terminal.getOutput());
     }
@@ -74,7 +74,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         saveKeystore(ks, password);
 
         terminal.addSecretInput(password);
-        terminal.setHasOutputStream(true);
+        terminal.setSupportsBinary(true);
 
         execute("binary.file");
         assertThat(terminal.getOutputBytes(), equalTo(value));
@@ -88,7 +88,6 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         saveKeystore(ks, password);
 
         terminal.addSecretInput(password);
-        terminal.setHasOutputStream(false);
 
         UserException e = expectThrows(UserException.class, () -> execute("binary.file"));
         assertEquals(e.getMessage(), ExitCodes.IO_ERROR, e.exitCode);
@@ -121,9 +120,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         final String value = randomAlphaOfLengthBetween(6, 12);
         createKeystore("", name, value);
         final boolean console = randomBoolean();
-        if (console) {
-            terminal.setHasOutputStream(false);
-        }
+        terminal.setSupportsBinary(console == false);
 
         execute(name);
         // Not prompted for a password

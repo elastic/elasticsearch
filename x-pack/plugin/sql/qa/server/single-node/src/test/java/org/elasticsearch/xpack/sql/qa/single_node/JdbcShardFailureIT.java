@@ -19,6 +19,7 @@ import java.util.Locale;
 import java.util.Properties;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
     private void createTestIndex() throws IOException {
@@ -104,6 +105,7 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
             assertOK(provisioningClient().performRequest(request));
 
             request = new Request("POST", indexName + "/_doc");
+            request.addParameter("refresh", "true");
             request.setJsonEntity("{\"bool\": " + (indexWithDocVals || randomBoolean()) + "}");
             assertOK(provisioningClient().performRequest(request));
         }
@@ -135,7 +137,7 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
             while (rs.next()) {
                 rows++;
             }
-            assertTrue(rows >= okShards);
+            assertThat(rows, greaterThanOrEqualTo(okShards));
         }
     }
 }

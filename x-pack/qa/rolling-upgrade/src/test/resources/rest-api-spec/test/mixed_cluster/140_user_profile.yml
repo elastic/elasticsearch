@@ -19,6 +19,8 @@
   - set: { uid: profile_uid }
 
   - do:
+      node_selector:
+        version: " 8.3.0 - "
       security.get_user_profile:
         uid: "$profile_uid"
 

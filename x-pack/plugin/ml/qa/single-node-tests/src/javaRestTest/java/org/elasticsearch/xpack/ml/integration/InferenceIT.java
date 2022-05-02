@@ -9,15 +9,12 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceIT extends InferenceTestCase {

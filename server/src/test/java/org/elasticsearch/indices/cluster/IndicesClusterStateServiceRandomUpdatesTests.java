@@ -220,6 +220,9 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             ShardRoutingState.STARTED,
             ShardRoutingState.INITIALIZING
         );
+        state = ClusterState.builder(state)
+            .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(state.nodes().getLocalNodeId()))
+            .build();
 
         // the initial state which is derived from the newly created cluster state but doesn't contain the index
         ClusterState previousState = ClusterState.builder(state)
@@ -247,6 +250,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(state.metadata().index(index).getIndex().getName());
         state = cluster.closeIndices(state, closeIndexRequest);
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metadata().index(index).getIndex().getName());
+        openIndexRequest.waitForActiveShards(ActiveShardCount.NONE);
         state = cluster.openIndices(state, openIndexRequest);
 
         localState = adaptClusterStateToLocalNode(state, node);
@@ -407,6 +411,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         int numberOfIndicesToOpen = randomInt(Math.min(1, state.metadata().indices().size()));
         for (String index : randomSubsetOf(numberOfIndicesToOpen, state.metadata().indices().keySet().toArray(new String[0]))) {
             OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metadata().index(index).getIndex().getName());
+            openIndexRequest.waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.openIndices(state, openIndexRequest);
         }
 

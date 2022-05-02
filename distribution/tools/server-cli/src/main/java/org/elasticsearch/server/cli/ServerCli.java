@@ -252,17 +252,21 @@ class ServerCli extends EnvironmentAwareCommand {
                 while ((line = reader.readLine()) != null) {
                     if (line.isEmpty() == false && line.charAt(0) == USER_EXCEPTION_MARKER) {
                         userExceptionMsg = line.substring(1);
+                        logger.error("Got user exception: " + userExceptionMsg);
                     } else if (line.isEmpty() == false && line.charAt(0) == SERVER_READY_MARKER) {
                         // The server closes stderr right after this message, but for some unknown reason
                         // the pipe closing does not close this end of the pipe, so we must explicitly
                         // break out of this loop, or we will block forever on the next read.
+                        logger.info("Got ready signal");
                         ready = true;
                         return;
                     } else {
+                        logger.error("Got error line: " + line);
                         terminal.getErrorWriter().println(line);
                     }
                 }
             } catch (IOException e) {
+                logger.error("Got io exception in pump", e);
                 ioFailure = e;
             }
         }

@@ -45,6 +45,16 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         this.originVersion = Version.CURRENT;
     }
 
+    FieldCapabilitiesIndexResponse(FieldCapabilitiesIndexResponse resp, String indexName, String indexMappingHash) {
+        assert resp.indexMappingHash == null || Objects.equals(resp.indexMappingHash, indexMappingHash)
+            : "different index mapping hashes " + resp.indexMappingHash + " != " + indexMappingHash;
+        this.indexName = indexName;
+        this.indexMappingHash = indexMappingHash;
+        this.responseMap = resp.responseMap;
+        this.canMatch = resp.canMatch;
+        this.originVersion = resp.originVersion;
+    }
+
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
         this.indexName = in.readString();
         this.responseMap = in.readMap(StreamInput::readString, IndexFieldCapabilities::new);

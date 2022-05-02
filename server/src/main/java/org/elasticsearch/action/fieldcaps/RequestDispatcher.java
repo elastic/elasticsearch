@@ -236,7 +236,7 @@ final class RequestDispatcher {
                 final Group group = groups.remove(indexResponse.getIndexName());
                 if (group != null && group.completed.compareAndSet(false, true)) {
                     for (String index : group.indices) {
-                        onIndexResponse.accept(new FieldCapabilitiesIndexResponse(index, group.mappingHash, indexResponse.get(), true));
+                        onIndexResponse.accept(new FieldCapabilitiesIndexResponse(indexResponse, index, group.mappingHash));
                     }
                 }
             }

@@ -687,7 +687,7 @@ public abstract class StreamInput extends InputStream {
         } else if (size == 1) {
             return Map.of(keyReader.read(this), valueReader.read(this));
         }
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"rawtypes", "unchecked"})
         Map.Entry<K, V> entries[] = new Map.Entry[size];
         for (int i = 0; i < size; ++i) {
             entries[i] = Map.entry(keyReader.read(this), valueReader.read(this));

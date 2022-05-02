@@ -28,7 +28,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -142,10 +141,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return child.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
             throw new IllegalArgumentException("Missing intermediate object " + fullChildName);
-        }
-
-        public Optional<Mapper.Builder> getBuilder(String name) {
-            return mappersBuilders.stream().filter(b -> b.name().equals(name)).findFirst();
         }
 
         protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {
@@ -309,7 +304,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (name.isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");
         }
-        this.fullPath = fullPath;
+        this.fullPath = internFieldName(fullPath);
         this.enabled = enabled;
         this.dynamic = dynamic;
         if (mappers == null) {

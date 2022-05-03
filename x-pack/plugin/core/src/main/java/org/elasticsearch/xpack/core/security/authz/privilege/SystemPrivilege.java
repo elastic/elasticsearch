@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
@@ -40,7 +41,8 @@ public final class SystemPrivilege extends Privilege {
         "indices:data/write/*", // needed for SystemIndexMigrator
         "indices:data/read/*", // needed for SystemIndexMigrator
         "indices:admin/refresh", // needed for SystemIndexMigrator
-        "indices:admin/aliases" // needed for SystemIndexMigrator
+        "indices:admin/aliases", // needed for SystemIndexMigrator
+        ClusterGetSettingsAction.NAME // needed for the faster cluster get settings
     );
 
     private static final Predicate<String> PREDICATE = (action) -> {

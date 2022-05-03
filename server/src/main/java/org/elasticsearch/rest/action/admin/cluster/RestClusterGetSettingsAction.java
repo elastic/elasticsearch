@@ -72,21 +72,22 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
         clusterSettingsRequest.local(request.paramAsBoolean("local", clusterSettingsRequest.local()));
         clusterSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterSettingsRequest.masterNodeTimeout()));
 
-        return channel -> client.execute(
-            ClusterGetSettingsAction.INSTANCE,
-            clusterSettingsRequest,
-            new RestToXContentListener<RestClusterGetSettingsResponse>(channel).map(
-                response -> response(
-                    response.persistentSettings(),
-                    response.transientSettings(),
-                    response.settings(),
-                    renderDefaults,
-                    settingsFilter,
-                    clusterSettings,
-                    settings
+        return channel -> client.admin()
+            .cluster()
+            .clusterSettings(
+                clusterSettingsRequest,
+                new RestToXContentListener<RestClusterGetSettingsResponse>(channel).map(
+                    response -> response(
+                        response.persistentSettings(),
+                        response.transientSettings(),
+                        response.settings(),
+                        renderDefaults,
+                        settingsFilter,
+                        clusterSettings,
+                        settings
+                    )
                 )
-            )
-        );
+            );
     }
 
     private RestChannelConsumer prepareLegacyRequest(final RestRequest request, final NodeClient client, final boolean renderDefaults) {

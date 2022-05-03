@@ -75,6 +75,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
@@ -1192,6 +1193,21 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request) {
             return execute(DeleteDanglingIndexAction.INSTANCE, request);
+        }
+
+        @Override
+        public ActionFuture<ClusterGetSettingsAction.Response> clusterSettings(ClusterGetSettingsAction.Request request) {
+            return execute(ClusterGetSettingsAction.INSTANCE, request);
+        }
+
+        @Override
+        public void clusterSettings(ClusterGetSettingsAction.Request request, ActionListener<ClusterGetSettingsAction.Response> listener) {
+            execute(ClusterGetSettingsAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ClusterGetSettingsAction.RequestBuilder prepareClusterSettings() {
+            return new ClusterGetSettingsAction.RequestBuilder(this, ClusterGetSettingsAction.INSTANCE);
         }
 
         @Override

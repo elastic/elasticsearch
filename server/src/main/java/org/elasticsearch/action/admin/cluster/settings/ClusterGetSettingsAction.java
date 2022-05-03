@@ -11,7 +11,9 @@ package org.elasticsearch.action.admin.cluster.settings;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -46,6 +48,16 @@ public class ClusterGetSettingsAction extends ActionType<ClusterGetSettingsActio
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+    }
+
+    /**
+     * Cluster get settings request builder
+     */
+    public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder> {
+
+        public RequestBuilder(ElasticsearchClient client, ClusterGetSettingsAction action) {
+            super(client, action, new Request());
         }
     }
 

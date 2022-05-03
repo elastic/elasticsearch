@@ -87,8 +87,10 @@ final class FieldTypeLookup {
             // this will override concrete fields with runtime fields that have the same name
             fullNameToFieldType.put(fieldType.name(), fieldType);
         }
+        // make all fields into compact+fast immutable maps
         this.fullNameToFieldType = Map.copyOf(fullNameToFieldType);
         this.dynamicFieldTypes = Map.copyOf(dynamicFieldTypes);
+        // make values into more compact immutable sets to save memory
         fieldToCopiedFields.entrySet().forEach(e -> e.setValue(Set.copyOf(e.getValue())));
         this.fieldToCopiedFields = Map.copyOf(fieldToCopiedFields);
     }

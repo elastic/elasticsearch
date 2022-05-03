@@ -172,6 +172,7 @@ public final class MappingLookup {
 
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, mapping.getRoot().runtimeFields());
         this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
+        // make all fields into compact+fast immutable maps
         this.fieldMappers = Map.copyOf(fieldMappers);
         this.objectMappers = Map.copyOf(objects);
         this.indexAnalyzersMap = Map.copyOf(indexAnalyzersMap);

@@ -36,7 +36,6 @@ import static org.elasticsearch.server.cli.JvmOption.isMinHeapSpecified;
 public final class MachineDependentHeap {
     private static final long GB = 1024L * 1024L * 1024L; // 1GB
     private static final long MAX_HEAP_SIZE = GB * 31; // 31GB
-    private static final long MAX_ML_HEAP_SIZE = GB * 2; // 2GB
     private static final long MIN_HEAP_SIZE = 1024 * 1024 * 128; // 128MB
     private static final int DEFAULT_HEAP_SIZE_MB = 1024;
     private static final String ELASTICSEARCH_YML = "elasticsearch.yml";
@@ -136,11 +135,16 @@ public final class MachineDependentHeap {
          *
          * <p>Heap is computed as:
          * <ul>
-         *     <li>40% of total system memory when less than 2 gigabytes.</li>
-         *     <li>25% of total system memory when greater than 2 gigabytes up to a maximum of 2 gigabytes.</li>
+         *     <li>40% of total system memory when total system memory 16 gigabytes or less.</li>
+         *     <li>40% of the first 16 gigabytes plus 10% of memory above that when total system memory is more than 16 gigabytes.</li>
+         *     <li>The absolute maximum heap size is 31 gigabytes.</li>
          * </ul>
+         *
+         * If this formula is changed then corresponding changes must be made to the {@code NativeMemoryCalculator} and
+         * {@code MlAutoscalingDeciderServiceTests} classes in the ML plugin code. Failure to keep the logic synchronized
+         * could result in repeated autoscaling up and down.
          */
-        ML_ONLY(m -> mb(m < (GB * 2) ? (long) (m * .4) : (long) min(m * .25, MAX_ML_HEAP_SIZE))),
+        ML_ONLY(m -> mb(m <= (GB * 16) ? (long) (m * .4) : (long) min((GB * 16) * .4 + (m - GB * 16) * .1, MAX_HEAP_SIZE))),
 
         /**
          * Data node. Essentially any node that isn't a master or ML only node.

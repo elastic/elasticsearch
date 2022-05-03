@@ -537,7 +537,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 )
             );
         }
-        if (load.getFreeMemory() < params.estimateMemoryUsageBytes()) {
+        if (load.getFreeMemoryExcludingPerNodeOverhead() < params.estimateMemoryUsageBytes()) {
             return Optional.of(
                 ParameterizedMessage.format(
                     "This node has insufficient available memory. Available memory for ML [{} ({})], "

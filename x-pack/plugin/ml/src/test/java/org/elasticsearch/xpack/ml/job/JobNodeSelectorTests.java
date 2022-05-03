@@ -69,13 +69,11 @@ public class JobNodeSelectorTests extends ESTestCase {
     private static final Set<DiscoveryNodeRole> ROLES_WITHOUT_ML = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE);
 
     private MlMemoryTracker memoryTracker;
-    private boolean isMemoryTrackerRecentlyRefreshed;
 
     @Before
     public void setup() {
         memoryTracker = mock(MlMemoryTracker.class);
-        isMemoryTrackerRecentlyRefreshed = true;
-        when(memoryTracker.isRecentlyRefreshed()).thenReturn(isMemoryTrackerRecentlyRefreshed, false);
+        when(memoryTracker.isRecentlyRefreshed()).thenReturn(true, false);
         when(memoryTracker.getAnomalyDetectorJobMemoryRequirement(anyString())).thenReturn(JOB_MEMORY_REQUIREMENT.getBytes());
         when(memoryTracker.getDataFrameAnalyticsJobMemoryRequirement(anyString())).thenReturn(JOB_MEMORY_REQUIREMENT.getBytes());
         when(memoryTracker.getJobMemoryRequirement(anyString(), anyString())).thenReturn(JOB_MEMORY_REQUIREMENT.getBytes());
@@ -1218,11 +1216,18 @@ public class JobNodeSelectorTests extends ESTestCase {
             0,
             node -> nodeFilter(node, job)
         );
-        Tuple<NativeMemoryCapacity, Long> capacityAndFreeMemory = jobNodeSelector.perceivedCapacityAndMaxFreeMemory(10, false, 1);
+        Tuple<NativeMemoryCapacity, Long> capacityAndFreeMemory = jobNodeSelector.currentCapacityAndMaxFreeMemory(10, false, 1);
         assertThat(capacityAndFreeMemory.v2(), equalTo(ByteSizeValue.ofGb(3).getBytes()));
+        // NativeMemoryCapacity holds memory excluding the per-node overhead for native code, so this must be subtracted once per node
         assertThat(
             capacityAndFreeMemory.v1(),
-            equalTo(new NativeMemoryCapacity(ByteSizeValue.ofGb(7).getBytes(), ByteSizeValue.ofGb(3).getBytes(), 10L))
+            equalTo(
+                new NativeMemoryCapacity(
+                    ByteSizeValue.ofGb(7).getBytes() - 3 * MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
+                    ByteSizeValue.ofGb(3).getBytes() - MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
+                    10L
+                )
+            )
         );
     }
 

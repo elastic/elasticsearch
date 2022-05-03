@@ -45,7 +45,8 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_LAZY_ML_NODES;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
 import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
-import static org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderServiceTests.AUTO_NODE_TIERS;
+import static org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderServiceTests.AUTO_NODE_TIERS_NO_MONITORING;
+import static org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderServiceTests.AUTO_NODE_TIERS_WITH_MONITORING;
 import static org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator.MINIMUM_AUTOMATIC_NODE_SIZE;
 import static org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromNodeSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -77,7 +78,7 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
             Settings settings = newSettings(percent, false, ByteSizeValue.ofMb(randomIntBetween(0, 5000)));
             ClusterSettings clusterSettings = newClusterSettings(percent, false, ByteSizeValue.ofMb(randomIntBetween(0, 5000)));
 
-            long expected = (long) (nodeSize * (percent / 100.0));
+            long expected = nodeSize * percent / 100;
 
             assertThat(NativeMemoryCalculator.allowedBytesForMl(node, settings).getAsLong(), equalTo(expected));
             assertThat(NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings).getAsLong(), equalTo(expected));
@@ -86,38 +87,40 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
     }
 
     public void testConsistencyInAutoCalculation() {
-        for (Tuple<Long, Long> nodeAndJvmSize : AUTO_NODE_TIERS) {
-            final long trueJvmSize = nodeAndJvmSize.v2();
-            final long trueNodeSize = nodeAndJvmSize.v1();
-            List<Long> nodeSizes = Arrays.asList(
-                trueNodeSize + ByteSizeValue.ofMb(10).getBytes(),
-                trueNodeSize - ByteSizeValue.ofMb(10).getBytes(),
-                trueNodeSize
-            );
-            for (long nodeSize : nodeSizes) {
-                // Simulate having a true size that already exists from the node vs. us dynamically calculating it
-                long jvmSize = randomBoolean() ? dynamicallyCalculateJvmSizeFromNodeSize(nodeSize) : trueJvmSize;
-                DiscoveryNode node = newNode(jvmSize, nodeSize);
-                Settings settings = newSettings(30, true, ByteSizeValue.ZERO);
-                ClusterSettings clusterSettings = newClusterSettings(30, true, ByteSizeValue.ZERO);
-
-                long bytesForML = randomBoolean()
-                    ? NativeMemoryCalculator.allowedBytesForMl(node, settings).getAsLong()
-                    : NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings).getAsLong();
-
-                NativeMemoryCapacity nativeMemoryCapacity = new NativeMemoryCapacity(bytesForML, bytesForML, jvmSize);
-
-                AutoscalingCapacity capacity = nativeMemoryCapacity.autoscalingCapacity(30, true);
-                // We don't allow node sizes below 1GB, so we will always be at least that large
-                // Also, allow 1 byte off for weird rounding issues
-                assertThat(
-                    capacity.node().memory().getBytes(),
-                    greaterThanOrEqualTo(Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes()) - 1L)
+        for (List<Tuple<Long, Long>> autoNodeTiers : Arrays.asList(AUTO_NODE_TIERS_NO_MONITORING, AUTO_NODE_TIERS_WITH_MONITORING)) {
+            for (Tuple<Long, Long> nodeAndJvmSize : autoNodeTiers) {
+                final long trueJvmSize = nodeAndJvmSize.v2();
+                final long trueNodeSize = nodeAndJvmSize.v1();
+                List<Long> nodeSizes = Arrays.asList(
+                    trueNodeSize + ByteSizeValue.ofMb(10).getBytes(),
+                    trueNodeSize - ByteSizeValue.ofMb(10).getBytes(),
+                    trueNodeSize
                 );
-                assertThat(
-                    capacity.total().memory().getBytes(),
-                    greaterThanOrEqualTo(Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes()) - 1L)
-                );
+                for (long nodeSize : nodeSizes) {
+                    // Simulate having a true size that already exists from the node vs. us dynamically calculating it
+                    long jvmSize = randomBoolean() ? dynamicallyCalculateJvmSizeFromNodeSize(nodeSize) : trueJvmSize;
+                    DiscoveryNode node = newNode(jvmSize, nodeSize);
+                    Settings settings = newSettings(30, true, ByteSizeValue.ZERO);
+                    ClusterSettings clusterSettings = newClusterSettings(30, true, ByteSizeValue.ZERO);
+
+                    long bytesForML = randomBoolean()
+                        ? NativeMemoryCalculator.allowedBytesForMl(node, settings).getAsLong()
+                        : NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings).getAsLong();
+
+                    NativeMemoryCapacity nativeMemoryCapacity = new NativeMemoryCapacity(bytesForML, bytesForML, jvmSize);
+
+                    AutoscalingCapacity capacity = nativeMemoryCapacity.autoscalingCapacity(30, true, Long.MAX_VALUE, 1);
+                    // We don't allow node sizes below 1GB, so we will always be at least that large
+                    // Also, allow 1 byte off for weird rounding issues
+                    assertThat(
+                        capacity.node().memory().getBytes(),
+                        greaterThanOrEqualTo(Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes()) - 1L)
+                    );
+                    assertThat(
+                        capacity.total().memory().getBytes(),
+                        greaterThanOrEqualTo(Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes()) - 1L)
+                    );
+                }
             }
         }
     }
@@ -131,8 +134,7 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
             Settings settings = newSettings(percent, true, ByteSizeValue.ofMb(randomIntBetween(0, 5000)));
             ClusterSettings clusterSettings = newClusterSettings(percent, true, ByteSizeValue.ofMb(randomIntBetween(0, 5000)));
 
-            double truePercent = Math.min(90, ((nodeSize - jvmSize - ByteSizeValue.ofMb(200).getBytes()) / (double) nodeSize) * 100.0D);
-            long expected = Math.round(nodeSize * (truePercent / 100.0));
+            long expected = Math.min(nodeSize - jvmSize - ByteSizeValue.ofMb(200).getBytes(), nodeSize * 9 / 10);
 
             assertThat(NativeMemoryCalculator.allowedBytesForMl(node, settings).getAsLong(), equalTo(expected));
             assertThat(NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings).getAsLong(), equalTo(expected));

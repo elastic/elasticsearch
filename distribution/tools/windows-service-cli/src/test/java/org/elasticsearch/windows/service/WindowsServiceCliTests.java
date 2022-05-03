@@ -17,7 +17,7 @@ import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class WindowsServiceCliTest extends CommandTestCase {
+public class WindowsServiceCliTests extends CommandTestCase {
 
     Path javaHome;
     Path binDir;

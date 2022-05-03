@@ -101,13 +101,15 @@ public class TransportChangePasswordActionTests extends ESTestCase {
     }
 
     public void testValidUser() {
+        testValidUser(randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe")));
+    }
+
+    public void testValidUserWithInternalUsername() {
+        testValidUser(new User(randomInternalUsername()));
+    }
+
+    private void testValidUser(User user) {
         final Hasher hasher = getFastStoredHashAlgoForTests();
-        final User user = randomFrom(
-            new ElasticUser(true),
-            new KibanaUser(true),
-            new User("joe"),
-            new User(SystemUser.INSTANCE.principal())
-        );
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
@@ -253,5 +255,15 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(notNullValue()));
         assertThat(throwableRef.get(), sameInstance(e));
         verify(usersStore, times(1)).changePassword(eq(request), anyActionListener());
+    }
+
+    private String randomInternalUsername() {
+        return randomFrom(
+            SystemUser.INSTANCE.principal(),
+            XPackUser.INSTANCE.principal(),
+            XPackSecurityUser.INSTANCE.principal(),
+            AsyncSearchUser.INSTANCE.principal(),
+            SecurityProfileUser.INSTANCE.principal()
+        );
     }
 }

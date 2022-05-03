@@ -26,12 +26,14 @@ import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -110,6 +112,14 @@ public class TransportSetEnabledActionTests extends ESTestCase {
     }
 
     public void testValidUser() throws Exception {
+        testValidUser(randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"), new User(SystemUser.INSTANCE.principal())));
+    }
+
+    public void testValidUserWithInternalUsername() throws Exception {
+        testValidUser(new User(randomInternalUsername()));
+    }
+
+    private void testValidUser(User user) throws IOException {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -119,12 +129,6 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
-        final User user = randomFrom(
-            new ElasticUser(true),
-            new KibanaUser(true),
-            new User("joe"),
-            new User(SystemUser.INSTANCE.principal())
-        );
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SetEnabledRequest request = new SetEnabledRequest();
         request.username(user.principal());
@@ -303,5 +307,15 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
         assertThat(throwableRef.get().getMessage(), containsString("own account"));
         verifyNoMoreInteractions(usersStore);
+    }
+
+    private String randomInternalUsername() {
+        return randomFrom(
+            SystemUser.INSTANCE.principal(),
+            XPackUser.INSTANCE.principal(),
+            XPackSecurityUser.INSTANCE.principal(),
+            AsyncSearchUser.INSTANCE.principal(),
+            SecurityProfileUser.INSTANCE.principal()
+        );
     }
 }

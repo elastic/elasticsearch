@@ -146,15 +146,14 @@ public class TransportPutUserActionTests extends ESTestCase {
     }
 
     public void testValidUser() {
-        String username = randomFrom(
-            "joe",
-            SystemUser.INSTANCE.principal(),
-            XPackUser.INSTANCE.principal(),
-            XPackSecurityUser.INSTANCE.principal(),
-            AsyncSearchUser.INSTANCE.principal(),
-            SecurityProfileUser.INSTANCE.principal()
-        );
-        final User user = new User(username);
+        testValidUser(new User("joe"));
+    }
+
+    public void testValidUserWithInternalUsername() {
+        testValidUser(new User(randomInternalUsername()));
+    }
+
+    private void testValidUser(User user) {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -274,5 +273,15 @@ public class TransportPutUserActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(notNullValue()));
         assertThat(throwableRef.get(), sameInstance(e));
         verify(usersStore, times(1)).putUser(eq(request), anyActionListener());
+    }
+
+    private String randomInternalUsername() {
+        return randomFrom(
+            SystemUser.INSTANCE.principal(),
+            XPackUser.INSTANCE.principal(),
+            XPackSecurityUser.INSTANCE.principal(),
+            AsyncSearchUser.INSTANCE.principal(),
+            SecurityProfileUser.INSTANCE.principal()
+        );
     }
 }

@@ -303,21 +303,21 @@ public class DiffableTests extends ESTestCase {
             // check properties of diffMap
             assertThat(new HashSet<>(diffMap.getDeletes()), equalTo(keysToRemove));
             if (diffableValues()) {
-//                assertThat(diffMap.getDiffs().keySet(), equalTo(keysToOverride));
-//                for (Integer key : keysToOverride) {
-//                    assertThat(diffMap.getDiffs().get(key).apply(get(beforeMap, key)), equalTo(get(afterMap, key)));
-//                }
-//                assertThat(diffMap.getUpserts().keySet(), equalTo(keysToAdd));
-//                for (Integer key : keysToAdd) {
-//                    assertThat(diffMap.getUpserts().get(key), equalTo(get(afterMap, key)));
-//                }
+                // assertThat(diffMap.getDiffs().keySet(), equalTo(keysToOverride));
+                // for (Integer key : keysToOverride) {
+                // assertThat(diffMap.getDiffs().get(key).apply(get(beforeMap, key)), equalTo(get(afterMap, key)));
+                // }
+                // assertThat(diffMap.getUpserts().keySet(), equalTo(keysToAdd));
+                // for (Integer key : keysToAdd) {
+                // assertThat(diffMap.getUpserts().get(key), equalTo(get(afterMap, key)));
+                // }
             } else {
                 assertThat(diffMap.getDiffs(), empty());
                 Set<Integer> keysToAddAndOverride = Sets.union(keysToAdd, keysToOverride);
-//                assertThat(diffMap.getUpserts().keySet(), equalTo(keysToAddAndOverride));
-//                for (Integer key : keysToAddAndOverride) {
-//                    assertThat(diffMap.getUpserts().get(key), equalTo(get(afterMap, key)));
-//                }
+                // assertThat(diffMap.getUpserts().keySet(), equalTo(keysToAddAndOverride));
+                // for (Integer key : keysToAddAndOverride) {
+                // assertThat(diffMap.getUpserts().get(key), equalTo(get(afterMap, key)));
+                // }
             }
 
             if (randomBoolean()) {

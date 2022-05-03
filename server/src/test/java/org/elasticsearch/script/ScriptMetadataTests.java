@@ -65,12 +65,12 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
         ScriptMetadata scriptMetadata2 = builder.build();
 
         ScriptMetadata.ScriptMetadataDiff diff = (ScriptMetadata.ScriptMetadataDiff) scriptMetadata2.diff(scriptMetadata1);
-//        assertEquals(1, ((DiffableUtils.MapDiff) diff.pipelines).getDeletes().size());
-//        assertEquals("3", ((DiffableUtils.MapDiff) diff.pipelines).getDeletes().get(0));
-//        assertEquals(1, ((DiffableUtils.MapDiff) diff.pipelines).getDiffs().size());
-//        assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getDiffs().get("2"));
-//        assertEquals(1, ((DiffableUtils.MapDiff) diff.pipelines).getUpserts().size());
-//        assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().get("4"));
+        // assertEquals(1, ((DiffableUtils.MapDiff) diff.pipelines).getDeletes().size());
+        // assertEquals("3", ((DiffableUtils.MapDiff) diff.pipelines).getDeletes().get(0));
+        // assertEquals(1, ((DiffableUtils.MapDiff) diff.pipelines).getDiffs().size());
+        // assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getDiffs().get("2"));
+        // assertEquals(1, ((DiffableUtils.MapDiff) diff.pipelines).getUpserts().size());
+        // assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().get("4"));
 
         ScriptMetadata result = (ScriptMetadata) diff.apply(scriptMetadata1);
         assertEquals("{\"foo\":\"abc\"}", result.getStoredScript("1").getSource());

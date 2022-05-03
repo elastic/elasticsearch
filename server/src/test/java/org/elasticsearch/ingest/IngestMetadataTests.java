@@ -73,8 +73,8 @@ public class IngestMetadataTests extends ESTestCase {
         assertThat(((DiffableUtils.MapDiff) diff.pipelines).getDeletes().size(), equalTo(1));
         assertThat(((DiffableUtils.MapDiff) diff.pipelines).getDeletes().get(0), equalTo("2"));
         assertThat(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().size(), equalTo(2));
-//        assertThat(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().containsKey("3"), is(true));
-//        assertThat(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().containsKey("4"), is(true));
+        // assertThat(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().containsKey("3"), is(true));
+        // assertThat(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().containsKey("4"), is(true));
 
         IngestMetadata endResult = (IngestMetadata) diff.apply(ingestMetadata2);
         assertThat(endResult, not(equalTo(ingestMetadata1)));
@@ -104,8 +104,8 @@ public class IngestMetadataTests extends ESTestCase {
         IngestMetadata ingestMetadata4 = new IngestMetadata(pipelines);
 
         diff = (IngestMetadata.IngestMetadataDiff) ingestMetadata4.diff(ingestMetadata1);
-//        assertThat(((DiffableUtils.MapDiff) diff.pipelines).getDiffs().size(), equalTo(1));
-//        assertThat(((DiffableUtils.MapDiff) diff.pipelines).getDiffs().containsKey("2"), is(true));
+        // assertThat(((DiffableUtils.MapDiff) diff.pipelines).getDiffs().size(), equalTo(1));
+        // assertThat(((DiffableUtils.MapDiff) diff.pipelines).getDiffs().containsKey("2"), is(true));
 
         endResult = (IngestMetadata) diff.apply(ingestMetadata4);
         assertThat(endResult, not(equalTo(ingestMetadata1)));

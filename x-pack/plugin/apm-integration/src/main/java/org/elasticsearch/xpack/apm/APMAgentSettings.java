@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.apm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -21,7 +24,9 @@ import java.util.function.Function;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
 
-abstract class APMAgentSettings {
+class APMAgentSettings {
+
+    private static final Logger LOGGER = LogManager.getLogger(APMAgentSettings.class);
 
     /**
      * Sensible defaults that Elasticsearch configures. This cannot be done via the APM agent
@@ -33,12 +38,15 @@ abstract class APMAgentSettings {
     );
     // end::noformat
 
-    static void setAgentSetting(String key, String value) {
+    @SuppressForbidden(reason = "Need to be able to manipulate APM agent-related properties to set them dynamically")
+    void setAgentSetting(String key, String value) {
         final String completeKey = "elastic.apm." + Objects.requireNonNull(key);
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             if (value == null || value.isEmpty()) {
+                LOGGER.trace("Clearing system property [{}]", completeKey);
                 System.clearProperty(completeKey);
             } else {
+                LOGGER.trace("Setting setting property [{}] to [{}]", completeKey, value);
                 System.setProperty(completeKey, value);
             }
             return null;
@@ -227,45 +235,53 @@ abstract class APMAgentSettings {
         "aws_lambda_handler"
     );
 
-    static final String SETTING_PREFIX = "xpack.apm.tracing.";
+    static final String APM_SETTING_PREFIX = "xpack.apm.tracing.";
 
-    static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(SETTING_PREFIX + "agent.", (qualifiedKey) -> {
-        final String[] parts = qualifiedKey.split("\\.");
-        final String key = parts[parts.length - 1];
-        final String defaultValue = APM_AGENT_DEFAULT_SETTINGS.getOrDefault(key, "");
-        return new Setting<>(qualifiedKey, defaultValue, (value) -> {
-            // The `Setting` constructor asserts that a setting's parser doesn't return null when called with the default
-            // value. This makes less sense for prefix settings, but is particularly problematic here since we validate
-            // the setting name and reject unknown keys. Thus, if assertions are enabled, we have to tolerate the "_na_" key,
-            // which comes from `Setting#prefixKeySetting()`.
-            if (Assertions.ENABLED && qualifiedKey.equals("_na_")) {
+    static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
+        APM_SETTING_PREFIX + "agent.",
+        (qualifiedKey) -> {
+            final String[] parts = qualifiedKey.split("\\.");
+            final String key = parts[parts.length - 1];
+            final String defaultValue = APM_AGENT_DEFAULT_SETTINGS.getOrDefault(key, "");
+            return new Setting<>(qualifiedKey, defaultValue, (value) -> {
+                // The `Setting` constructor asserts that a setting's parser doesn't return null when called with the default
+                // value. This makes less sense for prefix settings, but is particularly problematic here since we validate
+                // the setting name and reject unknown keys. Thus, if assertions are enabled, we have to tolerate the "_na_" key,
+                // which comes from `Setting#prefixKeySetting()`.
+                if (Assertions.ENABLED && qualifiedKey.equals("_na_")) {
+                    return value;
+                }
+                if (AGENT_KEYS.contains(key) == false) {
+                    throw new IllegalArgumentException("Unknown APM configuration key: [" + qualifiedKey + "]");
+                }
+                if (STATIC_AGENT_KEYS.contains(key)) {
+                    throw new IllegalArgumentException(
+                        "Cannot set ["
+                            + qualifiedKey
+                            + "] as it is not a dynamic setting - configure it via [config/elasticapm.properties] instead"
+                    );
+                }
+                if (PROHIBITED_AGENT_KEYS.contains(key)) {
+                    throw new IllegalArgumentException("Configuring [" + qualifiedKey + "] is prohibited with Elasticsearch");
+                }
+
                 return value;
-            }
-            if (AGENT_KEYS.contains(key) == false) {
-                throw new IllegalArgumentException("Unknown APM configuration key: [" + qualifiedKey + "]");
-            }
-            if (STATIC_AGENT_KEYS.contains(key)) {
-                throw new IllegalArgumentException(
-                    "Cannot set ["
-                        + qualifiedKey
-                        + "] as it is not a dynamic setting - configure it via [config/elasticapm.properties] instead"
-                );
-            }
-            if (PROHIBITED_AGENT_KEYS.contains(key)) {
-                throw new IllegalArgumentException("Configuring [" + qualifiedKey + "] is prohibited with Elasticsearch");
-            }
-
-            return value;
-        }, Setting.Property.NodeScope, Setting.Property.OperatorDynamic);
-    });
+            }, Setting.Property.NodeScope, Setting.Property.OperatorDynamic);
+        }
+    );
 
     static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.listSetting(
-        SETTING_PREFIX + "names.include",
+        APM_SETTING_PREFIX + "names.include",
         Collections.emptyList(),
         Function.identity(),
         OperatorDynamic,
         NodeScope
     );
 
-    static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting(SETTING_PREFIX + "enabled", false, OperatorDynamic, NodeScope);
+    static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting(
+        APM_SETTING_PREFIX + "enabled",
+        false,
+        OperatorDynamic,
+        NodeScope
+    );
 }

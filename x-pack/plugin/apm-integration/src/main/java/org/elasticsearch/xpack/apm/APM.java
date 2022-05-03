@@ -50,7 +50,7 @@ public class APM extends Plugin implements NetworkPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        tracer.set(new APMTracer(settings, clusterService));
+        tracer.set(new APMTracer(settings, clusterService, new APMAgentSettings()));
         return List.of(tracer.get());
     }
 

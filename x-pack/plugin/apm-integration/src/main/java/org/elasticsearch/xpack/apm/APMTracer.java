@@ -16,6 +16,8 @@ import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.TextMapGetter;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -40,65 +42,60 @@ import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_AGENT_DEFAULT_SET
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_AGENT_SETTINGS;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
-import static org.elasticsearch.xpack.apm.APMAgentSettings.SETTING_PREFIX;
 
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
 
-    private record ContextWrapper(Context context) {
-        Span span() {
-            return Span.fromContextOrNull(this.context);
-        }
+    private static final Logger LOGGER = LogManager.getLogger(APMTracer.class);
 
-        void close() {
-            this.span().end();
-        }
-    }
-
-    private final Map<String, ContextWrapper> spans = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
     private final ClusterService clusterService;
 
     private volatile boolean enabled;
     private volatile APMServices services;
 
     private List<String> includeNames;
+    private final APMAgentSettings apmAgentSettings;
 
     /**
      * This class is required to make all open telemetry services visible at once
      */
-    private record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
+    record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
-    public APMTracer(Settings settings, ClusterService clusterService) {
+    public APMTracer(Settings settings, ClusterService clusterService, APMAgentSettings apmAgentSettings) {
         this.clusterService = Objects.requireNonNull(clusterService);
-        this.enabled = APM_ENABLED_SETTING.get(settings);
         this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
+        this.apmAgentSettings = apmAgentSettings;
+
+        this.enabled = APM_ENABLED_SETTING.get(settings);
+        this.apmAgentSettings.setAgentSetting("recording", Boolean.toString(this.enabled));
 
         // Apply default values for some system properties. Although we configure
         // the settings in APM_AGENT_DEFAULT_SETTINGS to defer to the default values, they won't
         // do anything if those settings are never configured.
         APM_AGENT_DEFAULT_SETTINGS.keySet()
             .forEach(
-                key -> APMAgentSettings.setAgentSetting(
+                key -> apmAgentSettings.setAgentSetting(
                     key,
-                    APM_AGENT_SETTINGS.getConcreteSetting(SETTING_PREFIX + "agent." + key).get(settings)
+                    APM_AGENT_SETTINGS.getConcreteSetting(APM_AGENT_SETTINGS.getKey() + key).get(settings)
                 )
             );
 
         // Then apply values from the settings in the cluster state
-        APM_AGENT_SETTINGS.getAsMap(settings).forEach(APMAgentSettings::setAgentSetting);
+        APM_AGENT_SETTINGS.getAsMap(settings).forEach(apmAgentSettings::setAgentSetting);
 
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, this::setEnabled);
         clusterSettings.addSettingsUpdateConsumer(APM_TRACING_NAMES_INCLUDE_SETTING, this::setIncludeNames);
-        clusterSettings.addAffixMapUpdateConsumer(APM_AGENT_SETTINGS, map -> map.forEach(APMAgentSettings::setAgentSetting), (x, y) -> {});
+        clusterSettings.addAffixMapUpdateConsumer(APM_AGENT_SETTINGS, map -> map.forEach(apmAgentSettings::setAgentSetting), (x, y) -> {});
     }
 
     private void setEnabled(boolean enabled) {
         this.enabled = enabled;
         // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
         // minimise its impact to a running Elasticsearch.
-        APMAgentSettings.setAgentSetting("recording", Boolean.toString(enabled));
+        this.apmAgentSettings.setAgentSetting("recording", Boolean.toString(enabled));
         if (enabled) {
-            createApmServices();
+            this.services = createApmServices();
         } else {
             destroyApmServices();
         }
@@ -111,7 +108,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     @Override
     protected void doStart() {
         if (enabled) {
-            createApmServices();
+            this.services = createApmServices();
         }
     }
 
@@ -123,11 +120,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     @Override
     protected void doClose() {}
 
-    private void createApmServices() {
+    private APMServices createApmServices() {
         assert this.enabled;
         assert this.services == null;
 
-        this.services = AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
+        return AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
             var openTelemetry = GlobalOpenTelemetry.get();
             var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
 
@@ -142,6 +139,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void onTraceStarted(ThreadContext threadContext, Traceable traceable) {
+        assert threadContext != null;
+        assert traceable != null;
+
+        // If tracing has been disabled, return immediately
         var services = this.services;
         if (services == null) {
             return;
@@ -151,18 +152,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             return;
         }
 
-        spans.computeIfAbsent(traceable.getSpanId(), spanId -> AccessController.doPrivileged((PrivilegedAction<ContextWrapper>) () -> {
+        spans.computeIfAbsent(traceable.getSpanId(), spanId -> AccessController.doPrivileged((PrivilegedAction<Context>) () -> {
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
 
-            // https://github.com/open-telemetry/opentelemetry-java/discussions/2884#discussioncomment-381870
-            // If you just want to propagate across threads within the same process, you don't need context propagators (extract/inject).
-            // You can just pass the Context object directly to another thread (it is immutable and thus thread-safe).
-
-            // local parent first, remote parent as fallback
-            Context parentContext = getLocalParentContext(threadContext);
-            if (parentContext == null) {
-                parentContext = getRemoteParentContext(threadContext);
-            }
+            final Context parentContext = getParentContext(threadContext);
             if (parentContext != null) {
                 spanBuilder.setParent(parentContext);
             }
@@ -181,14 +174,44 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             // propagated
             threadContext.putHeader(spanHeaders);
 
-            return new ContextWrapper(contextForNewSpan);
+            return contextForNewSpan;
         }));
+    }
+
+    private Context getParentContext(ThreadContext threadContext) {
+        // https://github.com/open-telemetry/opentelemetry-java/discussions/2884#discussioncomment-381870
+        // If you just want to propagate across threads within the same process, you don't need context propagators (extract/inject).
+        // You can just pass the Context object directly to another thread (it is immutable and thus thread-safe).
+
+        // Attempt to fetch a local parent context first, otherwise look for a remote parent
+        Context parentContext = threadContext.getTransient("parent_" + Task.APM_TRACE_CONTEXT);
+        if (parentContext == null) {
+            final String traceParentHeader = threadContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
+            final String traceStateHeader = threadContext.getTransient("parent_" + Task.TRACE_STATE);
+
+            if (traceParentHeader != null) {
+                final Map<String, String> traceContextMap = new HashMap<>(2);
+                // traceparent and tracestate should match the keys used by W3CTraceContextPropagator
+                traceContextMap.put(Task.TRACE_PARENT_HTTP_HEADER, traceParentHeader);
+                if (traceStateHeader != null) {
+                    traceContextMap.put(Task.TRACE_STATE, traceStateHeader);
+                }
+                parentContext = services.openTelemetry.getPropagators()
+                    .getTextMapPropagator()
+                    .extract(Context.current(), traceContextMap, new MapKeyGetter());
+            }
+        }
+        return parentContext;
     }
 
     @Override
     public Releasable withScope(Traceable traceable) {
-        var scope = spans.get(traceable.getSpanId()).context.makeCurrent();
-        return scope::close;
+        final Context context = spans.get(traceable.getSpanId());
+        if (context != null) {
+            var scope = context.makeCurrent();
+            return scope::close;
+        }
+        return () -> {};
     }
 
     private void setSpanAttributes(ThreadContext threadContext, Traceable traceable, SpanBuilder spanBuilder) {
@@ -225,41 +248,41 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void onTraceException(Traceable traceable, Throwable throwable) {
-        final var context = spans.get(traceable.getSpanId());
-        if (context != null) {
-            context.span().recordException(throwable);
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+        if (span != null) {
+            span.recordException(throwable);
         }
     }
 
     @Override
     public void setAttribute(Traceable traceable, String key, boolean value) {
-        final var context = spans.get(traceable.getSpanId());
-        if (context != null) {
-            context.span().setAttribute(key, value);
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+        if (span != null) {
+            span.setAttribute(key, value);
         }
     }
 
     @Override
     public void setAttribute(Traceable traceable, String key, double value) {
-        final var context = spans.get(traceable.getSpanId());
-        if (context != null) {
-            context.span().setAttribute(key, value);
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+        if (span != null) {
+            span.setAttribute(key, value);
         }
     }
 
     @Override
     public void setAttribute(Traceable traceable, String key, long value) {
-        final var context = spans.get(traceable.getSpanId());
-        if (context != null) {
-            context.span().setAttribute(key, value);
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+        if (span != null) {
+            span.setAttribute(key, value);
         }
     }
 
     @Override
     public void setAttribute(Traceable traceable, String key, String value) {
-        final var context = spans.get(traceable.getSpanId());
-        if (context != null) {
-            context.span().setAttribute(key, value);
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+        if (span != null) {
+            span.setAttribute(key, value);
         }
     }
 
@@ -269,41 +292,19 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return includeNames.isEmpty() || Regex.simpleMatch(includeNames, name);
     }
 
-    private Context getLocalParentContext(ThreadContext threadContext) {
-        return threadContext.getTransient("parent_" + Task.APM_TRACE_CONTEXT);
-    }
-
-    private Context getRemoteParentContext(ThreadContext threadContext) {
-        final String traceParentHeader = threadContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
-        final String traceStateHeader = threadContext.getTransient("parent_" + Task.TRACE_STATE);
-
-        if (traceParentHeader != null) {
-            final Map<String, String> traceContextMap = new HashMap<>(2);
-            // traceparent and tracestate should match the keys used by W3CTraceContextPropagator
-            traceContextMap.put(Task.TRACE_PARENT_HTTP_HEADER, traceParentHeader);
-            if (traceStateHeader != null) {
-                traceContextMap.put(Task.TRACE_STATE, traceStateHeader);
-            }
-            return services.openTelemetry.getPropagators()
-                .getTextMapPropagator()
-                .extract(Context.current(), traceContextMap, new MapKeyGetter());
-        }
-        return null;
-    }
-
     @Override
     public void onTraceStopped(Traceable traceable) {
-        final var context = spans.remove(traceable.getSpanId());
-        if (context != null) {
-            context.close();
+        final var span = Span.fromContextOrNull(spans.remove(traceable.getSpanId()));
+        if (span != null) {
+            span.end();
         }
     }
 
     @Override
     public void onTraceEvent(Traceable traceable, String eventName) {
-        final var context = spans.get(traceable.getSpanId());
-        if (context != null) {
-            context.span().addEvent(eventName);
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+        if (span != null) {
+            span.addEvent(eventName);
         }
     }
 
@@ -322,5 +323,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     private static boolean isSupportedContextKey(String key) {
         return Task.TRACE_PARENT_HTTP_HEADER.equals(key) || Task.TRACE_STATE.equals(key);
+    }
+
+    // VisibleForTesting
+    Map<String, Context> getSpans() {
+        return spans;
     }
 }

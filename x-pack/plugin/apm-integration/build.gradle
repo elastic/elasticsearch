@@ -4,16 +4,16 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-test-artifact'
+// apply plugin: 'elasticsearch.internal-cluster-test'
+// apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  name 'apm-integration'
+  name 'x-pack-apm-integration'
   description 'Provides APM integration for Elasticsearch'
   classname 'org.elasticsearch.xpack.apm.APM'
   extendedPlugins = ['x-pack-core']
-  javaOpts = "-javaagent:modules/apm-integration/elastic-apm-agent-${versions.apm_agent}.jar"
+  javaOpts = "-javaagent:modules/x-pack-apm-integration/elastic-apm-agent-${versions.apm_agent}.jar"
 }
 
 dependencies {
@@ -27,14 +27,17 @@ dependencies {
   api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
 
   compileOnly project(path: xpackModule('core'))
-  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
-  internalClusterTestImplementation(testArtifact(project(xpackModule('security')))) {
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('security')))) {
     exclude group: 'com.google.guava', module: 'guava'
   }
 }
 
-// FIXME: no unit-test for now
-tasks.named("test").configure { enabled = false }
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    'org.slf4j.ext.EventData'
+  )
+}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /opentelemetry-.*/, to: 'opentelemetry'

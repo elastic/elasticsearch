@@ -10,7 +10,7 @@ For example, assume a REST request requires a consumer to send a "limit" paramet
 
 ### Workflow
 
-REST API compatibility is opt-in per request using a specialized value for the `Accept` or `Content-Type` HTTP header.  The intent is that this header may be sent prior to a major version upgrade resulting in no differences with the standard header values when the client and server match versions. For example, assume the consumer/client using the REST API for Elasticsearch version 7.  If the client starts sending then sending the specialized header value(s) for compatibility with version 7, then it will have no effect when talking with Elasticsearch version 7. However, once Elasticsearch is upgraded to version 8, and the compatibility with version 7 headers are sent, then Elasticsearch version 8 will do a best effort honor the version 7 REST API contract. This allows Elasticsearch to be upgraded to version 8 while the clients can generally remain on version 7. Since compatibility is best effort, it is not always guaranteed to fix all upgrade issues but should provide an additional level of confidence during/post upgrade. 
+REST API compatibility is opt-in per request using a specialized value for the `Accept` or `Content-Type` HTTP header.  The intent is that this header may be sent prior to a major version upgrade resulting in no differences with the standard header values when the client and server match versions. For example, assume the consumer/client using the REST API for Elasticsearch version 7.  If the client sends the specialized header value(s) for compatibility with version 7, then it will have no effect when talking with Elasticsearch version 7. However, once Elasticsearch is upgraded to version 8, and the compatibility with version 7 headers are sent, then Elasticsearch version 8 will do a best effort honor the version 7 REST API contract. This allows Elasticsearch to be upgraded to version 8 while the clients can generally remain on version 7. Since compatibility is best effort, it is not always guaranteed to fix all upgrade issues but should provide an additional level of confidence during/post upgrade.
 
 Breaking changes always follow a life-cycle of deprecation (documentation and warnings) in the current version before implementing the breaking change in the next major version. This give users an opportunity to adopt the non-deprecated variants in the current version. It is the still recommended approach to stop the usage of all deprecated functionality prior to a major version upgrade. However, in practice this can be a difficult, error prone, and a time consuming task. So it also recommended that consumers/clients send the specialized header to enable REST API compatibility before an upgrade to help catch any missed usages of deprecated functionality.
 
@@ -30,7 +30,7 @@ If the request also has a body the following is also necessary
 Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
 ```
 
-The headers mirrors the 4 supported media types for both the `Accept` and `Content-Type` headers.  
+The headers mirrors the 4 supported media types for both the `Accept` and `Content-Type` headers.
 
 ```javascript
 "application/vnd.elasticsearch+json;compatible-with=7"
@@ -39,7 +39,7 @@ The headers mirrors the 4 supported media types for both the `Accept` and `Conte
 "application/vnd.elasticsearch+cbor;compatible-with=7"
 ```
 
-The version request is found in compatible-with=7. When sent to a version 7 server will do nothing special. When sent to a version 8 server will apply compatiblity if needed. When sent to a version 9 server will fail since compatibility is only supported across 1 major version. 
+The version request is found in compatible-with=7. When sent to a version 7 server will do nothing special. When sent to a version 8 server will apply compatiblity if needed. When sent to a version 9 server will fail since compatibility is only supported across 1 major version.
 
 A consumer/client may not mix "compatible-with" versions between headers. Attempts to mix and match compatible versions between `Accept` and `Content-Type` headers will result in an error.  A consumer/client may mix the media type (i.e. send `yaml` and get back `json`).
 
@@ -86,7 +86,7 @@ In places where `ToXContent#toXContent` is not used for serialization, then the 
 
 ### De-serializing
 
-Accepting a payload from a prior version's REST request is a bit more difficult then sending a compatible response. There are a couple different approaches for de-serialization, however, in general all of them use a request specific parser.  `XContentParser` has a `getRestApiVersion()` method that could be used in manner that is near identical to serialization. However, in practice most parsers are invoked via a `ConstructingObjectParser` or an `ObjectParser` and quite often they are daisy chained together via the `NamedXContentRegistry`.
+Accepting a payload from a prior version's REST request is a bit more difficult than sending a compatible response. There are a couple different approaches for de-serialization, however, in general all of them use a request specific parser.  `XContentParser` has a `getRestApiVersion()` method that could be used in manner that is near identical to serialization. However, in practice most parsers are invoked via a `ConstructingObjectParser` or an `ObjectParser` and quite often they are daisy chained together via the `NamedXContentRegistry`.
 
 Both `ConstructingObjectParser` and `ObjectParser` use `ParseField`'s to statically declare the relationship between a named key and value pairing. A `ParseField` can be made version aware, meaning that it will match on the incoming payload if the requested compatibility is the correct version.
 
@@ -99,16 +99,16 @@ PARSER.declareInt(MyPojo::setMax,
        new ParseField("maximum").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8)));
 ```
 
-The above example is for code that live in the version 8 branch of code. In this example, `limit` has been deprecated in version 7 and removed in version 8.  The above code reads the `maximum` value from the request for both version 7 and version 8. However, if compatibility is requested it will also allow `limit` in the payload.  If `limit` is used a warning will be emitted.
+The above example is for code that live in the version 8 branch of code. In this example, `limit` has been deprecated in version 7 and removed in version 8.  The above code reads use the `maximum` value from the request for both version 7 and version 8. However, if compatibility is requested it will also allow `limit` in the payload.  If `limit` is used a warning will be emitted.
 
 The version in `forRestApiVersion` is reference to when the declaration is valid. Assuming version 8 is the master branch and all changes start in the master branch then get back ported. The above text is what would be applicable for the v8 branch of code. The first line of code is essentially ignored except for when compatibility with version 7 is requested. When back-porting this change to the 7.x branch, the first line would be identical, and the second line would be omitted.
 
-The above strategy works well for single fields, but could get overly complex very fast for large multiple field changes. For more complex de-serialization changes there is also support to construct a `NamedXContentRegistry` with some "normal" entries as well some entries that are only applied when compatibility with the prior version is requested. 
+The above strategy works well for single fields, but could get overly complex very fast for large multiple field changes. For more complex de-serialization changes there is also support to construct a `NamedXContentRegistry` with some "normal" entries as well some entries that are only applied when compatibility with the prior version is requested.
 
-TODO: example of NamedXContentRegistry 
+TODO: example of NamedXContentRegistry
 
 
-Additionally there is a pseudo standard method `fromXContent` which also has access to the `XContentParser` for that request which can be used to conditionally change how to parse the input.
+Additionally, there is a pseudo standard method `fromXContent` which also has access to the `XContentParser` for that request which can be used to conditionally change how to parse the input.
 
 TODO: example of `fromXContent`
 
@@ -137,15 +137,21 @@ if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("limit
  }
 ```
 
-The above code checks the request's compatible version and if the request has the parameter in question.  If both are found, then the deprecation warning needs to explicitly sent and the parameter mapped to the most compatible usage. In this case the warning that a user is using compatibility is not automatic and requires the developer to manually log the warning. `request.param` consumes the value as to avoid the error of unconsumed parameters. The warning is the same as a deprecation warning, but uses a custom category for the deprecation.  
+The above code checks the request's compatible version and if the request has the parameter in question. In this case the deprecation warning is not automatic and requires the developer to manually log the warning. `request.param` is also required since it consumes the value as to avoid the error of unconsumed parameters.
 
 ### Testing
 
-The primary means of testing compatibility is via the prior major version's YAML REST tests. The build system will download the latest prior version of the YAML rest tests and execute them against the current cluster version. Prior to execution the tests will be transformed by injecting the correct headers to enable compatibility as well as other custom changes to the tests to allow the tests to pass. These customization are configured via the build.gradle and happen just prior to test execution. Since there is some manipulation of the tests prior to execution, it is important to find the local (on disk) version for troubleshooting (instead of just the source tests from Github).
+The primary means of testing compatibility is via the prior major version's YAML REST tests. The build system will download the latest prior version of the YAML rest tests and execute them against the current cluster version. Prior to execution the tests will be transformed by injecting the correct headers to enable compatibility as well as other custom changes to the tests to allow the tests to pass. These customizations are configured via the build.gradle and happen just prior to test execution. Since the compatibility tests are manipulated version of the tests stored in Github (via the past major version), it is important to find the local (on disk) version for troubleshooting compatibility tests.
 
-The tests are wired into the `check` task, so that is the easiest way to test locally prior to committing.  More specifically the task is called `yamlRestTestV7CompatTests`, where 7 is the version of tests that are executing. For example, version 8 of the server will have a task named `yamlRestTestV7CompatTests` and version 9 of the server will have a task named `yamlRestTestV8CompatTests`. These behaves nearly identical to it's non-compat `yamlRestTest` task. The only variance is that the tests are sourced from the prior version branch and the tests go through a transformation phase before execution. The transformation task is `yamlRestTestV7CompatTransform` where the Vnumber follows the same convention as the test. 
+The tests are wired into the `check` task, so that is the easiest way to test locally prior to committing.  More specifically the task is called `yamlRestTestV7CompatTest`, where 7 is the version of tests that are executing. For example, version 8 of the server will have a task named `yamlRestTestV7CompatTest` and version 9 of the server will have a task named `yamlRestTestV8CompatTest`. These behaves nearly identical to it's non-compat `yamlRestTest` task. The only variance is that the tests are sourced from the prior version branch and the tests go through a transformation phase before execution. The transformation task is `yamlRestTestV7CompatTransform` where the Vnumber follows the same convention as the test.
 
-Since these are a variation of backward compatibility testing, the entire suite of compatibility tests will be skipped anytime the backward compatibility testing is disabled. Since the source code for these tests live in a branch of code, disabling a specific test should be done via the transformation task configuration in build.gradle (i.e. `yamlRestTestV7CompatTransform`). 
+For example:
+
+```bash
+./gradlew :rest-api-spec:yamlRestTestV7CompatTest
+```
+
+Since these are a variation of backward compatibility testing, the entire suite of compatibility tests will be skipped anytime the backward compatibility testing is disabled. Since the source code for these tests live in a branch of code, disabling a specific test should be done via the transformation task configuration in build.gradle (i.e. `yamlRestTestV7CompatTransform`).
 
 In some cases the prior version of the YAML REST tests are not sufficient to fully test changes. This can happen when the prior version has insufficient test coverage. In those cases, you can simply add more testing to the prior version or you can add custom REST tests that will run along side of the other compatibility tests. These custom tests can be found in the `yamlRestTestV7` (where Vnumber follows the same conventions) sourceset and the test directory is versioned for example: `yamlRestTestV7/resources/rest-api-spec/test/v7compat`). Custom REST tests for compatibility will not be modified prior to execution, so the correct headers need to be manually added.
 
@@ -159,16 +165,16 @@ Mixed clusters are not explicitly tested since the change should be applied at t
 
 ### Troubleshooting compatibility test failures
 
-By far the most common reason that compatibility tests can seemingly randomly fail is that your master branch is out of date with the upstream master. For this reason, it always suggested to ensure that your PR branch is up to date. 
+By far the most common reason that compatibility tests can seemingly randomly fail is that your master branch is out of date with the upstream master. For this reason, it always suggested to ensure that your PR branch is up to date.
 
 Test failure reproduction lines should behave identical to the non-compatible variant. However, to assure you are referencing the correct line number when reading the test, be sure to look at the line number from the transformed test on disk.  Generally the fully transformed tests can be found at `build/restResources/v7/yamlTests/transformed/rest-api-spec/test/*` (where v7 will change with different versions).
 
-Muting compatibility tests should be done via a test transform. A per test skip or a file match can be used to skip the tests. 
+Muting compatibility tests should be done via a test transform. A per test skip or a file match can be used to skip the tests.
 
 ```groovy
 
 tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
-  task.skipTestsByFilePattern("**/cat*/*.yml", "Cat API are not supported")  
+  task.skipTestsByFilePattern("**/cat*/*.yml", "Cat API are not supported")
   task.skipTest("bulk/10_basic/Array of objects", "Muted due failures. See #12345")
 })
 

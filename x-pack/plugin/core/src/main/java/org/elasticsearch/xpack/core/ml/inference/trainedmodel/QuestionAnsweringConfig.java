@@ -91,14 +91,14 @@ public class QuestionAnsweringConfig implements NlpConfig {
         this.maxAnswerLength = Optional.ofNullable(maxAnswerLength).orElse(DEFAULT_MAX_ANSWER_LENGTH);
         if (this.numTopClasses < 0) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] must be great than or equal to [0]; provided [{}]",
+                "[{}] must be greater than or equal to [0]; provided [{}]",
                 NUM_TOP_CLASSES.getPreferredName(),
                 this.numTopClasses
             );
         }
         if (this.maxAnswerLength <= 0) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] must be great than [0]; provided [{}]",
+                "[{}] must be greater than [0]; provided [{}]",
                 MAX_ANSWER_LENGTH.getPreferredName(),
                 this.maxAnswerLength
             );
@@ -123,14 +123,14 @@ public class QuestionAnsweringConfig implements NlpConfig {
         this.maxAnswerLength = maxAnswerLength;
         if (this.numTopClasses < 0) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] must be great than or equal to [0]; provided [{}]",
+                "[{}] must be greater than or equal to [0]; provided [{}]",
                 NUM_TOP_CLASSES.getPreferredName(),
                 this.numTopClasses
             );
         }
         if (this.maxAnswerLength <= 0) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] must be great than [0]; provided [{}]",
+                "[{}] must be greater than [0]; provided [{}]",
                 MAX_ANSWER_LENGTH.getPreferredName(),
                 this.maxAnswerLength
             );

@@ -186,7 +186,7 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
             );
         }
         // This needs to be the start of the second sequence skipping the separator tokens
-        // Example seq1 </s> </s> seq2, se2Start should be (len(seq1) + 2)
+        // Example seq1 </s> </s> seq2, seq2Start should be (len(seq1) + 2)
         // This predicate ensures the following
         // - we include the cls token
         // - we exclude the first sequence, which is always the question

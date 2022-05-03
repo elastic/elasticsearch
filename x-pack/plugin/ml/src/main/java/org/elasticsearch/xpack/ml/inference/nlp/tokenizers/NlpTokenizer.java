@@ -217,7 +217,7 @@ public abstract class NlpTokenizer implements Releasable {
     }
 
     /**
-     * Tokenize the two sequences, allowing for spanning of one of the
+     * Tokenize the two sequences, allowing for spanning of the 2nd sequence
      * @param seq1 The first sequence in the pair
      * @param seq2 The second sequence
      * @param truncate truncate settings

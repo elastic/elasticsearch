@@ -184,7 +184,7 @@ public class QuestionAnsweringInferenceResults extends NlpInferenceResults {
         }
 
         public Map<String, Object> asValueMap() {
-            Map<String, Object> map = Maps.newMapWithExpectedSize(3);
+            Map<String, Object> map = Maps.newMapWithExpectedSize(4);
             map.put(ANSWER.getPreferredName(), answer);
             map.put(START_OFFSET.getPreferredName(), startOffset);
             map.put(END_OFFSET.getPreferredName(), endOffset);

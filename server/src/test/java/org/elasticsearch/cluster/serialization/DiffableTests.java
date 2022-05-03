@@ -17,6 +17,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 
@@ -303,21 +304,24 @@ public class DiffableTests extends ESTestCase {
             // check properties of diffMap
             assertThat(new HashSet<>(diffMap.getDeletes()), equalTo(keysToRemove));
             if (diffableValues()) {
-                // assertThat(diffMap.getDiffs().keySet(), equalTo(keysToOverride));
-                // for (Integer key : keysToOverride) {
-                // assertThat(diffMap.getDiffs().get(key).apply(get(beforeMap, key)), equalTo(get(afterMap, key)));
-                // }
-                // assertThat(diffMap.getUpserts().keySet(), equalTo(keysToAdd));
-                // for (Integer key : keysToAdd) {
-                // assertThat(diffMap.getUpserts().get(key), equalTo(get(afterMap, key)));
-                // }
+                Map<Integer, Diff<V>> diffs = Maps.ofEntries(diffMap.getDiffs());
+                assertThat(diffs.keySet(), equalTo(keysToOverride));
+                for (Integer key : keysToOverride) {
+                    assertThat(diffs.get(key).apply(get(beforeMap, key)), equalTo(get(afterMap, key)));
+                }
+                Map<Integer, V> upserts = Maps.ofEntries(diffMap.getUpserts());
+                assertThat(upserts.keySet(), equalTo(keysToAdd));
+                for (Integer key : keysToAdd) {
+                    assertThat(upserts.get(key), equalTo(get(afterMap, key)));
+                }
             } else {
                 assertThat(diffMap.getDiffs(), empty());
                 Set<Integer> keysToAddAndOverride = Sets.union(keysToAdd, keysToOverride);
-                // assertThat(diffMap.getUpserts().keySet(), equalTo(keysToAddAndOverride));
-                // for (Integer key : keysToAddAndOverride) {
-                // assertThat(diffMap.getUpserts().get(key), equalTo(get(afterMap, key)));
-                // }
+                Map<Integer, V> upserts = Maps.ofEntries(diffMap.getUpserts());
+                assertThat(upserts.keySet(), equalTo(keysToAddAndOverride));
+                for (Integer key : keysToAddAndOverride) {
+                    assertThat(upserts.get(key), equalTo(get(afterMap, key)));
+                }
             }
 
             if (randomBoolean()) {

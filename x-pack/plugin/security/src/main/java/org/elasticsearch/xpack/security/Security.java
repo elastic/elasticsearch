@@ -189,6 +189,7 @@ import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesA
 import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportActivateProfileAction;
 import org.elasticsearch.xpack.security.action.profile.TransportGetProfileAction;
+import org.elasticsearch.xpack.security.action.profile.TransportProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportSetProfileEnabledAction;
 import org.elasticsearch.xpack.security.action.profile.TransportSuggestProfilesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportUpdateProfileDataAction;
@@ -220,7 +221,6 @@ import org.elasticsearch.xpack.security.action.user.TransportDeleteUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportGetUserPrivilegesAction;
 import org.elasticsearch.xpack.security.action.user.TransportGetUsersAction;
 import org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction;
-import org.elasticsearch.xpack.security.action.profile.TransportProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
 import org.elasticsearch.xpack.security.audit.AuditTrail;

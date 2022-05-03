@@ -114,18 +114,18 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
         assertThat(exception.validationErrors(), hasItem("Application names may not contain '*' (found '*')"));
     }
 
-    private PrivilegesToCheck randomValidPrivilegesToCheckRequest() {
+    public static PrivilegesToCheck randomValidPrivilegesToCheckRequest() {
         String[] clusterPrivileges = randomClusterPrivileges();
         RoleDescriptor.IndicesPrivileges[] indicesPrivileges = randomIndicesPrivileges();
         RoleDescriptor.ApplicationResourcePrivileges[] appPrivileges = randomApplicationResourcePrivileges();
         return new PrivilegesToCheck(clusterPrivileges, indicesPrivileges, appPrivileges);
     }
 
-    private String[] randomClusterPrivileges() {
+    private static String[] randomClusterPrivileges() {
         return randomSubsetOf(randomIntBetween(1, 5), ClusterPrivilegeResolver.names()).toArray(new String[0]);
     }
 
-    private RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges() {
+    private static RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges() {
         RoleDescriptor.IndicesPrivileges[] indicesPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(1, 5)];
         for (int i = 0; i < indicesPrivileges.length; i++) {
             indicesPrivileges[i] = RoleDescriptor.IndicesPrivileges.builder()
@@ -136,7 +136,7 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
         return indicesPrivileges;
     }
 
-    private RoleDescriptor.ApplicationResourcePrivileges[] randomApplicationResourcePrivileges() {
+    private static RoleDescriptor.ApplicationResourcePrivileges[] randomApplicationResourcePrivileges() {
         RoleDescriptor.ApplicationResourcePrivileges[] appPrivileges = new RoleDescriptor.ApplicationResourcePrivileges[randomIntBetween(
             1,
             5

@@ -49,8 +49,8 @@ public final class PrivilegedOperations {
             (PrivilegedAction<Boolean>) () -> compilationTask.call(),
             context,
             new RuntimePermission("createClassLoader"),
-            new RuntimePermission("closeClassLoader")
-
+            new RuntimePermission("closeClassLoader"),
+            new RuntimePermission("accessSystemModules")
         );
     }
 

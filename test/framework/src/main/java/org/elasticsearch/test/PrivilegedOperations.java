@@ -20,6 +20,10 @@ import java.security.PrivilegedExceptionAction;
 import java.security.ProtectionDomain;
 import java.util.function.Supplier;
 
+/**
+ * A small set of privileged operations that can be executed by unprivileged test code.
+ * The set of operations is deliberately small, and the permissions narrow.
+ */
 public final class PrivilegedOperations {
 
     private PrivilegedOperations() {}
@@ -44,7 +48,9 @@ public final class PrivilegedOperations {
         return AccessController.doPrivileged(
             (PrivilegedAction<Boolean>) () -> compilationTask.call(),
             context,
-            new RuntimePermission("createClassLoader")
+            new RuntimePermission("createClassLoader"),
+            new RuntimePermission("closeClassLoader")
+
         );
     }
 

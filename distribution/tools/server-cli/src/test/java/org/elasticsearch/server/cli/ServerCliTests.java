@@ -354,6 +354,11 @@ public class ServerCliTests extends CommandTestCase {
         }
 
         @Override
+        public long pid() {
+            return 12345;
+        }
+
+        @Override
         public int waitFor() throws InterruptedException {
             try {
                 main.get();

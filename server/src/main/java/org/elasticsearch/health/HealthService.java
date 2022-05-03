@@ -21,6 +21,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.function.Predicate.isEqual;
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
@@ -30,6 +31,9 @@ import static java.util.stream.Collectors.toMap;
  * This service collects health indicators from all modules and plugins of elasticsearch
  */
 public class HealthService {
+
+    // Visible for testing
+    static final String UNKNOWN_RESULT_SUMMARY = "Could not determine indicator state";
 
     private final List<HealthIndicatorService> preflightHealthIndicatorServices;
     private final List<HealthIndicatorService> healthIndicatorServices;
@@ -67,8 +71,8 @@ public class HealthService {
             .toList();
 
         // If any of these are not GREEN, then we cannot obtain health from other indicators
-        boolean clusterHealthIsObtainable = preflightResults.isEmpty() || preflightResults.stream()
-            .anyMatch(result -> HealthStatus.GREEN.equals(result.status()) == false);
+        boolean clusterHealthIsObtainable = preflightResults.isEmpty()
+            || preflightResults.stream().map(HealthIndicatorResult::status).allMatch(isEqual(HealthStatus.GREEN));
 
         // Filter indicators by component name and indicator name if present before calculating their results
         Stream<HealthIndicatorService> filteredIndicators = healthIndicatorServices.stream()
@@ -82,10 +86,10 @@ public class HealthService {
         } else {
             // Mark remaining indicators as UNKNOWN
             HealthIndicatorDetails unknownDetails = determineHealthUnknownReason(preflightResults, computeDetails);
-            filteredIndicatorResults = filteredIndicators.map(indicatorService ->
-                indicatorService.createIndicator(
+            filteredIndicatorResults = filteredIndicators.map(
+                indicatorService -> indicatorService.createIndicator(
                     HealthStatus.UNKNOWN,
-                    "Could not determine indicator state",
+                    UNKNOWN_RESULT_SUMMARY,
                     unknownDetails,
                     Collections.emptyList()
                 )

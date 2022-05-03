@@ -8,13 +8,20 @@
 
 package org.elasticsearch.action.admin.cluster.coordination;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -111,6 +118,24 @@ public class MasterHistoryAction extends ActionType<MasterHistoryAction.Response
         @Override
         public int hashCode() {
             return Objects.hash(masterHistory);
+        }
+    }
+
+    /**
+     * This transport action fetches the MasterHistory from a remote node.
+     */
+    public static class TransportAction extends HandledTransportAction<Request, Response> {
+        private final MasterHistoryService masterHistoryService;
+
+        @Inject
+        public TransportAction(TransportService transportService, ActionFilters actionFilters, MasterHistoryService masterHistoryService) {
+            super(MasterHistoryAction.NAME, transportService, actionFilters, MasterHistoryAction.Request::new);
+            this.masterHistoryService = masterHistoryService;
+        }
+
+        @Override
+        protected void doExecute(Task task, MasterHistoryAction.Request request, ActionListener<Response> listener) {
+            listener.onResponse(new MasterHistoryAction.Response(masterHistoryService.getLocalMasterHistory().getImmutableView()));
         }
     }
 

@@ -1173,7 +1173,7 @@ public class PluginsServiceTests extends ESTestCase {
                 new PluginsService.LoadedPlugin(
                     new PluginInfo("extensible", null, null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
                     extensiblePlugin,
-                    PluginsServiceTests.class.getClassLoader()
+                    null
                 )
             )
         );
@@ -1188,7 +1188,7 @@ public class PluginsServiceTests extends ESTestCase {
                 new PluginsService.LoadedPlugin(
                     new PluginInfo("extensible", null, null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
                     extensiblePlugin,
-                    PluginsServiceTests.class.getClassLoader()
+                    null
                 ),
                 new PluginsService.LoadedPlugin(
                     new PluginInfo(
@@ -1206,7 +1206,7 @@ public class PluginsServiceTests extends ESTestCase {
                         false
                     ),
                     testPlugin,
-                    PluginsServiceTests.class.getClassLoader()
+                    null
                 )
             )
         );

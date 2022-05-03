@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.jdk.JarHell;
@@ -63,7 +64,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param instance The constructed instance of the plugin's main class
      * @param loader   The classloader for the plugin
      */
-    record LoadedPlugin(PluginInfo info, Plugin instance, ClassLoader loader) {}
+    record LoadedPlugin(PluginInfo info, Plugin instance, @Nullable ClassLoader loader) {}
 
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
 
@@ -133,7 +134,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
-            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, PluginsService.class.getClassLoader()));
+            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, null));
             pluginsList.add(pluginInfo);
             pluginsNames.add(pluginInfo.getName());
         }
@@ -668,6 +669,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             if (ExtensiblePlugin.class.isInstance(extendedPlugin.instance()) == false) {
                 throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
             }
+            assert extendedPlugin.loader() != null : "All non-classpath plugins should be loaded with a classloader";
             extendedLoaders.add(extendedPlugin.loader());
         }
 

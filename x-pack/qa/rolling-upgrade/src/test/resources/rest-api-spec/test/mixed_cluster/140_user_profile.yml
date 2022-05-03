@@ -2,7 +2,9 @@
 "Test User Profile feature will work in a mixed cluster":
 
   - skip:
-      features: [headers, node_selector]
+      features: node_selector
+      version: " - 7.99.99"
+      reason: "https://github.com/elastic/elasticsearch/issues/86373"
 
   - do:
       node_selector:

@@ -143,7 +143,7 @@ public interface IndexAbstraction {
      */
     class ConcreteIndex implements IndexAbstraction {
 
-        private final Index concreteIndexName;
+        private final Index concreteIndex;
         private final boolean isHidden;
         private final boolean isSystem;
         private final List<String> aliases;
@@ -151,7 +151,7 @@ public interface IndexAbstraction {
 
         public ConcreteIndex(IndexMetadata indexMetadata, DataStream dataStream) {
             // note: don't capture a reference to the indexMetadata here
-            this.concreteIndexName = indexMetadata.getIndex();
+            this.concreteIndex = indexMetadata.getIndex();
             this.isHidden = indexMetadata.isHidden();
             this.isSystem = indexMetadata.isSystem();
             this.aliases = indexMetadata.getAliases() != null ? List.copyOf(indexMetadata.getAliases().keySet()) : null;
@@ -164,7 +164,7 @@ public interface IndexAbstraction {
 
         @Override
         public String getName() {
-            return concreteIndexName.getName();
+            return concreteIndex.getName();
         }
 
         @Override
@@ -174,12 +174,12 @@ public interface IndexAbstraction {
 
         @Override
         public List<Index> getIndices() {
-            return List.of(concreteIndexName);
+            return List.of(concreteIndex);
         }
 
         @Override
         public Index getWriteIndex() {
-            return concreteIndexName;
+            return concreteIndex;
         }
 
         @Override
@@ -209,14 +209,14 @@ public interface IndexAbstraction {
             ConcreteIndex that = (ConcreteIndex) o;
             return isHidden == that.isHidden
                 && isSystem == that.isSystem
-                && concreteIndexName.equals(that.concreteIndexName)
+                && concreteIndex.equals(that.concreteIndex)
                 && Objects.equals(aliases, that.aliases)
                 && Objects.equals(dataStream, that.dataStream);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(concreteIndexName, isHidden, isSystem, aliases, dataStream);
+            return Objects.hash(concreteIndex, isHidden, isSystem, aliases, dataStream);
         }
     }
 

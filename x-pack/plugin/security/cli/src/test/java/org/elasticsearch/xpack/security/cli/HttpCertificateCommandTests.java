@@ -26,6 +26,7 @@ import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequest;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.ssl.PemUtils;
@@ -153,7 +154,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final Environment env = newEnvironment();
         final OptionSet options = command.getParser().parse(new String[0]);
-        command.execute(terminal, options, env);
+        command.execute(terminal, options, env, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
 
         Path zipRoot = getZipRoot(outFile);
 
@@ -284,7 +285,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final Environment env = newEnvironment();
         final OptionSet options = command.getParser().parse(new String[0]);
-        command.execute(terminal, options, env);
+        command.execute(terminal, options, env, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
 
         if (password.length() > 50) {
             assertThat(terminal.getOutput(), containsString("OpenSSL"));
@@ -442,7 +443,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final Environment env = newEnvironment();
         final OptionSet options = command.getParser().parse(new String[0]);
-        command.execute(terminal, options, env);
+        command.execute(terminal, options, env, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
 
         if (expectLongPasswordWarning) {
             assertThat(terminal.getOutput(), containsString("OpenSSL"));

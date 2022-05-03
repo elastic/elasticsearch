@@ -14,31 +14,31 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXContentObject {
 
-    private List<String> hasPrivilegeUids;
-    private List<String> errorUids;
+    private Set<String> hasPrivilegeUids;
+    private Set<String> errorUids;
 
     public ProfileHasPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
-        this.hasPrivilegeUids = in.readStringList();
-        this.errorUids = in.readStringList();
+        this.hasPrivilegeUids = in.readSet(StreamInput::readString);
+        this.errorUids = in.readSet(StreamInput::readString);
     }
 
-    public ProfileHasPrivilegesResponse(List<String> hasPrivilegeUids, List<String> errorUids) {
+    public ProfileHasPrivilegesResponse(Set<String> hasPrivilegeUids, Set<String> errorUids) {
         super();
         this.hasPrivilegeUids = Objects.requireNonNull(hasPrivilegeUids);
         this.errorUids = Objects.requireNonNull(errorUids);
     }
 
-    public List<String> hasPrivilegeUids() {
+    public Set<String> hasPrivilegeUids() {
         return hasPrivilegeUids;
     }
 
-    public List<String> errorUids() {
+    public Set<String> errorUids() {
         return errorUids;
     }
 

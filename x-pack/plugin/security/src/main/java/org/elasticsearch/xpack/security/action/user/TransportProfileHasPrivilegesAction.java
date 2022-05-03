@@ -28,11 +28,10 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.profile.ProfileService;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -70,14 +69,12 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
     protected void doExecute(Task task, ProfileHasPrivilegesRequest request, ActionListener<ProfileHasPrivilegesResponse> listener) {
         profileService.getProfileSubjects(request.profileUids(), ActionListener.wrap(profileSubjectsAndFailures -> {
             if (profileSubjectsAndFailures.profileUidToSubject().isEmpty()) {
-                listener.onResponse(new ProfileHasPrivilegesResponse(List.of(), List.of()));
+                listener.onResponse(new ProfileHasPrivilegesResponse(Set.of(), Set.of()));
                 return;
             }
-            final List<String> hasPrivilegeProfiles = Collections.synchronizedList(new ArrayList<>());
-            final List<String> errorProfiles = Collections.synchronizedList(
-                new ArrayList<>(profileSubjectsAndFailures.failureProfileUids())
-            );
-            final Runnable allDone = () -> listener.onResponse(new ProfileHasPrivilegesResponse(List.of(), errorProfiles));
+            final Set<String> hasPrivilegeProfiles = Collections.synchronizedSet(new HashSet<>());
+            final Set<String> errorProfiles = Collections.synchronizedSet(new HashSet<>(profileSubjectsAndFailures.failureProfileUids()));
+            final Runnable allDone = () -> listener.onResponse(new ProfileHasPrivilegesResponse(Set.of(), errorProfiles));
             final Collection<Map.Entry<String, Subject>> profileUidAndSubjects = profileSubjectsAndFailures.profileUidToSubject()
                 .entrySet();
             final AtomicInteger counter = new AtomicInteger(profileUidAndSubjects.size());

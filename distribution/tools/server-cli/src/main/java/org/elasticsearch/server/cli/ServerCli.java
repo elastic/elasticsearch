@@ -60,6 +60,8 @@ class ServerCli extends EnvironmentAwareCommand {
     private final OptionSpecBuilder quietOption;
     private final OptionSpec<String> enrollmentTokenOption;
 
+    private volatile Process process;
+
     // visible for testing
     ServerCli() {
         super("Starts Elasticsearch"); // we configure logging later so we override the base class from configuring logging
@@ -94,6 +96,7 @@ class ServerCli extends EnvironmentAwareCommand {
 
         // start Elasticsearch
         final Process process = createProcess(processInfo, env.configFile(), env.pluginsFile());
+        this.process = process; // stash process so close can kill it (eg when SIGINT or SIGTERM is sent)
         final ErrorPumpThread errorPump = new ErrorPumpThread(terminal, process.getErrorStream());
         errorPump.start();
         sendArgs(options, keystorePassword, env, process.getOutputStream());
@@ -269,6 +272,13 @@ class ServerCli extends EnvironmentAwareCommand {
                 logger.error("Got io exception in pump", e);
                 ioFailure = e;
             }
+        }
+    }
+
+    @Override
+    public void close() {
+        if (process != null) {
+            process.destroy();
         }
     }
 

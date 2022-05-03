@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,6 +51,7 @@ public class MasterHistoryActionTests extends ESTestCase {
         ActionFilters actionFilters = mock(ActionFilters.class);
         MasterHistoryService masterHistoryService = mock(MasterHistoryService.class);
         ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);

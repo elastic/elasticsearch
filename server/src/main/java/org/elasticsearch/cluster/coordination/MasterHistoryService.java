@@ -105,7 +105,7 @@ public class MasterHistoryService {
                             @Override
                             public void onFailure(Exception e) {
                                 connection.close();
-                                logger.error("Exception in master history request to master node", e);
+                                logger.warn("Exception in master history request to master node", e);
                             }
                         }, MasterHistoryAction.Response::new)
                     );
@@ -113,7 +113,7 @@ public class MasterHistoryService {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("Exception connecting to master node", e);
+                    logger.warn("Exception connecting to master node", e);
                 }
             }
         );

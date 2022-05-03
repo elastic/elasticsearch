@@ -460,7 +460,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         RestUtils.decodeQueryString(actual, endOfPath + 1, actualParams);
 
         final HashMap<String, String> expectedParams = new HashMap<>();
-        RestUtils.decodeQueryString(actual, endOfPath + 1, expectedParams);
+        RestUtils.decodeQueryString(expected, endOfPath + 1, expectedParams);
 
         assertThat(actualParams, equalTo(expectedParams));
     }

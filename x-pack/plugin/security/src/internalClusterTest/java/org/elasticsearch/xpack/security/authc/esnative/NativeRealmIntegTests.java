@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -270,6 +271,14 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testAddUserAndRoleThenAuth() throws Exception {
+        testAddUserAndRoleThenAuth("joe");
+    }
+
+    public void testAddUserWithInternalUsernameAndRoleThenAuth() throws Exception {
+        testAddUserAndRoleThenAuth(randomInternalUsername());
+    }
+
+    public void testAddUserAndRoleThenAuth(String username) throws Exception {
         logger.error("--> creating role");
         preparePutRole("test_role").cluster("all")
             .addIndices(
@@ -282,11 +291,11 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             )
             .get();
         logger.error("--> creating user");
-        preparePutUser("joe", "s3krit-password", hasher, "test_role").get();
+        preparePutUser(username, "s3krit-password", hasher, "test_role").get();
         logger.error("--> waiting for .security index");
         ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("--> retrieving user");
-        GetUsersResponse resp = new GetUsersRequestBuilder(client()).usernames("joe").get();
+        GetUsersResponse resp = new GetUsersRequestBuilder(client()).usernames(username).get();
         assertTrue("user should exist", resp.hasUsers());
 
         createIndex("idx");
@@ -294,7 +303,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         // Index a document with the default test user
         client().prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
 
-        String token = basicAuthHeaderValue("joe", new SecureString("s3krit-password"));
+        String token = basicAuthHeaderValue(username, new SecureString("s3krit-password"));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
         assertEquals(1L, searchResp.getHits().getTotalHits().value);
@@ -721,19 +730,6 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         );
         assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
 
-        final String internalUser = randomFrom(SystemUser.NAME, XPackUser.NAME, XPackSecurityUser.NAME, AsyncSearchUser.NAME);
-        exception = expectThrows(IllegalArgumentException.class, () -> preparePutUser(internalUser, "foobar-password", hasher).get());
-        assertThat(exception.getMessage(), containsString("user [" + internalUser + "] is internal"));
-
-        exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new ChangePasswordRequestBuilder(client()).username(internalUser).password("foobar-password".toCharArray(), hasher).get()
-        );
-        assertThat(exception.getMessage(), containsString("user [" + internalUser + "] is internal"));
-
-        exception = expectThrows(IllegalArgumentException.class, () -> new DeleteUserRequestBuilder(client()).username(internalUser).get());
-        assertThat(exception.getMessage(), containsString("user [" + internalUser + "] is internal"));
-
         // get should work
         GetUsersResponse response = new GetUsersRequestBuilder(client()).usernames(username).get();
         assertThat(response.hasUsers(), is(true));
@@ -988,5 +984,15 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
     private PutRoleRequestBuilder preparePutRole(String name) {
         return new PutRoleRequestBuilder(client()).name(name);
+    }
+
+    private String randomInternalUsername() {
+        return randomFrom(
+            SystemUser.INSTANCE.principal(),
+            XPackUser.INSTANCE.principal(),
+            XPackSecurityUser.INSTANCE.principal(),
+            AsyncSearchUser.INSTANCE.principal(),
+            SecurityProfileUser.INSTANCE.principal()
+        );
     }
 }

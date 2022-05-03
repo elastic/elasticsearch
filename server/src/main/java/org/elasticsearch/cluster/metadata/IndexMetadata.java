@@ -58,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -516,7 +517,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final ImmutableOpenMap<String, DiffableStringMap> customData;
 
-    private final ImmutableOpenIntMap<Set<String>> inSyncAllocationIds;
+    private final Map<Integer, Set<String>> inSyncAllocationIds;
 
     private final transient int totalNumberOfShards;
 
@@ -571,7 +572,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final MappingMetadata mapping,
         final ImmutableOpenMap<String, AliasMetadata> aliases,
         final ImmutableOpenMap<String, DiffableStringMap> customData,
-        final ImmutableOpenIntMap<Set<String>> inSyncAllocationIds,
+        final Map<Integer, Set<String>> inSyncAllocationIds,
         final DiscoveryNodeFilters requireFilters,
         final DiscoveryNodeFilters initialRecoveryFilters,
         final DiscoveryNodeFilters includeFilters,
@@ -889,7 +890,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return this.customData.get(key);
     }
 
-    public ImmutableOpenIntMap<Set<String>> getInSyncAllocationIds() {
+    public Map<Integer, Set<String>> getInSyncAllocationIds() {
         return inSyncAllocationIds;
     }
 
@@ -1031,7 +1032,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Diff<ImmutableOpenMap<String, MappingMetadata>> mappings;
         private final Diff<ImmutableOpenMap<String, AliasMetadata>> aliases;
         private final Diff<ImmutableOpenMap<String, DiffableStringMap>> customData;
-        private final Diff<ImmutableOpenIntMap<Set<String>>> inSyncAllocationIds;
+        private final Diff<Map<Integer, Set<String>>> inSyncAllocationIds;
         private final Diff<ImmutableOpenMap<String, RolloverInfo>> rolloverInfos;
         private final boolean isSystem;
         private final IndexLongFieldRange timestampRange;
@@ -1095,7 +1096,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             mappings = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), MAPPING_DIFF_VALUE_READER);
             aliases = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), ALIAS_METADATA_DIFF_VALUE_READER);
             customData = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_DIFF_VALUE_READER);
-            inSyncAllocationIds = DiffableUtils.readImmutableOpenIntMapDiff(
+            inSyncAllocationIds = DiffableUtils.readJdkMapDiff(
                 in,
                 DiffableUtils.getVIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance()
@@ -1153,7 +1154,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             ).get(MapperService.SINGLE_MAPPING_NAME);
             builder.aliases.putAllFromMap(aliases.apply(part.aliases));
             builder.customMetadata.putAllFromMap(customData.apply(part.customData));
-            builder.inSyncAllocationIds.putAll((Map<Integer, Set<String>>) inSyncAllocationIds.apply(part.inSyncAllocationIds));
+            builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
             builder.rolloverInfos.putAllFromMap(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.timestampRange(timestampRange);
@@ -1309,7 +1310,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private MappingMetadata mapping;
         private final ImmutableOpenMap.Builder<String, AliasMetadata> aliases;
         private final ImmutableOpenMap.Builder<String, DiffableStringMap> customMetadata;
-        private final ImmutableOpenIntMap.Builder<Set<String>> inSyncAllocationIds;
+        private final Map<Integer, Set<String>> inSyncAllocationIds;
         private final ImmutableOpenMap.Builder<String, RolloverInfo> rolloverInfos;
         private Integer routingNumShards;
         private boolean isSystem;
@@ -1320,7 +1321,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.index = index;
             this.aliases = ImmutableOpenMap.builder();
             this.customMetadata = ImmutableOpenMap.builder();
-            this.inSyncAllocationIds = ImmutableOpenIntMap.builder();
+            this.inSyncAllocationIds = new HashMap<>();
             this.rolloverInfos = ImmutableOpenMap.builder();
             this.isSystem = false;
         }
@@ -1338,7 +1339,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.aliases = ImmutableOpenMap.builder(indexMetadata.aliases);
             this.customMetadata = ImmutableOpenMap.builder(indexMetadata.customData);
             this.routingNumShards = indexMetadata.routingNumShards;
-            this.inSyncAllocationIds = ImmutableOpenIntMap.builder(indexMetadata.inSyncAllocationIds);
+            this.inSyncAllocationIds = new HashMap<>(indexMetadata.inSyncAllocationIds);
             this.rolloverInfos = ImmutableOpenMap.builder(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
             this.timestampRange = indexMetadata.timestampRange;
@@ -2019,7 +2020,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                                         allocationIds.add(parser.text());
                                     }
                                 }
-                                builder.putInSyncAllocationIds(Integer.valueOf(shardId), allocationIds);
+                                builder.putInSyncAllocationIds(Integer.parseInt(shardId), allocationIds);
                             } else {
                                 throw new IllegalArgumentException("Unexpected token: " + token);
                             }

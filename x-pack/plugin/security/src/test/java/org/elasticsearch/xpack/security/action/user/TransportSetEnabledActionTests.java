@@ -109,67 +109,6 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         verifyNoMoreInteractions(usersStore);
     }
 
-    public void testInternalUser() throws Exception {
-        final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
-        ThreadPool threadPool = mock(ThreadPool.class);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
-        new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
-
-        NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportService transportService = new TransportService(
-            Settings.EMPTY,
-            mock(Transport.class),
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> null,
-            null,
-            Collections.emptySet()
-        );
-        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        TransportSetEnabledAction action = new TransportSetEnabledAction(
-            Settings.EMPTY,
-            transportService,
-            mock(ActionFilters.class),
-            securityContext,
-            usersStore
-        );
-
-        SetEnabledRequest request = new SetEnabledRequest();
-        request.username(
-            randomFrom(
-                SystemUser.INSTANCE.principal(),
-                XPackUser.INSTANCE.principal(),
-                XPackSecurityUser.INSTANCE.principal(),
-                AsyncSearchUser.INSTANCE.principal()
-            )
-        );
-        request.enabled(randomBoolean());
-
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<>() {
-            @Override
-            public void onResponse(ActionResponse.Empty setEnabledResponse) {
-                responseRef.set(setEnabledResponse);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throwableRef.set(e);
-            }
-        });
-
-        assertThat(responseRef.get(), is(nullValue()));
-        assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
-        assertThat(throwableRef.get().getMessage(), containsString("is internal"));
-        verifyNoMoreInteractions(usersStore);
-    }
-
     public void testValidUser() throws Exception {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -180,7 +119,12 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
-        final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
+        final User user = randomFrom(
+            new ElasticUser(true),
+            new KibanaUser(true),
+            new User("joe"),
+            new User(SystemUser.INSTANCE.principal())
+        );
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SetEnabledRequest request = new SetEnabledRequest();
         request.username(user.principal());

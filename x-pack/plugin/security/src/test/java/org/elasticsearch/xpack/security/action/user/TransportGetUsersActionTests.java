@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUsersRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -42,12 +43,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -133,55 +133,6 @@ public class TransportGetUsersActionTests extends ESTestCase {
         } else {
             assertThat("expected an empty array but got: " + Arrays.toString(users), users, emptyArray());
         }
-        verifyNoMoreInteractions(usersStore);
-    }
-
-    public void testInternalUser() {
-        NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportService transportService = new TransportService(
-            Settings.EMPTY,
-            mock(Transport.class),
-            mock(ThreadPool.class),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> null,
-            null,
-            Collections.emptySet()
-        );
-        TransportGetUsersAction action = new TransportGetUsersAction(
-            Settings.EMPTY,
-            mock(ActionFilters.class),
-            usersStore,
-            transportService,
-            mock(ReservedRealm.class)
-        );
-
-        GetUsersRequest request = new GetUsersRequest();
-        request.usernames(
-            randomFrom(
-                SystemUser.INSTANCE.principal(),
-                XPackUser.INSTANCE.principal(),
-                XPackSecurityUser.INSTANCE.principal(),
-                AsyncSearchUser.INSTANCE.principal()
-            )
-        );
-
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
-            @Override
-            public void onResponse(GetUsersResponse response) {
-                responseRef.set(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throwableRef.set(e);
-            }
-        });
-
-        assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
-        assertThat(throwableRef.get().getMessage(), containsString("is internal"));
-        assertThat(responseRef.get(), is(nullValue()));
         verifyNoMoreInteractions(usersStore);
     }
 
@@ -322,7 +273,8 @@ public class TransportGetUsersActionTests extends ESTestCase {
         final List<User> storeUsers = randomFrom(
             Collections.singletonList(new User("joe")),
             Arrays.asList(new User("jane"), new User("fred")),
-            randomUsers()
+            randomUsers(),
+            randomUsersMatchingInternalUsernames()
         );
         final String[] storeUsernames = storeUsers.stream().map(User::principal).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
@@ -445,5 +397,16 @@ public class TransportGetUsersActionTests extends ESTestCase {
             users.add(new User("user_" + i, randomAlphaOfLengthBetween(4, 12)));
         }
         return users;
+    }
+
+    private List<User> randomUsersMatchingInternalUsernames() {
+        List<User> internalUserNames = Stream.of(
+            SystemUser.INSTANCE.principal(),
+            XPackUser.INSTANCE.principal(),
+            XPackSecurityUser.INSTANCE.principal(),
+            AsyncSearchUser.INSTANCE.principal(),
+            SecurityProfileUser.INSTANCE.principal()
+        ).map(u -> new User(u, randomAlphaOfLengthBetween(4, 12))).collect(Collectors.toList());
+        return randomSubsetOf(internalUserNames);
     }
 }

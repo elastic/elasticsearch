@@ -97,7 +97,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
         @Override
         public void onFailure(Exception e) {
-
+            fail("should not be called in test");
         }
     }
 

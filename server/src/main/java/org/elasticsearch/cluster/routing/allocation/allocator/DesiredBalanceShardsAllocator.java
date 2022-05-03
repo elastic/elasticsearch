@@ -19,8 +19,9 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Deque;
+import java.util.Collection;
 import java.util.LinkedList;
+import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -38,7 +39,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private record DesiredBalancesListener(long index, ActionListener<Void> listener) {}
 
     private final AtomicLong indexGenerator = new AtomicLong(0);
-    private final Deque<DesiredBalancesListener> pendingListeners = new LinkedList<>();
+    private final Queue<DesiredBalancesListener> pendingListeners = new LinkedList<>();
 
     public DesiredBalanceShardsAllocator(
         ShardsAllocator delegateAllocator,
@@ -58,39 +59,29 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                         public void onResponse(ClusterState clusterState) {
                             if (isFreshInput) {
                                 pendingReroute = false;
-                                triggerProcessedListeners(desiredBalanceInput.index());
+                                pollListeners(desiredBalanceInput.index()).forEach(listener -> listener.onResponse(null));
                             }
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             //TODO check exception type?
-                            triggerAllListenersFailure(e);
+                            pollListeners(Long.MAX_VALUE).forEach(listener -> listener.onFailure(e));
                         }
                     };
                     rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, listener);
                 }
             }
 
-            private void triggerProcessedListeners(long index) {
+            private Collection<ActionListener<Void>> pollListeners(long maxIndex) {
+                var listeners = new ArrayList<ActionListener<Void>>();
+                DesiredBalancesListener listener;
                 synchronized (pendingListeners) {
-                    while (true) {
-                        var trigger = pendingListeners.peekFirst();
-                        if (trigger == null || trigger.index > index) {
-                            break;
-                        }
-                        pendingListeners.pollFirst().listener.onResponse(null);
+                    while ((listener = pendingListeners.peek()) != null && listener.index <= maxIndex) {
+                        listeners.add(pendingListeners.poll().listener);
                     }
                 }
-            }
-
-            private void triggerAllListenersFailure(Exception e) {
-                synchronized (pendingListeners) {
-                    DesiredBalancesListener listener;
-                    while ((listener = pendingListeners.pollLast()) != null) {
-                        listener.listener.onFailure(e);
-                    }
-                }
+                return listeners;
             }
 
             @Override
@@ -116,7 +107,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
         var index = indexGenerator.incrementAndGet();
         synchronized (pendingListeners) {
-            pendingListeners.addLast(new DesiredBalancesListener(index, listener));
+            pendingListeners.add(new DesiredBalancesListener(index, listener));
         }
         desiredBalanceComputation.onNewInput(
             new DesiredBalanceInput(index, allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))

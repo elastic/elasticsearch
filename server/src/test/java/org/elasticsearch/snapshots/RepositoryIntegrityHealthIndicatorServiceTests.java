@@ -59,7 +59,6 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testIsRedWhenAtLeastOneRepoIsCorrupted() {
-        String path = System.getenv().get("PATH");
         var repos = appendToCopy(
             randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)),
             createRepositoryMetadata("corrupted-repo", true)

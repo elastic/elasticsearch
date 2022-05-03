@@ -262,16 +262,16 @@ public interface AuthorizationEngine {
     ) {
         public static PrivilegesToCheck readFrom(StreamInput in) throws IOException {
             return new PrivilegesToCheck(
-                in.readStringArray(),
-                in.readArray(RoleDescriptor.IndicesPrivileges::new, RoleDescriptor.IndicesPrivileges[]::new),
-                in.readArray(RoleDescriptor.ApplicationResourcePrivileges::new, RoleDescriptor.ApplicationResourcePrivileges[]::new)
+                in.readOptionalStringArray(),
+                in.readOptionalArray(RoleDescriptor.IndicesPrivileges::new, RoleDescriptor.IndicesPrivileges[]::new),
+                in.readOptionalArray(RoleDescriptor.ApplicationResourcePrivileges::new, RoleDescriptor.ApplicationResourcePrivileges[]::new)
             );
         }
 
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringArray(cluster);
-            out.writeArray(RoleDescriptor.IndicesPrivileges::write, index);
-            out.writeArray(RoleDescriptor.ApplicationResourcePrivileges::write, application);
+            out.writeOptionalStringArray(cluster);
+            out.writeOptionalArray(RoleDescriptor.IndicesPrivileges::write, index);
+            out.writeOptionalArray(RoleDescriptor.ApplicationResourcePrivileges::write, application);
         }
 
         public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
@@ -301,6 +301,22 @@ public interface AuthorizationEngine {
                 validationException = addValidationError("must specify at least one privilege", validationException);
             }
             return validationException;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            PrivilegesToCheck that = (PrivilegesToCheck) o;
+            return Arrays.equals(cluster, that.cluster) && Arrays.equals(index, that.index) && Arrays.equals(application, that.application);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Arrays.hashCode(cluster);
+            result = 31 * result + Arrays.hashCode(index);
+            result = 31 * result + Arrays.hashCode(application);
+            return result;
         }
 
         @Override

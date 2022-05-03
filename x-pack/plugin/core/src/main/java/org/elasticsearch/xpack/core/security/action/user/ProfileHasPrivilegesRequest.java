@@ -18,8 +18,10 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Privilege
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -42,21 +44,21 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
         );
     }
 
-    private final List<String> uids;
+    private final Set<String> uids;
     private final PrivilegesToCheck privilegesToCheck;
 
     public ProfileHasPrivilegesRequest(List<String> uids, PrivilegesToCheck privilegesToCheck) {
-        this.uids = uids;
+        this.uids = uids != null ? new LinkedHashSet<>(uids) : null;
         this.privilegesToCheck = privilegesToCheck;
     }
 
     public ProfileHasPrivilegesRequest(StreamInput in) throws IOException {
         super(in);
-        this.uids = in.readStringList();
+        this.uids = in.readSet(StreamInput::readString);
         this.privilegesToCheck = PrivilegesToCheck.readFrom(in);
     }
 
-    public List<String> profileUids() {
+    public Set<String> profileUids() {
         return uids;
     }
 

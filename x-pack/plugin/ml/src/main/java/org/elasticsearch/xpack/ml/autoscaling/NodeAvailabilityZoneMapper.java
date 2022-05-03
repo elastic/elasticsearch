@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 
 /**
  * Maintains a list of the nodes in each availability zone, where an availability zone
@@ -74,10 +75,10 @@ public class NodeAvailabilityZoneMapper implements ClusterStateListener {
 
     /**
      * @return The number of availability zones in the cluster. If availability zones are not configured this will be 1.
-     *         If it is too early in the lifecycle of the node to know the answer then -1 will be returned.
+     *         If it is too early in the lifecycle of the node to know the answer then {@link OptionalInt#empty()} will be returned.
      */
-    public int getNumAvailabilityZones() {
-        return (lastDiscoveryNodes == null) ? -1 : allNodesByAvailabilityZone.size();
+    public OptionalInt getNumAvailabilityZones() {
+        return (lastDiscoveryNodes == null) ? OptionalInt.empty() : OptionalInt.of(allNodesByAvailabilityZone.size());
     }
 
     /**
@@ -94,12 +95,12 @@ public class NodeAvailabilityZoneMapper implements ClusterStateListener {
 
     /**
      * @return The number of availability zones in the cluster. If availability zones are not configured this will be 1.
-     *         If it is too early in the lifecycle of the node to know the answer then -1 will be returned.
+     *         If it is too early in the lifecycle of the node to know the answer then {@link OptionalInt#empty()} will be returned.
      *         Unlike {@link #getNumAvailabilityZones()}, it is possible this method will return 0, as it is possible
      *         for a cluster to have no ML nodes.
      */
-    public int getNumMlAvailabilityZones() {
-        return (lastDiscoveryNodes == null) ? -1 : mlNodesByAvailabilityZone.size();
+    public OptionalInt getNumMlAvailabilityZones() {
+        return (lastDiscoveryNodes == null) ? OptionalInt.empty() : OptionalInt.of(mlNodesByAvailabilityZone.size());
     }
 
     @Override
@@ -144,13 +145,7 @@ public class NodeAvailabilityZoneMapper implements ClusterStateListener {
                 );
                 continue;
             }
-            updatedNodesByAvailabilityZone.compute(orderedNodeAttributeValues, (k, v) -> {
-                if (v == null) {
-                    v = new ArrayList<>();
-                }
-                v.add(node);
-                return v;
-            });
+            updatedNodesByAvailabilityZone.computeIfAbsent(orderedNodeAttributeValues, k -> new ArrayList<>()).add(node);
             if (node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {
                 updatedMlNodesByAvailabilityZone.compute(orderedNodeAttributeValues, (k, v) -> {
                     if (v == null) {

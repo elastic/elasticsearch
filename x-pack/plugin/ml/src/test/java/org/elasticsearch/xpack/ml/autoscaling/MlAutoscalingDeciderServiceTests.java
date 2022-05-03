@@ -52,6 +52,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
@@ -937,7 +938,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     }
 
     public void testScaleDown() {
-        when(nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(3);
+        when(nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(3));
         MlAutoscalingDeciderService service = buildService();
         service.setMaxMachineMemoryPercent(25);
         MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder().setPassedConfiguration(Settings.EMPTY)

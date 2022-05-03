@@ -120,7 +120,8 @@ public class NativeMemoryCapacity {
         // We cannot assert this in the constructor, as sometimes objects containing capacities are constructed to be merged
         // with current capacity. But by the time this method is called the merging should have created an object that obeys
         // this condition.
-        assert tierMlNativeMemoryRequirementExcludingOverhead >= nodeMlNativeMemoryRequirementExcludingOverhead;
+        assert tierMlNativeMemoryRequirementExcludingOverhead >= nodeMlNativeMemoryRequirementExcludingOverhead
+            : "Total tier required should never be smaller than largest node size required";
 
         if (mlNativeMemoryForLargestMlNode <= NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes()) {
             // This should never happen in Elastic Cloud, as the nodes are sized appropriately.

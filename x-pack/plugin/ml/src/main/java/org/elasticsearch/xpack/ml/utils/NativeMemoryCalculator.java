@@ -166,7 +166,8 @@ public final class NativeMemoryCalculator {
         // Consequently jvmSize = (nativeAndOverhead / 0.6) * 0.4 = nativeAndOverhead * 2 / 3
         //
         // For > 16GB node, the JVM is 0.4 * 16GB + 0.1 * (total_node_size - 16GB).
-        // So, nativeAndOverheadAbove16GB = 0.9 * total_node_size_above_16GB =>
+        // nativeAndOverheadAbove16GB = 0.9 * total_node_size_above_16GB
+        // Also, nativeAndOverheadAbove16GB = nativeAndOverhead - nativeAndOverheadBelow16GB = nativeAndOverhead - 0.6 * 16GB
         // Consequently jvmSize = 0.4 * 16GB + (nativeAndOverheadAbove16GB / 0.9) * 0.1
         //
         // In both cases JVM size is rounded down to the next lower whole megabyte to match
@@ -175,8 +176,9 @@ public final class NativeMemoryCalculator {
         if (nativeAndOverhead <= (JVM_SIZE_KNOT_POINT * 0.6)) {
             return (nativeAndOverhead * 2 / 3 / BYTES_IN_MB) * BYTES_IN_MB;
         }
+        double nativeAndOverheadAbove16GB = nativeAndOverhead - JVM_SIZE_KNOT_POINT * 0.6;
         return Math.min(
-            ((long) (JVM_SIZE_KNOT_POINT * 0.4 + (nativeAndOverhead - JVM_SIZE_KNOT_POINT * 0.6) / 0.9 * 0.1) / BYTES_IN_MB) * BYTES_IN_MB,
+            ((long) (JVM_SIZE_KNOT_POINT * 0.4 + nativeAndOverheadAbove16GB / 0.9 * 0.1) / BYTES_IN_MB) * BYTES_IN_MB,
             STATIC_JVM_UPPER_THRESHOLD
         );
     }

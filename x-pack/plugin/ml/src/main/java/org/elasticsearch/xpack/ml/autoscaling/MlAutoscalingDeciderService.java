@@ -407,7 +407,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                     maxMachineMemoryPercent,
                     useAuto,
                     mlNativeMemoryForLargestMlNode,
-                    nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()
+                    nodeAvailabilityZoneMapper.getNumMlAvailabilityZones().orElse(1)
                 )
             )
             .setPassedConfiguration(configuration);
@@ -770,7 +770,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             maxMachineMemoryPercent,
             useAuto,
             mlNativeMemoryForLargestMlNode,
-            nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()
+            nodeAvailabilityZoneMapper.getNumMlAvailabilityZones().orElse(1)
         );
         return new AutoscalingDeciderResult(
             requiredCapacity,
@@ -794,7 +794,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         NativeMemoryCapacity currentScale,
         MlScalingReason.Builder reasonBuilder
     ) {
-
         // Are we in breach of maximum waiting jobs?
         if (waitingAnalyticsJobs.size() > numAnalyticsJobsInQueue
             || waitingAnomalyJobs.size() + waitingSnapshotUpgrades.size() > numAnomalyJobsInQueue
@@ -836,7 +835,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 maxMachineMemoryPercent,
                 useAuto,
                 mlNativeMemoryForLargestMlNode,
-                nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()
+                nodeAvailabilityZoneMapper.getNumMlAvailabilityZones().orElse(1)
             );
             return Optional.of(
                 new AutoscalingDeciderResult(
@@ -874,7 +873,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                         maxMachineMemoryPercent,
                         useAuto,
                         mlNativeMemoryForLargestMlNode,
-                        nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()
+                        nodeAvailabilityZoneMapper.getNumMlAvailabilityZones().orElse(1)
                     );
                     return Optional.of(
                         new AutoscalingDeciderResult(
@@ -919,13 +918,13 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 newNodeMax = Math.max(newNodeMax, requiredMemory);
             }
             if (newNodeMax > currentScale.getNodeMlNativeMemoryRequirementExcludingOverhead() || newTierNeeded > 0L) {
-                NativeMemoryCapacity newCapacity = new NativeMemoryCapacity(newTierNeeded, newNodeMax);
+                NativeMemoryCapacity newCapacity = new NativeMemoryCapacity(Math.max(0L, newTierNeeded), newNodeMax);
                 AutoscalingCapacity requiredCapacity = currentScale.merge(newCapacity)
                     .autoscalingCapacity(
                         maxMachineMemoryPercent,
                         useAuto,
                         mlNativeMemoryForLargestMlNode,
-                        nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()
+                        nodeAvailabilityZoneMapper.getNumMlAvailabilityZones().orElse(1)
                     );
                 return Optional.of(
                     new AutoscalingDeciderResult(
@@ -1047,7 +1046,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 maxMachineMemoryPercent,
                 useAuto,
                 mlNativeMemoryForLargestMlNode,
-                nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()
+                nodeAvailabilityZoneMapper.getNumMlAvailabilityZones().orElse(1)
             );
             return Optional.of(
                 new AutoscalingDeciderResult(

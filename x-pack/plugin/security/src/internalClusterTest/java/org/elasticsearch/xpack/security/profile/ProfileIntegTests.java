@@ -52,11 +52,11 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_S
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INTERNAL_SECURITY_PROFILE_INDEX_8;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.array;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.hasItems;
@@ -505,8 +505,8 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
                 )
             )
         ).actionGet();
-        assertThat(profileHasPrivilegesResponse.hasPrivilegeUids(), emptyArray());
-        assertThat(profileHasPrivilegesResponse.errorUids(), emptyArray());
+        assertThat(profileHasPrivilegesResponse.hasPrivilegeUids(), emptyIterable());
+        assertThat(profileHasPrivilegesResponse.errorUids(), emptyIterable());
 
         // Ensure index does not exist
         assertThat(getProfileIndexResponse().getIndices(), not(hasItemInArray(INTERNAL_SECURITY_PROFILE_INDEX_8)));
@@ -568,8 +568,8 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
                 )
             )
         ).actionGet();
-        assertThat(profileHasPrivilegesResponse.hasPrivilegeUids(), array(equalTo(profile1.uid())));
-        assertThat(profileHasPrivilegesResponse.errorUids(), emptyArray());
+        assertThat(profileHasPrivilegesResponse.hasPrivilegeUids(), contains(equalTo(profile1.uid())));
+        assertThat(profileHasPrivilegesResponse.errorUids(), emptyIterable());
 
         // Enable again for search
         final SetProfileEnabledRequest setProfileEnabledRequest2 = new SetProfileEnabledRequest(

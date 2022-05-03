@@ -14,31 +14,31 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXContentObject {
 
-    private String[] hasPrivilegeUids;
-    private String[] errorUids;
+    private List<String> hasPrivilegeUids;
+    private List<String> errorUids;
 
     public ProfileHasPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
-        this.hasPrivilegeUids = in.readStringArray();
-        this.errorUids = in.readStringArray();
+        this.hasPrivilegeUids = in.readStringList();
+        this.errorUids = in.readStringList();
     }
 
-    public ProfileHasPrivilegesResponse(String[] hasPrivilegeUids, String[] errorUids) {
+    public ProfileHasPrivilegesResponse(List<String> hasPrivilegeUids, List<String> errorUids) {
         super();
         this.hasPrivilegeUids = Objects.requireNonNull(hasPrivilegeUids);
         this.errorUids = Objects.requireNonNull(errorUids);
     }
 
-    public String[] hasPrivilegeUids() {
+    public List<String> hasPrivilegeUids() {
         return hasPrivilegeUids;
     }
 
-    public String[] errorUids() {
+    public List<String> errorUids() {
         return errorUids;
     }
 
@@ -47,35 +47,30 @@ public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXC
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ProfileHasPrivilegesResponse that = (ProfileHasPrivilegesResponse) o;
-        return Arrays.equals(hasPrivilegeUids, that.hasPrivilegeUids) && Arrays.equals(errorUids, that.errorUids);
+        return hasPrivilegeUids.equals(that.hasPrivilegeUids) && errorUids.equals(that.errorUids);
     }
 
     @Override
     public int hashCode() {
-        int result = Arrays.hashCode(hasPrivilegeUids);
-        result = 31 * result + Arrays.hashCode(errorUids);
-        return result;
+        return Objects.hash(hasPrivilegeUids, errorUids);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().array("has_privilege_uids", hasPrivilegeUids).array("error_uids", errorUids).endObject();
+        return builder.startObject()
+            .stringListField("has_privilege_uids", hasPrivilegeUids)
+            .stringListField("error_uids", errorUids)
+            .endObject();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringArray(hasPrivilegeUids);
-        out.writeStringArray(errorUids);
+        out.writeStringCollection(hasPrivilegeUids);
+        out.writeStringCollection(errorUids);
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName()
-            + "{"
-            + "has_privilege_uids="
-            + Arrays.toString(hasPrivilegeUids)
-            + ", error_uids="
-            + Arrays.toString(errorUids)
-            + "}";
+        return getClass().getSimpleName() + "{" + "has_privilege_uids=" + hasPrivilegeUids + ", error_uids=" + errorUids + "}";
     }
 }

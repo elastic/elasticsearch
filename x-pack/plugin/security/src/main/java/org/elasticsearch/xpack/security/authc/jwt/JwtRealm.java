@@ -71,6 +71,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public static final String HEADER_END_USER_AUTHENTICATION_SCHEME = "Bearer";
     public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
 
+    private final JwtAuthenticationTokenFactory tokenFactory;
     final UserRoleMapper userRoleMapper;
     final String allowedIssuer;
     final List<String> allowedAudiences;
@@ -91,9 +92,14 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final CacheIteratorHelper<BytesKey, ExpiringUser> jwtCacheHelper;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
 
-    public JwtRealm(final RealmConfig realmConfig, final SSLService sslService, final UserRoleMapper userRoleMapper)
-        throws SettingsException {
+    public JwtRealm(
+        final RealmConfig realmConfig,
+        final JwtAuthenticationTokenFactory tokenFactory,
+        final SSLService sslService,
+        final UserRoleMapper userRoleMapper
+    ) throws SettingsException {
         super(realmConfig);
+        this.tokenFactory = tokenFactory;
         this.userRoleMapper = userRoleMapper;
         this.userRoleMapper.refreshRealmOnChange(this);
         this.allowedIssuer = realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER);
@@ -326,23 +332,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     @Override
     public AuthenticationToken token(final ThreadContext threadContext) {
         this.ensureInitialized();
-        final SecureString authenticationParameterValue = JwtUtil.getHeaderValue(
-            threadContext,
-            JwtRealm.HEADER_END_USER_AUTHENTICATION,
-            JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
-            false
-        );
-        if (authenticationParameterValue == null) {
-            return null;
-        }
-        // Get all other possible parameters. A different JWT realm may do the actual authentication.
-        final SecureString clientAuthenticationSharedSecretValue = JwtUtil.getHeaderValue(
-            threadContext,
-            JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-            JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
-            true
-        );
-        return new JwtAuthenticationToken(authenticationParameterValue, clientAuthenticationSharedSecretValue);
+        return tokenFactory.getToken(threadContext);
     }
 
     @Override

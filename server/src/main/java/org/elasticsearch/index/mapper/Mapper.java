@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Map;
@@ -22,7 +23,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         protected final String name;
 
         protected Builder(String name) {
-            this.name = name;
+            this.name = internFieldName(name);
         }
 
         public String name() {
@@ -48,7 +49,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     public Mapper(String simpleName) {
         Objects.requireNonNull(simpleName);
-        this.simpleName = simpleName;
+        this.simpleName = internFieldName(simpleName);
     }
 
     /** Returns the simple name, which identifies this mapper against other mappers at the same level in the mappers hierarchy
@@ -78,5 +79,16 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    private static final StringLiteralDeduplicator fieldNameStringDeduplicator = new StringLiteralDeduplicator();
+
+    /**
+     * Interns the given field name string through a {@link StringLiteralDeduplicator}.
+     * @param fieldName field name to intern
+     * @return interned field name string
+     */
+    public static String internFieldName(String fieldName) {
+        return fieldNameStringDeduplicator.deduplicate(fieldName);
     }
 }

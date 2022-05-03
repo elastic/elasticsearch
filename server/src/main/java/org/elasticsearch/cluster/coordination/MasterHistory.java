@@ -48,9 +48,13 @@ public class MasterHistory implements ClusterStateListener {
         DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
         DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
         if (currentMaster == null || currentMaster.equals(previousMaster) == false || masterHistory.isEmpty()) {
-            List<TimeAndMaster> newMasterHistory = new ArrayList<>(masterHistory);
+            long now = currentTimeMillisSupplier.getAsLong();
+            long oldestRelevantHistoryTime = now - MAX_HISTORY_AGE.getMillis();
+            List<TimeAndMaster> newMasterHistory = masterHistory.stream()
+                .filter(timeAndMaster -> timeAndMaster.time >= oldestRelevantHistoryTime)
+                .collect(Collectors.toList());
             newMasterHistory.add(new TimeAndMaster(currentTimeMillisSupplier.getAsLong(), currentMaster));
-            masterHistory = removeOldMasterHistory(newMasterHistory);
+            masterHistory = Collections.unmodifiableList(newMasterHistory);
         }
     }
 
@@ -176,28 +180,6 @@ public class MasterHistory implements ClusterStateListener {
             filteredHistory.add(mostRecent);
         }
         return filteredHistory;
-    }
-
-    /**
-     * Returns a new MasterHistory with nothing from more than MAX_HISTORY_AGE before now (but leaves the newest entry in even if it is
-     * more than MAX_HISTORY_AGE).
-     */
-    private List<TimeAndMaster> removeOldMasterHistory(List<TimeAndMaster> possiblyOldMasterHistory) {
-        if (possiblyOldMasterHistory.size() < 2) {
-            return new ArrayList<>(possiblyOldMasterHistory);
-        }
-        long now = currentTimeMillisSupplier.getAsLong();
-        long oldestRelevantHistoryTime = now - MAX_HISTORY_AGE.getMillis();
-        TimeAndMaster mostRecent = possiblyOldMasterHistory.isEmpty()
-            ? null
-            : possiblyOldMasterHistory.get(possiblyOldMasterHistory.size() - 1);
-        List<TimeAndMaster> newMasterHistory = possiblyOldMasterHistory.stream()
-            .filter(timeAndMaster -> timeAndMaster.time >= oldestRelevantHistoryTime)
-            .collect(Collectors.toList());
-        if (newMasterHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than MAX_HISTORY_AGE ago
-            newMasterHistory.add(mostRecent);
-        }
-        return newMasterHistory;
     }
 
     /**

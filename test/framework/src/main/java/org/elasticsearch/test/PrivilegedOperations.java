@@ -9,6 +9,7 @@
 package org.elasticsearch.test;
 
 import javax.tools.JavaCompiler;
+import java.io.FilePermission;
 import java.io.IOException;
 import java.net.URLClassLoader;
 import java.security.AccessControlContext;
@@ -50,7 +51,8 @@ public final class PrivilegedOperations {
             context,
             new RuntimePermission("createClassLoader"),
             new RuntimePermission("closeClassLoader"),
-            new RuntimePermission("accessSystemModules")
+            new RuntimePermission("accessSystemModules"),
+            new FilePermission("<<ALL FILES>>", "read")
         );
     }
 

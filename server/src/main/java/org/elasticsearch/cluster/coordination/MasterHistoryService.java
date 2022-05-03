@@ -72,7 +72,9 @@ public class MasterHistoryService {
     /**
      * This method attempts to fetch the master history from the requested node. If we are able to successfully fetch it, it will be
      * available in a later call to getRemoteMasterHistory. The client is not notified if or when the remote history is successfully
-     * retrieved. This method only fetches the remote master history once, and it is never updated unless this method is called again.
+     * retrieved. This method only fetches the remote master history once, and it is never updated unless this method is called again. If
+     * two calls are made to this method, the response of one will overwrite the response of the other (with no guarantee of the ordering
+     * of responses).
      * This is a remote call, so clients should avoid calling it any more often than necessary.
      * @param node The node whose view of the master history we want to fetch
      */

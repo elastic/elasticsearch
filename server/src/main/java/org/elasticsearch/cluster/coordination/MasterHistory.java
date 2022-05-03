@@ -31,7 +31,12 @@ import java.util.stream.Collectors;
  */
 public class MasterHistory implements ClusterStateListener {
     private volatile List<TimeAndMaster> masterHistory;
-    private LongSupplier currentTimeMillisSupplier;
+    private final LongSupplier currentTimeMillisSupplier;
+    /**
+     * This is the maximum number of master nodes kept in history. We don't get additional any value in keeping more than this.
+     */
+    public static final int MAX_HISTORY_SIZE = 20;
+
     /**
      * The maximum amount of time that the master history covers.
      */
@@ -50,9 +55,15 @@ public class MasterHistory implements ClusterStateListener {
         if (currentMaster == null || currentMaster.equals(previousMaster) == false || masterHistory.isEmpty()) {
             long now = currentTimeMillisSupplier.getAsLong();
             long oldestRelevantHistoryTime = now - MAX_HISTORY_AGE.getMillis();
-            List<TimeAndMaster> newMasterHistory = masterHistory.stream()
-                .filter(timeAndMaster -> timeAndMaster.time >= oldestRelevantHistoryTime)
-                .collect(Collectors.toList());
+            List<TimeAndMaster> newMasterHistory = new ArrayList<>();
+            int sizeAfterAddingNewMaster = masterHistory.size() + 1;
+            int startIndex = Math.max(0, sizeAfterAddingNewMaster - MAX_HISTORY_SIZE);
+            for (int i = startIndex; i < masterHistory.size(); i++) {
+                TimeAndMaster timeAndMaster = masterHistory.get(i);
+                if (timeAndMaster.time >= oldestRelevantHistoryTime) {
+                    newMasterHistory.add(timeAndMaster);
+                }
+            }
             newMasterHistory.add(new TimeAndMaster(currentTimeMillisSupplier.getAsLong(), currentMaster));
             masterHistory = Collections.unmodifiableList(newMasterHistory);
         }

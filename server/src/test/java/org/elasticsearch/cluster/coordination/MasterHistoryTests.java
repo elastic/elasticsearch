@@ -25,6 +25,7 @@ import java.net.UnknownHostException;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -135,6 +136,18 @@ public class MasterHistoryTests extends ESTestCase {
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getNodes()), equalTo(2)); // Back to node1, but it's
                                                                                                           // a change from node2
+    }
+
+    public void testMaxSize() {
+        var clusterService = mock(ClusterService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
+        for (int i = 0; i < MasterHistory.MAX_HISTORY_SIZE; i++) {
+            masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+            masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        }
+        assertThat(masterHistory.getNodes().size(), lessThanOrEqualTo(MasterHistory.MAX_HISTORY_SIZE));
+
     }
 
     private static String randomNodeId() {

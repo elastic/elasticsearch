@@ -42,7 +42,7 @@ public abstract class Terminal {
 
     @SuppressForbidden(reason = "Writer for System.err")
     private static PrintWriter newErrorWriter() {
-        return new PrintWriter(System.err);
+        return new PrintWriter(System.err, true);
     }
 
     /** Defines the available verbosity levels of messages to be printed. */

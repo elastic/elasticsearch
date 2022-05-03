@@ -275,7 +275,6 @@ class ServerCli extends EnvironmentAwareCommand {
                     } else {
                         logger.error("Got error line: " + line);
                         writer.println(line);
-                        writer.flush();
                     }
                 }
             } catch (IOException e) {

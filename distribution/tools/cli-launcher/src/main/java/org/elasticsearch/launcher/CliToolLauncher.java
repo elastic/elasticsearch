@@ -56,7 +56,10 @@ class CliToolLauncher {
         String libs = pinfo.sysprops().getOrDefault("cli.libs", "");
 
         Command command = CliToolProvider.load(toolname, libs).create();
-        exit(command.main(args, Terminal.DEFAULT, pinfo));
+        Terminal terminal = Terminal.DEFAULT;
+        int exitCode = command.main(args, Terminal.DEFAULT, pinfo);
+        terminal.flush();
+        exit(exitCode);
     }
 
     // package private for tests

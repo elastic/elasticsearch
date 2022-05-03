@@ -112,13 +112,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private void testIndexGeoDoc() throws IOException {
         Request putDoc = new Request("PUT", "/my-index-00001/_doc/my_id?pipeline=geoip");
         putDoc.setJsonEntity("""
-            {"ip": "8.8.8.8"}
+            {"ip": "89.160.20.128"}
             """);
         assertOK(client().performRequest(putDoc));
 
         Request getDoc = new Request("GET", "/my-index-00001/_doc/my_id");
         ObjectPath doc = ObjectPath.createFromResponse(client().performRequest(getDoc));
         assertNull(doc.evaluate("_source.tags"));
-        assertEquals("United States", doc.evaluate("_source.geo.country_name"));
+        assertEquals("Sweden", doc.evaluate("_source.geo.country_name"));
     }
 }

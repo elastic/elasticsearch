@@ -431,6 +431,7 @@ class ClientTransformIndexer extends TransformIndexer {
             OpenPointInTimeAction.INSTANCE,
             pitRequest,
             ActionListener.wrap(response -> {
+                // TODO: check for skipped remote clusters https://github.com/elastic/elasticsearch/issues/84090
                 PointInTimeBuilder newPit = new PointInTimeBuilder(response.getPointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE);
                 namedPits.put(namedSearchRequest.v1(), newPit);
                 searchRequest.source().pointInTimeBuilder(newPit);

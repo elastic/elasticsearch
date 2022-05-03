@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -417,7 +418,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             }
         } else {
             final TransportRequest request = mock(TransportRequest.class);
-            final Authentication authentication = mock(Authentication.class);
+            final Authentication authentication = AuthenticationTestHelper.builder().build();
             GetRolesResponse getRolesResponse = new GetRolesRequestBuilder(client()).names("test_role").get();
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
             assertTrue(

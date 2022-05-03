@@ -21,6 +21,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
@@ -61,9 +62,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
@@ -115,9 +114,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
@@ -175,9 +172,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(new User("the runner"));
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
+        Authentication authentication = AuthenticationTestHelper.builder().user(new User("the runner")).build();
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
@@ -243,9 +238,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(new User("the runner"));
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
+        Authentication authentication = AuthenticationTestHelper.builder().user(new User("the runner")).build();
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
@@ -313,9 +306,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
         NativeUsersStore usersStore = mock(NativeUsersStore.class);

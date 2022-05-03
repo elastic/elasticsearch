@@ -128,14 +128,12 @@ public class RBACEngineTests extends ESTestCase {
             ? new ChangePasswordRequestBuilder(mock(Client.class)).username(user.principal()).request()
             : new AuthenticateRequestBuilder(mock(Client.class)).username(user.principal()).request();
         final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
-        final Authentication authentication = mock(Authentication.class);
-        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
-        when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.REALM);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authenticatedBy.getType()).thenReturn(
-            changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) : randomAlphaOfLengthBetween(4, 12)
+        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
+            randomAlphaOfLengthBetween(3, 8),
+            changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) : randomAlphaOfLengthBetween(4, 12),
+            randomAlphaOfLengthBetween(3, 8)
         );
+        final Authentication authentication = AuthenticationTestHelper.builder().realm().realmRef(authenticatedBy).user(user).build(false);
 
         assertThat(request, instanceOf(UserRequest.class));
         assertTrue(RBACEngine.checkSameUserPermissions(action, request, authentication));
@@ -325,8 +323,7 @@ public class RBACEngineTests extends ESTestCase {
      */
     public void testNamedIndexPrivilegesMatchApplicableActions() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test1")
             .cluster(Collections.singleton("all"), Collections.emptyList())
             .add(IndexPrivilege.WRITE, "academy")
@@ -366,8 +363,7 @@ public class RBACEngineTests extends ESTestCase {
      */
     public void testMatchSubsetOfPrivileges() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test2")
             .cluster(Set.of("monitor"), Set.of())
             .add(IndexPrivilege.INDEX, "academy")
@@ -427,8 +423,7 @@ public class RBACEngineTests extends ESTestCase {
      */
     public void testMatchNothing() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test3").cluster(Set.of("monitor"), Set.of()).build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
@@ -482,8 +477,7 @@ public class RBACEngineTests extends ESTestCase {
             "space:view/*"
         );
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test3")
             .add(IndexPrivilege.ALL, "logstash-*", "foo?")
             .add(IndexPrivilege.READ, "abc*")
@@ -583,8 +577,7 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testCheckingIndexPermissionsDefinedOnDifferentPatterns() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test-write")
             .add(IndexPrivilege.INDEX, "apache-*")
             .add(IndexPrivilege.DELETE, "apache-2016-*")
@@ -619,8 +612,7 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testCheckRestrictedIndexPatternPermission() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         final String patternPrefix = XPackPlugin.ASYNC_RESULTS_INDEX.substring(
             0,
             randomIntBetween(2, XPackPlugin.ASYNC_RESULTS_INDEX.length() - 2)
@@ -812,8 +804,7 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testCheckExplicitRestrictedIndexPermissions() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         final boolean restrictedIndexPermission = randomBoolean();
         final boolean restrictedMonitorPermission = randomBoolean();
         Role role = Role.builder(RESTRICTED_INDICES, "role")
@@ -891,8 +882,7 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testCheckRestrictedIndexWildcardPermissions() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "role")
             .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, false, ".sec*")
             .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, true, ".security*")
@@ -1024,8 +1014,7 @@ public class RBACEngineTests extends ESTestCase {
         final ApplicationPrivilege app2All = defineApplicationPrivilege(privs, "app2", "all", "*");
 
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test-role")
             .addApplicationPrivilege(app1Read, Collections.singleton("foo/*"))
             .addApplicationPrivilege(app1All, Collections.singleton("foo/bar/baz"))
@@ -1156,8 +1145,7 @@ public class RBACEngineTests extends ESTestCase {
         final ApplicationPrivilege priv2 = defineApplicationPrivilege(privs, appName, action2, "DATA:read/*", "ACTION:" + action2);
 
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test-write")
             .addApplicationPrivilege(priv1, Collections.singleton("user/*/name"))
             .build();
@@ -1202,8 +1190,7 @@ public class RBACEngineTests extends ESTestCase {
         final ApplicationPrivilege kibanaRead = defineApplicationPrivilege(privs, "kibana", "read", "data:read/*");
         final ApplicationPrivilege kibanaWrite = defineApplicationPrivilege(privs, "kibana", "write", "data:write/*");
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test-write")
             .cluster(Set.of("monitor"), Set.of())
             .add(IndexPrivilege.READ, "read-*")
@@ -1327,8 +1314,7 @@ public class RBACEngineTests extends ESTestCase {
     public void testBackingIndicesAreIncludedForAuthorizedDataStreams() {
         final String dataStreamName = "my_data_stream";
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test1")
             .cluster(Collections.singleton("all"), Collections.emptyList())
             .add(IndexPrivilege.READ, dataStreamName)
@@ -1368,8 +1354,7 @@ public class RBACEngineTests extends ESTestCase {
     public void testExplicitMappingUpdatesAreNotGrantedWithIngestPrivileges() {
         final String dataStreamName = "my_data_stream";
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         Role role = Role.builder(RESTRICTED_INDICES, "test1")
             .cluster(Collections.emptySet(), Collections.emptyList())
             .add(IndexPrivilege.CREATE, "my_*")

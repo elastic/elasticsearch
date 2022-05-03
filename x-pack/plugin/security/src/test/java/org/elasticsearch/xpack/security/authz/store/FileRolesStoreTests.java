@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
@@ -437,7 +438,7 @@ public class FileRolesStoreTests extends ESTestCase {
             assertEquals(1, modifiedRoles.size());
             assertTrue(modifiedRoles.contains("role5"));
             final TransportRequest request = mock(TransportRequest.class);
-            final Authentication authentication = mock(Authentication.class);
+            final Authentication authentication = AuthenticationTestHelper.builder().build();
             descriptors = store.roleDescriptors(Collections.singleton("role5"));
             assertThat(descriptors, notNullValue());
             assertEquals(1, descriptors.size());

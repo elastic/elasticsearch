@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test;
 
+import javax.tools.JavaCompiler;
 import java.io.IOException;
 import java.net.URLClassLoader;
 import java.security.AccessControlContext;
@@ -39,6 +40,14 @@ public final class PrivilegedOperations {
         }
     }
 
+    public static Boolean compilationTaskCall(JavaCompiler.CompilationTask compilationTask) {
+        return AccessController.doPrivileged(
+            (PrivilegedAction<Boolean>) () -> compilationTask.call(),
+            context,
+            new RuntimePermission("createClassLoader")
+        );
+    }
+
     // -- security manager related stuff, to facilitate asserting permissions for test operations.
 
     @SuppressWarnings("removal")
@@ -55,7 +64,7 @@ public final class PrivilegedOperations {
     private static final AccessControlContext context = getContext();
 
     @SuppressWarnings("removal")
-    public static <T> T privilegedCall(Supplier<T> supplier) {
+    private static <T> T privilegedCall(Supplier<T> supplier) {
         return AccessController.doPrivileged((PrivilegedAction<T>) supplier::get, context);
     }
 }

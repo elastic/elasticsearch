@@ -372,7 +372,9 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
             assertThat(urls2.get(0), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/" + expectedURLSuffix));
 
             // getResourceAsStream
-            assertThat(new String(embedLoader.getResourceAsStream("p/res.txt").readAllBytes(), UTF_8), is("Hello World" + expectedVersion));
+            try (var is = embedLoader.getResourceAsStream("p/res.txt")) {
+                assertThat(new String(is.readAllBytes(), UTF_8), is("Hello World" + expectedVersion));
+            }
         } finally {
             for (URLClassLoader closeable : closeables) {
                 PrivilegedOperations.closeURLClassLoader(closeable);

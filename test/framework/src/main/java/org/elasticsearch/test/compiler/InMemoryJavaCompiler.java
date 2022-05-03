@@ -131,7 +131,7 @@ public class InMemoryJavaCompiler {
         var files = sources.entrySet().stream().map(e -> new InMemoryJavaFileObject(e.getKey(), e.getValue())).toList();
         CompilationTask task = getCompilationTask(files, options);
 
-        boolean result = PrivilegedOperations.privilegedCall(task::call);
+        boolean result = PrivilegedOperations.compilationTaskCall(task);
         if (result == false) {
             throw new RuntimeException("Could not compile " + sources.entrySet().stream().toList());
         }
@@ -152,7 +152,7 @@ public class InMemoryJavaCompiler {
         InMemoryJavaFileObject file = new InMemoryJavaFileObject(className, sourceCode);
         CompilationTask task = getCompilationTask(file, options);
 
-        boolean result = PrivilegedOperations.privilegedCall(task::call);
+        boolean result = PrivilegedOperations.compilationTaskCall(task);
         if (result == false) {
             throw new RuntimeException("Could not compile " + className + " with source code " + sourceCode);
         }

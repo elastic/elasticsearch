@@ -94,9 +94,10 @@ class ServerCli extends EnvironmentAwareCommand {
         final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
         env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
 
-        // start Elasticsearch
-        final Process process = createProcess(processInfo, env.configFile(), env.pluginsFile());
-        this.process = process; // stash process so close can kill it (eg when SIGINT or SIGTERM is sent)
+        // start Elasticsearch, stashing the process into a volatile so the close via the shutdown handler will kill the process
+        this.process = createProcess(processInfo, env.configFile(), env.pluginsFile());
+        final Process process = this.process; // avoid volatile read locally, we only set it once above
+        logger.info("ES PID: " + process.pid());
         final ErrorPumpThread errorPump = new ErrorPumpThread(terminal, process.getErrorStream());
         errorPump.start();
         sendArgs(options, keystorePassword, env, process.getOutputStream());
@@ -110,6 +111,7 @@ class ServerCli extends EnvironmentAwareCommand {
 
         // if we are daemonized and we got the all-clear signal, we can exit cleanly
         if (errorPump.ready && options.has(daemonizeOption)) {
+            this.process = null; // clear the process handle, we don't want to shut it down now that we are started
             closeStreams(process);
             return;
         }

@@ -14,12 +14,10 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -27,6 +25,8 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.search.QueryUtils;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.test.ESTestCase;
@@ -38,16 +38,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class SearchAfterSortedDocQueryTests extends ESTestCase {
 
     public void testBasics() {
-        Sort sort1 = new Sort(
-            new SortedNumericSortField("field1", SortField.Type.INT),
-            new SortedSetSortField("field2", false)
-        );
-        Sort sort2 = new Sort(
-            new SortedNumericSortField("field1", SortField.Type.INT),
-            new SortedSetSortField("field3", false)
-        );
-        FieldDoc fieldDoc1 = new FieldDoc(0, 0f, new Object[]{5, new BytesRef("foo")});
-        FieldDoc fieldDoc2 = new FieldDoc(0, 0f, new Object[]{5, new BytesRef("foo")});
+        Sort sort1 = new Sort(new SortedNumericSortField("field1", SortField.Type.INT), new SortedSetSortField("field2", false));
+        Sort sort2 = new Sort(new SortedNumericSortField("field1", SortField.Type.INT), new SortedSetSortField("field3", false));
+        FieldDoc fieldDoc1 = new FieldDoc(0, 0f, new Object[] { 5, new BytesRef("foo") });
+        FieldDoc fieldDoc2 = new FieldDoc(0, 0f, new Object[] { 5, new BytesRef("foo") });
 
         SearchAfterSortedDocQuery query1 = new SearchAfterSortedDocQuery(sort1, fieldDoc1);
         SearchAfterSortedDocQuery query2 = new SearchAfterSortedDocQuery(sort1, fieldDoc2);
@@ -59,9 +53,8 @@ public class SearchAfterSortedDocQueryTests extends ESTestCase {
 
     public void testInvalidSort() {
         Sort sort = new Sort(new SortedNumericSortField("field1", SortField.Type.INT));
-        FieldDoc fieldDoc = new FieldDoc(0, 0f, new Object[] {4, 5});
-        IllegalArgumentException ex =
-            expectThrows(IllegalArgumentException.class, () -> new SearchAfterSortedDocQuery(sort, fieldDoc));
+        FieldDoc fieldDoc = new FieldDoc(0, 0f, new Object[] { 4, 5 });
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new SearchAfterSortedDocQuery(sort, fieldDoc));
         assertThat(ex.getMessage(), equalTo("after doc  has 2 value(s) but sort has 1."));
     }
 

@@ -17,7 +17,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Map;
@@ -72,10 +72,14 @@ public class VersionHttpResource extends HttpResource {
 
             @Override
             public void onFailure(final Exception exception) {
-                logger.error((Supplier<?>) () ->
-                             new ParameterizedMessage("failed to verify minimum version [{}] on the [{}] monitoring cluster",
-                                                      minimumVersion, resourceOwnerName),
-                             exception);
+                logger.error(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "failed to verify minimum version [{}] on the [{}] monitoring cluster",
+                        minimumVersion,
+                        resourceOwnerName
+                    ),
+                    exception
+                );
 
                 listener.onFailure(exception);
             }
@@ -97,19 +101,16 @@ public class VersionHttpResource extends HttpResource {
         // the response should be filtered to just '{"version":{"number":"xyz"}}', so this is cheap and guaranteed
         @SuppressWarnings("unchecked")
         final String versionNumber = (String) ((Map<String, Object>) map.get("version")).get("number");
-        final Version version = Version.fromString(
-            versionNumber
-                .replace("-SNAPSHOT", "")
-                .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
-        );
+        final Version version = Version.fromString(versionNumber.replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", ""));
 
         if (version.onOrAfter(minimumVersion)) {
             logger.debug("version [{}] >= [{}] and supported for [{}]", version, minimumVersion, resourceOwnerName);
             return ResourcePublishResult.ready();
         } else {
             logger.error("version [{}] < [{}] and NOT supported for [{}]", version, minimumVersion, resourceOwnerName);
-            return ResourcePublishResult.notReady("version [" + version + "] < [" + minimumVersion + "] and NOT supported for ["
-                + resourceOwnerName + "]");
+            return ResourcePublishResult.notReady(
+                "version [" + version + "] < [" + minimumVersion + "] and NOT supported for [" + resourceOwnerName + "]"
+            );
         }
     }
 

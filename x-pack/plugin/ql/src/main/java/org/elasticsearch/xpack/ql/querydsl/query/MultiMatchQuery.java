@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -28,21 +28,22 @@ public class MultiMatchQuery extends LeafQuery {
     static {
         // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
         BUILDER_APPLIERS = Map.ofEntries(
-                entry("slop", (qb, s) -> qb.slop(Integer.valueOf(s))),
-                // TODO: add zero terms query support, I'm not sure the best way to parse it yet...
-                // appliers.put("zero_terms_query", (qb, s) -> qb.zeroTermsQuery(s));
-                entry("analyzer", MultiMatchQueryBuilder::analyzer),
-                entry("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s))),
-                entry("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
-                entry("fuzzy_rewrite", MultiMatchQueryBuilder::fuzzyRewrite),
-                entry("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s))),
-                entry("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s))),
-                entry("max_expansions", (qb, s) -> qb.maxExpansions(Integer.valueOf(s))),
-                entry("minimum_should_match", MultiMatchQueryBuilder::minimumShouldMatch),
-                entry("operator", (qb, s) -> qb.operator(Operator.fromString(s))),
-                entry("prefix_length", (qb, s) -> qb.prefixLength(Integer.valueOf(s))),
-                entry("tie_breaker", (qb, s) -> qb.tieBreaker(Float.valueOf(s))),
-                entry("type", MultiMatchQueryBuilder::type));
+            entry("slop", (qb, s) -> qb.slop(Integer.valueOf(s))),
+            // TODO: add zero terms query support, I'm not sure the best way to parse it yet...
+            // appliers.put("zero_terms_query", (qb, s) -> qb.zeroTermsQuery(s));
+            entry("analyzer", MultiMatchQueryBuilder::analyzer),
+            entry("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s))),
+            entry("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
+            entry("fuzzy_rewrite", MultiMatchQueryBuilder::fuzzyRewrite),
+            entry("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s))),
+            entry("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s))),
+            entry("max_expansions", (qb, s) -> qb.maxExpansions(Integer.valueOf(s))),
+            entry("minimum_should_match", MultiMatchQueryBuilder::minimumShouldMatch),
+            entry("operator", (qb, s) -> qb.operator(Operator.fromString(s))),
+            entry("prefix_length", (qb, s) -> qb.prefixLength(Integer.valueOf(s))),
+            entry("tie_breaker", (qb, s) -> qb.tieBreaker(Float.valueOf(s))),
+            entry("type", MultiMatchQueryBuilder::type)
+        );
     }
 
     private final String query;
@@ -89,9 +90,7 @@ public class MultiMatchQuery extends LeafQuery {
         }
 
         MultiMatchQuery other = (MultiMatchQuery) obj;
-        return Objects.equals(query, other.query)
-                && Objects.equals(fields, other.fields)
-                && Objects.equals(predicate, other.predicate);
+        return Objects.equals(query, other.query) && Objects.equals(fields, other.fields) && Objects.equals(predicate, other.predicate);
     }
 
     @Override

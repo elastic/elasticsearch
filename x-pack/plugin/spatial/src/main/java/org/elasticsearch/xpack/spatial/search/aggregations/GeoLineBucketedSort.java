@@ -10,19 +10,19 @@ package org.elasticsearch.xpack.spatial.search.aggregations;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.common.search.aggregations.MissingHelper;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
 
 import java.io.IOException;
 
@@ -38,8 +38,14 @@ import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggrega
 public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
     private final GeoLineMultiValuesSource valuesSources;
 
-    public GeoLineBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format, int bucketSize,
-                               GeoLineMultiValuesSource valuesSources, GeoLineBucketedSort.Extra extra) {
+    public GeoLineBucketedSort(
+        BigArrays bigArrays,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        GeoLineMultiValuesSource valuesSources,
+        GeoLineBucketedSort.Extra extra
+    ) {
         super(bigArrays, sortOrder, format, bucketSize, extra);
         this.valuesSources = valuesSources;
     }
@@ -72,7 +78,7 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
         long rootIndex = bucket * bucketSize;
         if (rootIndex >= values().size()) {
             // We've never seen this bucket.
-            return new double[]{};
+            return new double[] {};
         }
         long start = inHeapMode(bucket) ? rootIndex : (rootIndex + getNextGatherOffset(rootIndex) + 1);
         long end = rootIndex + bucketSize;
@@ -80,7 +86,7 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
         int i = 0;
         for (long index = start; index < end; index++) {
             if (((Extra) extra).empty.isEmpty(index) == false) {
-                double timestampValue = ((DoubleArray)values()).get(index);
+                double timestampValue = ((DoubleArray) values()).get(index);
                 result[i++] = timestampValue;
             }
         }
@@ -96,7 +102,7 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
         long rootIndex = bucket * bucketSize;
         if (rootIndex >= values().size()) {
             // We've never seen this bucket.
-            return new long[]{};
+            return new long[] {};
         }
         long start = inHeapMode(bucket) ? rootIndex : (rootIndex + getNextGatherOffset(rootIndex) + 1);
         long end = rootIndex + bucketSize;
@@ -121,8 +127,10 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
             protected boolean advanceExact(int doc) throws IOException {
                 if (docSortValues.advanceExact(doc)) {
                     if (docSortValues.docValueCount() > 1) {
-                        throw new AggregationExecutionException("Encountered more than one sort value for a " +
-                            "single document. Use a script to combine multiple sort-values-per-doc into a single value.");
+                        throw new AggregationExecutionException(
+                            "Encountered more than one sort value for a "
+                                + "single document. Use a script to combine multiple sort-values-per-doc into a single value."
+                        );
                     }
 
                     // There should always be one weight if advanceExact lands us here, either
@@ -171,8 +179,10 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
 
         @Override
         public Loader loader(LeafReaderContext ctx) throws IOException {
-            final MultiGeoPointValues docGeoPointValues = valuesSources
-                .getGeoPointField(GeoLineAggregationBuilder.POINT_FIELD.getPreferredName(), ctx);
+            final MultiGeoPointValues docGeoPointValues = valuesSources.getGeoPointField(
+                GeoLineAggregationBuilder.POINT_FIELD.getPreferredName(),
+                ctx
+            );
             return (index, doc) -> {
                 if (false == docGeoPointValues.advanceExact(doc)) {
                     empty.markMissing(index);
@@ -180,8 +190,10 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
                 }
 
                 if (docGeoPointValues.docValueCount() > 1) {
-                    throw new AggregationExecutionException("Encountered more than one geo_point value for a " +
-                        "single document. Use a script to combine multiple geo_point-values-per-doc into a single value.");
+                    throw new AggregationExecutionException(
+                        "Encountered more than one geo_point value for a "
+                            + "single document. Use a script to combine multiple geo_point-values-per-doc into a single value."
+                    );
                 }
 
                 if (index >= values.size()) {

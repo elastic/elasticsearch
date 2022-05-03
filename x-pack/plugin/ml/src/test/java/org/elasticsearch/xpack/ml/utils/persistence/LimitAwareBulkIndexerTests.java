@@ -67,8 +67,7 @@ public class LimitAwareBulkIndexerTests extends ESTestCase {
     }
 
     public void testNoRequests() {
-        try (LimitAwareBulkIndexer bulkIndexer = createIndexer(10000)) {
-        }
+        try (LimitAwareBulkIndexer bulkIndexer = createIndexer(10000)) {}
 
         assertThat(executedBulkRequests, is(empty()));
     }
@@ -83,4 +82,3 @@ public class LimitAwareBulkIndexerTests extends ESTestCase {
         return indexRequest;
     }
 }
-

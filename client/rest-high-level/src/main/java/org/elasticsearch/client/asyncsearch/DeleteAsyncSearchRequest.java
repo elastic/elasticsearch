@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.client.asyncsearch;
 
 import org.elasticsearch.client.Validatable;
@@ -19,7 +18,7 @@ public class DeleteAsyncSearchRequest implements Validatable {
 
     public DeleteAsyncSearchRequest(String id) {
         this.id = id;
-}
+    }
 
     public String getId() {
         return this.id;

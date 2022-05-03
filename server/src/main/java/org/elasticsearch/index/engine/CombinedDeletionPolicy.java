@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
@@ -20,6 +19,7 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,19 +37,23 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LongSupplier globalCheckpointSupplier;
-    private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
+    private final Map<IndexCommit, Integer> snapshottedCommits; // Number of snapshots held against each commit point.
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private volatile long maxSeqNoOfNextSafeCommit;
     private volatile IndexCommit lastCommit; // the most recent commit point
     private volatile SafeCommitInfo safeCommitInfo = SafeCommitInfo.EMPTY;
 
-    CombinedDeletionPolicy(Logger logger, TranslogDeletionPolicy translogDeletionPolicy,
-                           SoftDeletesPolicy softDeletesPolicy, LongSupplier globalCheckpointSupplier) {
+    CombinedDeletionPolicy(
+        Logger logger,
+        TranslogDeletionPolicy translogDeletionPolicy,
+        SoftDeletesPolicy softDeletesPolicy,
+        LongSupplier globalCheckpointSupplier
+    ) {
         this.logger = logger;
         this.translogDeletionPolicy = translogDeletionPolicy;
         this.softDeletesPolicy = softDeletesPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
-        this.snapshottedCommits = new ObjectIntHashMap<>();
+        this.snapshottedCommits = new HashMap<>();
     }
 
     @Override
@@ -57,10 +61,16 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert commits.isEmpty() == false : "index is opened, but we have no commits";
         onCommit(commits);
         if (safeCommit != commits.get(commits.size() - 1)) {
-            throw new IllegalStateException("Engine is opened, but the last commit isn't safe. Global checkpoint ["
-                + globalCheckpointSupplier.getAsLong() + "], seqNo is last commit ["
-                + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(lastCommit.getUserData().entrySet()) + "], "
-                + "seqNos in safe commit [" + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet()) + "]");
+            throw new IllegalStateException(
+                "Engine is opened, but the last commit isn't safe. Global checkpoint ["
+                    + globalCheckpointSupplier.getAsLong()
+                    + "], seqNo is last commit ["
+                    + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(lastCommit.getUserData().entrySet())
+                    + "], "
+                    + "seqNos in safe commit ["
+                    + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet())
+                    + "]"
+            );
         }
     }
 
@@ -87,8 +97,10 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         }
 
         assert Thread.holdsLock(this) == false : "should not block concurrent acquire or relesase";
-        safeCommitInfo = new SafeCommitInfo(Long.parseLong(
-            safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), getDocCountOfCommit(safeCommit));
+        safeCommitInfo = new SafeCommitInfo(
+            Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
+            getDocCountOfCommit(safeCommit)
+        );
 
         // This is protected from concurrent calls by a lock on the IndexWriter, but this assertion makes sure that we notice if that ceases
         // to be true in future. It is not disastrous if safeCommitInfo refers to an older safeCommit, it just means that we might retain a
@@ -133,7 +145,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert safeCommit != null : "Safe commit is not initialized yet";
         assert lastCommit != null : "Last commit is not initialized yet";
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
-        snapshottedCommits.addTo(snapshotting, 1); // increase refCount
+        snapshottedCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
         return new SnapshotIndexCommit(snapshotting);
     }
 
@@ -144,15 +156,24 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      */
     synchronized boolean releaseCommit(final IndexCommit snapshotCommit) {
         final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).getIndexCommit();
-        assert snapshottedCommits.containsKey(releasingCommit) : "Release non-snapshotted commit;" +
-            "snapshotted commits [" + snapshottedCommits + "], releasing commit [" + releasingCommit + "]";
-        final int refCount = snapshottedCommits.addTo(releasingCommit, -1); // release refCount
-        assert refCount >= 0 : "Number of snapshots can not be negative [" + refCount + "]";
-        if (refCount == 0) {
-            snapshottedCommits.remove(releasingCommit);
-        }
+        assert snapshottedCommits.containsKey(releasingCommit)
+            : "Release non-snapshotted commit;"
+                + "snapshotted commits ["
+                + snapshottedCommits
+                + "], releasing commit ["
+                + releasingCommit
+                + "]";
+        // release refCount
+        final Integer refCount = snapshottedCommits.compute(releasingCommit, (key, count) -> {
+            if (count == 1) {
+                return null;
+            }
+            return count - 1;
+        });
+
+        assert refCount == null || refCount > 0 : "Number of snapshots can not be negative [" + refCount + "]";
         // The commit can be clean up only if no pending snapshot and it is neither the safe commit nor last commit.
-        return refCount == 0 && releasingCommit.equals(safeCommit) == false && releasingCommit.equals(lastCommit) == false;
+        return refCount == null && releasingCommit.equals(safeCommit) == false && releasingCommit.equals(lastCommit) == false;
     }
 
     /**

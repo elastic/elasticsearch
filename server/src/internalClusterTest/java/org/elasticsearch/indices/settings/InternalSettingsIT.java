@@ -40,12 +40,14 @@ public class InternalSettingsIT extends ESIntegTestCase {
         final GetSettingsResponse response = client().admin().indices().prepareGetSettings("test").get();
         assertThat(response.getSetting("test", "index.internal"), equalTo("internal"));
         // we can not update the setting via the update settings API
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> client().admin()
-                        .indices()
-                        .prepareUpdateSettings("test")
-                        .setSettings(Settings.builder().put("index.internal", "internal-update"))
-                        .get());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.internal", "internal-update"))
+                .get()
+        );
         final String message = "can not update internal setting [index.internal]; this setting is managed via a dedicated API";
         assertThat(e, hasToString(containsString(message)));
         final GetSettingsResponse responseAfterAttemptedUpdate = client().admin().indices().prepareGetSettings("test").get();
@@ -58,9 +60,9 @@ public class InternalSettingsIT extends ESIntegTestCase {
         final GetSettingsResponse response = client().admin().indices().prepareGetSettings("test").get();
         assertThat(response.getSetting("test", "index.internal"), equalTo("internal"));
         client().execute(
-                InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
-                new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request("test", "index.internal", "internal-update"))
-                .actionGet();
+            InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
+            new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request("test", "index.internal", "internal-update")
+        ).actionGet();
         final GetSettingsResponse responseAfterUpdate = client().admin().indices().prepareGetSettings("test").get();
         assertThat(responseAfterUpdate.getSetting("test", "index.internal"), equalTo("internal-update"));
     }

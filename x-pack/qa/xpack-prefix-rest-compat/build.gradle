@@ -1,0 +1,182 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask
+import org.elasticsearch.gradle.util.GradleUtils
+
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+/**
+ * This project exists to test the _xpack prefix for REST compatibility. The _xpack prefix was removed from the specification, but still supported
+ * in 7x. This project re-introduces the _xpack prefix in the specification but only for compatibility testing purposes.
+ */
+
+configurations {
+  compatXpackTests
+}
+
+int compatVersion = VersionProperties.getElasticsearchVersion().getMajor() - 1;
+
+dependencies {
+  "yamlRestTestV${compatVersion}CompatImplementation" project(':test:framework')
+  "yamlRestTestV${compatVersion}CompatImplementation"(testArtifact(xpackProject('plugin')))
+  compatXpackTests project(path: ':x-pack:plugin', configuration: 'restCompatTests')
+}
+
+// copy the already transformed compatible rest tests from the x-pack compatible tests
+tasks.named("copyRestCompatTestTask").configure { task ->
+    task.dependsOn(configurations.compatXpackTests);
+    task.setXpackConfig(configurations.compatXpackTests);
+    task.getIncludeXpack().set(List.of("license", "migration", "ml", "rollup", "sql", "ssl"));
+    task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir("restResources/v${compatVersion}/yamlTests/original"));
+    task.setXpackConfigToFileTree(
+      config -> project.fileTree(
+        config.getSingleFile().toPath()
+      )
+    )
+  }
+
+// location for keys and certificates
+File extraResourceDir = file("$buildDir/extra_resource")
+File nodeKey = file("$extraResourceDir/testnode.pem")
+File nodeCert = file("$extraResourceDir/testnode.crt")
+// location for service tokens
+File serviceTokens = file("$extraResourceDir/service_tokens")
+
+// Add key and certs to test classpath: it expects them there
+// User cert and key PEM files instead of a JKS Keystore for the cluster's trust material so that
+// it can run in a FIPS 140 JVM
+// TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
+// https://github.com/elastic/elasticsearch/pull/32201
+tasks.register("copyExtraResources", Copy) {
+  from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
+    include 'testnode.crt', 'testnode.pem'
+  }
+  from(project(':x-pack:plugin:security:qa:service-account').file('src/javaRestTest/resources/')) {
+    include 'service_tokens'
+  }
+  into extraResourceDir
+}
+// Add keystores to test classpath: it expects it there
+sourceSets."yamlRestTestV${compatVersion}Compat".resources.srcDir(extraResourceDir)
+tasks.named("processYamlRestTestV${compatVersion}CompatResources").configure {
+  dependsOn("copyExtraResources")
+}
+
+testClusters.configureEach {
+  testDistribution = 'DEFAULT' // this is important since we use the reindex module in ML
+  setting 'xpack.ml.enabled', 'true'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
+  setting 'xpack.security.transport.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.key', nodeKey.name
+  setting 'xpack.security.transport.ssl.certificate', nodeCert.name
+  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+  setting 'xpack.security.audit.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  // disable ILM history, since it disturbs tests using _all
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  keystore 'bootstrap.password', 'x-pack-test-password'
+  keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+  setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
+
+  user username: "x_pack_rest_user", password: "x-pack-test-password"
+  extraConfigFile nodeKey.name, nodeKey
+  extraConfigFile nodeCert.name, nodeCert
+  extraConfigFile serviceTokens.name, serviceTokens
+
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+}
+
+// transform (again) the (already) transformed x-pack compatibility tests to test the xpack prefixes
+tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
+
+  task.replaceKeyInDo("license.delete", "xpack-license.delete")
+  task.replaceKeyInDo("license.get", "xpack-license.get")
+  task.replaceKeyInDo("license.get_basic_status", "xpack-license.get_basic_status")
+  task.replaceKeyInDo("license.get_trial_status", "xpack-license.get_trial_status")
+  task.replaceKeyInDo("license.post", "xpack-license.post")
+  task.replaceKeyInDo("license.post_start_basic", "xpack-license.post_start_basic")
+  task.replaceKeyInDo("license.post_start_trial", "xpack-license.post_start_trial")
+  task.addAllowedWarningRegex(".*_xpack/license.* is deprecated.*")
+
+  task.replaceKeyInDo("migration.deprecations", "xpack-migration.deprecations")
+  task.addAllowedWarningRegex(".*_xpack/migration.* is deprecated.*")
+
+  task.replaceKeyInDo("ml.close_job", "xpack-ml.close_job")
+  task.replaceKeyInDo("ml.delete_calendar", "xpack-ml.delete_calendar")
+  task.replaceKeyInDo("ml.delete_calendar_event", "xpack-ml.delete_calendar_event")
+  task.replaceKeyInDo("ml.delete_calendar_job", "xpack-ml.delete_calendar_job")
+  task.replaceKeyInDo("ml.delete_datafeed", "xpack-ml.delete_datafeed")
+  task.replaceKeyInDo("ml.delete_expired_data", "xpack-ml.delete_expired_data")
+  task.replaceKeyInDo("ml.delete_filter", "xpack-ml.delete_filter")
+  task.replaceKeyInDo("ml.delete_forecast", "xpack-ml.delete_forecast")
+  task.replaceKeyInDo("ml.delete_job", "xpack-ml.delete_job")
+  task.replaceKeyInDo("ml.delete_model_snapshot", "xpack-ml.delete_model_snapshot")
+  task.replaceKeyInDo("ml.flush_job", "xpack-ml.flush_job")
+  task.replaceKeyInDo("ml.forecast", "xpack-ml.forecast")
+  task.replaceKeyInDo("ml.get_buckets", "xpack-ml.get_buckets")
+  task.replaceKeyInDo("ml.get_calendar_events", "xpack-ml.get_calendar_events")
+  task.replaceKeyInDo("ml.get_calendars", "xpack-ml.get_calendars")
+  task.replaceKeyInDo("ml.get_categories", "xpack-ml.get_categories")
+  task.replaceKeyInDo("ml.get_datafeed_stats", "xpack-ml.get_datafeed_stats")
+  task.replaceKeyInDo("ml.get_datafeeds", "xpack-ml.get_datafeeds")
+  task.replaceKeyInDo("ml.get_filters", "xpack-ml.get_filters")
+  task.replaceKeyInDo("ml.get_influencers", "xpack-ml.get_influencers")
+  task.replaceKeyInDo("ml.get_job_stats", "xpack-ml.get_job_stats")
+  task.replaceKeyInDo("ml.get_jobs", "xpack-ml.get_jobs")
+  task.replaceKeyInDo("ml.get_model_snapshots", "xpack-ml.get_model_snapshots")
+  task.replaceKeyInDo("ml.get_overall_buckets", "xpack-ml.get_overall_buckets")
+  task.replaceKeyInDo("ml.get_records", "xpack-ml.get_records")
+  task.replaceKeyInDo("ml.info", "xpack-ml.info")
+  task.replaceKeyInDo("ml.open_job", "xpack-ml.open_job")
+  task.replaceKeyInDo("ml.post_calendar_events", "xpack-ml.post_calendar_events")
+  task.replaceKeyInDo("ml.post_data", "xpack-ml.post_data")
+  task.replaceKeyInDo("ml.preview_datafeed", "xpack-ml.preview_datafeed")
+  task.replaceKeyInDo("ml.put_calendar", "xpack-ml.put_calendar")
+  task.replaceKeyInDo("ml.put_calendar_job", "xpack-ml.put_calendar_job")
+  task.replaceKeyInDo("ml.put_datafeed", "xpack-ml.put_datafeed")
+  task.replaceKeyInDo("ml.put_filter", "xpack-ml.put_filter")
+  task.replaceKeyInDo("ml.put_job", "xpack-ml.put_job")
+  task.replaceKeyInDo("ml.revert_model_snapshot", "xpack-ml.revert_model_snapshot")
+  task.replaceKeyInDo("ml.set_upgrade_mode", "xpack-ml.set_upgrade_mode")
+  task.replaceKeyInDo("ml.start_datafeed", "xpack-ml.start_datafeed")
+  task.replaceKeyInDo("ml.stop_datafeed", "xpack-ml.stop_datafeed")
+  task.replaceKeyInDo("ml.update_datafeed", "xpack-ml.update_datafeed")
+  task.replaceKeyInDo("ml.update_filter", "xpack-ml.update_filter")
+  task.replaceKeyInDo("ml.update_job", "xpack-ml.update_job")
+  task.replaceKeyInDo("ml.update_model_snapshot", "xpack-ml.update_model_snapshot")
+  task.replaceKeyInDo("ml.validate", "xpack-ml.validate")
+  task.replaceKeyInDo("ml.validate_detector", "xpack-ml.validate_detector")
+  task.addAllowedWarningRegex(".*_xpack/ml.* is deprecated.*")
+  task.addAllowedWarningRegex("bucket_span .* is not an integral .* of the number of sconds in 1d.* This is now deprecated.*")
+
+  task.replaceKeyInDo("rollup.delete_job", "xpack-rollup.delete_job")
+  task.replaceKeyInDo("rollup.get_jobs", "xpack-rollup.get_jobs")
+  task.replaceKeyInDo("rollup.get_rollup_caps", "xpack-rollup.get_rollup_caps")
+  task.replaceKeyInDo("rollup.get_rollup_index_caps", "xpack-rollup.get_rollup_index_caps")
+  task.replaceKeyInDo("rollup.put_job", "xpack-rollup.put_job")
+  task.replaceKeyInDo("rollup.start_job", "xpack-rollup.start_job")
+  task.replaceKeyInDo("rollup.stop_job", "xpack-rollup.stop_job")
+  task.addAllowedWarningRegex(".*_xpack/rollup.* is deprecated.*")
+
+  task.replaceKeyInDo("sql.clear_cursor", "xpack-sql.clear_cursor")
+  task.replaceKeyInDo("sql.query", "xpack-sql.query")
+  task.replaceKeyInDo("sql.translate", "xpack-sql.translate")
+  task.addAllowedWarningRegex(".*_xpack/sql.* is deprecated.*")
+
+  task.replaceKeyInDo("ssl.certificates", "xpack-ssl.certificates", "Test get SSL certificates")
+  task.addAllowedWarningRegexForTest(".*_xpack/ssl.* is deprecated.*", "Test get SSL certificates")
+}

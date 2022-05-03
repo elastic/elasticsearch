@@ -81,7 +81,6 @@ public class DeDuplicatingTokenFilter extends FilteringTokenFilter {
             this.windowSize = DuplicateByteSequenceSpotter.TREE_DEPTH;
         }
 
-
         @Override
         public final boolean incrementToken() throws IOException {
             if (allTokens == null) {

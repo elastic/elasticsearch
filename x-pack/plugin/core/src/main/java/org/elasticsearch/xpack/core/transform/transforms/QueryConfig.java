@@ -10,22 +10,22 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.elasticsearch.xpack.core.deprecation.LoggingDeprecationAccumulationHandler;
@@ -40,7 +40,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writeable, ToXContentObject {
+public class QueryConfig implements SimpleDiffable<QueryConfig>, Writeable, ToXContentObject {
     private static final Logger logger = LogManager.getLogger(QueryConfig.class);
 
     // we store the query in 2 formats: the raw format and the parsed format, because:
@@ -50,8 +50,7 @@ public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writea
     private final QueryBuilder query;
 
     public static QueryConfig matchAll() {
-        return new QueryConfig(Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap()),
-            new MatchAllQueryBuilder());
+        return new QueryConfig(Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap()), new MatchAllQueryBuilder());
     }
 
     public QueryConfig(final Map<String, Object> source, final QueryBuilder query) {
@@ -72,7 +71,7 @@ public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writea
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(source);
+        out.writeGenericMap(source);
         out.writeOptionalNamedWriteable(query);
     }
 

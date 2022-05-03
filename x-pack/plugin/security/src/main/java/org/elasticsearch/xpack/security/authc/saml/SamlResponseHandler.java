@@ -27,10 +27,16 @@ public class SamlResponseHandler extends SamlObjectHandler {
 
     protected void checkInResponseTo(StatusResponseType response, Collection<String> allowedSamlRequestIds) {
         if (Strings.hasText(response.getInResponseTo()) && allowedSamlRequestIds.contains(response.getInResponseTo()) == false) {
-            logger.debug("The SAML Response with ID [{}] is unsolicited. A user might have used a stale URL or the Identity Provider " +
-                "incorrectly populates the InResponseTo attribute", response.getID());
-            throw samlException("SAML content is in-response-to [{}] but expected one of {} ",
-                response.getInResponseTo(), allowedSamlRequestIds);
+            logger.debug(
+                "The SAML Response with ID [{}] is unsolicited. A user might have used a stale URL or the Identity Provider "
+                    + "incorrectly populates the InResponseTo attribute",
+                response.getID()
+            );
+            throw samlException(
+                "SAML content is in-response-to [{}] but expected one of {} ",
+                response.getInResponseTo(),
+                allowedSamlRequestIds
+            );
         }
     }
 
@@ -63,8 +69,14 @@ public class SamlResponseHandler extends SamlObjectHandler {
     protected void checkResponseDestination(StatusResponseType response, String spConfiguredUrl) {
         if (spConfiguredUrl.equals(response.getDestination()) == false) {
             if (response.isSigned() || Strings.hasText(response.getDestination())) {
-                throw samlException("SAML response " + response.getID() + " is for destination " + response.getDestination()
-                    + " but this realm uses " + spConfiguredUrl);
+                throw samlException(
+                    "SAML response "
+                        + response.getID()
+                        + " is for destination "
+                        + response.getDestination()
+                        + " but this realm uses "
+                        + spConfiguredUrl
+                );
             }
         }
     }

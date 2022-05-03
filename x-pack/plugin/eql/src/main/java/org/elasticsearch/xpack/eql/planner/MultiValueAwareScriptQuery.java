@@ -21,5 +21,5 @@ class MultiValueAwareScriptQuery extends ScriptQuery {
     protected ScriptTemplate nullSafeScript(ScriptTemplate script) {
         return script;
     }
-    
+
 }

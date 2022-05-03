@@ -6,20 +6,20 @@
  */
 package org.elasticsearch.xpack.core.common.notifications;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.Date;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public abstract class AbstractAuditMessage implements ToXContentObject {
 
@@ -38,20 +38,26 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
     public static final int MAX_AUDIT_MESSAGE_CHARS = 8191;
 
     protected static final <T extends AbstractAuditMessage> ConstructingObjectParser<T, Void> createParser(
-            String name, AbstractAuditMessageFactory<T> messageFactory, ParseField resourceField) {
+        String name,
+        AbstractAuditMessageFactory<T> messageFactory,
+        ParseField resourceField
+    ) {
 
         ConstructingObjectParser<T, Void> PARSER = new ConstructingObjectParser<>(
             name,
             true,
-            a -> messageFactory.newMessage((String)a[0], (String)a[1], (Level)a[2], (Date)a[3], (String)a[4]));
+            a -> messageFactory.newMessage((String) a[0], (String) a[1], (Level) a[2], (Date) a[3], (String) a[4])
+        );
 
         PARSER.declareString(optionalConstructorArg(), resourceField);
         PARSER.declareString(constructorArg(), MESSAGE);
         PARSER.declareString(constructorArg(), Level::fromString, LEVEL);
-        PARSER.declareField(constructorArg(),
+        PARSER.declareField(
+            constructorArg(),
             p -> TimeUtils.parseTimeField(p, TIMESTAMP.getPreferredName()),
             TIMESTAMP,
-            ObjectParser.ValueType.VALUE);
+            ObjectParser.ValueType.VALUE
+        );
         PARSER.declareString(optionalConstructorArg(), NODE_NAME);
 
         return PARSER;
@@ -132,12 +138,12 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
         }
 
         AbstractAuditMessage other = (AbstractAuditMessage) obj;
-        return Objects.equals(resourceId, other.resourceId) &&
-            Objects.equals(message, other.message) &&
-            Objects.equals(level, other.level) &&
-            Objects.equals(timestamp, other.timestamp) &&
-            Objects.equals(nodeName, other.nodeName) &&
-            Objects.equals(getJobType(), other.getJobType());
+        return Objects.equals(resourceId, other.resourceId)
+            && Objects.equals(message, other.message)
+            && Objects.equals(level, other.level)
+            && Objects.equals(timestamp, other.timestamp)
+            && Objects.equals(nodeName, other.nodeName)
+            && Objects.equals(getJobType(), other.getJobType());
     }
 
     /**

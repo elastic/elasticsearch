@@ -11,8 +11,9 @@ package org.elasticsearch.plugins.cli;
 import joptsimple.OptionSet;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginInfo;
 
@@ -24,6 +25,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.plugins.cli.SyncPluginsAction.ELASTICSEARCH_PLUGINS_YML_CACHE;
+
 /**
  * A command for the plugin cli to list plugins installed in elasticsearch.
  */
@@ -34,7 +37,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         if (Files.exists(env.pluginsFile()) == false) {
             throw new IOException("Plugins directory missing: " + env.pluginsFile());
         }
@@ -42,8 +45,10 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         terminal.println(Terminal.Verbosity.VERBOSE, "Plugins directory: " + env.pluginsFile());
         final List<Path> plugins = new ArrayList<>();
         try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsFile())) {
-            for (Path plugin : paths) {
-                plugins.add(plugin);
+            for (Path path : paths) {
+                if (path.getFileName().toString().equals(ELASTICSEARCH_PLUGINS_YML_CACHE) == false) {
+                    plugins.add(path);
+                }
             }
         }
         Collections.sort(plugins);

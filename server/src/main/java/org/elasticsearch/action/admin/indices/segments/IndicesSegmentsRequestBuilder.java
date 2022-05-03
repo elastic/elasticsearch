@@ -9,17 +9,14 @@
 package org.elasticsearch.action.admin.indices.segments;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
-public class IndicesSegmentsRequestBuilder
-        extends BroadcastOperationRequestBuilder<IndicesSegmentsRequest, IndicesSegmentResponse, IndicesSegmentsRequestBuilder> {
+public class IndicesSegmentsRequestBuilder extends BroadcastOperationRequestBuilder<
+    IndicesSegmentsRequest,
+    IndicesSegmentResponse,
+    IndicesSegmentsRequestBuilder> {
 
     public IndicesSegmentsRequestBuilder(ElasticsearchClient client, IndicesSegmentsAction action) {
         super(client, action, new IndicesSegmentsRequest());
-    }
-
-    public IndicesSegmentsRequestBuilder setVerbose(boolean verbose) {
-        request.verbose = verbose;
-        return this;
     }
 }

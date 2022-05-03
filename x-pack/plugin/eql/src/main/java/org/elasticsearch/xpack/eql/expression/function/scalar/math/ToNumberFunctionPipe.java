@@ -71,7 +71,6 @@ public class ToNumberFunctionPipe extends Pipe {
         return new ToNumberFunctionProcessor(value.asProcessor(), base.asProcessor());
     }
 
-
     public Pipe value() {
         return value;
     }

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -22,10 +22,7 @@ public class RestQueryWatchesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_watcher/_query/watches"),
-            new Route(POST, "/_watcher/_query/watches")
-        );
+        return List.of(new Route(GET, "/_watcher/_query/watches"), new Route(POST, "/_watcher/_query/watches"));
     }
 
     @Override

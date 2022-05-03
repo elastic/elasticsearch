@@ -8,8 +8,8 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -156,8 +156,7 @@ public class AbstractAsyncTaskTests extends ESTestCase {
             }
 
             @Override
-            protected void runInternal() {
-            }
+            protected void runInternal() {}
         };
 
         assertFalse(task.isScheduled());
@@ -208,6 +207,7 @@ public class AbstractAsyncTaskTests extends ESTestCase {
                 protected boolean mustReschedule() {
                     return counter.get() <= 1000;
                 }
+
                 @Override
                 protected void runInternal() {
                     counter.incrementAndGet();

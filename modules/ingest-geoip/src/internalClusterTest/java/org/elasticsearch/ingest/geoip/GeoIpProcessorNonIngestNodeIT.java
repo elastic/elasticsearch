@@ -14,12 +14,12 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.NodeRoles;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -107,13 +107,13 @@ public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
         assertDatabaseLoadStatus(ingestNode, true);
         // the geo-IP database should still not be loaded on the non-ingest nodes
         Arrays.stream(internalCluster().getNodeNames())
-                .filter(node -> node.equals(ingestNode) == false)
-                .forEach(node -> assertDatabaseLoadStatus(node, false));
+            .filter(node -> node.equals(ingestNode) == false)
+            .forEach(node -> assertDatabaseLoadStatus(node, false));
     }
 
     private void assertDatabaseLoadStatus(final String node, final boolean loaded) {
         final IngestService ingestService = internalCluster().getInstance(IngestService.class, node);
-        final GeoIpProcessor.Factory factory = (GeoIpProcessor.Factory)ingestService.getProcessorFactories().get("geoip");
+        final GeoIpProcessor.Factory factory = (GeoIpProcessor.Factory) ingestService.getProcessorFactories().get("geoip");
         for (final DatabaseReaderLazyLoader loader : factory.getAllDatabases()) {
             if (loaded) {
                 assertNotNull(loader.databaseReader.get());

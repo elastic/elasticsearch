@@ -19,11 +19,9 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:gcs-fixture')
-final Project repositoryPlugin = project(':plugins:repository-gcs')
 
 dependencies {
   testImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
-  testImplementation repositoryPlugin
 }
 
 restResources {
@@ -97,7 +95,6 @@ if (useFixture) {
 }
 
 tasks.named("integTest").configure {
-  dependsOn ":plugins:repository-gcs:bundlePlugin"
   if (useFixture) {
     dependsOn "createServiceAccountFile"
   }
@@ -107,7 +104,6 @@ tasks.named("integTest").configure {
 
 testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.bundlePlugin.archiveFile
 
   keystore 'gcs.client.repositories_metering.credentials_file', serviceAccountFile, IGNORE_VALUE
   if (useFixture) {

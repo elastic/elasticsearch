@@ -16,8 +16,9 @@ import org.gradle.api.Task;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.TaskProvider;
 
-import javax.inject.Inject;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 public class ForbiddenPatternsPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
 
@@ -38,6 +39,12 @@ public class ForbiddenPatternsPrecommitPlugin extends PrecommitPlugin implements
                         () -> GradleUtils.getJavaSourceSets(project).stream().map(s -> s.getAllSource()).collect(Collectors.toList())
                     )
                 );
+            forbiddenPatternsTask.dependsOn(
+                GradleUtils.getJavaSourceSets(project)
+                    .stream()
+                    .map(sourceSet -> sourceSet.getProcessResourcesTaskName())
+                    .collect(Collectors.toList())
+            );
             forbiddenPatternsTask.getRootDir().set(project.getRootDir());
         });
     }

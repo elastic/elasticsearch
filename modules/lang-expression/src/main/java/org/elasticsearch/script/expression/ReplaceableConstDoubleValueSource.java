@@ -38,10 +38,8 @@ final class ReplaceableConstDoubleValueSource extends DoubleValuesSource {
 
     @Override
     public Explanation explain(LeafReaderContext ctx, int docId, Explanation scoreExplanation) throws IOException {
-        if (fv.advanceExact(docId))
-            return Explanation.match((float)fv.doubleValue(), "ReplaceableConstDoubleValues");
-        else
-            return Explanation.noMatch("ReplaceableConstDoubleValues");
+        if (fv.advanceExact(docId)) return Explanation.match((float) fv.doubleValue(), "ReplaceableConstDoubleValues");
+        else return Explanation.noMatch("ReplaceableConstDoubleValues");
     }
 
     @Override

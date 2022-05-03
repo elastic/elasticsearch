@@ -56,7 +56,6 @@ public class Limit extends UnaryPlan {
 
         Limit other = (Limit) obj;
 
-        return Objects.equals(limit, other.limit)
-                && Objects.equals(child(), other.child());
+        return Objects.equals(limit, other.limit) && Objects.equals(child(), other.child());
     }
 }

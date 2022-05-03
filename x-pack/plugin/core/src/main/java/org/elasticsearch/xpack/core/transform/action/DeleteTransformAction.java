@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
@@ -28,11 +28,12 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> {
         private final String id;
         private final boolean force;
 
-        public Request(String id, boolean force) {
+        public Request(String id, boolean force, TimeValue timeout) {
+            super(timeout);
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.force = force;
         }
@@ -40,11 +41,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-                force = in.readBoolean();
-            } else {
-                force = false;
-            }
+            force = in.readBoolean();
         }
 
         public String getId() {
@@ -59,9 +56,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-                out.writeBoolean(force);
-            }
+            out.writeBoolean(force);
         }
 
         @Override
@@ -71,7 +66,8 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, force);
+            // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            return Objects.hash(timeout(), id, force);
         }
 
         @Override
@@ -84,7 +80,8 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id) && force == other.force;
+            // the base class does not implement equals, therefore we need to check timeout ourselves
+            return Objects.equals(id, other.id) && force == other.force && timeout().equals(other.timeout());
         }
     }
 }

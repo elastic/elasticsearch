@@ -1,0 +1,45 @@
+{
+  "fleet.msearch":{
+    "documentation":{
+      "url": null,
+      "description": "Multi Search API where the search will only be executed after specified checkpoints are available due to a refresh. This API is designed for internal use by the fleet server project."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/x-ndjson"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_fleet/_fleet_msearch",
+          "methods":[
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path":"/{index}/_fleet/_fleet_msearch",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The index name to use as the default"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+    },
+    "body":{
+      "description":"The request definitions (metadata-fleet search request definition pairs), separated by newlines",
+      "required":true,
+      "serialize":"bulk"
+    }
+  }
+}

@@ -28,8 +28,12 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
     private final NativeUsersStore nativeUsersStore;
 
     @Inject
-    public TransportChangePasswordAction(Settings settings, TransportService transportService,
-                                         ActionFilters actionFilters, NativeUsersStore nativeUsersStore) {
+    public TransportChangePasswordAction(
+        Settings settings,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        NativeUsersStore nativeUsersStore
+    ) {
         super(ChangePasswordAction.NAME, transportService, actionFilters, ChangePasswordRequest::new);
         this.settings = settings;
         this.nativeUsersStore = nativeUsersStore;
@@ -48,8 +52,16 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
         final String requestPwdHashAlgo = Hasher.resolveFromHash(request.passwordHash()).name();
         final String configPwdHashAlgo = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings)).name();
         if (requestPwdHashAlgo.equalsIgnoreCase(configPwdHashAlgo) == false) {
-            listener.onFailure(new IllegalArgumentException("incorrect password hashing algorithm [" + requestPwdHashAlgo + "] used while" +
-                " [" + configPwdHashAlgo + "] is configured."));
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "incorrect password hashing algorithm ["
+                        + requestPwdHashAlgo
+                        + "] used while"
+                        + " ["
+                        + configPwdHashAlgo
+                        + "] is configured."
+                )
+            );
             return;
         }
         nativeUsersStore.changePassword(request, listener.delegateFailure((l, v) -> l.onResponse(ActionResponse.Empty.INSTANCE)));

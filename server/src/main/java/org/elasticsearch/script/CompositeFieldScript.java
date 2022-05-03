@@ -46,7 +46,7 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
      * @return the values that were emitted for the provided field
      */
     public final List<Object> getValues(String field) {
-        //TODO for now we re-run the script every time a leaf field is accessed, but we could cache the values?
+        // TODO for now we re-run the script every time a leaf field is accessed, but we could cache the values?
         fieldValues.clear();
         execute();
         List<Object> values = fieldValues.get(field);
@@ -62,7 +62,7 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
     }
 
     protected final void emit(String field, Object value) {
-        //fields will be emitted without the prefix, yet they will be looked up using their full name, hence we store the full name
+        // fields will be emitted without the prefix, yet they will be looked up using their full name, hence we store the full name
         List<Object> values = this.fieldValues.computeIfAbsent(fieldName + "." + field, s -> new ArrayList<>());
         values.add(value);
     }

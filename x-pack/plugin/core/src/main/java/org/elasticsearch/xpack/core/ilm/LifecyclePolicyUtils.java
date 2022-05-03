@@ -17,19 +17,20 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.Streams;
+import org.elasticsearch.core.Streams;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * A utility class used for index lifecycle policies
@@ -41,13 +42,21 @@ public class LifecyclePolicyUtils {
     /**
      * Loads a built-in index lifecycle policy and returns its source.
      */
-    public static LifecyclePolicy loadPolicy(String name, String resource, NamedXContentRegistry xContentRegistry) {
+    public static LifecyclePolicy loadPolicy(
+        String name,
+        String resource,
+        Map<String, String> variables,
+        NamedXContentRegistry xContentRegistry
+    ) {
         try {
             BytesReference source = load(resource);
+            source = replaceVariables(source, variables);
             validate(source);
 
-            try (XContentParser parser = XContentType.JSON.xContent()
-                .createParser(xContentRegistry, LoggingDeprecationHandler.THROW_UNSUPPORTED_OPERATION, source.utf8ToString())) {
+            try (
+                XContentParser parser = XContentType.JSON.xContent()
+                    .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), source.utf8ToString())
+            ) {
                 LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
                 policy.validate();
                 return policy;
@@ -67,6 +76,21 @@ public class LifecyclePolicyUtils {
                 return new BytesArray(out.toByteArray());
             }
         }
+    }
+
+    private static BytesReference replaceVariables(BytesReference input, Map<String, String> variables) {
+        String template = input.utf8ToString();
+        for (Map.Entry<String, String> variable : variables.entrySet()) {
+            template = replaceVariable(template, variable.getKey(), variable.getValue());
+        }
+        return new BytesArray(template);
+    }
+
+    /**
+     * Replaces all occurrences of given variable with the value
+     */
+    public static String replaceVariable(String input, String variable, String value) {
+        return Pattern.compile("${" + variable + "}", Pattern.LITERAL).matcher(input).replaceAll(value);
     }
 
     /**
@@ -90,35 +114,38 @@ public class LifecyclePolicyUtils {
      * Given a cluster state and ILM policy, calculate the {@link ItemUsage} of
      * the policy (what indices, data streams, and templates use the policy)
      */
-    public static ItemUsage calculateUsage(final IndexNameExpressionResolver indexNameExpressionResolver,
-                                           final ClusterState state, final String policyName) {
-        final List<String> indices = StreamSupport.stream(state.metadata().indices().values().spliterator(), false)
-            .map(cursor -> cursor.value)
-            .filter(indexMetadata -> policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings())))
+    public static ItemUsage calculateUsage(
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final ClusterState state,
+        final String policyName
+    ) {
+        final List<String> indices = state.metadata()
+            .indices()
+            .values()
+            .stream()
+            .filter(indexMetadata -> policyName.equals(indexMetadata.getLifecyclePolicyName()))
             .map(indexMetadata -> indexMetadata.getIndex().getName())
             .collect(Collectors.toList());
 
-        final List<String> allDataStreams = indexNameExpressionResolver.dataStreamNames(state,
-            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
+        final List<String> allDataStreams = indexNameExpressionResolver.dataStreamNames(
+            state,
+            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
+        );
 
-        final List<String> dataStreams = allDataStreams.stream()
-            .filter(dsName -> {
-                String indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dsName, false);
-                if (indexTemplate != null) {
-                    Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
-                    return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
-                } else {
-                    return false;
-                }
-            })
-            .collect(Collectors.toList());
-
-        final List<String> composableTemplates = state.metadata().templatesV2().keySet().stream()
-            .filter(templateName -> {
-                Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), templateName);
+        final List<String> dataStreams = allDataStreams.stream().filter(dsName -> {
+            String indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dsName, false);
+            if (indexTemplate != null) {
+                Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
                 return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
-            })
-            .collect(Collectors.toList());
+            } else {
+                return false;
+            }
+        }).collect(Collectors.toList());
+
+        final List<String> composableTemplates = state.metadata().templatesV2().keySet().stream().filter(templateName -> {
+            Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), templateName);
+            return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
+        }).collect(Collectors.toList());
 
         return new ItemUsage(indices, dataStreams, composableTemplates);
     }

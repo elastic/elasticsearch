@@ -16,21 +16,21 @@ import org.elasticsearch.test.ESTestCase;
 
 public class CombinedBitSetTests extends ESTestCase {
     public void testEmpty() {
-        for (float percent : new float[] {0f, 0.1f, 0.5f, 0.9f, 1f}) {
+        for (float percent : new float[] { 0f, 0.1f, 0.5f, 0.9f, 1f }) {
             testCase(randomIntBetween(1, 10000), 0f, percent);
             testCase(randomIntBetween(1, 10000), percent, 0f);
         }
     }
 
     public void testSparse() {
-        for (float percent : new float[] {0f, 0.1f, 0.5f, 0.9f, 1f}) {
+        for (float percent : new float[] { 0f, 0.1f, 0.5f, 0.9f, 1f }) {
             testCase(randomIntBetween(1, 10000), 0.1f, percent);
             testCase(randomIntBetween(1, 10000), percent, 0.1f);
         }
     }
 
     public void testDense() {
-        for (float percent : new float[] {0f, 0.1f, 0.5f, 0.9f, 1f}) {
+        for (float percent : new float[] { 0f, 0.1f, 0.5f, 0.9f, 1f }) {
             testCase(randomIntBetween(1, 10000), 0.9f, percent);
             testCase(randomIntBetween(1, 10000), percent, 0.9f);
         }

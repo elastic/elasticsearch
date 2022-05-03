@@ -11,8 +11,8 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -20,6 +20,8 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -188,6 +190,16 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         public DocValueFormat getFormatter() {
             return format;
         }
+
+        Bucket finalizeSampling(SamplingContext samplingContext) {
+            return new Bucket(
+                centroid,
+                bounds,
+                samplingContext.scaleUp(docCount),
+                format,
+                InternalAggregations.finalizeSampling(aggregations, samplingContext)
+            );
+        }
     }
 
     static class EmptyBucketInfo {
@@ -311,12 +323,12 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
      * This method should not be called for this specific subclass of InternalHistogram, since there should not be
      * empty buckets when clustering.
     =    */
-    private double nextKey(double key) {
+    private static double nextKey(double key) {
         return key + 1;
     }
 
     @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
+    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
         long docCount = 0;
         double min = Double.POSITIVE_INFINITY;
@@ -335,7 +347,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         return new Bucket(centroid, bounds, docCount, format, aggs);
     }
 
-    public List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(aggregations.size()) {
             @Override
             protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
@@ -389,7 +401,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         return reducedBuckets;
     }
 
-    class BucketRange {
+    static class BucketRange {
         int startIdx;
         int endIdx;
 
@@ -420,7 +432,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
      * For each range {startIdx, endIdx} in <code>ranges</code>, all the buckets in that index range
      * from <code>buckets</code> are merged, and this merged bucket replaces the entire range.
      */
-    private void mergeBucketsWithPlan(List<Bucket> buckets, List<BucketRange> plan, ReduceContext reduceContext) {
+    private void mergeBucketsWithPlan(List<Bucket> buckets, List<BucketRange> plan, AggregationReduceContext reduceContext) {
         for (int i = plan.size() - 1; i >= 0; i--) {
             BucketRange range = plan.get(i);
             int endIdx = range.endIdx;
@@ -450,7 +462,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
      *
      * Requires: <code>buckets</code> is sorted by centroid.
      */
-    private void mergeBucketsIfNeeded(List<Bucket> buckets, int targetNumBuckets, ReduceContext reduceContext) {
+    private void mergeBucketsIfNeeded(List<Bucket> buckets, int targetNumBuckets, AggregationReduceContext reduceContext) {
         // Make a plan for getting the target number of buckets
         // Each range represents a set of adjacent bucket indices of buckets that will be merged together
         List<BucketRange> ranges = new ArrayList<>();
@@ -489,7 +501,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         mergeBucketsWithPlan(buckets, ranges, reduceContext);
     }
 
-    private void mergeBucketsWithSameMin(List<Bucket> buckets, ReduceContext reduceContext) {
+    private void mergeBucketsWithSameMin(List<Bucket> buckets, AggregationReduceContext reduceContext) {
         // Create a merge plan
         List<BucketRange> ranges = new ArrayList<>();
 
@@ -526,7 +538,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
      *
      * After this adjustment, A will contain more values than indicated and B will have less.
      */
-    private void adjustBoundsForOverlappingBuckets(List<Bucket> buckets, ReduceContext reduceContext) {
+    private static void adjustBoundsForOverlappingBuckets(List<Bucket> buckets, AggregationReduceContext reduceContext) {
         for (int i = 1; i < buckets.size(); i++) {
             Bucket curBucket = buckets.get(i);
             Bucket prevBucket = buckets.get(i - 1);
@@ -540,7 +552,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
 
         if (reduceContext.isFinalReduce()) {
@@ -549,6 +561,18 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             adjustBoundsForOverlappingBuckets(reducedBuckets, reduceContext);
         }
         return new InternalVariableWidthHistogram(getName(), reducedBuckets, emptyBucketInfo, targetNumBuckets, format, metadata);
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalVariableWidthHistogram(
+            getName(),
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
+            emptyBucketInfo,
+            targetNumBuckets,
+            format,
+            getMetadata()
+        );
     }
 
     @Override

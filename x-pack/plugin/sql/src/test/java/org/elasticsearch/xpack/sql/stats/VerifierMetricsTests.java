@@ -33,8 +33,14 @@ import static org.elasticsearch.xpack.sql.stats.Metrics.FPREFIX;
 public class VerifierMetricsTests extends ESTestCase {
 
     private SqlParser parser = new SqlParser();
-    private String[] commands = {"SHOW FUNCTIONS", "SHOW COLUMNS FROM library", "SHOW SCHEMAS",
-                                 "SHOW TABLES", "SYS COLUMNS LIKE '%name'", "SYS TABLES", "SYS TYPES"};
+    private String[] commands = {
+        "SHOW FUNCTIONS",
+        "SHOW COLUMNS FROM library",
+        "SHOW SCHEMAS",
+        "SHOW TABLES",
+        "SYS COLUMNS LIKE '%name'",
+        "SYS TABLES",
+        "SYS TYPES" };
 
     public void testWhereQuery() {
         Counters c = sql("SELECT emp_no FROM test WHERE languages > 2");
@@ -92,8 +98,17 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testCommand() {
-        Counters c = sql(randomFrom("SHOW FUNCTIONS", "SHOW COLUMNS FROM library", "SHOW SCHEMAS",
-                                    "SHOW TABLES", "SYS COLUMNS LIKE '%name'", "SYS TABLES", "SYS TYPES"));
+        Counters c = sql(
+            randomFrom(
+                "SHOW FUNCTIONS",
+                "SHOW COLUMNS FROM library",
+                "SHOW SCHEMAS",
+                "SHOW TABLES",
+                "SYS COLUMNS LIKE '%name'",
+                "SYS TABLES",
+                "SYS TYPES"
+            )
+        );
         assertEquals(0, where(c));
         assertEquals(0, limit(c));
         assertEquals(0, groupby(c));
@@ -148,8 +163,9 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testWhereLimitGroupByHavingOrderByQuery() {
-        Counters c = sql("SELECT languages FROM test WHERE languages > 2 GROUP BY languages HAVING MAX(languages) > 3"
-                      + " ORDER BY languages LIMIT 5");
+        Counters c = sql(
+            "SELECT languages FROM test WHERE languages > 2 GROUP BY languages HAVING MAX(languages) > 3" + " ORDER BY languages LIMIT 5"
+        );
         assertEquals(1L, where(c));
         assertEquals(1L, limit(c));
         assertEquals(1L, groupby(c));
@@ -163,8 +179,10 @@ public class VerifierMetricsTests extends ESTestCase {
         Metrics metrics = new Metrics();
         Verifier verifier = new Verifier(metrics);
         sqlWithVerifier("SELECT languages FROM test WHERE languages > 2 GROUP BY languages LIMIT 5", verifier);
-        sqlWithVerifier("SELECT languages FROM test WHERE languages > 2 GROUP BY languages HAVING MAX(languages) > 3 "
-                      + "ORDER BY languages LIMIT 5", verifier);
+        sqlWithVerifier(
+            "SELECT languages FROM test WHERE languages > 2 GROUP BY languages HAVING MAX(languages) > 3 " + "ORDER BY languages LIMIT 5",
+            verifier
+        );
         Counters c = metrics.stats();
 
         assertEquals(2L, where(c));

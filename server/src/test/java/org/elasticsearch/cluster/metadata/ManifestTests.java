@@ -11,11 +11,11 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -27,42 +27,35 @@ import static org.hamcrest.Matchers.equalTo;
 public class ManifestTests extends ESTestCase {
 
     private Manifest copyState(Manifest state, boolean introduceErrors) {
-        long currentTerm = state.getCurrentTerm();
-        long clusterStateVersion = state.getClusterStateVersion();
-        long generation = state.getGlobalGeneration();
-        Map<Index, Long> indices = new HashMap<>(state.getIndexGenerations());
+        long currentTerm = state.currentTerm();
+        long clusterStateVersion = state.clusterStateVersion();
+        long generation = state.globalGeneration();
+        Map<Index, Long> indices = new HashMap<>(state.indexGenerations());
         if (introduceErrors) {
             switch (randomInt(3)) {
-                case 0: {
+                case 0 -> {
                     currentTerm = randomValueOtherThan(currentTerm, () -> randomNonNegativeLong());
-                    break;
                 }
-                case 1: {
+                case 1 -> {
                     clusterStateVersion = randomValueOtherThan(clusterStateVersion, () -> randomNonNegativeLong());
-                    break;
                 }
-                case 2: {
+                case 2 -> {
                     generation = randomValueOtherThan(generation, () -> randomNonNegativeLong());
-                    break;
                 }
-                case 3: {
+                case 3 -> {
                     switch (randomInt(2)) {
-                        case 0: {
+                        case 0 -> {
                             indices.remove(randomFrom(indices.keySet()));
-                            break;
                         }
-                        case 1: {
+                        case 1 -> {
                             Tuple<Index, Long> indexEntry = randomIndexEntry();
                             indices.put(indexEntry.v1(), indexEntry.v2());
-                            break;
                         }
-                        case 2: {
+                        case 2 -> {
                             Index index = randomFrom(indices.keySet());
                             indices.compute(index, (i, g) -> randomValueOtherThan(g, () -> randomNonNegativeLong()));
-                            break;
                         }
                     }
-                    break;
                 }
             }
         }

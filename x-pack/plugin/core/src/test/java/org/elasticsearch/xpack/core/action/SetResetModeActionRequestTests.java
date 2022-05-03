@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 public class SetResetModeActionRequestTests extends AbstractSerializingTestCase<SetResetModeActionRequest> {
 

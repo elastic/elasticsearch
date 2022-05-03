@@ -24,8 +24,14 @@ public class LegacyReaderContext extends ReaderContext {
     private AggregatedDfs aggregatedDfs;
     private RescoreDocIds rescoreDocIds;
 
-    public LegacyReaderContext(ShardSearchContextId id, IndexService indexService, IndexShard indexShard, Engine.SearcherSupplier reader,
-                               ShardSearchRequest shardSearchRequest, long keepAliveInMillis) {
+    public LegacyReaderContext(
+        ShardSearchContextId id,
+        IndexService indexService,
+        IndexShard indexShard,
+        Engine.SearcherSupplier reader,
+        ShardSearchRequest shardSearchRequest,
+        long keepAliveInMillis
+    ) {
         super(id, indexService, indexShard, reader, keepAliveInMillis, false);
         assert shardSearchRequest.readerId() == null;
         assert shardSearchRequest.keepAlive() == null;
@@ -39,8 +45,14 @@ public class LegacyReaderContext extends ReaderContext {
             final Engine.Searcher delegate = searcherSupplier.acquireSearcher("search");
             addOnClose(delegate);
             // wrap the searcher so that closing is a noop, the actual closing happens when this context is closed
-            this.searcher = new Engine.Searcher(delegate.source(), delegate.getDirectoryReader(),
-                delegate.getSimilarity(), delegate.getQueryCache(), delegate.getQueryCachingPolicy(), () -> {});
+            this.searcher = new Engine.Searcher(
+                delegate.source(),
+                delegate.getDirectoryReader(),
+                delegate.getSimilarity(),
+                delegate.getQueryCache(),
+                delegate.getQueryCachingPolicy(),
+                () -> {}
+            );
             this.scrollContext = new ScrollContext();
         } else {
             this.scrollContext = null;

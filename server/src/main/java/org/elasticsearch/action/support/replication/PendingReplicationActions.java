@@ -9,8 +9,8 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.support.RetryableAction;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
@@ -18,6 +18,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -39,12 +40,20 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
         if (ongoingActionsOnNode != null) {
             ongoingActionsOnNode.add(replicationAction);
             if (onGoingReplicationActions.containsKey(allocationId) == false) {
-                replicationAction.cancel(new IndexShardClosedException(shardId,
-                    "Replica unavailable - replica could have left ReplicationGroup or IndexShard might have closed"));
+                replicationAction.cancel(
+                    new IndexShardClosedException(
+                        shardId,
+                        "Replica unavailable - replica could have left ReplicationGroup or IndexShard might have closed"
+                    )
+                );
             }
         } else {
-            replicationAction.cancel(new IndexShardClosedException(shardId,
-                "Replica unavailable - replica could have left ReplicationGroup or IndexShard might have closed"));
+            replicationAction.cancel(
+                new IndexShardClosedException(
+                    shardId,
+                    "Replica unavailable - replica could have left ReplicationGroup or IndexShard might have closed"
+                )
+            );
         }
     }
 
@@ -75,12 +84,12 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
     // Visible for testing
     synchronized void acceptNewTrackedAllocationIds(Set<String> trackedAllocationIds) {
         for (String targetAllocationId : trackedAllocationIds) {
-            onGoingReplicationActions.putIfAbsent(targetAllocationId, ConcurrentCollections.newConcurrentSet());
+            onGoingReplicationActions.computeIfAbsent(targetAllocationId, k -> ConcurrentCollections.newConcurrentSet());
         }
-        ArrayList<Set<RetryableAction<?>>> toCancel = new ArrayList<>();
+        ArrayList<RetryableAction<?>> toCancel = new ArrayList<>();
         for (String allocationId : onGoingReplicationActions.keySet()) {
             if (trackedAllocationIds.contains(allocationId) == false) {
-                toCancel.add(onGoingReplicationActions.remove(allocationId));
+                toCancel.addAll(onGoingReplicationActions.remove(allocationId));
             }
         }
 
@@ -89,15 +98,16 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
 
     @Override
     public synchronized void close() {
-        ArrayList<Set<RetryableAction<?>>> toCancel = new ArrayList<>(onGoingReplicationActions.values());
+        final List<RetryableAction<?>> toCancel = onGoingReplicationActions.values().stream().flatMap(Collection::stream).toList();
         onGoingReplicationActions.clear();
 
         cancelActions(toCancel, "Primary closed.");
     }
 
-    private void cancelActions(ArrayList<Set<RetryableAction<?>>> toCancel, String message) {
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> toCancel.stream()
-            .flatMap(Collection::stream)
-            .forEach(action -> action.cancel(new IndexShardClosedException(shardId, message))));
+    private void cancelActions(List<RetryableAction<?>> toCancel, String message) {
+        if (toCancel.isEmpty() == false) {
+            threadPool.executor(ThreadPool.Names.GENERIC)
+                .execute(() -> toCancel.forEach(action -> action.cancel(new IndexShardClosedException(shardId, message))));
+        }
     }
 }

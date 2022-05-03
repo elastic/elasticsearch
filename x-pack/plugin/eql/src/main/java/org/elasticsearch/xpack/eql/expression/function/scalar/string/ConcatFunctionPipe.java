@@ -80,7 +80,7 @@ public class ConcatFunctionPipe extends Pipe {
     @Override
     public ConcatFunctionProcessor asProcessor() {
         List<Processor> processors = new ArrayList<>(values.size());
-        for (Pipe p: values) {
+        for (Pipe p : values) {
             processors.add(p.asProcessor());
         }
         return new ConcatFunctionProcessor(processors);

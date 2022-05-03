@@ -10,8 +10,7 @@ import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 
 public final class WatchSourceBuilders {
 
-    private WatchSourceBuilders() {
-    }
+    private WatchSourceBuilders() {}
 
     public static WatchSourceBuilder watchBuilder() {
         return new WatchSourceBuilder();

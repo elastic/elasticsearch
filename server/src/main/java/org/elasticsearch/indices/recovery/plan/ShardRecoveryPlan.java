@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.recovery.plan;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -15,7 +16,6 @@ import org.elasticsearch.repositories.IndexId;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
@@ -29,12 +29,29 @@ public class ShardRecoveryPlan {
     private final long startingSeqNo;
     private final int translogOps;
 
-    public ShardRecoveryPlan(SnapshotFilesToRecover snapshotFilesToRecover,
-                             List<StoreFileMetadata> sourceFilesToRecover,
-                             List<StoreFileMetadata> filesPresentInTarget,
-                             long startingSeqNo,
-                             int translogOps,
-                             Store.MetadataSnapshot sourceMetadataSnapshot) {
+    @Nullable
+    private final ShardRecoveryPlan fallbackPlan;
+
+    public ShardRecoveryPlan(
+        SnapshotFilesToRecover snapshotFilesToRecover,
+        List<StoreFileMetadata> sourceFilesToRecover,
+        List<StoreFileMetadata> filesPresentInTarget,
+        long startingSeqNo,
+        int translogOps,
+        Store.MetadataSnapshot sourceMetadataSnapshot
+    ) {
+        this(snapshotFilesToRecover, sourceFilesToRecover, filesPresentInTarget, startingSeqNo, translogOps, sourceMetadataSnapshot, null);
+    }
+
+    public ShardRecoveryPlan(
+        SnapshotFilesToRecover snapshotFilesToRecover,
+        List<StoreFileMetadata> sourceFilesToRecover,
+        List<StoreFileMetadata> filesPresentInTarget,
+        long startingSeqNo,
+        int translogOps,
+        Store.MetadataSnapshot sourceMetadataSnapshot,
+        @Nullable ShardRecoveryPlan fallbackPlan
+    ) {
         this.snapshotFilesToRecover = snapshotFilesToRecover;
         this.sourceFilesToRecover = sourceFilesToRecover;
         this.filesPresentInTarget = filesPresentInTarget;
@@ -42,6 +59,7 @@ public class ShardRecoveryPlan {
 
         this.startingSeqNo = startingSeqNo;
         this.translogOps = translogOps;
+        this.fallbackPlan = fallbackPlan;
     }
 
     public List<StoreFileMetadata> getFilesPresentInTarget() {
@@ -49,11 +67,11 @@ public class ShardRecoveryPlan {
     }
 
     public List<String> getFilesPresentInTargetNames() {
-        return filesPresentInTarget.stream().map(StoreFileMetadata::name).collect(Collectors.toList());
+        return filesPresentInTarget.stream().map(StoreFileMetadata::name).toList();
     }
 
     public List<Long> getFilesPresentInTargetSizes() {
-        return filesPresentInTarget.stream().map(StoreFileMetadata::length).collect(Collectors.toList());
+        return filesPresentInTarget.stream().map(StoreFileMetadata::length).toList();
     }
 
     public List<StoreFileMetadata> getSourceFilesToRecover() {
@@ -61,13 +79,11 @@ public class ShardRecoveryPlan {
     }
 
     public List<String> getFilesToRecoverNames() {
-        return getFilesToRecoverStream().map(StoreFileMetadata::name)
-            .collect(Collectors.toList());
+        return getFilesToRecoverStream().map(StoreFileMetadata::name).toList();
     }
 
     public List<Long> getFilesToRecoverSizes() {
-        return getFilesToRecoverStream().map(StoreFileMetadata::length)
-            .collect(Collectors.toList());
+        return getFilesToRecoverStream().map(StoreFileMetadata::length).toList();
     }
 
     public SnapshotFilesToRecover getSnapshotFilesToRecover() {
@@ -92,6 +108,15 @@ public class ShardRecoveryPlan {
 
     public int getTranslogOps() {
         return translogOps;
+    }
+
+    public boolean canRecoverSnapshotFilesFromSourceNode() {
+        return fallbackPlan == null;
+    }
+
+    @Nullable
+    public ShardRecoveryPlan getFallbackPlan() {
+        return fallbackPlan;
     }
 
     private Stream<StoreFileMetadata> getFilesToRecoverStream() {

@@ -11,7 +11,6 @@ package org.elasticsearch.action.explain;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,11 +47,24 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     private final SearchService searchService;
 
     @Inject
-    public TransportExplainAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                  SearchService searchService, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                ExplainRequest::new, ThreadPool.Names.GET);
+    public TransportExplainAction(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        SearchService searchService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            ExplainAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            ExplainRequest::new,
+            ThreadPool.Names.GET
+        );
         this.searchService = searchService;
     }
 
@@ -72,15 +84,11 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(state, request.request().index());
         final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.concreteIndex(), indicesAndAliases);
         request.request().filteringAlias(aliasFilter);
-        // Fail fast on the node that received the request.
-        if (request.request().routing() == null && state.getMetadata().routingRequired(request.concreteIndex())) {
-            throw new RoutingMissingException(request.concreteIndex(), request.request().id());
-        }
     }
 
     @Override
-    protected void asyncShardOperation(ExplainRequest request, ShardId shardId,
-                                       ActionListener<ExplainResponse> listener) throws IOException {
+    protected void asyncShardOperation(ExplainRequest request, ShardId shardId, ActionListener<ExplainResponse> listener)
+        throws IOException {
         IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         indexShard.awaitShardSearchActive(b -> {
@@ -104,9 +112,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                 return new ExplainResponse(shardId.getIndexName(), request.id(), false);
             }
             context.parsedQuery(context.getSearchExecutionContext().toQuery(request.query()));
-            context.preProcess(true);
+            context.preProcess();
             int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().docBase;
-            Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
+            Explanation explanation = context.searcher().explain(context.rewrittenQuery(), topLevelDocId);
             for (RescoreContext ctx : context.rescore()) {
                 Rescorer rescorer = ctx.rescorer();
                 explanation = rescorer.explain(topLevelDocId, context.searcher(), ctx, explanation);
@@ -115,8 +123,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                 // Advantage is that we're not opening a second searcher to retrieve the _source. Also
                 // because we are working in the same searcher in engineGetResult we can be sure that a
                 // doc isn't deleted between the initial get and this call.
-                GetResult getResult = context.indexShard().getService().get(result, request.id(), request.storedFields(),
-                    request.fetchSourceContext());
+                GetResult getResult = context.indexShard()
+                    .getService()
+                    .get(result, request.id(), request.storedFields(), request.fetchSourceContext());
                 return new ExplainResponse(shardId.getIndexName(), request.id(), true, explanation, getResult);
             } else {
                 return new ExplainResponse(shardId.getIndexName(), request.id(), true, explanation);
@@ -135,16 +144,21 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        return clusterService.operationRouting().getShards(
-                clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(),
-            request.request().preference()
-        );
+        return clusterService.operationRouting()
+            .getShards(
+                clusterService.state(),
+                request.concreteIndex(),
+                request.request().id(),
+                request.request().routing(),
+                request.request().preference()
+            );
     }
 
     @Override
     protected String getExecutor(ExplainRequest request, ShardId shardId) {
         IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
-        return indexService.getIndexSettings().isSearchThrottled() ? ThreadPool.Names.SEARCH_THROTTLED : super.getExecutor(request,
-            shardId);
+        return indexService.getIndexSettings().isSearchThrottled()
+            ? ThreadPool.Names.SEARCH_THROTTLED
+            : super.getExecutor(request, shardId);
     }
 }

@@ -12,8 +12,7 @@ package org.elasticsearch.tasks;
  * Helper class to expose {@link CancellableTask#cancel} for use in tests.
  */
 public class TaskCancelHelper {
-    private TaskCancelHelper() {
-    }
+    private TaskCancelHelper() {}
 
     public static void cancel(CancellableTask task, String reason) {
         task.cancel(reason);

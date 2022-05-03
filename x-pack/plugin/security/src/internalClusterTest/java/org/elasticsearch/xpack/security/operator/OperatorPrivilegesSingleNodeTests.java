@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
@@ -33,31 +33,28 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
 
     @Override
     protected String configUsers() {
-        return super.configUsers()
-            + OPERATOR_USER_NAME + ":" + TEST_PASSWORD_HASHED + "\n";
+        return super.configUsers() + OPERATOR_USER_NAME + ":" + TEST_PASSWORD_HASHED + "\n";
     }
 
     @Override
     protected String configRoles() {
-        return super.configRoles()
-            + "limited_operator:\n"
-            + "  cluster:\n"
-            + "    - 'cluster:admin/voting_config/clear_exclusions'\n"
-            + "    - 'cluster:admin/settings/update'\n"
-            + "    - 'monitor'\n";
+        return super.configRoles() + """
+            limited_operator:
+              cluster:
+                - 'cluster:admin/voting_config/clear_exclusions'
+                - 'cluster:admin/settings/update'
+                - 'monitor'
+            """;
     }
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles()
-            + "limited_operator:" + OPERATOR_USER_NAME + "\n";
+        return super.configUsersRoles() + "limited_operator:" + OPERATOR_USER_NAME + "\n";
     }
 
     @Override
     protected String configOperatorUsers() {
-        return super.configOperatorUsers()
-            + "operator:\n"
-            + "  - usernames: ['" + OPERATOR_USER_NAME + "']\n";
+        return super.configOperatorUsers() + "operator:\n" + "  - usernames: ['" + OPERATOR_USER_NAME + "']\n";
     }
 
     @Override
@@ -72,7 +69,8 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
         final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
         final ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> client().execute(ClearVotingConfigExclusionsAction.INSTANCE, clearVotingConfigExclusionsRequest).actionGet());
+            () -> client().execute(ClearVotingConfigExclusionsAction.INSTANCE, clearVotingConfigExclusionsRequest).actionGet()
+        );
         assertThat(e.getCause().getMessage(), containsString("Operator privileges are required for action"));
     }
 
@@ -84,8 +82,10 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
         } else {
             clusterUpdateSettingsRequest.persistentSettings(settings);
         }
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-            () -> client().execute(ClusterUpdateSettingsAction.INSTANCE, clusterUpdateSettingsRequest).actionGet());
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> client().execute(ClusterUpdateSettingsAction.INSTANCE, clusterUpdateSettingsRequest).actionGet()
+        );
         assertThat(e.getCause().getMessage(), containsString("Operator privileges are required for setting"));
     }
 
@@ -122,13 +122,16 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
     public void testOperatorUserIsStillSubjectToRoleLimits() {
         final Client client = createOperatorClient();
         final GetUsersRequest getUsersRequest = new GetUsersRequest();
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-            () -> client.execute(GetUsersAction.INSTANCE, getUsersRequest).actionGet());
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> client.execute(GetUsersAction.INSTANCE, getUsersRequest).actionGet()
+        );
         assertThat(e.getMessage(), containsString("is unauthorized for user"));
     }
 
     private Client createOperatorClient() {
-        return client().filterWithHeader(Map.of("Authorization",
-            basicAuthHeaderValue(OPERATOR_USER_NAME, new SecureString(TEST_PASSWORD.toCharArray()))));
+        return client().filterWithHeader(
+            Map.of("Authorization", basicAuthHeaderValue(OPERATOR_USER_NAME, new SecureString(TEST_PASSWORD.toCharArray())))
+        );
     }
 }

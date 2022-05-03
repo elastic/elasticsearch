@@ -21,8 +21,7 @@ public abstract class AbstractGetResourcesRequest extends ActionRequest {
     private PageParams pageParams = PageParams.defaultParams();
     private boolean allowNoResources = false;
 
-    public AbstractGetResourcesRequest() {
-    }
+    public AbstractGetResourcesRequest() {}
 
     public AbstractGetResourcesRequest(StreamInput in) throws IOException {
         super(in);
@@ -89,9 +88,9 @@ public abstract class AbstractGetResourcesRequest extends ActionRequest {
             return false;
         }
         AbstractGetResourcesRequest other = (AbstractGetResourcesRequest) obj;
-        return Objects.equals(resourceId, other.resourceId) &&
-            Objects.equals(pageParams, other.pageParams) &&
-            allowNoResources == other.allowNoResources;
+        return Objects.equals(resourceId, other.resourceId)
+            && Objects.equals(pageParams, other.pageParams)
+            && allowNoResources == other.allowNoResources;
     }
 
     public abstract String getResourceIdField();

@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.eql.session.Executable;
 import org.elasticsearch.xpack.eql.session.Payload;
 
-
 // this is mainly a marker interface to validate a plan before being executed
 public interface Unexecutable extends Executable {
 

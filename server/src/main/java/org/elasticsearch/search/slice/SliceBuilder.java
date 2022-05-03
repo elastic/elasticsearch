@@ -16,11 +16,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -28,6 +23,11 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -48,8 +48,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     private static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField MAX_FIELD = new ParseField("max");
-    private static final ObjectParser<SliceBuilder, Void> PARSER =
-        new ObjectParser<>("slice", SliceBuilder::new);
+    private static final ObjectParser<SliceBuilder, Void> PARSER = new ObjectParser<>("slice", SliceBuilder::new);
 
     static {
         PARSER.declareString(SliceBuilder::setField, FIELD_FIELD);
@@ -247,9 +246,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
     private Query createSliceQuery(int id, int max, SearchExecutionContext context, boolean isScroll) {
         if (field == null) {
-            return isScroll
-                ? new TermsSliceQuery(IdFieldMapper.NAME, id, max)
-                : new DocIdSliceQuery(id, max);
+            return isScroll ? new TermsSliceQuery(IdFieldMapper.NAME, id, max) : new DocIdSliceQuery(id, max);
         } else if (IdFieldMapper.NAME.equals(field)) {
             if (isScroll == false) {
                 throw new IllegalArgumentException("cannot slice on [_id] when using [point-in-time]");

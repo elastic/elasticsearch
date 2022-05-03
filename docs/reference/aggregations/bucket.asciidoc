@@ -20,6 +20,8 @@ include::bucket/adjacency-matrix-aggregation.asciidoc[]
 
 include::bucket/autodatehistogram-aggregation.asciidoc[]
 
+include::bucket/categorize-text-aggregation.asciidoc[]
+
 include::bucket/children-aggregation.asciidoc[]
 
 include::bucket/composite-aggregation.asciidoc[]
@@ -38,11 +40,15 @@ include::bucket/geodistance-aggregation.asciidoc[]
 
 include::bucket/geohashgrid-aggregation.asciidoc[]
 
+include::bucket/geohexgrid-aggregation.asciidoc[]
+
 include::bucket/geotilegrid-aggregation.asciidoc[]
 
 include::bucket/global-aggregation.asciidoc[]
 
 include::bucket/histogram-aggregation.asciidoc[]
+
+include::bucket/ipprefix-aggregation.asciidoc[]
 
 include::bucket/iprange-aggregation.asciidoc[]
 
@@ -53,6 +59,8 @@ include::bucket/multi-terms-aggregation.asciidoc[]
 include::bucket/nested-aggregation.asciidoc[]
 
 include::bucket/parent-aggregation.asciidoc[]
+
+include::bucket/random-sampler-aggregation.asciidoc[]
 
 include::bucket/range-aggregation.asciidoc[]
 

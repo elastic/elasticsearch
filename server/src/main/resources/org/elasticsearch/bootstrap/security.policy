@@ -22,10 +22,10 @@ grant codeBase "${codebase.elasticsearch-secure-sm}" {
 grant codeBase "${codebase.elasticsearch}" {
   // needed for loading plugins which may expect the context class loader to be set
   permission java.lang.RuntimePermission "setContextClassLoader";
-  // needed for SPI class loading
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-  // needed by HotThreads to enable wait/block time accounting on demand
-  permission java.lang.management.ManagementPermission "control";
+  // needed for the readiness service
+  permission java.net.SocketPermission "127.0.0.1", "listen, accept";
+  // required if started with -Djava.net.preferIPv6Addresses=true
+  permission java.net.SocketPermission "0:0:0:0:0:0:0:1", "listen, accept";
 };
 
 //// Very special jar permissions:
@@ -50,6 +50,15 @@ grant codeBase "${codebase.lucene-misc}" {
 grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
   // needed to create the classloader which allows plugins to extend other plugins
   permission java.lang.RuntimePermission "createClassLoader";
+};
+
+grant codeBase "${codebase.elasticsearch-core}" {
+  permission java.lang.RuntimePermission "createClassLoader";
+};
+
+grant codeBase "${codebase.elasticsearch-cli}" {
+  // we don't actually use write, but it is needed to get the entire property map
+  permission java.util.PropertyPermission "*", "read,write";
 };
 
 grant codeBase "${codebase.jna}" {

@@ -27,6 +27,12 @@ For {es}, adherence to FIPS 140-2 is ensured by
 [discrete]
 === Upgrade considerations
 
+[IMPORTANT] 
+==== 
+include::fips-java17.asciidoc[]
+====
+
+
 If you plan to upgrade your existing cluster to a version that can be run in
 a FIPS 140-2 configured JVM, we recommend to first perform a rolling
 upgrade to the new version in your existing JVM and perform all necessary

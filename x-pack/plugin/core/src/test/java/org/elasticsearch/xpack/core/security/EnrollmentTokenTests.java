@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.core.security;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.EnrollmentToken;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -35,8 +34,7 @@ public class EnrollmentTokenTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
             final Map<String, Object> info = parser.map();
             assertNotEquals(info, null);
-            enrollmentMap = info.entrySet().stream()
-                .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().toString()));
+            enrollmentMap = info.entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().toString()));
         }
         assertEquals(enrollmentMap.get("key"), apiKey);
         assertEquals(enrollmentMap.get("fgr"), fingerprint);

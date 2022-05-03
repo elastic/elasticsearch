@@ -20,5 +20,5 @@ dependencies {
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
-  user username: 'x_pack_rest_user', password: 'x-pack-test-password', role: 'superuser'
+  user username: 'x_pack_rest_user', password: 'x-pack-test-password'
 }

@@ -33,8 +33,12 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
     private final NativeUsersStore usersStore;
 
     @Inject
-    public TransportPutUserAction(Settings settings, ActionFilters actionFilters,
-                                  NativeUsersStore usersStore, TransportService transportService) {
+    public TransportPutUserAction(
+        Settings settings,
+        ActionFilters actionFilters,
+        NativeUsersStore usersStore,
+        TransportService transportService
+    ) {
         super(PutUserAction.NAME, transportService, actionFilters, PutUserRequest::new);
         this.settings = settings;
         this.usersStore = usersStore;
@@ -71,11 +75,15 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
         final String username = request.username();
         if (ClientReservedRealm.isReserved(username, settings)) {
             if (AnonymousUser.isAnonymousUsername(username, settings)) {
-                validationException =
-                    addValidationError("user [" + username + "] is anonymous and cannot be modified via the API", validationException);
+                validationException = addValidationError(
+                    "user [" + username + "] is anonymous and cannot be modified via the API",
+                    validationException
+                );
             } else {
-                validationException = addValidationError("user [" + username + "] is reserved and only the " +
-                    "password can be changed", validationException);
+                validationException = addValidationError(
+                    "user [" + username + "] is reserved and only the " + "password can be changed",
+                    validationException
+                );
             }
         } else if (User.isInternalUsername(username)) {
             validationException = addValidationError("user [" + username + "] is internal", validationException);

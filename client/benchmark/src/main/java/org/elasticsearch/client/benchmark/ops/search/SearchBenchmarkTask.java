@@ -22,8 +22,13 @@ public class SearchBenchmarkTask implements BenchmarkTask {
 
     private SampleRecorder sampleRecorder;
 
-    public SearchBenchmarkTask(SearchRequestExecutor searchRequestExecutor, String body, int warmupIterations,
-                               int measurementIterations, int targetThroughput) {
+    public SearchBenchmarkTask(
+        SearchRequestExecutor searchRequestExecutor,
+        String body,
+        int warmupIterations,
+        int measurementIterations,
+        int targetThroughput
+    ) {
         this.searchRequestExecutor = searchRequestExecutor;
         this.searchRequestBody = body;
         this.warmupIterations = warmupIterations;

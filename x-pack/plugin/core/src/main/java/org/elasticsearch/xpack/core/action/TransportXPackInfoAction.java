@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
@@ -32,8 +32,12 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
     private final List<XPackInfoFeatureAction> infoActions;
 
     @Inject
-    public TransportXPackInfoAction(TransportService transportService, ActionFilters actionFilters, LicenseService licenseService,
-                                    NodeClient client) {
+    public TransportXPackInfoAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        LicenseService licenseService,
+        NodeClient client
+    ) {
         super(XPackInfoAction.NAME, transportService, actionFilters, XPackInfoRequest::new);
         this.licenseService = licenseService;
         this.client = client;
@@ -48,7 +52,6 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
     @Override
     protected void doExecute(Task task, XPackInfoRequest request, ActionListener<XPackInfoResponse> listener) {
 
-
         XPackInfoResponse.BuildInfo buildInfo = null;
         if (request.getCategories().contains(XPackInfoRequest.Category.BUILD)) {
             buildInfo = new XPackInfoResponse.BuildInfo(XPackBuild.CURRENT.shortHash(), XPackBuild.CURRENT.date());
@@ -58,8 +61,13 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
         if (request.getCategories().contains(XPackInfoRequest.Category.LICENSE)) {
             License license = licenseService.getLicense();
             if (license != null) {
-                licenseInfo = new LicenseInfo(license.uid(), license.type(), license.operationMode().description(),
-                        license.status(), license.expiryDate());
+                licenseInfo = new LicenseInfo(
+                    license.uid(),
+                    license.type(),
+                    license.operationMode().description(),
+                    LicenseService.status(license),
+                    LicenseService.getExpiryDate(license)
+                );
             }
         }
 
@@ -68,8 +76,11 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
             var featureSets = new HashSet<FeatureSet>();
             for (var infoAction : infoActions) {
                 // local actions are executed directly, not on a separate thread, so no thread safe collection is necessary
-                client.executeLocally(infoAction, request,
-                    ActionListener.wrap(response -> featureSets.add(response.getInfo()), listener::onFailure));
+                client.executeLocally(
+                    infoAction,
+                    request,
+                    ActionListener.wrap(response -> featureSets.add(response.getInfo()), listener::onFailure)
+                );
             }
             featureSetsInfo = new FeatureSetsInfo(featureSets);
         }

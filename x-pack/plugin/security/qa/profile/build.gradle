@@ -1,0 +1,34 @@
+import org.elasticsearch.gradle.Version
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':client:rest-high-level')
+  javaRestTestImplementation project(':x-pack:plugin:security')
+}
+
+testClusters.matching { it.name == 'javaRestTest' }.configureEach {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 2
+
+  rolesFile file('src/javaRestTest/resources/roles.yml')
+
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
+
+  setting 'xpack.security.authc.realms.ldap.ldap1.enabled', 'false'
+  setting 'xpack.security.authc.domains.my_domain.realms', 'default_file,ldap1'
+  setting 'xpack.security.authc.realms.saml.saml1.enabled', 'false'
+  setting 'xpack.security.authc.realms.active_directory.ad1.enabled', 'false'
+  setting 'xpack.security.authc.domains.other_domain.realms', 'saml1,ad1'
+
+  requiresFeature 'es.user_profile_feature_flag_enabled', Version.fromString("8.1.0")
+
+  user username: "test_admin", password: 'x-pack-test-password'
+  user username: "rac_user", password: 'x-pack-test-password', role: "rac_role"
+}

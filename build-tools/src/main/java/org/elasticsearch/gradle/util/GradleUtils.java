@@ -50,7 +50,7 @@ public abstract class GradleUtils {
     }
 
     public static void maybeConfigure(TaskContainer tasks, String name, Action<? super Task> config) {
-        tasks.matching(t -> t.getName().equals(name)).configureEach( t-> config.execute(t));
+        tasks.matching(t -> t.getName().equals(name)).configureEach(t -> config.execute(t));
     }
 
     public static <T extends Task> void maybeConfigure(
@@ -203,8 +203,7 @@ public abstract class GradleUtils {
     }
 
     public static boolean isModuleProject(String projectPath) {
-        return projectPath.contains("modules:")
-            || projectPath.startsWith(":x-pack:plugin");
+        return projectPath.contains("modules:") || projectPath.startsWith(":x-pack:plugin");
     }
 
     public static void disableTransitiveDependencies(Configuration config) {
@@ -215,5 +214,9 @@ public abstract class GradleUtils {
                 ((ModuleDependency) dep).setTransitive(false);
             }
         });
+    }
+
+    public static String projectPath(String taskPath) {
+        return taskPath.lastIndexOf(':') == 0 ? ":" : taskPath.substring(0, taskPath.lastIndexOf(':'));
     }
 }

@@ -36,15 +36,6 @@ public class DeleteExpiredDataActionRequestTests extends AbstractBWCWireSerializ
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, Version version) {
-        if (version.before(Version.V_7_8_0)) {
-            return new Request();
-        }
-        if (version.before(Version.V_7_9_0)) {
-            Request request = new Request();
-            request.setRequestsPerSecond(instance.getRequestsPerSecond());
-            request.setTimeout(instance.getTimeout());
-            return request;
-        }
         return instance;
     }
 }

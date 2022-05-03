@@ -11,7 +11,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.QueryPhaseResultConsumer;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchProgressListener;
@@ -25,11 +24,12 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -56,6 +56,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)
@@ -64,19 +65,22 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 @Fork(value = 1)
 public class TermsReduceBenchmark {
-    private final SearchPhaseController controller = new SearchPhaseController(req -> new InternalAggregation.ReduceContextBuilder() {
+
+    private final TermsAggregationBuilder builder = new TermsAggregationBuilder("terms");
+
+    private final SearchPhaseController controller = new SearchPhaseController((task, req) -> new AggregationReduceContext.Builder() {
         @Override
-        public InternalAggregation.ReduceContext forPartialReduction() {
-            return InternalAggregation.ReduceContext.forPartialReduction(null, null, () -> PipelineAggregator.PipelineTree.EMPTY);
+        public AggregationReduceContext forPartialReduction() {
+            return new AggregationReduceContext.ForPartial(null, null, task, builder);
         }
 
         @Override
-        public InternalAggregation.ReduceContext forFinalReduction() {
+        public AggregationReduceContext forFinalReduction() {
             final MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
                 Integer.MAX_VALUE,
                 new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
             );
-            return InternalAggregation.ReduceContext.forFinalReduction(null, null, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
+            return new AggregationReduceContext.ForFinal(null, null, task, builder, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
         }
     });
 
@@ -173,20 +177,20 @@ public class TermsReduceBenchmark {
                 new DocValueFormat[] { DocValueFormat.RAW }
             );
             result.aggregations(candidateList.get(i));
-            result.setSearchShardTarget(
-                new SearchShardTarget("node", new ShardId(new Index("index", "index"), i), null, OriginalIndices.NONE)
-            );
+            result.setSearchShardTarget(new SearchShardTarget("node", new ShardId(new Index("index", "index"), i), null));
             shards.add(result);
         }
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.terms("test")));
         request.setBatchedReduceSize(bufferSize);
         ExecutorService executor = Executors.newFixedThreadPool(1);
+        AtomicBoolean isCanceled = new AtomicBoolean();
         QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
             request,
             executor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             controller,
+            isCanceled::get,
             SearchProgressListener.NOOP,
             shards.size(),
             exc -> {}

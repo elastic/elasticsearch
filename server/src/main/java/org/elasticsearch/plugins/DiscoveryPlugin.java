@@ -64,8 +64,10 @@ public interface DiscoveryPlugin {
      *                         of a {@link org.elasticsearch.cluster.node.DiscoveryNode}
      * @param networkService Use to find the publish host address of the current node
      */
-    default Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService,
-                                                                          NetworkService networkService) {
+    default Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(
+        TransportService transportService,
+        NetworkService networkService
+    ) {
         return Collections.emptyMap();
     }
 
@@ -74,7 +76,9 @@ public interface DiscoveryPlugin {
      * join attempt but might be called multiple times during the lifetime of a node. Validators are expected to throw a
      * {@link IllegalStateException} if the node and the cluster-state are incompatible.
      */
-    default BiConsumer<DiscoveryNode,ClusterState> getJoinValidator() { return null; }
+    default BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
+        return null;
+    }
 
     /**
      * Allows plugging in election strategies (see {@link ElectionStrategy}) that define a customized notion of an election quorum.

@@ -67,7 +67,7 @@ final class SeqIdGeneratingFilterReader extends FilterDirectoryReader {
 
         @Override
         public int nextDoc() {
-            if (docID+1 < maxDoc) {
+            if (docID + 1 < maxDoc) {
                 docID++;
             } else {
                 docID = NO_MORE_DOCS;

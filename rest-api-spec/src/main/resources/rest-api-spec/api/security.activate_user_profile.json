@@ -1,0 +1,29 @@
+{
+  "security.activate_user_profile":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-activate-user-profile.html",
+      "description":"Creates or updates the user profile on behalf of another user."
+    },
+    "stability":"experimental",
+    "visibility":"feature_flag",
+    "feature_flag": "es.user_profile_feature_flag_enabled",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/profile/_activate",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"The grant type and user's credential",
+      "required":true
+    }
+  }
+}

@@ -17,7 +17,6 @@ import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
-import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -31,6 +30,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 /**
  * Build service for detecting available Docker installation and checking for compatibility with Elasticsearch Docker image build
@@ -153,8 +154,11 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         // Some other problem, print the error
         final String message = String.format(
             Locale.ROOT,
-            "a problem occurred while using Docker from [%s]%s yet it is required to run the following task%s: \n%s\n"
-                + "the problem is that Docker exited with exit code [%d] with standard error output:\n%s",
+            """
+                a problem occurred while using Docker from [%s]%s yet it is required to run the following task%s:
+                %s
+                the problem is that Docker exited with exit code [%d] with standard error output:
+                %s""",
             availability.path,
             availability.version == null ? "" : " v" + availability.version,
             tasks.size() > 1 ? "s" : "",
@@ -304,8 +308,8 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     /**
      * An immutable class that represents the results of a Docker search from {@link #getDockerAvailability()}}.
      */
-    public static class DockerAvailability {
-        /**
+    public record DockerAvailability(
+        /*
          * Indicates whether Docker is available and meets the required criteria.
          * True if, and only if, Docker is:
          * <ul>
@@ -315,70 +319,31 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
          *     <li>Can execute a command that requires privileges</li>
          * </ul>
          */
-        public final boolean isAvailable;
+        boolean isAvailable,
 
-        /**
-         * True if docker-compose is available.
-         */
-        public final boolean isComposeAvailable;
+        // True if docker-compose is available.
+        boolean isComposeAvailable,
 
-        /**
-         * True if the installed Docker version is &gt;= 17.05
-         */
-        public final boolean isVersionHighEnough;
+        // True if the installed Docker version is &gt,= 17.05
+        boolean isVersionHighEnough,
 
-        /**
-         * The path to the Docker CLI, or null
-         */
-        public final String path;
+        // The path to the Docker CLI, or null
+        String path,
 
-        /**
-         * The installed Docker version, or null
-         */
-        public final Version version;
+        // The installed Docker version, or null
+        Version version,
 
-        /**
-         * Information about the last command executes while probing Docker, or null.
-         */
-        final Result lastCommand;
-
-        DockerAvailability(
-            boolean isAvailable,
-            boolean isComposeAvailable,
-            boolean isVersionHighEnough,
-            String path,
-            Version version,
-            Result lastCommand
-        ) {
-            this.isAvailable = isAvailable;
-            this.isComposeAvailable = isComposeAvailable;
-            this.isVersionHighEnough = isVersionHighEnough;
-            this.path = path;
-            this.version = version;
-            this.lastCommand = lastCommand;
-        }
-    }
+        // Information about the last command executes while probing Docker, or null.
+        Result lastCommand
+    ) {}
 
     /**
      * This class models the result of running a command. It captures the exit code, standard output and standard error.
      */
-    private static class Result {
-        final int exitCode;
-        final String stdout;
-        final String stderr;
-
-        Result(int exitCode, String stdout, String stderr) {
-            this.exitCode = exitCode;
-            this.stdout = stdout;
-            this.stderr = stderr;
-        }
+    private record Result(int exitCode, String stdout, String stderr) {
 
         boolean isSuccess() {
             return exitCode == 0;
-        }
-
-        public String toString() {
-            return "exitCode = [" + exitCode + "] " + "stdout = [" + stdout.trim() + "] " + "stderr = [" + stderr.trim() + "]";
         }
     }
 

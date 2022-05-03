@@ -35,7 +35,11 @@ if (BuildParams.inFipsJvm){
   tasks.named("yamlRestTest").configure{enabled = false }
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
+
+tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
+  task.skipTest("mustache/30_search_input/Test search input mustache integration (using request body and rest_total_hits_as_int)", "remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0 (#78417)")
+  task.skipTest("mustache/30_search_input/Test search input mustache integration (using request body)", "remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0 (#78417)")
+  task.skipTest("mustache/40_search_transform/Test search transform mustache integration (using request body)", "remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0 (#78417)")
   task.replaceKeyInDo("watcher.ack_watch", "xpack-watcher.ack_watch")
   task.replaceKeyInDo("watcher.activate_watch", "xpack-watcher.activate_watch")
   task.replaceKeyInDo("watcher.deactivate_watch", "xpack-watcher.deactivate_watch")
@@ -51,5 +55,4 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
   task.replaceValueTextByKeyValue("path", "/my_index/my_type/{{ctx.watch_id}}", "/my_index/_doc/{{ctx.watch_id}}",
     "Test webhook action with mustache integration")
-
-})
+}

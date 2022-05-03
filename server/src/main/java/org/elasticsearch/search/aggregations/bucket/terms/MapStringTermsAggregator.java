@@ -69,10 +69,11 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
-        this.collectorSource = collectorSource;
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.includeExclude = includeExclude;
         bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        // set last because if there is an error during construction the collector gets release outside the constructor.
+        this.collectorSource = collectorSource;
     }
 
     @Override
@@ -478,7 +479,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         private final long supersetSize;
         private final SignificanceHeuristic significanceHeuristic;
 
-        private LongArray subsetSizes = bigArrays().newLongArray(1, true);
+        private LongArray subsetSizes;
 
         SignificantTermsResults(
             SignificanceLookup significanceLookup,
@@ -488,6 +489,15 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             backgroundFrequencies = significanceLookup.bytesLookup(bigArrays(), cardinality);
             supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
+            boolean success = false;
+            try {
+                subsetSizes = bigArrays().newLongArray(1, true);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
         }
 
         @Override

@@ -4,7 +4,5 @@ ccruser:
   indices:
     - names: [ 'allowed-index', 'clean-leader', 'forget-leader', 'logs-eu*' ]
       privileges:
-        - monitor
+        - manage
         - read
-        - manage_leader_index
-        - view_index_metadata

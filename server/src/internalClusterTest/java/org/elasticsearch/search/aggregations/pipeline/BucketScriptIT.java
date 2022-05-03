@@ -11,9 +11,6 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -23,6 +20,9 @@ import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,13 +33,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -185,13 +185,13 @@ public class BucketScriptIT extends ESIntegTestCase {
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
-                double field2SumValue = field2Sum.getValue();
+                double field2SumValue = field2Sum.value();
                 Sum field3Sum = bucket.getAggregations().get("field3Sum");
                 assertThat(field3Sum, notNullValue());
-                double field3SumValue = field3Sum.getValue();
+                double field3SumValue = field3Sum.value();
                 Sum field4Sum = bucket.getAggregations().get("field4Sum");
                 assertThat(field4Sum, notNullValue());
-                double field4SumValue = field4Sum.getValue();
+                double field4SumValue = field4Sum.value();
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
                 assertThat(seriesArithmetic, notNullValue());
                 double seriesArithmeticValue = seriesArithmetic.value();
@@ -235,13 +235,13 @@ public class BucketScriptIT extends ESIntegTestCase {
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
-                double field2SumValue = field2Sum.getValue();
+                double field2SumValue = field2Sum.value();
                 Sum field3Sum = bucket.getAggregations().get("field3Sum");
                 assertThat(field3Sum, notNullValue());
-                double field3SumValue = field3Sum.getValue();
+                double field3SumValue = field3Sum.value();
                 Sum field4Sum = bucket.getAggregations().get("field4Sum");
                 assertThat(field4Sum, notNullValue());
-                double field4SumValue = field4Sum.getValue();
+                double field4SumValue = field4Sum.value();
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
                 assertThat(seriesArithmetic, notNullValue());
                 double seriesArithmeticValue = seriesArithmetic.value();
@@ -285,13 +285,13 @@ public class BucketScriptIT extends ESIntegTestCase {
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
-                double field2SumValue = field2Sum.getValue();
+                double field2SumValue = field2Sum.value();
                 Sum field3Sum = bucket.getAggregations().get("field3Sum");
                 assertThat(field3Sum, notNullValue());
-                double field3SumValue = field3Sum.getValue();
+                double field3SumValue = field3Sum.value();
                 Sum field4Sum = bucket.getAggregations().get("field4Sum");
                 assertThat(field4Sum, notNullValue());
-                double field4SumValue = field4Sum.getValue();
+                double field4SumValue = field4Sum.value();
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
                 assertThat(seriesArithmetic, notNullValue());
                 double seriesArithmeticValue = seriesArithmetic.value();
@@ -331,7 +331,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
-                double field2SumValue = field2Sum.getValue();
+                double field2SumValue = field2Sum.value();
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
                 assertThat(seriesArithmetic, notNullValue());
                 double seriesArithmeticValue = seriesArithmetic.value();
@@ -377,13 +377,13 @@ public class BucketScriptIT extends ESIntegTestCase {
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
-                double field2SumValue = field2Sum.getValue();
+                double field2SumValue = field2Sum.value();
                 Sum field3Sum = bucket.getAggregations().get("field3Sum");
                 assertThat(field3Sum, notNullValue());
-                double field3SumValue = field3Sum.getValue();
+                double field3SumValue = field3Sum.value();
                 Sum field4Sum = bucket.getAggregations().get("field4Sum");
                 assertThat(field4Sum, notNullValue());
-                double field4SumValue = field4Sum.getValue();
+                double field4SumValue = field4Sum.value();
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
                 assertThat(seriesArithmetic, notNullValue());
                 double seriesArithmeticValue = seriesArithmetic.value();
@@ -424,13 +424,13 @@ public class BucketScriptIT extends ESIntegTestCase {
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
-                double field2SumValue = field2Sum.getValue();
+                double field2SumValue = field2Sum.value();
                 Sum field3Sum = bucket.getAggregations().get("field3Sum");
                 assertThat(field3Sum, notNullValue());
-                double field3SumValue = field3Sum.getValue();
+                double field3SumValue = field3Sum.value();
                 Sum field4Sum = bucket.getAggregations().get("field4Sum");
                 assertThat(field4Sum, notNullValue());
-                double field4SumValue = field4Sum.getValue();
+                double field4SumValue = field4Sum.value();
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
                 assertThat(seriesArithmetic, notNullValue());
                 double seriesArithmeticValue = seriesArithmetic.value();
@@ -476,13 +476,13 @@ public class BucketScriptIT extends ESIntegTestCase {
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
-                double field2SumValue = field2Sum.getValue();
+                double field2SumValue = field2Sum.value();
                 Sum field3Sum = bucket.getAggregations().get("field3Sum");
                 assertThat(field3Sum, notNullValue());
-                double field3SumValue = field3Sum.getValue();
+                double field3SumValue = field3Sum.value();
                 Sum field4Sum = bucket.getAggregations().get("field4Sum");
                 assertThat(field4Sum, notNullValue());
-                double field4SumValue = field4Sum.getValue();
+                double field4SumValue = field4Sum.value();
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
                 assertThat(seriesArithmetic, notNullValue());
                 double seriesArithmeticValue = seriesArithmetic.value();
@@ -565,13 +565,13 @@ public class BucketScriptIT extends ESIntegTestCase {
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
-                double field2SumValue = field2Sum.getValue();
+                double field2SumValue = field2Sum.value();
                 Sum field3Sum = bucket.getAggregations().get("field3Sum");
                 assertThat(field3Sum, notNullValue());
-                double field3SumValue = field3Sum.getValue();
+                double field3SumValue = field3Sum.value();
                 Sum field4Sum = bucket.getAggregations().get("field4Sum");
                 assertThat(field4Sum, notNullValue());
-                double field4SumValue = field4Sum.getValue();
+                double field4SumValue = field4Sum.value();
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
                 assertThat(seriesArithmetic, notNullValue());
                 double seriesArithmeticValue = seriesArithmetic.value();
@@ -643,13 +643,13 @@ public class BucketScriptIT extends ESIntegTestCase {
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
-                double field2SumValue = field2Sum.getValue();
+                double field2SumValue = field2Sum.value();
                 Sum field3Sum = bucket.getAggregations().get("field3Sum");
                 assertThat(field3Sum, notNullValue());
-                double field3SumValue = field3Sum.getValue();
+                double field3SumValue = field3Sum.value();
                 Sum field4Sum = bucket.getAggregations().get("field4Sum");
                 assertThat(field4Sum, notNullValue());
-                double field4SumValue = field4Sum.getValue();
+                double field4SumValue = field4Sum.value();
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
                 assertThat(seriesArithmetic, notNullValue());
                 double seriesArithmeticValue = seriesArithmetic.value();
@@ -696,7 +696,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
-                double field2SumValue = field2Sum.getValue();
+                double field2SumValue = field2Sum.value();
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
                 assertThat(seriesArithmetic, notNullValue());
                 double seriesArithmeticValue = seriesArithmetic.value();
@@ -745,13 +745,13 @@ public class BucketScriptIT extends ESIntegTestCase {
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
-                double field2SumValue = field2Sum.getValue();
+                double field2SumValue = field2Sum.value();
                 Sum field3Sum = bucket.getAggregations().get("field3Sum");
                 assertThat(field3Sum, notNullValue());
-                double field3SumValue = field3Sum.getValue();
+                double field3SumValue = field3Sum.value();
                 Sum field4Sum = bucket.getAggregations().get("field4Sum");
                 assertThat(field4Sum, notNullValue());
-                double field4SumValue = field4Sum.getValue();
+                double field4SumValue = field4Sum.value();
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
                 assertThat(seriesArithmetic, notNullValue());
                 double seriesArithmeticValue = seriesArithmetic.value();
@@ -804,13 +804,13 @@ public class BucketScriptIT extends ESIntegTestCase {
             } else {
                 Sum field2Sum = bucket.getAggregations().get("field2Sum");
                 assertThat(field2Sum, notNullValue());
-                double field2SumValue = field2Sum.getValue();
+                double field2SumValue = field2Sum.value();
                 Sum field3Sum = bucket.getAggregations().get("field3Sum");
                 assertThat(field3Sum, notNullValue());
-                double field3SumValue = field3Sum.getValue();
+                double field3SumValue = field3Sum.value();
                 Sum field4Sum = bucket.getAggregations().get("field4Sum");
                 assertThat(field4Sum, notNullValue());
-                double field4SumValue = field4Sum.getValue();
+                double field4SumValue = field4Sum.value();
                 SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
                 assertThat(seriesArithmetic, notNullValue());
                 double seriesArithmeticValue = seriesArithmetic.value();

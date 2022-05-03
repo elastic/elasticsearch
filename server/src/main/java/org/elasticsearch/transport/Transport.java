@@ -12,12 +12,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -28,6 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.transport.BytesRefRecycler.NON_RECYCLING_INSTANCE;
 
 public interface Transport extends LifecycleComponent {
 
@@ -40,8 +43,7 @@ public interface Transport extends LifecycleComponent {
 
     void setMessageListener(TransportMessageListener listener);
 
-    default void setSlowLogThreshold(TimeValue slowLogThreshold) {
-    }
+    default void setSlowLogThreshold(TimeValue slowLogThreshold) {}
 
     default boolean isSecure() {
         return false;
@@ -80,6 +82,10 @@ public interface Transport extends LifecycleComponent {
 
     RequestHandlers getRequestHandlers();
 
+    default RecyclerBytesStreamOutput newNetworkBytesStream() {
+        return new RecyclerBytesStreamOutput(NON_RECYCLING_INSTANCE);
+    }
+
     /**
      * A unidirectional connection to a {@link DiscoveryNode}
      */
@@ -97,8 +103,8 @@ public interface Transport extends LifecycleComponent {
          * @param options request options to apply
          * @throws NodeNotConnectedException if the given node is not connected
          */
-        void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
-            IOException, TransportException;
+        void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException,
+            TransportException;
 
         /**
          * The listener's {@link ActionListener#onResponse(Object)} method will be called when this
@@ -237,8 +243,10 @@ public interface Transport extends LifecycleComponent {
          * sent request (before any processing or deserialization was done). Returns the appropriate response handler or null if not
          * found.
          */
-        public TransportResponseHandler<? extends TransportResponse> onResponseReceived(final long requestId,
-                                                                                        final TransportMessageListener listener) {
+        public TransportResponseHandler<? extends TransportResponse> onResponseReceived(
+            final long requestId,
+            final TransportMessageListener listener
+        ) {
             ResponseContext<? extends TransportResponse> context = handlers.remove(requestId);
             listener.onResponseReceived(requestId, context);
             if (context == null) {
@@ -261,7 +269,7 @@ public interface Transport extends LifecycleComponent {
         }
 
         // TODO: Only visible for testing. Perhaps move StubbableTransport from
-        //  org.elasticsearch.test.transport to org.elasticsearch.transport
+        // org.elasticsearch.test.transport to org.elasticsearch.transport
         public synchronized <Request extends TransportRequest> void forceRegister(RequestHandlerRegistry<Request> reg) {
             requestHandlers = Maps.copyMapWithAddedOrReplacedEntry(requestHandlers, reg.getAction(), reg);
         }

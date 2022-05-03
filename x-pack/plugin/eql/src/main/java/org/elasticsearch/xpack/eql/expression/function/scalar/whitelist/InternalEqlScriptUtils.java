@@ -33,8 +33,7 @@ import static org.elasticsearch.xpack.eql.expression.predicate.operator.comparis
  */
 public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
-    InternalEqlScriptUtils() {
-    }
+    InternalEqlScriptUtils() {}
 
     public static <T> Boolean multiValueDocValues(Map<String, ScriptDocValues<T>> doc, String fieldName, Predicate<T> script) {
         ScriptDocValues<T> docValues = doc.get(fieldName);

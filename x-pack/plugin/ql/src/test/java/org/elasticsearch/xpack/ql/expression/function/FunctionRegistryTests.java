@@ -49,13 +49,14 @@ public class FunctionRegistryTests extends ESTestCase {
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // No children aren't supported
-        ParsingException e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
 
         // Multiple children aren't supported
-        e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def));
+        e = expectThrows(
+            ParsingException.class,
+            () -> uf(DEFAULT, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
+        );
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
 
@@ -77,40 +78,50 @@ public class FunctionRegistryTests extends ESTestCase {
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // No children aren't supported
-        ParsingException e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
 
         // One child isn't supported
-        e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
+        e = expectThrows(ParsingException.class, () -> uf(DEFAULT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
 
         // Many children aren't supported
-        e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT, mock(Expression.class), mock(Expression.class), mock(Expression.class))
-                .buildResolved(randomConfiguration(), def));
+        e = expectThrows(
+            ParsingException.class,
+            () -> uf(DEFAULT, mock(Expression.class), mock(Expression.class), mock(Expression.class)).buildResolved(
+                randomConfiguration(),
+                def
+            )
+        );
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
     }
 
     public void testAliasNameIsTheSameAsAFunctionName() {
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
-        QlIllegalArgumentException iae = expectThrows(QlIllegalArgumentException.class, () ->
-            r.register(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "DUMMY_FUNCTION")));
+        QlIllegalArgumentException iae = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> r.register(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "DUMMY_FUNCTION"))
+        );
         assertEquals("alias [DUMMY_FUNCTION] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
 
     public void testDuplicateAliasInTwoDifferentFunctionsFromTheSameBatch() {
-        QlIllegalArgumentException iae = expectThrows(QlIllegalArgumentException.class, () ->
-            new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"),
-                def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS")));
+        QlIllegalArgumentException iae = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> new FunctionRegistry(
+                def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"),
+                def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS")
+            )
+        );
         assertEquals("alias [ALIAS] is used by [DUMMY_FUNCTION(ALIAS)] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
 
     public void testDuplicateAliasInTwoDifferentFunctionsFromTwoDifferentBatches() {
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
-        QlIllegalArgumentException iae = expectThrows(QlIllegalArgumentException.class, () ->
-            r.register(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS")));
+        QlIllegalArgumentException iae = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> r.register(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS"))
+        );
         assertEquals("alias [ALIAS] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
 
@@ -145,15 +156,14 @@ public class FunctionRegistryTests extends ESTestCase {
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // Not resolved
-        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class,
-            () -> r.resolveFunction(r.resolveAlias("DummyFunction")));
-        assertThat(e.getMessage(),
-            is("Cannot find function DUMMYFUNCTION; this should have been caught during analysis"));
+        QlIllegalArgumentException e = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> r.resolveFunction(r.resolveAlias("DummyFunction"))
+        );
+        assertThat(e.getMessage(), is("Cannot find function DUMMYFUNCTION; this should have been caught during analysis"));
 
-        e = expectThrows(QlIllegalArgumentException.class,
-            () -> r.resolveFunction(r.resolveAlias("dummyFunction")));
-        assertThat(e.getMessage(),
-            is("Cannot find function DUMMYFUNCTION; this should have been caught during analysis"));
+        e = expectThrows(QlIllegalArgumentException.class, () -> r.resolveFunction(r.resolveAlias("dummyFunction")));
+        assertThat(e.getMessage(), is("Cannot find function DUMMYFUNCTION; this should have been caught during analysis"));
     }
 
     public static UnresolvedFunction uf(FunctionResolutionStrategy resolutionStrategy, Expression... children) {

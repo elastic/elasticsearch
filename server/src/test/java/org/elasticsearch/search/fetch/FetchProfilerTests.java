@@ -17,8 +17,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
-import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FetchProfilerTests extends ESTestCase {

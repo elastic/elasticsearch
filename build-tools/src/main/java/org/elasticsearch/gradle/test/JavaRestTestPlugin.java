@@ -62,13 +62,14 @@ public class JavaRestTestPlugin implements Plugin<Project> {
                 nonInputProperties.systemProperty("tests.rest.cluster", () -> String.join(",", cluster.getAllHttpSocketURI()));
                 nonInputProperties.systemProperty("tests.cluster", () -> String.join(",", cluster.getAllTransportPortURI()));
                 nonInputProperties.systemProperty("tests.clustername", () -> cluster.getName());
+                nonInputProperties.systemProperty("tests.cluster.readiness", () -> String.join(",", cluster.getAllReadinessPortURI()));
                 task.getJvmArgumentProviders().add(nonInputProperties);
             });
 
         // Register plugin bundle with test cluster
         project.getPlugins().withType(PluginBuildPlugin.class, p -> {
             TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
-            clusterProvider.configure( c-> c.plugin(bundle.flatMap(Zip::getArchiveFile)));
+            clusterProvider.configure(c -> c.plugin(bundle.flatMap(Zip::getArchiveFile)));
             javaRestTestTask.configure(t -> t.dependsOn(bundle));
         });
 

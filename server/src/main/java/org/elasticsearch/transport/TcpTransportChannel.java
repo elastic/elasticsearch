@@ -26,8 +26,16 @@ public final class TcpTransportChannel implements TransportChannel {
     private final boolean isHandshake;
     private final Releasable breakerRelease;
 
-    TcpTransportChannel(OutboundHandler outboundHandler, TcpChannel channel, String action, long requestId, Version version,
-                        Compression.Scheme compressionScheme, boolean isHandshake, Releasable breakerRelease) {
+    TcpTransportChannel(
+        OutboundHandler outboundHandler,
+        TcpChannel channel,
+        String action,
+        long requestId,
+        Version version,
+        Compression.Scheme compressionScheme,
+        boolean isHandshake,
+        Releasable breakerRelease
+    ) {
         this.version = version;
         this.channel = channel;
         this.outboundHandler = outboundHandler;
@@ -88,4 +96,3 @@ public final class TcpTransportChannel implements TransportChannel {
         return channel;
     }
 }
-

@@ -26,7 +26,7 @@ public class RealmConfigTests extends ESTestCase {
 
     @Before
     public void setUp() throws Exception {
-        realmIdentifier = new RealmConfig.RealmIdentifier(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4,12));
+        realmIdentifier = new RealmConfig.RealmIdentifier(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(4, 12));
         environment = Mockito.mock(Environment.class);
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         threadContext = new ThreadContext(globalSettings);
@@ -35,9 +35,9 @@ public class RealmConfigTests extends ESTestCase {
 
     public void testWillPassWhenOrderSettingIsConfigured() {
         Settings settings = Settings.builder()
-                .put(globalSettings)
-                .put(RealmSettings.realmSettingPrefix(realmIdentifier) + "order", 0)
-                .build();
+            .put(globalSettings)
+            .put(RealmSettings.realmSettingPrefix(realmIdentifier) + "order", 0)
+            .build();
 
         RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, environment, threadContext);
         assertEquals(0, realmConfig.order);
@@ -50,8 +50,10 @@ public class RealmConfigTests extends ESTestCase {
     }
 
     public void testWillNotFailWhenOrderIsMissingAndDisabled() {
-        Settings settings = Settings.builder().put(globalSettings)
-            .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ENABLED_SETTING), false).build();
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ENABLED_SETTING), false)
+            .build();
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, environment, threadContext);
         assertThat(realmConfig.enabled(), is(false));
     }

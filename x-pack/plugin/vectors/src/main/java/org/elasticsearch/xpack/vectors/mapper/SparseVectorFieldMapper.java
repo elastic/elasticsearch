@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.search.Query;
@@ -37,8 +36,8 @@ import java.util.Map;
 public class SparseVectorFieldMapper extends FieldMapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SparseVectorFieldMapper.class);
     static final String ERROR_MESSAGE = "The [sparse_vector] field type is no longer supported.";
-    static final String ERROR_MESSAGE_7X = "The [sparse_vector] field type is no longer supported. Old 7.x indices are allowed to " +
-        "contain [sparse_vector] fields, but they cannot be indexed or searched.";
+    static final String ERROR_MESSAGE_7X = "The [sparse_vector] field type is no longer supported. Old 7.x indices are allowed to "
+        + "contain [sparse_vector] fields, but they cannot be indexed or searched.";
     public static final String CONTENT_TYPE = "sparse_vector";
 
     public static class Builder extends FieldMapper.Builder {
@@ -57,8 +56,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
             return new SparseVectorFieldMapper(
-                    name, new SparseVectorFieldType(context.buildFullName(name), meta.getValue()),
-                    multiFieldsBuilder.build(this, context), copyTo.build());
+                name,
+                new SparseVectorFieldType(context.buildFullName(name), meta.getValue()),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build()
+            );
         }
     }
 
@@ -66,7 +68,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         if (c.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
             throw new IllegalArgumentException(ERROR_MESSAGE);
         } else {
-            deprecationLogger.critical(DeprecationCategory.MAPPINGS, "sparse_vector", ERROR_MESSAGE_7X);
+            deprecationLogger.warn(DeprecationCategory.MAPPINGS, "sparse_vector", ERROR_MESSAGE_7X);
             return new Builder(n);
         }
     });
@@ -103,9 +105,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-
-    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                                    MultiFields multiFields, CopyTo copyTo) {
+    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
     }
 

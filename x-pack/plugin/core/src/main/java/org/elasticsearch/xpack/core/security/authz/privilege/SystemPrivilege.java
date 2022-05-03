@@ -36,7 +36,11 @@ public final class SystemPrivilege extends Privilege {
         RetentionLeaseActions.Remove.ACTION_NAME + "*", // needed for CCR to remove retention leases
         RetentionLeaseActions.Renew.ACTION_NAME + "*", // needed for CCR to renew retention leases
         "indices:admin/settings/update", // needed for DiskThresholdMonitor.markIndicesReadOnly
-        CompletionPersistentTaskAction.NAME // needed for ShardFollowTaskCleaner
+        CompletionPersistentTaskAction.NAME, // needed for ShardFollowTaskCleaner
+        "indices:data/write/*", // needed for SystemIndexMigrator
+        "indices:data/read/*", // needed for SystemIndexMigrator
+        "indices:admin/refresh", // needed for SystemIndexMigrator
+        "indices:admin/aliases" // needed for SystemIndexMigrator
     );
 
     private static final Predicate<String> PREDICATE = (action) -> {

@@ -11,8 +11,7 @@ package org.elasticsearch.xpack.watcher.trigger.schedule;
  */
 public class Schedules {
 
-    private Schedules() {
-    }
+    private Schedules() {}
 
     /**
      * Creates an interval schedule. The provided string can have the following format:

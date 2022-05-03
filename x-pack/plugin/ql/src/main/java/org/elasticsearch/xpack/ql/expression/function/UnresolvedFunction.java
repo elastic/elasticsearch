@@ -45,8 +45,14 @@ public class UnresolvedFunction extends Function implements Unresolvable {
      *
      * @see #withMessage(String)
      */
-    UnresolvedFunction(Source source, String name, FunctionResolutionStrategy resolutionStrategy, List<Expression> children,
-                       boolean analyzed, String unresolvedMessage) {
+    UnresolvedFunction(
+        Source source,
+        String name,
+        FunctionResolutionStrategy resolutionStrategy,
+        List<Expression> children,
+        boolean analyzed,
+        String unresolvedMessage
+    ) {
         super(source, children);
         this.name = name;
         this.resolution = resolutionStrategy;
@@ -56,8 +62,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
 
     @Override
     protected NodeInfo<UnresolvedFunction> info() {
-        return NodeInfo.create(this, UnresolvedFunction::new,
-            name, resolution, children(), analyzed, unresolvedMsg);
+        return NodeInfo.create(this, UnresolvedFunction::new, name, resolution, children(), analyzed, unresolvedMsg);
     }
 
     @Override

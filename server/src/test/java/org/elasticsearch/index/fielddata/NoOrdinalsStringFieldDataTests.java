@@ -10,8 +10,8 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.search.DocValueFormat;
@@ -53,8 +53,16 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
             }
 
             @Override
-            public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-                    SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+            public BucketedSort newBucketedSort(
+                BigArrays bigArrays,
+                Object missingValue,
+                MultiValueMode sortMode,
+                Nested nested,
+                SortOrder sortOrder,
+                DocValueFormat format,
+                int bucketSize,
+                BucketedSort.ExtraData extra
+            ) {
                 throw new UnsupportedOperationException();
             }
 

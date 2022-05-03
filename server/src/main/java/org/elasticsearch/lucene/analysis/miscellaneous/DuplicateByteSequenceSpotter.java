@@ -131,7 +131,6 @@ public class DuplicateByteSequenceSpotter {
         // The final 3 bytes in the sequence are represented in an int
         // where the 4th byte will contain a hit count.
 
-
         p = nextBufferPos(p);
         int sequence = 0xFF & sequenceBuffer[p];
         p = nextBufferPos(p);

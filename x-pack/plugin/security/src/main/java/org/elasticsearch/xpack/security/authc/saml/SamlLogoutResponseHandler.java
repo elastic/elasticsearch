@@ -20,8 +20,7 @@ public class SamlLogoutResponseHandler extends SamlResponseHandler {
 
     private static final String LOGOUT_RESPONSE_TAG_NAME = "LogoutResponse";
 
-    public SamlLogoutResponseHandler(
-        Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
+    public SamlLogoutResponseHandler(Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
         super(clock, idp, sp, maxSkew);
     }
 
@@ -30,7 +29,7 @@ public class SamlLogoutResponseHandler extends SamlResponseHandler {
         if (httpRedirect) {
             logger.debug("Process SAML LogoutResponse with HTTP-Redirect binding");
             final ParsedQueryString parsed = parseQueryStringAndValidateSignature(payload, "SAMLResponse");
-            if (parsed.hasSignature == false){
+            if (parsed.hasSignature == false) {
                 throw samlException("Query string is not signed, but is required for HTTP-Redirect binding");
             }
             root = parseSamlMessage(inflate(decodeBase64(parsed.samlMessage)));
@@ -53,8 +52,12 @@ public class SamlLogoutResponseHandler extends SamlResponseHandler {
             checkIssuer(logoutResponse.getIssuer(), logoutResponse);
             checkResponseDestination(logoutResponse, getSpConfiguration().getLogoutUrl());
         } else {
-            throw samlException("SAML content [{}] should have a root element of Namespace=[{}] Tag=[{}]",
-                root, SAML_NAMESPACE, LOGOUT_RESPONSE_TAG_NAME);
+            throw samlException(
+                "SAML content [{}] should have a root element of Namespace=[{}] Tag=[{}]",
+                root,
+                SAML_NAMESPACE,
+                LOGOUT_RESPONSE_TAG_NAME
+            );
         }
     }
 }

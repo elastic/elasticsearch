@@ -77,7 +77,8 @@ public class TimeProcessorTests extends AbstractSqlWireSerializingTestCase<TimeP
 
         proc = new TimeProcessor(DateTimeExtractor.HOUR_OF_DAY, zoneId);
         assertEquals(10, proc.process(time(0L)));
-        assertEquals(20, proc.process(time(10, 20, 30, 123456789)));;
+        assertEquals(20, proc.process(time(10, 20, 30, 123456789)));
+        ;
         assertEquals(4, proc.process(time(18, 20, 30, 123456789)));
     }
 }

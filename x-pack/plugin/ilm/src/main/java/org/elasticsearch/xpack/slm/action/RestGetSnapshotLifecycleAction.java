@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.slm.action;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -22,9 +22,7 @@ public class RestGetSnapshotLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_slm/policy"),
-            new Route(GET, "/_slm/policy/{name}"));
+        return List.of(new Route(GET, "/_slm/policy"), new Route(GET, "/_slm/policy/{name}"));
     }
 
     @Override

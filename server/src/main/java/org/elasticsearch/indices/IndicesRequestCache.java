@@ -8,9 +8,6 @@
 
 package org.elasticsearch.indices;
 
-import com.carrotsearch.hppc.ObjectHashSet;
-import com.carrotsearch.hppc.ObjectSet;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -34,6 +31,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
@@ -58,12 +56,22 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
      * A setting to enable or disable request caching on an index level. Its dynamic by default
      * since we are checking on the cluster state IndexMetadata always.
      */
-    public static final Setting<Boolean> INDEX_CACHE_REQUEST_ENABLED_SETTING =
-        Setting.boolSetting("index.requests.cache.enable", true, Property.Dynamic, Property.IndexScope);
-    public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE =
-        Setting.memorySizeSetting("indices.requests.cache.size", "1%", Property.NodeScope);
-    public static final Setting<TimeValue> INDICES_CACHE_QUERY_EXPIRE =
-        Setting.positiveTimeSetting("indices.requests.cache.expire", new TimeValue(0), Property.NodeScope);
+    public static final Setting<Boolean> INDEX_CACHE_REQUEST_ENABLED_SETTING = Setting.boolSetting(
+        "index.requests.cache.enable",
+        true,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE = Setting.memorySizeSetting(
+        "indices.requests.cache.size",
+        "1%",
+        Property.NodeScope
+    );
+    public static final Setting<TimeValue> INDICES_CACHE_QUERY_EXPIRE = Setting.positiveTimeSetting(
+        "indices.requests.cache.expire",
+        new TimeValue(0),
+        Property.NodeScope
+    );
 
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
     private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
@@ -76,7 +84,9 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         long sizeInBytes = size.getBytes();
         CacheBuilder<Key, BytesReference> cacheBuilder = CacheBuilder.<Key, BytesReference>builder()
-            .setMaximumWeight(sizeInBytes).weigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed()).removalListener(this);
+            .setMaximumWeight(sizeInBytes)
+            .weigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed())
+            .removalListener(this);
         if (expire != null) {
             cacheBuilder.setExpireAfterAccess(expire);
         }
@@ -98,8 +108,13 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         notification.getKey().entity.onRemoval(notification);
     }
 
-    BytesReference getOrCompute(CacheEntity cacheEntity, CheckedSupplier<BytesReference, IOException> loader,
-                                MappingLookup.CacheKey mappingCacheKey, DirectoryReader reader, BytesReference cacheKey) throws Exception {
+    BytesReference getOrCompute(
+        CacheEntity cacheEntity,
+        CheckedSupplier<BytesReference, IOException> loader,
+        MappingLookup.CacheKey mappingCacheKey,
+        DirectoryReader reader,
+        BytesReference cacheKey
+    ) throws Exception {
         final ESCacheHelper cacheHelper = ElasticsearchDirectoryReader.getESReaderCacheHelper(reader);
         assert cacheHelper != null;
         final Key key = new Key(cacheEntity, mappingCacheKey, cacheHelper.getKey(), cacheKey);
@@ -301,14 +316,10 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         }
     }
 
-
-
     synchronized void cleanCache() {
-        final ObjectSet<CleanupKey> currentKeysToClean = new ObjectHashSet<>();
-        final ObjectSet<Object> currentFullClean = new ObjectHashSet<>();
-        currentKeysToClean.clear();
-        currentFullClean.clear();
-        for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext(); ) {
+        final Set<CleanupKey> currentKeysToClean = new HashSet<>();
+        final Set<Object> currentFullClean = new HashSet<>();
+        for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext();) {
             CleanupKey cleanupKey = iterator.next();
             iterator.remove();
             if (cleanupKey.readerCacheKey == null || cleanupKey.entity.isOpen() == false) {
@@ -319,7 +330,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             }
         }
         if (currentKeysToClean.isEmpty() == false || currentFullClean.isEmpty() == false) {
-            for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext(); ) {
+            for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext();) {
                 Key key = iterator.next();
                 if (currentFullClean.contains(key.entity.getCacheIdentity())) {
                     iterator.remove();
@@ -333,7 +344,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
         cache.refresh();
     }
-
 
     /**
      * Returns the current size of the cache

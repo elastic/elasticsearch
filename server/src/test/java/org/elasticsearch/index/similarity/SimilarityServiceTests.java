@@ -45,8 +45,7 @@ public class SimilarityServiceTests extends ESTestCase {
     }
 
     public void testOverrideDefaultSimilarity() {
-        Settings settings = Settings.builder().put("index.similarity.default.type", "boolean")
-                .build();
+        Settings settings = Settings.builder().put("index.similarity.default.type", "boolean").build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
         SimilarityService service = new SimilarityService(indexSettings, null, Collections.emptyMap());
         assertTrue(service.getDefaultSimilarity() instanceof BooleanSimilarity);
@@ -72,8 +71,10 @@ public class SimilarityServiceTests extends ESTestCase {
                 };
             }
         };
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> SimilarityService.validateSimilarity(Version.V_7_0_0, negativeScoresSim));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SimilarityService.validateSimilarity(Version.V_7_0_0, negativeScoresSim)
+        );
         assertThat(e.getMessage(), Matchers.containsString("Similarities should not return negative scores"));
 
         Similarity decreasingScoresWithFreqSim = new Similarity() {
@@ -95,8 +96,10 @@ public class SimilarityServiceTests extends ESTestCase {
                 };
             }
         };
-        e = expectThrows(IllegalArgumentException.class,
-                () -> SimilarityService.validateSimilarity(Version.V_7_0_0, decreasingScoresWithFreqSim));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SimilarityService.validateSimilarity(Version.V_7_0_0, decreasingScoresWithFreqSim)
+        );
         assertThat(e.getMessage(), Matchers.containsString("Similarity scores should not decrease when term frequency increases"));
 
         Similarity increasingScoresWithNormSim = new Similarity() {
@@ -118,8 +121,10 @@ public class SimilarityServiceTests extends ESTestCase {
                 };
             }
         };
-        e = expectThrows(IllegalArgumentException.class,
-                () -> SimilarityService.validateSimilarity(Version.V_7_0_0, increasingScoresWithNormSim));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SimilarityService.validateSimilarity(Version.V_7_0_0, increasingScoresWithNormSim)
+        );
         assertThat(e.getMessage(), Matchers.containsString("Similarity scores should not increase when norm increases"));
     }
 

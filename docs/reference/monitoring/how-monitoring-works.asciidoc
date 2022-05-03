@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[how-monitoring-works]]
 == How monitoring works
 ++++

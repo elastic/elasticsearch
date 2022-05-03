@@ -916,6 +916,18 @@ Total amount of physical memory across all selected nodes.
 (integer)
 Total amount, in bytes, of physical memory across all selected nodes.
 
+`adjusted_total`::
+(<<byte-units,byte value>>)
+Total amount of memory across all selected nodes, but using the value specified
+using the `es.total_memory_bytes` system property instead of measured total
+memory for those nodes where that system property was set.
+
+`adjusted_total_in_bytes`::
+(integer)
+Total amount, in bytes, of memory across all selected nodes, but using the
+value specified using the `es.total_memory_bytes` system property instead
+of measured total memory for those nodes where that system property was set.
+
 `free`::
 (<<byte-units, byte units>>)
 Amount of free physical memory across all selected nodes.
@@ -1029,7 +1041,7 @@ Vendor of the JVM.
 
 `bundled_jdk`::
 (Boolean)
-If `true`, the JVM includes a bundled Java Development Kit (JDK).
+Always `true`. All distributions come with a bundled Java Development Kit (JDK).
 
 `using_bundled_jdk`::
 (Boolean)
@@ -1084,7 +1096,7 @@ Total size of all file stores across all selected nodes.
 
 `total_in_bytes`::
 (integer)
-Total size, in bytes, of all file stores across all seleced nodes.
+Total size, in bytes, of all file stores across all selected nodes.
 
 `free`::
 (<<byte-units, byte units>>)
@@ -1223,8 +1235,7 @@ Contains statistics about {es} distributions installed on selected nodes.
 =====
 `flavor`:::
 (string)
-Type of {es} distribution, such as `default` or `OSS`, used by one or more
-selected nodes.
+Type of {es} distribution. This is always `default`.
 
 `type`:::
 (string)
@@ -1399,6 +1410,8 @@ The API returns the following response:
          "mem" : {
             "total" : "16gb",
             "total_in_bytes" : 17179869184,
+            "adjusted_total" : "16gb",
+            "adjusted_total_in_bytes" : 17179869184,
             "free" : "78.1mb",
             "free_in_bytes" : 81960960,
             "used" : "15.9gb",
@@ -1461,6 +1474,39 @@ The API returns the following response:
         "number_of_pipelines" : 1,
         "processor_stats": {
           ...
+        }
+      },
+      "indexing_pressure": {
+        "memory": {
+            "current": {
+                 "combined_coordinating_and_primary": "0b",
+                 "combined_coordinating_and_primary_in_bytes": 0,
+                 "coordinating": "0b",
+                 "coordinating_in_bytes": 0,
+                 "primary": "0b",
+                 "primary_in_bytes": 0,
+                 "replica": "0b",
+                 "replica_in_bytes": 0,
+                 "all": "0b",
+                 "all_in_bytes": 0
+            },
+            "total": {
+                "combined_coordinating_and_primary": "0b",
+                "combined_coordinating_and_primary_in_bytes": 0,
+                "coordinating": "0b",
+                "coordinating_in_bytes": 0,
+                "primary": "0b",
+                "primary_in_bytes": 0,
+                "replica": "0b",
+                "replica_in_bytes": 0,
+                "all": "0b",
+                "all_in_bytes": 0,
+                "coordinating_rejections": 0,
+                "primary_rejections": 0,
+                "replica_rejections": 0
+            },
+            "limit" : "0b",
+            "limit_in_bytes": 0
         }
       },
       "network_types": {

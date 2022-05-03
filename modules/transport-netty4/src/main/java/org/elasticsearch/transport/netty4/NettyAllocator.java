@@ -16,10 +16,14 @@ import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ServerChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.Booleans;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,6 +35,7 @@ public class NettyAllocator {
 
     private static final long SUGGESTED_MAX_ALLOCATION_SIZE;
     private static final ByteBufAllocator ALLOCATOR;
+    private static final Recycler<BytesRef> RECYCLER;
     private static final String DESCRIPTION;
 
     private static final String USE_UNPOOLED = "es.use_unpooled_allocator";
@@ -41,7 +46,8 @@ public class NettyAllocator {
         if (Booleans.parseBoolean(System.getProperty(USE_NETTY_DEFAULT), false)) {
             ALLOCATOR = ByteBufAllocator.DEFAULT;
             SUGGESTED_MAX_ALLOCATION_SIZE = 1024 * 1024;
-            DESCRIPTION = "[name=netty_default, suggested_max_allocation_size=" + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
+            DESCRIPTION = "[name=netty_default, suggested_max_allocation_size="
+                + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
                 + ", factors={es.unsafe.use_netty_default_allocator=true}]";
         } else {
             final long heapSizeInBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
@@ -61,11 +67,17 @@ public class NettyAllocator {
                 } else {
                     SUGGESTED_MAX_ALLOCATION_SIZE = 1024 * 1024;
                 }
-                DESCRIPTION = "[name=unpooled, suggested_max_allocation_size=" + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
-                    + ", factors={es.unsafe.use_unpooled_allocator=" + System.getProperty(USE_UNPOOLED)
-                    + ", g1gc_enabled=" + g1gcEnabled
-                    + ", g1gc_region_size=" + g1gcRegionSize
-                    + ", heap_size=" + heapSize + "}]";
+                DESCRIPTION = "[name=unpooled, suggested_max_allocation_size="
+                    + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
+                    + ", factors={es.unsafe.use_unpooled_allocator="
+                    + System.getProperty(USE_UNPOOLED)
+                    + ", g1gc_enabled="
+                    + g1gcEnabled
+                    + ", g1gc_region_size="
+                    + g1gcRegionSize
+                    + ", heap_size="
+                    + heapSize
+                    + "}]";
             } else {
                 int nHeapArena = PooledByteBufAllocator.defaultNumHeapArena();
                 int pageSize;
@@ -90,19 +102,59 @@ public class NettyAllocator {
                 int smallCacheSize = PooledByteBufAllocator.defaultSmallCacheSize();
                 int normalCacheSize = PooledByteBufAllocator.defaultNormalCacheSize();
                 boolean useCacheForAllThreads = PooledByteBufAllocator.defaultUseCacheForAllThreads();
-                delegate = new PooledByteBufAllocator(false, nHeapArena, 0, pageSize, maxOrder, tinyCacheSize,
-                    smallCacheSize, normalCacheSize, useCacheForAllThreads);
+                delegate = new PooledByteBufAllocator(
+                    false,
+                    nHeapArena,
+                    0,
+                    pageSize,
+                    maxOrder,
+                    tinyCacheSize,
+                    smallCacheSize,
+                    normalCacheSize,
+                    useCacheForAllThreads
+                );
                 int chunkSizeInBytes = pageSize << maxOrder;
                 ByteSizeValue chunkSize = new ByteSizeValue(chunkSizeInBytes);
                 SUGGESTED_MAX_ALLOCATION_SIZE = chunkSizeInBytes;
-                DESCRIPTION = "[name=elasticsearch_configured, chunk_size=" + chunkSize
-                    + ", suggested_max_allocation_size=" + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
-                    + ", factors={es.unsafe.use_netty_default_chunk_and_page_size=" + useDefaultChunkAndPageSize()
-                    + ", g1gc_enabled=" + g1gcEnabled
-                    + ", g1gc_region_size=" + g1gcRegionSize + "}]";
+                DESCRIPTION = "[name=elasticsearch_configured, chunk_size="
+                    + chunkSize
+                    + ", suggested_max_allocation_size="
+                    + new ByteSizeValue(SUGGESTED_MAX_ALLOCATION_SIZE)
+                    + ", factors={es.unsafe.use_netty_default_chunk_and_page_size="
+                    + useDefaultChunkAndPageSize()
+                    + ", g1gc_enabled="
+                    + g1gcEnabled
+                    + ", g1gc_region_size="
+                    + g1gcRegionSize
+                    + "}]";
             }
             ALLOCATOR = new NoDirectBuffers(delegate);
         }
+
+        RECYCLER = new Recycler<>() {
+            @Override
+            public Recycler.V<BytesRef> obtain() {
+                ByteBuf byteBuf = ALLOCATOR.heapBuffer(PageCacheRecycler.BYTE_PAGE_SIZE, PageCacheRecycler.BYTE_PAGE_SIZE);
+                assert byteBuf.hasArray();
+                BytesRef bytesRef = new BytesRef(byteBuf.array(), byteBuf.arrayOffset(), byteBuf.capacity());
+                return new Recycler.V<>() {
+                    @Override
+                    public BytesRef v() {
+                        return bytesRef;
+                    }
+
+                    @Override
+                    public boolean isRecycled() {
+                        return true;
+                    }
+
+                    @Override
+                    public void close() {
+                        byteBuf.release();
+                    }
+                };
+            }
+        };
     }
 
     public static void logAllocatorDescriptionIfNeeded() {
@@ -113,6 +165,10 @@ public class NettyAllocator {
 
     public static ByteBufAllocator getAllocator() {
         return ALLOCATOR;
+    }
+
+    public static Recycler<BytesRef> getRecycler() {
+        return RECYCLER;
     }
 
     public static long suggestedMaxAllocationSize() {

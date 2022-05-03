@@ -7,27 +7,17 @@
 
 package org.elasticsearch.xpack.transform.integration.continuous;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.transform.transforms.DestConfig;
-import org.elasticsearch.client.transform.transforms.SourceConfig;
-import org.elasticsearch.client.transform.transforms.TransformConfig;
-import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
-import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
+import org.elasticsearch.xpack.transform.integration.TransformRestTestCase;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,27 +40,29 @@ public class TermsGroupByIT extends ContinuousTestCase {
     }
 
     @Override
-    public TransformConfig createConfig() {
+    public TransformConfig createConfig() throws IOException {
         TransformConfig.Builder transformConfigBuilder = new TransformConfig.Builder();
         addCommonBuilderParameters(transformConfigBuilder);
         transformConfigBuilder.setSource(new SourceConfig(CONTINUOUS_EVENTS_SOURCE_INDEX));
         transformConfigBuilder.setDest(new DestConfig(NAME, INGEST_PIPELINE));
         transformConfigBuilder.setId(NAME);
 
-        PivotConfig.Builder pivotConfigBuilder = new PivotConfig.Builder();
-        pivotConfigBuilder.setGroups(
-            new GroupConfig.Builder().groupBy(
-                "event",
-                new TermsGroupSource.Builder().setField(termsField).setMissingBucket(missing).build()
-            ).build()
+        var groupConfig = TransformRestTestCase.createGroupConfig(
+            Map.of("event", new TermsGroupSource(termsField, null, missing)),
+            xContentRegistry()
         );
 
         AggregatorFactories.Builder aggregations = new AggregatorFactories.Builder();
         addCommonAggregations(aggregations);
         aggregations.addAggregator(AggregationBuilders.avg("metric.avg").field(metricField));
 
-        pivotConfigBuilder.setAggregations(aggregations);
-        transformConfigBuilder.setPivotConfig(pivotConfigBuilder.build());
+        PivotConfig pivotConfig = new PivotConfig(
+            groupConfig,
+            TransformRestTestCase.createAggConfig(aggregations, xContentRegistry()),
+            null
+        );
+
+        transformConfigBuilder.setPivotConfig(pivotConfig);
         return transformConfigBuilder.build();
     }
 
@@ -80,46 +72,59 @@ public class TermsGroupByIT extends ContinuousTestCase {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
-        SearchRequest searchRequestSource = new SearchRequest(CONTINUOUS_EVENTS_SOURCE_INDEX).allowPartialSearchResults(false);
+        String query = """
+            {
+              "aggs": {
+                "event": {
+                  "terms": {
+                    "field": "%s",
+                    "order": {"_key": "asc"},
+                    %s
+                    "size": 1000
+                  },
+                  "aggs": {
+                    "metric.avg": {
+                      "avg" : {
+                        "field": "%s"
+                      }
+                    }
+                  }
+                }
+              },
+              "sort": ["event"]
+            }
+            """.formatted(termsField, missing ? "\"missing\": \"" + MISSING_BUCKET_KEY + "\"," : "", metricField);
 
-        SearchSourceBuilder sourceBuilderSource = new SearchSourceBuilder().size(0);
-        TermsAggregationBuilder terms = new TermsAggregationBuilder("event").size(1000).field(termsField).order(BucketOrder.key(true));
-        if (missing) {
-            // missing_bucket produces `null`, we can't use `null` in aggs, so we have to use a magic value, see gh#60043
-            terms.missing(MISSING_BUCKET_KEY);
-        }
-        terms.subAggregation(AggregationBuilders.avg("metric.avg").field(metricField));
-        sourceBuilderSource.aggregation(terms);
-        searchRequestSource.source(sourceBuilderSource);
-        SearchResponse responseSource = search(searchRequestSource);
-
-        SearchRequest searchRequestDest = new SearchRequest(NAME).allowPartialSearchResults(false);
-        SearchSourceBuilder sourceBuilderDest = new SearchSourceBuilder().size(1000).sort("event");
-        searchRequestDest.source(sourceBuilderDest);
-        SearchResponse responseDest = search(searchRequestDest);
-
-        List<? extends Bucket> buckets = ((Terms) responseSource.getAggregations().get("event")).getBuckets();
-
-        // the number of search hits should be equal to the number of buckets returned by the aggregation
-        assertThat(
-            "Number of buckets did not match, source: "
-                + responseDest.getHits().getTotalHits().value
-                + ", expected: "
-                + Long.valueOf(buckets.size())
-                + ", iteration: "
-                + iteration,
-            responseDest.getHits().getTotalHits().value,
-            equalTo(Long.valueOf(buckets.size()))
+        var searchResponseSource = entityAsMap(
+            search(CONTINUOUS_EVENTS_SOURCE_INDEX, query, Map.of("allow_partial_search_results", "false", "size", "0"))
         );
 
-        Iterator<? extends Bucket> sourceIterator = buckets.iterator();
-        Iterator<SearchHit> destIterator = responseDest.getHits().iterator();
+        String destQuery = """
+            {
+              "sort": ["event"]
+            }
+            """;
+        var searchResponseDest = entityAsMap(search(NAME, destQuery, Map.of("allow_partial_search_results", "false", "size", "1000")));
+        var buckets = (List<Map<String, Object>>) XContentMapValues.extractValue("aggregations.event.buckets", searchResponseSource);
+
+        // the number of search hits should be equal to the number of buckets returned by the aggregation
+        int numHits = (Integer) XContentMapValues.extractValue("hits.total.value", searchResponseDest);
+        assertThat(
+            "Number of buckets did not match, source: " + numHits + ", expected: " + buckets.size() + ", iteration: " + iteration,
+            numHits,
+            equalTo(buckets.size())
+        );
+
+        var sourceIterator = buckets.iterator();
+        var hits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", searchResponseDest);
+        var destIterator = hits.iterator();
 
         while (sourceIterator.hasNext() && destIterator.hasNext()) {
-            Bucket bucket = sourceIterator.next();
-            SearchHit searchHit = destIterator.next();
-            Map<String, Object> source = searchHit.getSourceAsMap();
+            var bucket = sourceIterator.next();
+            var searchHit = destIterator.next();
+            var source = (Map<String, Object>) searchHit.get("_source");
 
             String transformBucketKey = (String) XContentMapValues.extractValue("event", source);
             if (transformBucketKey == null) {
@@ -128,21 +133,21 @@ public class TermsGroupByIT extends ContinuousTestCase {
 
             // test correctness, the results from the aggregation and the results from the transform should be the same
             assertThat(
-                "Buckets did not match, source: " + source + ", expected: " + bucket.getKey() + ", iteration: " + iteration,
+                "Buckets did not match, source: " + source + ", expected: " + bucket.get("key") + ", iteration: " + iteration,
                 transformBucketKey,
-                equalTo(bucket.getKey())
+                equalTo(bucket.get("key"))
             );
             assertThat(
-                "Doc count did not match, source: " + source + ", expected: " + bucket.getDocCount() + ", iteration: " + iteration,
-                ((Integer) XContentMapValues.extractValue("count", source)).longValue(),
-                equalTo(bucket.getDocCount())
+                "Doc count did not match, source: " + source + ", expected: " + bucket.get("doc_count") + ", iteration: " + iteration,
+                (Integer) XContentMapValues.extractValue("count", source),
+                equalTo(bucket.get("doc_count"))
             );
 
-            SingleValue avgAgg = (SingleValue) bucket.getAggregations().get("metric.avg");
+            var aggValue = (Double) XContentMapValues.extractValue("metric.avg.value", bucket);
             assertThat(
-                "Metric aggregation did not match, source: " + source + ", expected: " + avgAgg.value() + ", iteration: " + iteration,
-                XContentMapValues.extractValue("metric.avg", source),
-                equalTo(avgAgg.value())
+                "Metric aggregation did not match, source: " + source + ", expected: " + aggValue + ", iteration: " + iteration,
+                (Double) XContentMapValues.extractValue("metric.avg", source),
+                equalTo(aggValue)
             );
 
             // test optimization, transform should only rewrite documents that require it

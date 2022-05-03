@@ -43,18 +43,14 @@ public class ConstantProcessor implements Processor {
     public ConstantProcessor(StreamInput in) throws IOException {
         type = in.readEnum(Type.class);
         switch (type) {
-            case NAMED_WRITABLE:
-                constant = in.readNamedWriteable(ConstantNamedWriteable.class);
-                break;
-            case ZONEDDATETIME:
+            case NAMED_WRITABLE -> constant = in.readNamedWriteable(ConstantNamedWriteable.class);
+            case ZONEDDATETIME -> {
                 ZonedDateTime zdt;
                 ZoneId zoneId = in.readZoneId();
                 zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.readLong()), zoneId);
                 constant = zdt.withNano(in.readInt());
-                break;
-            case GENERIC:
-                constant = in.readGenericValue();
-                break;
+            }
+            case GENERIC -> constant = in.readGenericValue();
         }
     }
 
@@ -62,18 +58,14 @@ public class ConstantProcessor implements Processor {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(type);
         switch (type) {
-            case NAMED_WRITABLE:
-                out.writeNamedWriteable((NamedWriteable) constant);
-                break;
-            case ZONEDDATETIME:
+            case NAMED_WRITABLE -> out.writeNamedWriteable((NamedWriteable) constant);
+            case ZONEDDATETIME -> {
                 ZonedDateTime zdt = (ZonedDateTime) constant;
                 out.writeZoneId(zdt.getZone());
                 out.writeLong(zdt.toInstant().toEpochMilli());
                 out.writeInt(zdt.getNano());
-                break;
-            case GENERIC:
-                out.writeGenericValue(constant);
-                break;
+            }
+            case GENERIC -> out.writeGenericValue(constant);
         }
     }
 

@@ -22,8 +22,9 @@ public class ConcatProcessorTests extends AbstractWireSerializingTestCase<Concat
     @Override
     protected ConcatFunctionProcessor createTestInstance() {
         return new ConcatFunctionProcessor(
-                new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
-                new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)));
+            new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
+            new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128))
+        );
     }
 
     @Override
@@ -48,11 +49,15 @@ public class ConcatProcessorTests extends AbstractWireSerializingTestCase<Concat
     }
 
     public void testConcatFunctionInputsValidation() {
-        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Concat(EMPTY, l(5), l("foo")).makePipe().asProcessor().process(null));
+        SqlIllegalArgumentException siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Concat(EMPTY, l(5), l("foo")).makePipe().asProcessor().process(null)
+        );
         assertEquals("A string/char is required; received [5]", siae.getMessage());
-        siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Concat(EMPTY, l("foo bar"), l(3)).makePipe().asProcessor().process(null));
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Concat(EMPTY, l("foo bar"), l(3)).makePipe().asProcessor().process(null)
+        );
         assertEquals("A string/char is required; received [3]", siae.getMessage());
     }
 }

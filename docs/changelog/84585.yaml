@@ -1,0 +1,6 @@
+pr: 84585
+summary: "[s3-repository] Lookup AWS Region for STS Client from STS endpoint"
+area: Snapshot/Restore
+type: bug
+issues:
+ - 83826

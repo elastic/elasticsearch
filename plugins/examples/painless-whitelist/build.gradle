@@ -19,6 +19,7 @@ esplugin {
 
 dependencies {
   compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${elasticsearchVersion}"
+  yamlRestTestRuntimeOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"
 }
 
 testClusters.configureEach {

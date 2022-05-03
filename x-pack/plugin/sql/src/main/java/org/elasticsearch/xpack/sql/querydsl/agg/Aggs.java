@@ -172,8 +172,8 @@ public class Aggs {
 
         Aggs other = (Aggs) obj;
         return Objects.equals(groups, other.groups)
-                && Objects.equals(simpleAggs, other.simpleAggs)
-                && Objects.equals(pipelineAggs, other.pipelineAggs);
+            && Objects.equals(simpleAggs, other.simpleAggs)
+            && Objects.equals(pipelineAggs, other.pipelineAggs);
 
     }
 }

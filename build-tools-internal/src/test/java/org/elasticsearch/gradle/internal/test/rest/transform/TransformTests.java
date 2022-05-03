@@ -186,7 +186,12 @@ public abstract class TransformTests extends GradleUnitTestCase {
         validateBodyHasWarnings(featureName, null, tests, expectedWarnings);
     }
 
-    protected void validateBodyHasWarnings(String featureName, String testName, List<ObjectNode> tests, Collection<String> expectedWarnings) {
+    protected void validateBodyHasWarnings(
+        String featureName,
+        String testName,
+        List<ObjectNode> tests,
+        Collection<String> expectedWarnings
+    ) {
         AtomicBoolean actuallyDidSomething = new AtomicBoolean(false);
         tests.forEach(test -> {
             Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
@@ -202,9 +207,9 @@ public abstract class TransformTests extends GradleUnitTestCase {
                             ObjectNode doSection = (ObjectNode) testSection.get("do");
                             assertThat(doSection.get(featureName), CoreMatchers.notNullValue());
                             ArrayNode warningsNode = (ArrayNode) doSection.get(featureName);
-                            List<String> actual  = new ArrayList<>();
+                            List<String> actual = new ArrayList<>();
                             warningsNode.forEach(node -> actual.add(node.asText()));
-                            String[] expected = expectedWarnings.toArray(new String[]{});
+                            String[] expected = expectedWarnings.toArray(new String[] {});
                             assertThat(actual, Matchers.containsInAnyOrder(expected));
                             actuallyDidSomething.set(true);
                         }

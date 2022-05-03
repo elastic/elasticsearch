@@ -53,7 +53,8 @@ public final class Processors {
         // arithmetic
         // binary arithmetics are pluggable
         entries.add(
-                new Entry(BinaryArithmeticOperation.class, DefaultBinaryArithmeticOperation.NAME, DefaultBinaryArithmeticOperation::read));
+            new Entry(BinaryArithmeticOperation.class, DefaultBinaryArithmeticOperation.NAME, DefaultBinaryArithmeticOperation::read)
+        );
         entries.add(new Entry(Processor.class, BinaryArithmeticProcessor.NAME, BinaryArithmeticProcessor::new));
         entries.add(new Entry(Processor.class, UnaryArithmeticProcessor.NAME, UnaryArithmeticProcessor::new));
         // comparators

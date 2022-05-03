@@ -7,32 +7,35 @@
  */
 package org.elasticsearch.search.lookup;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.MemoizedSupplier;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 
 public class SourceLookup implements Map<String, Object> {
 
     private LeafReader reader;
-    CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader;
+    private CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader;
 
     private int docId = -1;
 
@@ -103,24 +106,24 @@ public class SourceLookup implements Map<String, Object> {
         return sourceAsMapAndType(source).v2();
     }
 
-    public void setSegmentAndDocument(
-        LeafReaderContext context,
-        int docId
-    ) {
+    public void setSegmentAndDocument(LeafReaderContext context, int docId) {
+        // if we are called with the same document, don't invalidate source
         if (this.reader == context.reader() && this.docId == docId) {
-            // if we are called with the same document, don't invalidate source
             return;
         }
+
+        // only reset reader and fieldReader when reader changes
         if (this.reader != context.reader()) {
             this.reader = context.reader();
-            // only reset reader and fieldReader when reader changes
-            if (context.reader() instanceof SequentialStoredFieldsLeafReader) {
-                // All the docs to fetch are adjacent but Lucene stored fields are optimized
-                // for random access and don't optimize for sequential access - except for merging.
-                // So we do a little hack here and pretend we're going to do merges in order to
-                // get better sequential access.
-                SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
-                fieldReader = lf.getSequentialStoredFieldsReader()::visitDocument;
+
+            // All the docs to fetch are adjacent but Lucene stored fields are optimized
+            // for random access and don't optimize for sequential access - except for merging.
+            // So we do a little hack here and pretend we're going to do merges in order to
+            // get better sequential access.
+            if (context.reader()instanceof SequentialStoredFieldsLeafReader lf) {
+                // Avoid eagerly loading the stored fields reader, since this can be expensive
+                Supplier<StoredFieldsReader> supplier = new MemoizedSupplier<>(lf::getSequentialStoredFieldsReader);
+                fieldReader = (d, v) -> supplier.get().visitDocument(d, v);
             } else {
                 fieldReader = context.reader()::document;
             }
@@ -150,18 +153,50 @@ public class SourceLookup implements Map<String, Object> {
     }
 
     /**
+     * Checks if the source has been deserialized as a {@link Map} of java objects.
+     */
+    public boolean hasSourceAsMap() {
+        return source != null;
+    }
+
+    /**
      * Returns the values associated with the path. Those are "low" level values, and it can
      * handle path expression where an array/list is navigated within.
+     *
+     * This method will:
+     *
+     *  - not cache source if it's not already parsed
+     *  - will only extract the desired values from the compressed source instead of deserializing the whole object
+     *
+     * This is useful when the caller only wants a single value from source and does not care of source is fully parsed and cached
+     * for later use.
+     * @param path The path from which to extract the values from source
+     * @return The list of found values or an empty list if none are found
      */
-    public List<Object> extractRawValues(String path) {
-        return XContentMapValues.extractRawValues(path, source());
+    public List<Object> extractRawValuesWithoutCaching(String path) {
+        if (source != null) {
+            return XContentMapValues.extractRawValues(path, source);
+        }
+        if (sourceAsBytes != null) {
+            return XContentMapValues.extractRawValues(
+                path,
+                XContentHelper.convertToMap(sourceAsBytes, false, null, Set.of(path), null).v2()
+            );
+        }
+        try {
+            FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
+            fieldReader.accept(docId, sourceFieldVisitor);
+            BytesReference source = sourceFieldVisitor.source();
+            return XContentMapValues.extractRawValues(path, XContentHelper.convertToMap(source, false, null, Set.of(path), null).v2());
+        } catch (Exception e) {
+            throw new ElasticsearchParseException("failed to parse / load source", e);
+        }
     }
 
     /**
      * For the provided path, return its value in the source.
      *
-     * Note that in contrast with {@link SourceLookup#extractRawValues}, array and object values
-     * can be returned.
+     * Both array and object values can be returned.
      *
      * @param path the value's path in the source.
      * @param nullValue a value to return if the path exists, but the value is 'null'. This helps

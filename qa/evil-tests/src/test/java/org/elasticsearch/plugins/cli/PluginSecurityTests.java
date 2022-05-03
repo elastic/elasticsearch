@@ -36,9 +36,7 @@ public class PluginSecurityTests extends ESTestCase {
 
     /** Test that we can parse the set of permissions correctly for a simple policy */
     public void testParsePermissions() throws Exception {
-        assumeTrue(
-                "test cannot run with security manager enabled",
-                System.getSecurityManager() == null);
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path scratch = createTempDir();
         PluginPolicyInfo info = makeDummyPlugin("simple-plugin-security.policy");
         Set<String> actual = PluginSecurity.getPermissionDescriptions(info, scratch);
@@ -47,21 +45,24 @@ public class PluginSecurityTests extends ESTestCase {
 
     /** Test that we can parse the set of permissions correctly for a complex policy */
     public void testParseTwoPermissions() throws Exception {
-        assumeTrue(
-                "test cannot run with security manager enabled",
-                System.getSecurityManager() == null);
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path scratch = createTempDir();
         PluginPolicyInfo info = makeDummyPlugin("complex-plugin-security.policy");
         Set<String> actual = PluginSecurity.getPermissionDescriptions(info, scratch);
-        assertThat(actual, containsInAnyOrder(
-            PluginSecurity.formatPermission(new RuntimePermission("getClassLoader")),
-            PluginSecurity.formatPermission(new RuntimePermission("setFactory"))));
+        assertThat(
+            actual,
+            containsInAnyOrder(
+                PluginSecurity.formatPermission(new RuntimePermission("getClassLoader")),
+                PluginSecurity.formatPermission(new RuntimePermission("setFactory"))
+            )
+        );
     }
 
     /** Test that we can format some simple permissions properly */
     public void testFormatSimplePermission() throws Exception {
         assertEquals(
-                "java.lang.RuntimePermission accessDeclaredMembers",
-                PluginSecurity.formatPermission(new RuntimePermission("accessDeclaredMembers")));
+            "java.lang.RuntimePermission accessDeclaredMembers",
+            PluginSecurity.formatPermission(new RuntimePermission("accessDeclaredMembers"))
+        );
     }
 }

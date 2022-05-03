@@ -28,10 +28,13 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ReindexBasicTests extends ReindexTestCase {
     public void testFiltering() throws Exception {
-        indexRandom(true, client().prepareIndex("source").setId("1").setSource("foo", "a"),
-                client().prepareIndex("source").setId("2").setSource("foo", "a"),
-                client().prepareIndex("source").setId("3").setSource("foo", "b"),
-                client().prepareIndex("source").setId("4").setSource("foo", "c"));
+        indexRandom(
+            true,
+            client().prepareIndex("source").setId("1").setSource("foo", "a"),
+            client().prepareIndex("source").setId("2").setSource("foo", "a"),
+            client().prepareIndex("source").setId("3").setSource("foo", "b"),
+            client().prepareIndex("source").setId("4").setSource("foo", "c")
+        );
         assertHitCount(client().prepareSearch("source").setSize(0).get(), 4);
 
         // Copy all the docs
@@ -138,11 +141,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         int expectedSlices = expectedSliceStatuses(slices, docs.keySet());
 
         String[] sourceIndexNames = docs.keySet().toArray(new String[docs.size()]);
-        ReindexRequestBuilder request = reindex()
-            .source(sourceIndexNames)
-            .destination("dest")
-            .refresh(true)
-            .setSlices(slices);
+        ReindexRequestBuilder request = reindex().source(sourceIndexNames).destination("dest").refresh(true).setSlices(slices);
 
         BulkByScrollResponse response = request.get();
         assertThat(response, matcher().created(allDocs.size()).slices(hasSize(expectedSlices)));
@@ -150,8 +149,7 @@ public class ReindexBasicTests extends ReindexTestCase {
     }
 
     public void testMissingSources() {
-        BulkByScrollResponse response = updateByQuery()
-            .source("missing-index-*")
+        BulkByScrollResponse response = updateByQuery().source("missing-index-*")
             .refresh(true)
             .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
             .get();

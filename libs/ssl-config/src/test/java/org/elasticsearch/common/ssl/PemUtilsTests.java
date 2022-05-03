@@ -15,6 +15,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AlgorithmParameters;
+import java.security.GeneralSecurityException;
 import java.security.Key;
 import java.security.KeyStore;
 import java.security.PrivateKey;
@@ -22,10 +23,12 @@ import java.security.interfaces.ECPrivateKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.StringContains.containsString;
 
 public class PemUtilsTests extends ESTestCase {
@@ -79,15 +82,47 @@ public class PemUtilsTests extends ESTestCase {
         assertThat(privateKey, equalTo(key));
     }
 
-    public void testReadEncryptedPKCS8Key() throws Exception {
+    public void testReadEncryptedPKCS8PBES1Key() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath
-            ("/certs/pem-utils/key_pkcs8_encrypted.pem"), TESTNODE_PASSWORD);
+        PrivateKey privateKey = PemUtils.parsePrivateKey(
+            getDataPath("/certs/pem-utils/key_pkcs8_encrypted_pbes1_des.pem"),
+            TESTNODE_PASSWORD
+        );
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
+    }
+
+    public void testReadEncryptedPKCS8PBES2AESKey() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
+        Key key = getKeyFromKeystore("RSA");
+        assertThat(key, notNullValue());
+        assertThat(key, instanceOf(PrivateKey.class));
+        PrivateKey privateKey = PemUtils.parsePrivateKey(
+            getDataPath("/certs/pem-utils/key_pkcs8_encrypted_pbes2_aes.pem"),
+            TESTNODE_PASSWORD
+        );
+        assertThat(privateKey, notNullValue());
+        assertThat(privateKey, equalTo(key));
+    }
+
+    public void testReadEncryptedPKCS8PBES2DESKey() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
+
+        // Sun JSE cannot read keys encrypted with PBES2 DES (but does support AES with PBES2 and DES with PBES1)
+        // Rather than add our own support for this we just detect that our error message is clear and meaningful
+        final GeneralSecurityException exception = expectThrows(
+            GeneralSecurityException.class,
+            () -> PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/key_pkcs8_encrypted_pbes2_des.pem"), TESTNODE_PASSWORD)
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("PKCS#8 Private Key is encrypted with unsupported PBES2 algorithm [1.3.14.3.2.7] (DES-CBC)")
+        );
+        assertThat(exception.getCause(), instanceOf(IOException.class));
+        assertThat(exception.getCause().getMessage(), startsWith("PBE parameter parsing error"));
     }
 
     public void testReadDESEncryptedPKCS1Key() throws Exception {
@@ -134,8 +169,10 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("DSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/dsa_key_openssl_plain_with_params.pem"),
-            EMPTY_PASSWORD);
+        PrivateKey privateKey = PemUtils.parsePrivateKey(
+            getDataPath("/certs/pem-utils/dsa_key_openssl_plain_with_params.pem"),
+            EMPTY_PASSWORD
+        );
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -165,8 +202,10 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("EC");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/ec_key_openssl_plain_with_params.pem"),
-            EMPTY_PASSWORD);
+        PrivateKey privateKey = PemUtils.parsePrivateKey(
+            getDataPath("/certs/pem-utils/ec_key_openssl_plain_with_params.pem"),
+            EMPTY_PASSWORD
+        );
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -207,6 +246,20 @@ public class PemUtilsTests extends ESTestCase {
         SslConfigException e = expectThrows(SslConfigException.class, () -> PemUtils.parsePrivateKey(path, TESTNODE_PASSWORD));
         assertThat(e.getMessage(), containsString("file is empty"));
         assertThat(e.getMessage(), containsString(path.toAbsolutePath().toString()));
+    }
+
+    public void testParsePKCS8PemString() throws Exception {
+        Key key = getKeyFromKeystore("EC");
+        assertThat(key, notNullValue());
+        assertThat(key, instanceOf(PrivateKey.class));
+        final Path path = getDataPath("/certs/pem-utils/ec_key_pkcs8_plain.pem");
+        final String transportKeyPemString = Files.readAllLines(path)
+            .stream()
+            .filter(l -> l.contains("-----") == false)
+            .collect(Collectors.joining());
+        final PrivateKey privateKey = PemUtils.parsePKCS8PemString(transportKeyPemString);
+        assertThat(privateKey, notNullValue());
+        assertThat(privateKey, equalTo(key));
     }
 
     private Key getKeyFromKeystore(String algo) throws Exception {

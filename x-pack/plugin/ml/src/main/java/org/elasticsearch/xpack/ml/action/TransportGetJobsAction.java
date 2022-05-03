@@ -37,40 +37,55 @@ public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJob
     private final DatafeedManager datafeedManager;
 
     @Inject
-    public TransportGetJobsAction(TransportService transportService, ClusterService clusterService,
-                                  ThreadPool threadPool, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver,
-                                  JobManager jobManager, DatafeedManager datafeedManager) {
-        super(GetJobsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetJobsAction.Request::new, indexNameExpressionResolver, GetJobsAction.Response::new, ThreadPool.Names.SAME);
+    public TransportGetJobsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        JobManager jobManager,
+        DatafeedManager datafeedManager
+    ) {
+        super(
+            GetJobsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetJobsAction.Request::new,
+            indexNameExpressionResolver,
+            GetJobsAction.Response::new,
+            ThreadPool.Names.SAME
+        );
         this.jobManager = jobManager;
         this.datafeedManager = datafeedManager;
     }
 
     @Override
-    protected void masterOperation(Task task, GetJobsAction.Request request, ClusterState state,
-                                   ActionListener<GetJobsAction.Response> listener) {
+    protected void masterOperation(
+        Task task,
+        GetJobsAction.Request request,
+        ClusterState state,
+        ActionListener<GetJobsAction.Response> listener
+    ) {
         logger.debug("Get job '{}'", request.getJobId());
-        jobManager.expandJobBuilders(request.getJobId(), request.allowNoMatch(), ActionListener.wrap(
+        jobManager.expandJobBuilders(
+            request.getJobId(),
+            request.allowNoMatch(),
+            ActionListener.wrap(
                 jobs -> datafeedManager.getDatafeedsByJobIds(
-                        jobs.stream().map(Job.Builder::getId).collect(Collectors.toSet()),
-                        state,
-                        ActionListener.wrap(
-                            dfsByJobId ->
-                                listener.onResponse(new GetJobsAction.Response(
-                                    new QueryPage<>(
-                                        jobs.stream().map(jb -> {
-                                            Optional.ofNullable(dfsByJobId.get(jb.getId())).ifPresent(jb::setDatafeed);
-                                            return jb.build();
-                                        }).collect(Collectors.toList()),
-                                        jobs.size(),
-                                        Job.RESULTS_FIELD
-                                    )
-                                )),
-                            listener::onFailure
-                        )),
+                    jobs.stream().map(Job.Builder::getId).collect(Collectors.toSet()),
+                    ActionListener.wrap(
+                        dfsByJobId -> listener.onResponse(new GetJobsAction.Response(new QueryPage<>(jobs.stream().map(jb -> {
+                            Optional.ofNullable(dfsByJobId.get(jb.getId())).ifPresent(jb::setDatafeed);
+                            return jb.build();
+                        }).collect(Collectors.toList()), jobs.size(), Job.RESULTS_FIELD))),
+                        listener::onFailure
+                    )
+                ),
                 listener::onFailure
-        ));
+            )
+        );
     }
 
     @Override

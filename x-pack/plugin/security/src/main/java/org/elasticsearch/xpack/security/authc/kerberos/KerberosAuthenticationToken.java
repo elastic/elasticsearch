@@ -58,8 +58,13 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
         if (Strings.isNullOrEmpty(authorizationHeader)) {
             return null;
         }
-        if (authorizationHeader.regionMatches(IGNORE_CASE_AUTH_HEADER_MATCH, 0, NEGOTIATE_AUTH_HEADER_PREFIX, 0,
-                NEGOTIATE_AUTH_HEADER_PREFIX.length()) == false) {
+        if (authorizationHeader.regionMatches(
+            IGNORE_CASE_AUTH_HEADER_MATCH,
+            0,
+            NEGOTIATE_AUTH_HEADER_PREFIX,
+            0,
+            NEGOTIATE_AUTH_HEADER_PREFIX.length()
+        ) == false) {
             return null;
         }
 
@@ -100,12 +105,9 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
 
     @Override
     public boolean equals(final Object other) {
-        if (this == other)
-            return true;
-        if (other == null)
-            return false;
-        if (getClass() != other.getClass())
-            return false;
+        if (this == other) return true;
+        if (other == null) return false;
+        if (getClass() != other.getClass()) return false;
         final KerberosAuthenticationToken otherKerbToken = (KerberosAuthenticationToken) other;
         return Arrays.equals(otherKerbToken.decodedToken, this.decodedToken);
     }

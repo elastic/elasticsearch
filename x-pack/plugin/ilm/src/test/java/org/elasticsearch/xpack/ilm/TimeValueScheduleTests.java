@@ -37,9 +37,11 @@ public class TimeValueScheduleTests extends ESTestCase {
 
     public void testHashcodeAndEquals() {
         for (int i = 0; i < 20; i++) {
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
-                    instance -> new TimeValueSchedule(instance.getInterval()),
-                    instance -> new TimeValueSchedule(randomValueOtherThan(instance.getInterval(), () -> createRandomTimeValue())));
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                createRandomInstance(),
+                instance -> new TimeValueSchedule(instance.getInterval()),
+                instance -> new TimeValueSchedule(randomValueOtherThan(instance.getInterval(), () -> createRandomTimeValue()))
+            );
         }
     }
 
@@ -66,8 +68,10 @@ public class TimeValueScheduleTests extends ESTestCase {
     public void testNextScheduledTimeAfterFirstTrigger() {
         long numberIntervalsPassed = randomLongBetween(0, 10000);
         long triggerTime = start + (numberIntervalsPassed + 1) * interval.millis();
-        long now = start
-                + randomLongBetween(numberIntervalsPassed * interval.millis(), (numberIntervalsPassed + 1) * interval.millis() - 1);
+        long now = start + randomLongBetween(
+            numberIntervalsPassed * interval.millis(),
+            (numberIntervalsPassed + 1) * interval.millis() - 1
+        );
         TimeValueSchedule schedule = new TimeValueSchedule(interval);
         assertEquals(triggerTime, schedule.nextScheduledTimeAfter(start, now));
     }

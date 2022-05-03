@@ -8,8 +8,8 @@
 
 package org.elasticsearch.painless.toxcontent;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,7 +41,7 @@ public class XContentBuilderWrapper {
         }
     }
 
-    public void startObject(String name)  {
+    public void startObject(String name) {
         try {
             builder.startObject(name);
         } catch (IOException io) {
@@ -81,7 +81,7 @@ public class XContentBuilderWrapper {
         }
     }
 
-    public void field(String name)  {
+    public void field(String name) {
         try {
             builder.field(name);
         } catch (IOException io) {
@@ -89,7 +89,7 @@ public class XContentBuilderWrapper {
         }
     }
 
-    public void field(String name, Object value)  {
+    public void field(String name, Object value) {
         try {
             if (value instanceof Character) {
                 builder.field(name, ((Character) value).charValue());
@@ -104,7 +104,7 @@ public class XContentBuilderWrapper {
         }
     }
 
-    public void field(String name, String value)  {
+    public void field(String name, String value) {
         try {
             builder.field(name, value);
         } catch (IOException io) {
@@ -112,11 +112,11 @@ public class XContentBuilderWrapper {
         }
     }
 
-    public void field(String name, Class<?> value)  {
+    public void field(String name, Class<?> value) {
         field(name, value.getName());
     }
 
-    public void field(String name, int value)  {
+    public void field(String name, int value) {
         try {
             builder.field(name, value);
         } catch (IOException io) {
@@ -124,7 +124,7 @@ public class XContentBuilderWrapper {
         }
     }
 
-    public void field(String name, boolean value)  {
+    public void field(String name, boolean value) {
         try {
             builder.field(name, value);
         } catch (IOException io) {
@@ -132,7 +132,7 @@ public class XContentBuilderWrapper {
         }
     }
 
-    public void field(String name, List<String> values)  {
+    public void field(String name, List<String> values) {
         try {
             builder.field(name, values);
         } catch (IOException io) {

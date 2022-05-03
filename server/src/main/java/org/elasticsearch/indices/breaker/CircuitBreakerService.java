@@ -17,8 +17,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
  */
 public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
 
-    protected CircuitBreakerService() {
-    }
+    protected CircuitBreakerService() {}
 
     /**
      * @return the breaker that can be used to register estimates against
@@ -36,15 +35,12 @@ public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
     public abstract CircuitBreakerStats stats(String name);
 
     @Override
-    protected void doStart() {
-    }
+    protected void doStart() {}
 
     @Override
-    protected void doStop() {
-    }
+    protected void doStop() {}
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
 }

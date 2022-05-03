@@ -22,22 +22,31 @@ public class SimpleFragmentsBuilder extends org.apache.lucene.search.vectorhighl
     protected final MappedFieldType fieldType;
     private final boolean fixBrokenAnalysis;
 
-    public SimpleFragmentsBuilder(MappedFieldType fieldType,
-                                  boolean fixBrokenAnalysis,
-                                  String[] preTags,
-                                  String[] postTags,
-                                  BoundaryScanner boundaryScanner) {
+    public SimpleFragmentsBuilder(
+        MappedFieldType fieldType,
+        boolean fixBrokenAnalysis,
+        String[] preTags,
+        String[] postTags,
+        BoundaryScanner boundaryScanner
+    ) {
         super(preTags, postTags, boundaryScanner);
         this.fieldType = fieldType;
         this.fixBrokenAnalysis = fixBrokenAnalysis;
     }
 
     @Override
-    protected String makeFragment( StringBuilder buffer, int[] index, Field[] values, WeightedFragInfo fragInfo,
-            String[] preTags, String[] postTags, Encoder encoder) {
+    protected String makeFragment(
+        StringBuilder buffer,
+        int[] index,
+        Field[] values,
+        WeightedFragInfo fragInfo,
+        String[] preTags,
+        String[] postTags,
+        Encoder encoder
+    ) {
         if (fixBrokenAnalysis) {
             fragInfo = FragmentBuilderHelper.fixWeightedFragInfo(fragInfo);
         }
         return super.makeFragment(buffer, index, values, fragInfo, preTags, postTags, encoder);
-   }
+    }
 }

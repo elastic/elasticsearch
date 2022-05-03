@@ -12,8 +12,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -39,7 +40,6 @@ import org.junit.Before;
 
 import java.time.Clock;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -609,7 +609,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         TaskId taskId = new TaskId("node", 123);
@@ -681,7 +681,7 @@ public class RollupJobTaskTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testTriggerWithHeaders() throws Exception {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        Map<String, String> headers = new HashMap<>(1);
+        Map<String, String> headers = Maps.newMapWithExpectedSize(1);
         headers.put("es-security-runas-user", "foo");
         headers.put("_xpack_security_authentication", "bar");
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), headers);
@@ -714,7 +714,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         TaskId taskId = new TaskId("node", 123);
@@ -786,7 +786,7 @@ public class RollupJobTaskTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testSaveStateChangesIDScheme() throws Exception {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        Map<String, String> headers = new HashMap<>(1);
+        Map<String, String> headers = Maps.newMapWithExpectedSize(1);
         headers.put("es-security-runas-user", "foo");
         headers.put("_xpack_security_authentication", "bar");
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), headers);
@@ -819,7 +819,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         RollupJobStatus status = new RollupJobStatus(IndexerState.STOPPED, null);

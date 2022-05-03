@@ -194,13 +194,17 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
 
         final ArrayList<ServiceAccountToken> tokens = new ArrayList<>();
         IntStream.range(0, randomIntBetween(3, 8)).forEach(i -> {
-            final ServiceAccountToken token = ServiceAccountToken.newToken(accountId,
-                randomValueOtherThanMany(n -> n.length() > 248, ValidationTests::randomTokenName));
+            final ServiceAccountToken token = ServiceAccountToken.newToken(
+                accountId,
+                randomValueOtherThanMany(n -> n.length() > 248, ValidationTests::randomTokenName)
+            );
             tokens.add(token);
             store.authenticate(token, mock(ActionListener.class));
 
-            final ServiceAccountToken tokenWithSuffix =
-                ServiceAccountToken.newToken(accountId, token.getTokenName() + randomAlphaOfLengthBetween(3, 8));
+            final ServiceAccountToken tokenWithSuffix = ServiceAccountToken.newToken(
+                accountId,
+                token.getTokenName() + randomAlphaOfLengthBetween(3, 8)
+            );
             tokens.add(tokenWithSuffix);
             store.authenticate(tokenWithSuffix, mock(ActionListener.class));
         });

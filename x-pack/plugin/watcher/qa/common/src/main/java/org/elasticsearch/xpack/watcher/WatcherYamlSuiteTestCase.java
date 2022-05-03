@@ -44,7 +44,7 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
             String state = (String) response.evaluate("stats.0.watcher_state");
 
             switch (state) {
-                case "stopped":
+                case "stopped" -> {
                     ClientYamlTestResponse startResponse = getAdminExecutionContext().callApi(
                         "watcher.start",
                         emptyMap(),
@@ -54,20 +54,18 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
                     boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
                     Assert.assertThat(isAcknowledged, Matchers.is(true));
                     throw new AssertionError("waiting until stopped state reached started state");
-                case "stopping":
-                    throw new AssertionError("waiting until stopping state reached stopped state to start again");
-                case "starting":
-                    throw new AssertionError("waiting until starting state reached started state");
-                case "started":
+                }
+                case "stopping" -> throw new AssertionError("waiting until stopping state reached stopped state to start again");
+                case "starting" -> throw new AssertionError("waiting until starting state reached started state");
+                case "started" -> {
                     int watcherCount = (int) response.evaluate("stats.0.watch_count");
                     if (watcherCount > 0) {
                         logger.info("expected 0 active watches, but got [{}], deleting watcher indices again", watcherCount);
                         deleteAllWatcherData();
                     }
-                    // all good here, we are done
-                    break;
-                default:
-                    throw new AssertionError("unknown state[" + state + "]");
+                }
+                // all good here, we are done
+                default -> throw new AssertionError("unknown state[" + state + "]");
             }
         });
     }

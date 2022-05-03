@@ -1,0 +1,42 @@
+[[release-notes-8.1.2]]
+== {es} version 8.1.2
+
+coming[8.1.2]
+
+Also see <<breaking-changes-8.1,Breaking changes in 8.1>>.
+
+[[bug-8.1.2]]
+[float]
+=== Bug fixes
+
+Authorization::
+* Add delete privilege to `kibana_system` for APM {es-pull}85085[#85085]
+
+Engine::
+* Increase store ref before snapshotting index commit {es-pull}84776[#84776]
+
+Infra/Core::
+* Return empty version instead of blowing up if we cannot find it {es-pull}85244[#85244]
+* Validate index format agreement for system index descriptors {es-pull}85173[#85173]
+* Wrap thread creation in `doPrivileged` call {es-pull}85180[#85180]
+
+Machine Learning::
+* Do not fetch source when finding index of last state docs {es-pull}85334[#85334]
+* Fixes for multi-line start patterns in text structure endpoint {es-pull}85066[#85066]
+* Reallocate model deployments on node shutdown events {es-pull}85310[#85310]
+
+Mapping::
+* Do not fail on duplicated content field filters {es-pull}85382[#85382]
+
+Search::
+* Increase store ref before analyzing disk usage {es-pull}84774[#84774]
+* Limit concurrent shard requests in disk usage API {es-pull}84900[#84900] (issue: {es-issue}84779[#84779])
+* `TransportBroadcastAction` should always set response for each shard {es-pull}84926[#84926]
+
+Snapshot/Restore::
+* Fix leaking listeners bug on frozen tier {es-pull}85239[#85239]
+
+Watcher::
+* No longer require master node to install Watcher templates {es-pull}85287[#85287] (issue: {es-issue}85043[#85043])
+
+

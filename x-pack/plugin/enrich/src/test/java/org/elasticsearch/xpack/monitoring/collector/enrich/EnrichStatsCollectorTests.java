@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.monitoring.collector.enrich;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -30,8 +30,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -140,6 +140,11 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
             assertThat(actual.getId(), nullValue());
             assertThat(actual.getExecutingPolicy(), equalTo(expected));
         }
+
+        assertWarnings(
+            "[xpack.monitoring.collection.enrich.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release."
+        );
     }
 
     private EnrichStatsCollector createCollector(ClusterService clusterService, XPackLicenseState licenseState, Client client) {

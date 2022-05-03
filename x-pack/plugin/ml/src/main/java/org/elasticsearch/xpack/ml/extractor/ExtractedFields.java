@@ -8,12 +8,13 @@ package org.elasticsearch.xpack.ml.extractor;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -32,12 +33,15 @@ public class ExtractedFields {
     private final String[] sourceFields;
     private final Map<String, Long> cardinalitiesForFieldsWithConstraints;
 
-    public ExtractedFields(List<ExtractedField> allFields,
-                           List<ProcessedField> processedFields,
-                           Map<String, Long> cardinalitiesForFieldsWithConstraints) {
+    public ExtractedFields(
+        List<ExtractedField> allFields,
+        List<ProcessedField> processedFields,
+        Map<String, Long> cardinalitiesForFieldsWithConstraints
+    ) {
         this.allFields = new ArrayList<>(allFields);
         this.docValueFields = filterFields(ExtractedField.Method.DOC_VALUE, allFields);
-        this.sourceFields = filterFields(ExtractedField.Method.SOURCE, allFields).stream().map(ExtractedField::getSearchField)
+        this.sourceFields = filterFields(ExtractedField.Method.SOURCE, allFields).stream()
+            .map(ExtractedField::getSearchField)
             .toArray(String[]::new);
         this.cardinalitiesForFieldsWithConstraints = Collections.unmodifiableMap(cardinalitiesForFieldsWithConstraints);
         this.processedFields = processedFields == null ? Collections.emptyList() : processedFields;
@@ -69,46 +73,55 @@ public class ExtractedFields {
 
     public String[] extractOrganicFeatureNames() {
         Set<String> processedFieldInputs = getProcessedFieldInputs();
-        return allFields
-            .stream()
+        return allFields.stream()
             .map(ExtractedField::getName)
             .filter(f -> processedFieldInputs.contains(f) == false)
             .toArray(String[]::new);
     }
 
     public String[] extractProcessedFeatureNames() {
-        return processedFields
-            .stream()
-            .map(ProcessedField::getOutputFieldNames)
-            .flatMap(List::stream)
-            .toArray(String[]::new);
+        return processedFields.stream().map(ProcessedField::getOutputFieldNames).flatMap(List::stream).toArray(String[]::new);
     }
 
     private static List<ExtractedField> filterFields(ExtractedField.Method method, List<ExtractedField> fields) {
         return fields.stream().filter(field -> field.getMethod() == method).collect(Collectors.toList());
     }
 
-    public static ExtractedFields build(Set<String> allFields,
-                                        Set<String> scriptFields,
-                                        Set<String> searchRuntimeFields,
-                                        FieldCapabilitiesResponse fieldsCapabilities,
-                                        Map<String, Long> cardinalitiesForFieldsWithConstraints,
-                                        List<ProcessedField> processedFields) {
-        ExtractionMethodDetector extractionMethodDetector =
-            new ExtractionMethodDetector(scriptFields, fieldsCapabilities, searchRuntimeFields);
+    public static ExtractedFields build(
+        Set<String> allFields,
+        Set<String> scriptFields,
+        Set<String> searchRuntimeFields,
+        FieldCapabilitiesResponse fieldsCapabilities,
+        Map<String, Long> cardinalitiesForFieldsWithConstraints,
+        List<ProcessedField> processedFields
+    ) {
+        ExtractionMethodDetector extractionMethodDetector = new ExtractionMethodDetector(
+            scriptFields,
+            fieldsCapabilities,
+            searchRuntimeFields
+        );
         return new ExtractedFields(
             allFields.stream().map(extractionMethodDetector::detect).collect(Collectors.toList()),
             processedFields,
-            cardinalitiesForFieldsWithConstraints);
+            cardinalitiesForFieldsWithConstraints
+        );
     }
 
-    public static ExtractedFields build(Set<String> allFields,
-                                        Set<String> scriptFields,
-                                        FieldCapabilitiesResponse fieldsCapabilities,
-                                        Map<String, Long> cardinalitiesForFieldsWithConstraints,
-                                        List<ProcessedField> processedFields) {
-        return build(allFields, scriptFields, Collections.emptySet(), fieldsCapabilities,
-            cardinalitiesForFieldsWithConstraints, processedFields);
+    public static ExtractedFields build(
+        Set<String> allFields,
+        Set<String> scriptFields,
+        FieldCapabilitiesResponse fieldsCapabilities,
+        Map<String, Long> cardinalitiesForFieldsWithConstraints,
+        List<ProcessedField> processedFields
+    ) {
+        return build(
+            allFields,
+            scriptFields,
+            Collections.emptySet(),
+            fieldsCapabilities,
+            cardinalitiesForFieldsWithConstraints,
+            processedFields
+        );
     }
 
     public static TimeField newTimeField(String name, ExtractedField.Method method) {
@@ -125,8 +138,11 @@ public class ExtractedFields {
         private final Set<String> searchRuntimeFields;
         private final FieldCapabilitiesResponse fieldsCapabilities;
 
-        public ExtractionMethodDetector(Set<String> scriptFields, FieldCapabilitiesResponse fieldsCapabilities,
-                                        Set<String> searchRuntimeFields) {
+        public ExtractionMethodDetector(
+            Set<String> scriptFields,
+            FieldCapabilitiesResponse fieldsCapabilities,
+            Set<String> searchRuntimeFields
+        ) {
             this.scriptFields = scriptFields;
             this.fieldsCapabilities = fieldsCapabilities;
             this.searchRuntimeFields = searchRuntimeFields;
@@ -220,16 +236,18 @@ public class ExtractedFields {
     /**
      * Makes boolean fields behave as a field of different type.
      */
-    private static final class BooleanMapper<T> extends DocValueField {
+    private static final class BooleanMapper<T> extends AbstractField {
 
         private static final Set<String> TYPES = Collections.singleton(BooleanFieldMapper.CONTENT_TYPE);
 
+        private final ExtractedField field;
         private final T trueValue;
         private final T falseValue;
 
         BooleanMapper(ExtractedField field, T trueValue, T falseValue) {
             super(field.getName(), TYPES);
-            if (field.getMethod() != Method.DOC_VALUE || field.getTypes().contains(BooleanFieldMapper.CONTENT_TYPE) == false) {
+            this.field = field;
+            if (field.getTypes().contains(BooleanFieldMapper.CONTENT_TYPE) == false) {
                 throw new IllegalArgumentException("cannot apply boolean mapping to field [" + field.getName() + "]");
             }
             this.trueValue = trueValue;
@@ -237,22 +255,51 @@ public class ExtractedFields {
         }
 
         @Override
+        public Method getMethod() {
+            return field.getMethod();
+        }
+
+        @Override
         public Object[] value(SearchHit hit) {
-            DocumentField keyValue = hit.field(getName());
-            if (keyValue != null) {
-                return keyValue.getValues().stream().map(v -> Boolean.TRUE.equals(v) ? trueValue : falseValue).toArray();
+            Object[] value = field.value(hit);
+            if (value != null) {
+                return Arrays.stream(value).map(v -> {
+                    boolean asBoolean;
+                    if (v instanceof Boolean vBoolean) {
+                        asBoolean = vBoolean;
+                    } else {
+                        asBoolean = Booleans.parseBoolean(v.toString());
+                    }
+                    return asBoolean ? trueValue : falseValue;
+                }).toArray();
             }
             return new Object[0];
         }
 
         @Override
         public boolean supportsFromSource() {
-            return false;
+            return field.supportsFromSource();
         }
 
         @Override
         public ExtractedField newFromSource() {
-            throw new UnsupportedOperationException();
+            return field.newFromSource();
         }
+
+        @Override
+        public boolean isMultiField() {
+            return field.isMultiField();
+        }
+
+        @Override
+        public String getParentField() {
+            return field.getParentField();
+        }
+
+        @Override
+        public String getDocValueFormat() {
+            return field.getDocValueFormat();
+        }
+
     }
 }

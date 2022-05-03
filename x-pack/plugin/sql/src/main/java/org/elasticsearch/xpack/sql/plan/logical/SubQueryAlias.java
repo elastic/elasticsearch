@@ -44,10 +44,7 @@ public class SubQueryAlias extends UnaryPlan {
     @Override
     public List<Attribute> output() {
         if (output == null) {
-            output = alias == null ? child().output() :
-                child().output().stream()
-                .map(e -> e.withQualifier(alias))
-                .collect(toList());
+            output = alias == null ? child().output() : child().output().stream().map(e -> e.withQualifier(alias)).collect(toList());
         }
         return output;
     }

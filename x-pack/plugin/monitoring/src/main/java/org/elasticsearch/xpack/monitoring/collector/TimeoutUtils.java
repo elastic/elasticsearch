@@ -26,8 +26,7 @@ import java.util.concurrent.TimeoutException;
  * the involved nodes times out.
  */
 public final class TimeoutUtils {
-    private TimeoutUtils() {
-    }
+    private TimeoutUtils() {}
 
     /**
      * @throws ElasticsearchTimeoutException iff the {@code response} contains any node-level timeout. The exception message identifies the
@@ -53,8 +52,7 @@ public final class TimeoutUtils {
     public static void ensureNoTimeouts(TimeValue collectionTimeout, BaseTasksResponse response) {
         HashSet<String> timedOutNodeIds = null;
         for (ElasticsearchException nodeFailure : response.getNodeFailures()) {
-            if (nodeFailure instanceof FailedNodeException) {
-                FailedNodeException failedNodeException = (FailedNodeException) nodeFailure;
+            if (nodeFailure instanceof FailedNodeException failedNodeException) {
                 if (isTimeoutFailure(failedNodeException)) {
                     if (timedOutNodeIds == null) {
                         timedOutNodeIds = new HashSet<>();
@@ -74,8 +72,7 @@ public final class TimeoutUtils {
         HashSet<String> timedOutNodeIds = null;
         for (DefaultShardOperationFailedException shardFailure : response.getShardFailures()) {
             final Throwable shardFailureCause = shardFailure.getCause();
-            if (shardFailureCause instanceof FailedNodeException) {
-                FailedNodeException failedNodeException = (FailedNodeException) shardFailureCause;
+            if (shardFailureCause instanceof FailedNodeException failedNodeException) {
                 if (isTimeoutFailure(failedNodeException)) {
                     if (timedOutNodeIds == null) {
                         timedOutNodeIds = new HashSet<>();
@@ -90,14 +87,15 @@ public final class TimeoutUtils {
     private static boolean isTimeoutFailure(FailedNodeException failedNodeException) {
         final Throwable cause = failedNodeException.getCause();
         return cause instanceof ElasticsearchTimeoutException
-                || cause instanceof TimeoutException
-                || cause instanceof ReceiveTimeoutTransportException;
+            || cause instanceof TimeoutException
+            || cause instanceof ReceiveTimeoutTransportException;
     }
 
     private static void ensureNoTimeouts(TimeValue collectionTimeout, HashSet<String> timedOutNodeIds) {
         if (timedOutNodeIds != null) {
-            throw new ElasticsearchTimeoutException((timedOutNodeIds.size() == 1 ? "node " : "nodes ") + timedOutNodeIds +
-                    " did not respond within [" + collectionTimeout + "]");
+            throw new ElasticsearchTimeoutException(
+                (timedOutNodeIds.size() == 1 ? "node " : "nodes ") + timedOutNodeIds + " did not respond within [" + collectionTimeout + "]"
+            );
         }
     }
 

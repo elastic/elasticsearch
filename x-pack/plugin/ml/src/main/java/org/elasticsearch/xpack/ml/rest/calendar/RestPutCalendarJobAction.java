@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.calendar;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -28,7 +28,8 @@ public class RestPutCalendarJobAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(PUT, BASE_PATH + "calendars/{" + Calendar.ID + "}/jobs/{" + Job.ID + "}")
-                .replaces(PUT, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/jobs/{" + Job.ID + "}", RestApiVersion.V_7).build()
+                .replaces(PUT, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/jobs/{" + Job.ID + "}", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -41,8 +42,7 @@ public class RestPutCalendarJobAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String calendarId = restRequest.param(Calendar.ID.getPreferredName());
         String jobId = restRequest.param(Job.ID.getPreferredName());
-        UpdateCalendarJobAction.Request putCalendarRequest =
-                new UpdateCalendarJobAction.Request(calendarId, jobId, null);
+        UpdateCalendarJobAction.Request putCalendarRequest = new UpdateCalendarJobAction.Request(calendarId, jobId, null);
         return channel -> client.execute(UpdateCalendarJobAction.INSTANCE, putCalendarRequest, new RestToXContentListener<>(channel));
     }
 }

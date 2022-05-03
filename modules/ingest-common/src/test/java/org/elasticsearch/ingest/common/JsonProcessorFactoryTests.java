@@ -61,8 +61,10 @@ public class JsonProcessorFactoryTests extends ESTestCase {
     public void testCreateWithMissingField() throws Exception {
         Map<String, Object> config = new HashMap<>();
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
-            () -> FACTORY.create(null, processorTag, null, config));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> FACTORY.create(null, processorTag, null, config)
+        );
         assertThat(exception.getMessage(), equalTo("[field] required property is missing"));
     }
 
@@ -73,8 +75,10 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         config.put("field", randomField);
         config.put("target_field", randomTargetField);
         config.put("add_to_root", true);
-        ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
-            () -> FACTORY.create(null, randomAlphaOfLength(10), null, config));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> FACTORY.create(null, randomAlphaOfLength(10), null, config)
+        );
         assertThat(exception.getMessage(), equalTo("[target_field] Cannot set a target field while also setting `add_to_root` to true"));
     }
 
@@ -92,17 +96,25 @@ public class JsonProcessorFactoryTests extends ESTestCase {
     }
 
     public void testMergeStrategyWithoutAddToRoot() throws Exception {
-        ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
-            () -> getJsonProcessorWithMergeStrategy("replace", false));
-        assertThat(exception.getMessage(),
-            equalTo("[add_to_root_conflict_strategy] Cannot set `add_to_root_conflict_strategy` if `add_to_root` is false"));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> getJsonProcessorWithMergeStrategy("replace", false)
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("[add_to_root_conflict_strategy] Cannot set `add_to_root_conflict_strategy` if `add_to_root` is false")
+        );
     }
 
     public void testUnknownMergeStrategy() throws Exception {
-        ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
-            () -> getJsonProcessorWithMergeStrategy("foo", true));
-        assertThat(exception.getMessage(),
-            equalTo("[add_to_root_conflict_strategy] conflict strategy [foo] not supported, cannot convert field."));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> getJsonProcessorWithMergeStrategy("foo", true)
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("[add_to_root_conflict_strategy] conflict strategy [foo] not supported, cannot convert field.")
+        );
     }
 
     private JsonProcessor getJsonProcessorWithMergeStrategy(String mergeStrategy, boolean addToRoot) throws Exception {

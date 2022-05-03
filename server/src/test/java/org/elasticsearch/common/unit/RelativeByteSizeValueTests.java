@@ -60,8 +60,10 @@ public class RelativeByteSizeValueTests extends ESTestCase {
     }
 
     private void assertFail(String value, String failure) {
-        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
-            () -> RelativeByteSizeValue.parseRelativeByteSizeValue(value, "test"));
+        ElasticsearchParseException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RelativeByteSizeValue.parseRelativeByteSizeValue(value, "test")
+        );
         assertThat(exception.getMessage(), equalTo(failure));
     }
 }

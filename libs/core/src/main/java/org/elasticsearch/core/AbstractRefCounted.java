@@ -19,6 +19,8 @@ public abstract class AbstractRefCounted implements RefCounted {
 
     private final AtomicInteger refCount = new AtomicInteger(1);
 
+    protected AbstractRefCounted() {}
+
     @Override
     public final void incRef() {
         if (tryIncRef() == false) {
@@ -67,8 +69,7 @@ public abstract class AbstractRefCounted implements RefCounted {
      * Called whenever the ref count is incremented or decremented. Can be overridden to record access to the instance for debugging
      * purposes.
      */
-    protected void touch() {
-    }
+    protected void touch() {}
 
     protected void alreadyClosed() {
         final int currentRefCount = refCount.get();

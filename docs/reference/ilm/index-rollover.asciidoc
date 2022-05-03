@@ -39,8 +39,6 @@ This is the active index that handles all write requests.
 On each rollover, the new index becomes the write index.
 
 [discrete]
-[role="xpack"]
-[testenv="basic"]
 [[ilm-automatic-rollover]]
 === Automatic rollover
 

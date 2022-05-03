@@ -6,17 +6,17 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
 import org.junit.Before;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -44,9 +44,12 @@ public class SamlAuthnRequestBuilderTests extends SamlTestCase {
     public void testBuildRequestWithDefaultSettingsHasNoNameIdPolicy() {
         SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, ACS_URL, null, null, null, Collections.emptyList());
         final SamlAuthnRequestBuilder builder = new SamlAuthnRequestBuilder(
-            sp, SAMLConstants.SAML2_POST_BINDING_URI,
-            idpDescriptor, SAMLConstants.SAML2_REDIRECT_BINDING_URI,
-            Clock.systemUTC());
+            sp,
+            SAMLConstants.SAML2_POST_BINDING_URI,
+            idpDescriptor,
+            SAMLConstants.SAML2_REDIRECT_BINDING_URI,
+            Clock.systemUTC()
+        );
 
         final AuthnRequest request = buildAndValidateAuthnRequest(builder);
 
@@ -64,9 +67,12 @@ public class SamlAuthnRequestBuilderTests extends SamlTestCase {
     public void testBuildRequestWithPersistentNameAndNoForceAuth() throws Exception {
         SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, ACS_URL, null, null, null, Collections.emptyList());
         final SamlAuthnRequestBuilder builder = new SamlAuthnRequestBuilder(
-                sp, SAMLConstants.SAML2_POST_BINDING_URI,
-                idpDescriptor, SAMLConstants.SAML2_REDIRECT_BINDING_URI,
-                Clock.systemUTC());
+            sp,
+            SAMLConstants.SAML2_POST_BINDING_URI,
+            idpDescriptor,
+            SAMLConstants.SAML2_REDIRECT_BINDING_URI,
+            Clock.systemUTC()
+        );
         builder.nameIDPolicy(new SamlAuthnRequestBuilder.NameIDPolicySettings(NameID.PERSISTENT, false, SP_ENTITY_ID));
         builder.forceAuthn(null);
 
@@ -89,9 +95,12 @@ public class SamlAuthnRequestBuilderTests extends SamlTestCase {
     public void testBuildRequestWithTransientNameAndForceAuthTrue() throws Exception {
         SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, ACS_URL, null, null, null, Collections.emptyList());
         final SamlAuthnRequestBuilder builder = new SamlAuthnRequestBuilder(
-            sp, SAMLConstants.SAML2_POST_BINDING_URI,
-            idpDescriptor, SAMLConstants.SAML2_REDIRECT_BINDING_URI,
-            Clock.systemUTC());
+            sp,
+            SAMLConstants.SAML2_POST_BINDING_URI,
+            idpDescriptor,
+            SAMLConstants.SAML2_REDIRECT_BINDING_URI,
+            Clock.systemUTC()
+        );
 
         final String noSpNameQualifier = randomBoolean() ? "" : null;
         builder.nameIDPolicy(new SamlAuthnRequestBuilder.NameIDPolicySettings(NameID.TRANSIENT, true, noSpNameQualifier));
@@ -114,12 +123,14 @@ public class SamlAuthnRequestBuilderTests extends SamlTestCase {
     }
 
     public void testBuildRequestWithRequestedAuthnContext() throws Exception {
-        SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, ACS_URL, null, null, null,
-            Collections.singletonList(KERBEROS_AUTHN_CTX));
+        SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, ACS_URL, null, null, null, Collections.singletonList(KERBEROS_AUTHN_CTX));
         final SamlAuthnRequestBuilder builder = new SamlAuthnRequestBuilder(
-            sp, SAMLConstants.SAML2_POST_BINDING_URI,
-            idpDescriptor, SAMLConstants.SAML2_REDIRECT_BINDING_URI,
-            Clock.systemUTC());
+            sp,
+            SAMLConstants.SAML2_POST_BINDING_URI,
+            idpDescriptor,
+            SAMLConstants.SAML2_REDIRECT_BINDING_URI,
+            Clock.systemUTC()
+        );
         builder.nameIDPolicy(new SamlAuthnRequestBuilder.NameIDPolicySettings(NameID.PERSISTENT, false, SP_ENTITY_ID));
         builder.forceAuthn(null);
 
@@ -141,14 +152,15 @@ public class SamlAuthnRequestBuilderTests extends SamlTestCase {
     }
 
     public void testBuildRequestWithRequestedAuthnContexts() throws Exception {
-        List<String> reqAuthnCtxClassRef = Arrays.asList(KERBEROS_AUTHN_CTX,
-            SMARTCARD_AUTHN_CTX,
-            "http://an.arbitrary/mfa-profile");
+        List<String> reqAuthnCtxClassRef = Arrays.asList(KERBEROS_AUTHN_CTX, SMARTCARD_AUTHN_CTX, "http://an.arbitrary/mfa-profile");
         SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, ACS_URL, null, null, null, reqAuthnCtxClassRef);
         final SamlAuthnRequestBuilder builder = new SamlAuthnRequestBuilder(
-            sp, SAMLConstants.SAML2_POST_BINDING_URI,
-            idpDescriptor, SAMLConstants.SAML2_REDIRECT_BINDING_URI,
-            Clock.systemUTC());
+            sp,
+            SAMLConstants.SAML2_POST_BINDING_URI,
+            idpDescriptor,
+            SAMLConstants.SAML2_REDIRECT_BINDING_URI,
+            Clock.systemUTC()
+        );
         builder.nameIDPolicy(new SamlAuthnRequestBuilder.NameIDPolicySettings(NameID.PERSISTENT, false, SP_ENTITY_ID));
         builder.forceAuthn(null);
         final AuthnRequest request = buildAndValidateAuthnRequest(builder);

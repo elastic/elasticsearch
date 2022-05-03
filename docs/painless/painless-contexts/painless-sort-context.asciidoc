@@ -20,8 +20,9 @@ Use a Painless script to
 
 *Return*
 
-`double`::
-        The score for the specified document.
+`double` or `String`::
+        The sort key. The return type depends on the value of the `type` parameter
+        in the script sort config (`"number"` or `"string"`).
 
 *API*
 

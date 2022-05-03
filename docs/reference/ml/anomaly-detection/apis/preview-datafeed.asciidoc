@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-preview-datafeed]]
 = Preview {dfeeds} API
 
@@ -25,6 +24,7 @@ Previews a {dfeed}.
 == {api-prereq-title}
 
 Requires the following privileges:
+
 * cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this 
    privilege)
 * source index configured in the {dfeed}: `read`.

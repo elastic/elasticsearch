@@ -115,10 +115,21 @@ public class RestUtilsTests extends ESTestCase {
         assertCorsSettingRegex("/foo/", Pattern.compile("foo"));
         assertCorsSettingRegex("/.*/", Pattern.compile(".*"));
         assertCorsSettingRegex("/https?:\\/\\/localhost(:[0-9]+)?/", Pattern.compile("https?:\\/\\/localhost(:[0-9]+)?"));
-        assertCorsSettingRegexMatches("/https?:\\/\\/localhost(:[0-9]+)?/", true, "http://localhost:9200", "http://localhost:9215",
-                "https://localhost:9200", "https://localhost");
-        assertCorsSettingRegexMatches("/https?:\\/\\/localhost(:[0-9]+)?/", false, "htt://localhost:9200", "http://localhost:9215/foo",
-                "localhost:9215");
+        assertCorsSettingRegexMatches(
+            "/https?:\\/\\/localhost(:[0-9]+)?/",
+            true,
+            "http://localhost:9200",
+            "http://localhost:9215",
+            "https://localhost:9200",
+            "https://localhost"
+        );
+        assertCorsSettingRegexMatches(
+            "/https?:\\/\\/localhost(:[0-9]+)?/",
+            false,
+            "htt://localhost:9200",
+            "http://localhost:9215/foo",
+            "localhost:9215"
+        );
         assertCorsSettingRegexIsNull("//");
         assertCorsSettingRegexIsNull("/");
         assertCorsSettingRegexIsNull("/foo");
@@ -132,12 +143,13 @@ public class RestUtilsTests extends ESTestCase {
 
         // This is a valid URL
         String uri = String.format(
-                Locale.ROOT,
-                host + "/:@-._~!$%c'()*+,=;:@-._~!$%c'()*+,=:@-._~!$%c'()*+,==?/?:@-._~!$'()*+,=/?:@-._~!$'()*+,==#/?:@-._~!$%c'()*+,;=",
-                randomDelimiter(),
-                randomDelimiter(),
-                randomDelimiter(),
-                randomDelimiter());
+            Locale.ROOT,
+            host + "/:@-._~!$%c'()*+,=;:@-._~!$%c'()*+,=:@-._~!$%c'()*+,==?/?:@-._~!$'()*+,=/?:@-._~!$'()*+,==#/?:@-._~!$%c'()*+,;=",
+            randomDelimiter(),
+            randomDelimiter(),
+            randomDelimiter(),
+            randomDelimiter()
+        );
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.get("/?:@-._~!$'()* ,"), equalTo("/?:@-._~!$'()* ,=="));
         assertThat(params.size(), equalTo(1));
@@ -151,11 +163,14 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(RestUtils.checkCorsSettingForRegex(settingsValue).toString(), is(pattern.toString()));
     }
 
-    private void assertCorsSettingRegexMatches(String settingsValue, boolean expectMatch, String ... candidates) {
+    private void assertCorsSettingRegexMatches(String settingsValue, boolean expectMatch, String... candidates) {
         Pattern pattern = RestUtils.checkCorsSettingForRegex(settingsValue);
         for (String candidate : candidates) {
-            assertThat(String.format(Locale.ROOT, "Expected pattern %s to match against %s: %s", settingsValue, candidate, expectMatch),
-                    pattern.matcher(candidate).matches(), is(expectMatch));
+            assertThat(
+                String.format(Locale.ROOT, "Expected pattern %s to match against %s: %s", settingsValue, candidate, expectMatch),
+                pattern.matcher(candidate).matches(),
+                is(expectMatch)
+            );
         }
     }
 }

@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -25,6 +25,7 @@ public class DummyUsernamePasswordRealm extends UsernamePasswordRealm {
 
     public DummyUsernamePasswordRealm(RealmConfig config) {
         super(config);
+        initRealmRef(null);
         this.users = new HashMap<>();
     }
 
@@ -37,9 +38,8 @@ public class DummyUsernamePasswordRealm extends UsernamePasswordRealm {
     }
 
     @Override
-    public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
-        if (token instanceof UsernamePasswordToken) {
-            UsernamePasswordToken usernamePasswordToken = (UsernamePasswordToken) token;
+    public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener) {
+        if (token instanceof UsernamePasswordToken usernamePasswordToken) {
             User user = authenticate(usernamePasswordToken.principal(), usernamePasswordToken.credentials());
             if (user != null) {
                 listener.onResponse(AuthenticationResult.success(user));

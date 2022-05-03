@@ -21,16 +21,18 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.util.stream.Stream;
-
 public class TransportAuthenticateAction extends HandledTransportAction<AuthenticateRequest, AuthenticateResponse> {
 
     private final SecurityContext securityContext;
     private final AnonymousUser anonymousUser;
 
     @Inject
-    public TransportAuthenticateAction(TransportService transportService, ActionFilters actionFilters, SecurityContext securityContext,
-                                       AnonymousUser anonymousUser) {
+    public TransportAuthenticateAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SecurityContext securityContext,
+        AnonymousUser anonymousUser
+    ) {
         super(AuthenticateAction.NAME, transportService, actionFilters, AuthenticateRequest::new);
         this.securityContext = securityContext;
         this.anonymousUser = anonymousUser;
@@ -48,32 +50,7 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
         } else if (User.isInternal(runAsUser)) {
             listener.onFailure(new IllegalArgumentException("user [" + runAsUser.principal() + "] is internal"));
         } else {
-            final User user = authentication.getUser();
-            final boolean shouldAddAnonymousRoleNames = anonymousUser.enabled() && false == anonymousUser.equals(user)
-                && authentication.getAuthenticationType() != Authentication.AuthenticationType.API_KEY;
-            if (shouldAddAnonymousRoleNames) {
-                final String[] allRoleNames = Stream.concat(
-                    Stream.of(user.roles()), Stream.of(anonymousUser.roles())).toArray(String[]::new);
-                listener.onResponse(new AuthenticateResponse(
-                    new Authentication(
-                        new User(new User(
-                            user.principal(),
-                            allRoleNames,
-                            user.fullName(),
-                            user.email(),
-                            user.metadata(),
-                            user.enabled()
-                        ), user.authenticatedUser()),
-                        authentication.getAuthenticatedBy(),
-                        authentication.getLookedUpBy(),
-                        authentication.getVersion(),
-                        authentication.getAuthenticationType(),
-                        authentication.getMetadata()
-                    )
-                ));
-            } else {
-                listener.onResponse(new AuthenticateResponse(authentication));
-            }
+            listener.onResponse(new AuthenticateResponse(authentication.maybeAddAnonymousRoles(anonymousUser)));
         }
     }
 }

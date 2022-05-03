@@ -7,7 +7,8 @@
     "stability":"stable",
     "visibility":"public",
     "headers":{
-      "accept": [ "application/json"]
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
     },
     "url":{
       "paths":[
@@ -41,6 +42,10 @@
         "required":false,
         "description":"The max memory able to be used by the forecast. Default is 20mb."
       }
+    },
+    "body":{
+      "description": "Query parameters can be specified in the body",
+      "required":false
     }
   }
 }

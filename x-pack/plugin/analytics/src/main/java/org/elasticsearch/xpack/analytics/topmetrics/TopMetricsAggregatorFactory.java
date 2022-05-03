@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -77,21 +78,38 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
             );
         }
         MetricValues[] metricValues = new MetricValues[metricFields.size()];
-        for (int i = 0; i < metricFields.size(); i++) {
-            MultiValuesSourceFieldConfig config = metricFields.get(i);
-            ValuesSourceConfig vsConfig = ValuesSourceConfig.resolve(
+        boolean success = false;
+        try {
+            for (int i = 0; i < metricFields.size(); i++) {
+                MultiValuesSourceFieldConfig config = metricFields.get(i);
+                ValuesSourceConfig vsConfig = ValuesSourceConfig.resolve(
+                    context,
+                    null,
+                    config.getFieldName(),
+                    config.getScript(),
+                    config.getMissing(),
+                    config.getTimeZone(),
+                    null,
+                    CoreValuesSourceType.NUMERIC
+                );
+                MetricValuesSupplier supplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, vsConfig);
+                metricValues[i] = supplier.build(size, context.bigArrays(), config.getFieldName(), vsConfig);
+            }
+            TopMetricsAggregator aggregator = new TopMetricsAggregator(
+                name,
                 context,
-                null,
-                config.getFieldName(),
-                config.getScript(),
-                config.getMissing(),
-                config.getTimeZone(),
-                null,
-                CoreValuesSourceType.NUMERIC
+                parent,
+                metadata,
+                size,
+                sortBuilders.get(0),
+                metricValues
             );
-            MetricValuesSupplier supplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, vsConfig);
-            metricValues[i] = supplier.build(size, context.bigArrays(), config.getFieldName(), vsConfig);
+            success = true;
+            return aggregator;
+        } finally {
+            if (success == false) {
+                Releasables.close(metricValues);
+            }
         }
-        return new TopMetricsAggregator(name, context, parent, metadata, size, sortBuilders.get(0), metricValues);
     }
 }

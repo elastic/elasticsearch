@@ -72,10 +72,10 @@ public class MlUpgradeModeActionFilterTests extends ESTestCase {
         filter.apply(task, action, request, listener, chain);
 
         filter.setUpgradeResetFlags(createClusterChangedEvent(createClusterState(true, false)));
-        ElasticsearchStatusException e =
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> filter.apply(task, action, request, listener, chain));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> filter.apply(task, action, request, listener, chain)
+        );
 
         filter.setUpgradeResetFlags(createClusterChangedEvent(createClusterState(false, false)));
         filter.apply(task, action, request, listener, chain);
@@ -126,8 +126,10 @@ public class MlUpgradeModeActionFilterTests extends ESTestCase {
 
     private static ClusterState createClusterState(boolean isUpgradeMode, boolean isResetMode) {
         return ClusterState.builder(new ClusterName("MlUpgradeModeActionFilterTests"))
-            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE,
-                new MlMetadata.Builder().isUpgradeMode(isUpgradeMode).isResetMode(isResetMode).build()))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(isUpgradeMode).isResetMode(isResetMode).build())
+            )
             .build();
     }
 }

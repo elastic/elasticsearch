@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -16,12 +17,12 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -34,6 +35,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     private final String nodeId;
 
+    @Nullable
     private final DiscoveryNode node;
 
     private final LinkedHashMap<ShardId, ShardRouting> shards; // LinkedHashMap to preserve order
@@ -42,13 +44,13 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     private final LinkedHashSet<ShardRouting> relocatingShards;
 
-    private final HashMap<Index, LinkedHashSet<ShardRouting>> shardsByIndex;
+    private final Map<Index, LinkedHashSet<ShardRouting>> shardsByIndex;
 
     public RoutingNode(String nodeId, DiscoveryNode node, ShardRouting... shards) {
         this(nodeId, node, buildShardRoutingMap(shards));
     }
 
-    RoutingNode(String nodeId, DiscoveryNode node, LinkedHashMap<ShardId, ShardRouting> shards) {
+    RoutingNode(String nodeId, @Nullable DiscoveryNode node, LinkedHashMap<ShardId, ShardRouting> shards) {
         this.nodeId = nodeId;
         this.node = node;
         this.shards = shards;
@@ -66,13 +68,31 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert invariant();
     }
 
+    private RoutingNode(RoutingNode original) {
+        this.nodeId = original.nodeId;
+        this.node = original.node;
+        this.shards = new LinkedHashMap<>(original.shards);
+        this.relocatingShards = new LinkedHashSet<>(original.relocatingShards);
+        this.initializingShards = new LinkedHashSet<>(original.initializingShards);
+        this.shardsByIndex = Maps.newLinkedHashMapWithExpectedSize(original.shardsByIndex.size());
+        for (Map.Entry<Index, LinkedHashSet<ShardRouting>> entry : original.shardsByIndex.entrySet()) {
+            shardsByIndex.put(entry.getKey(), new LinkedHashSet<>(entry.getValue()));
+        }
+        assert invariant();
+    }
+
+    RoutingNode copy() {
+        return new RoutingNode(this);
+    }
+
     private static LinkedHashMap<ShardId, ShardRouting> buildShardRoutingMap(ShardRouting... shardRoutings) {
         final LinkedHashMap<ShardId, ShardRouting> shards = new LinkedHashMap<>();
         for (ShardRouting shardRouting : shardRoutings) {
             ShardRouting previousValue = shards.put(shardRouting.shardId(), shardRouting);
             if (previousValue != null) {
-                throw new IllegalArgumentException("Cannot have two different shards with same shard id " + shardRouting.shardId() +
-                    " on same node ");
+                throw new IllegalArgumentException(
+                    "Cannot have two different shards with same shard id " + shardRouting.shardId() + " on same node "
+                );
             }
         }
         return shards;
@@ -88,6 +108,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
      *
      * @return discoveryNode of this node
      */
+    @Nullable
     public DiscoveryNode node() {
         return this.node;
     }
@@ -116,8 +137,17 @@ public class RoutingNode implements Iterable<ShardRouting> {
     void add(ShardRouting shard) {
         assert invariant();
         if (shards.containsKey(shard.shardId())) {
-            throw new IllegalStateException("Trying to add a shard " + shard.shardId() + " to a node [" + nodeId
-                + "] where it already exists. current [" + shards.get(shard.shardId()) + "]. new [" + shard + "]");
+            throw new IllegalStateException(
+                "Trying to add a shard "
+                    + shard.shardId()
+                    + " to a node ["
+                    + nodeId
+                    + "] where it already exists. current ["
+                    + shards.get(shard.shardId())
+                    + "]. new ["
+                    + shard
+                    + "]"
+            );
         }
         shards.put(shard.shardId(), shard);
 
@@ -298,13 +328,17 @@ public class RoutingNode implements Iterable<ShardRouting> {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("routingNode ([");
-        sb.append(node.getName());
-        sb.append("][");
-        sb.append(node.getId());
-        sb.append("][");
-        sb.append(node.getHostName());
-        sb.append("][");
-        sb.append(node.getHostAddress());
+        if (node != null) {
+            sb.append(node.getName());
+            sb.append("][");
+            sb.append(node.getId());
+            sb.append("][");
+            sb.append(node.getHostName());
+            sb.append("][");
+            sb.append(node.getHostAddress());
+        } else {
+            sb.append("null");
+        }
         sb.append("], [");
         sb.append(shards.size());
         sb.append(" assigned shards])");
@@ -320,23 +354,38 @@ public class RoutingNode implements Iterable<ShardRouting> {
     }
 
     private boolean invariant() {
-
         // initializingShards must consistent with that in shards
-        Collection<ShardRouting> shardRoutingsInitializing =
-            shards.values().stream().filter(ShardRouting::initializing).collect(Collectors.toList());
+        Collection<ShardRouting> shardRoutingsInitializing = shards.values().stream().filter(ShardRouting::initializing).toList();
         assert initializingShards.size() == shardRoutingsInitializing.size();
         assert initializingShards.containsAll(shardRoutingsInitializing);
 
         // relocatingShards must consistent with that in shards
-        Collection<ShardRouting> shardRoutingsRelocating =
-            shards.values().stream().filter(ShardRouting::relocating).collect(Collectors.toList());
+        Collection<ShardRouting> shardRoutingsRelocating = shards.values().stream().filter(ShardRouting::relocating).toList();
         assert relocatingShards.size() == shardRoutingsRelocating.size();
         assert relocatingShards.containsAll(shardRoutingsRelocating);
 
-        final Map<Index, Set<ShardRouting>> shardRoutingsByIndex =
-            shards.values().stream().collect(Collectors.groupingBy(ShardRouting::index, Collectors.toSet()));
+        final Map<Index, Set<ShardRouting>> shardRoutingsByIndex = shards.values()
+            .stream()
+            .collect(Collectors.groupingBy(ShardRouting::index, Collectors.toSet()));
         assert shardRoutingsByIndex.equals(shardsByIndex);
 
         return true;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        RoutingNode that = (RoutingNode) o;
+        return nodeId.equals(that.nodeId) && Objects.equals(node, that.node) && shards.equals(that.shards);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nodeId, node, shards);
     }
 }

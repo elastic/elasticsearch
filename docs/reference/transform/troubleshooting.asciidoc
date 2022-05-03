@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[transform-troubleshooting]]
 = Troubleshooting {transforms}
 [subs="attributes"]

@@ -28,7 +28,7 @@ public abstract class TestScriptEngine implements ScriptEngine {
             public Set<ScriptContext<?>> getSupportedContexts() {
                 return Set.of(context);
             }
-        }), Map.of(context.name, context));
+        }), Map.of(context.name, context), () -> 1L);
     }
 
     @Override

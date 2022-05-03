@@ -14,8 +14,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
@@ -57,8 +57,11 @@ public class NoOpNodeClient extends NodeClient {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse>
-    void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         executionCount.incrementAndGet();
         listener.onResponse(null);
     }
@@ -76,16 +79,22 @@ public class NoOpNodeClient extends NodeClient {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse>
-    Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         executionCount.incrementAndGet();
         listener.onResponse(null);
         return null;
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse>
-    Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+        ActionType<Response> action,
+        Request request,
+        TaskListener<Response> listener
+    ) {
         executionCount.incrementAndGet();
         listener.onResponse(null, null);
         return null;

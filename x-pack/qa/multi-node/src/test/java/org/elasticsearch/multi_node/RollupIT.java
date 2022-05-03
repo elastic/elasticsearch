@@ -8,20 +8,17 @@ package org.elasticsearch.multi_node;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -32,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
@@ -54,14 +51,6 @@ public class RollupIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    static Map<String, Object> toMap(Response response) throws IOException {
-        return toMap(EntityUtils.toString(response.getEntity()));
-    }
-
-    static Map<String, Object> toMap(String response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
-    }
-
     public void testBigRollup() throws Exception {
         final int numDocs = 200;
         String dateFormat = "strict_date_optional_time";
@@ -79,7 +68,8 @@ public class RollupIT extends ESRestTestCase {
                     .startObject("value")
                     .field("type", "integer")
                     .endObject()
-                    .endObject().endObject();
+                    .endObject()
+                    .endObject();
             }
             builder.endObject();
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
@@ -88,12 +78,11 @@ public class RollupIT extends ESRestTestCase {
             client().performRequest(req);
         }
 
-
         // index documents for the rollup job
         final StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
             bulk.append("{\"index\":{\"_index\":\"rollup-docs\"}}\n");
-            ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochSecond(1531221196 + (60*i)), ZoneId.of("UTC"));
+            ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochSecond(1531221196 + (60 * i)), ZoneId.of("UTC"));
             String date = zdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
             bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");
         }
@@ -107,28 +96,37 @@ public class RollupIT extends ESRestTestCase {
         // create the rollup job
         final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-job-test");
         int pageSize = randomIntBetween(2, 50);
-        createRollupJobRequest.setJsonEntity("{"
-            + "\"index_pattern\":\"rollup-*\","
-            + "\"rollup_index\":\"results-rollup\","
-            + "\"cron\":\"*/1 * * * * ?\","             // fast cron so test runs quickly
-            + "\"page_size\":" + pageSize + ","
-            + "\"groups\":{"
-            + "    \"date_histogram\":{"
-            + "        \"field\":\"timestamp\","
-            + "        \"fixed_interval\":\"5m\""
-            + "      }"
-            + "},"
-            + "\"metrics\":["
-            + "    {\"field\":\"value\",\"metrics\":[\"min\",\"max\",\"sum\"]}"
-            + "]"
-            + "}");
+        // fast cron so test runs quickly
+        createRollupJobRequest.setJsonEntity("""
+            {
+                "index_pattern": "rollup-*",
+                "rollup_index": "results-rollup",
+                "cron": "*/1 * * * * ?",
+                "page_size": %s,
+                "groups": {
+                    "date_histogram": {
+                        "field": "timestamp",
+                        "fixed_interval": "5m"
+                    }
+                },
+                "metrics": [
+                    {
+                        "field": "value",
+                        "metrics": [
+                            "min",
+                            "max",
+                            "sum"
+                        ]
+                    }
+                ]
+            }""".formatted(pageSize));
 
-        Map<String, Object> createRollupJobResponse = toMap(client().performRequest(createRollupJobRequest));
+        var createRollupJobResponse = responseAsMap(client().performRequest(createRollupJobRequest));
         assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
         // start the rollup job
         final Request startRollupJobRequest = new Request("POST", "_rollup/job/rollup-job-test/_start");
-        Map<String, Object> startRollupJobResponse = toMap(client().performRequest(startRollupJobRequest));
+        var startRollupJobResponse = responseAsMap(client().performRequest(startRollupJobRequest));
         assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
         assertRollUpJob("rollup-job-test");
@@ -139,7 +137,7 @@ public class RollupIT extends ESRestTestCase {
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
-            Map<String, Object> job = getJob(getRollupJobResponse, "rollup-job-test");
+            Map<?, ?> job = getJob(getRollupJobResponse, "rollup-job-test");
             if (job != null) {
                 assertThat(ObjectPath.eval("status.job_state", job), equalTo("started"));
                 assertThat(ObjectPath.eval("stats.rollups_indexed", job), equalTo(41));
@@ -148,65 +146,70 @@ public class RollupIT extends ESRestTestCase {
 
         // Refresh the rollup index to make sure all newly indexed docs are searchable
         final Request refreshRollupIndex = new Request("POST", "results-rollup/_refresh");
-        toMap(client().performRequest(refreshRollupIndex));
+        client().performRequest(refreshRollupIndex);
 
-        String jsonRequestBody = "{\n" +
-            "  \"size\": 0,\n" +
-            "  \"query\": {\n" +
-            "    \"match_all\": {}\n" +
-            "  },\n" +
-            "  \"aggs\": {\n" +
-            "    \"date_histo\": {\n" +
-            "      \"date_histogram\": {\n" +
-            "        \"field\": \"timestamp\",\n" +
-            "        \"fixed_interval\": \"60m\",\n" +
-            "        \"format\": \"date_time\"\n" +
-            "      },\n" +
-            "      \"aggs\": {\n" +
-            "        \"the_max\": {\n" +
-            "          \"max\": {\n" +
-            "            \"field\": \"value\"\n" +
-            "          }\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }\n" +
-            "  }\n" +
-            "}";
+        String jsonRequestBody = """
+            {
+              "size": 0,
+              "query": {
+                "match_all": {}
+              },
+              "aggs": {
+                "date_histo": {
+                  "date_histogram": {
+                    "field": "timestamp",
+                    "fixed_interval": "60m",
+                    "format": "date_time"
+                  },
+                  "aggs": {
+                    "the_max": {
+                      "max": {
+                        "field": "value"
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
 
         Request request = new Request("GET", "rollup-docs/_search");
         request.setJsonEntity(jsonRequestBody);
         Response liveResponse = client().performRequest(request);
-        Map<String, Object> liveBody = toMap(liveResponse);
+        var liveBody = responseAsMap(liveResponse);
 
         request = new Request("GET", "results-rollup/_rollup_search");
         request.setJsonEntity(jsonRequestBody);
         Response rollupResponse = client().performRequest(request);
-        Map<String, Object> rollupBody = toMap(rollupResponse);
+        var rollupBody = responseAsMap(rollupResponse);
 
         // Do the live agg results match the rollup agg results?
-        assertThat(ObjectPath.eval("aggregations.date_histo.buckets", liveBody),
-            equalTo(ObjectPath.eval("aggregations.date_histo.buckets", rollupBody)));
+        assertThat(
+            ObjectPath.eval("aggregations.date_histo.buckets", liveBody),
+            equalTo(ObjectPath.eval("aggregations.date_histo.buckets", rollupBody))
+        );
 
         request = new Request("GET", "rollup-docs/_rollup_search");
         request.setJsonEntity(jsonRequestBody);
         Response liveRollupResponse = client().performRequest(request);
-        Map<String, Object> liveRollupBody = toMap(liveRollupResponse);
+        var liveRollupBody = responseAsMap(liveRollupResponse);
 
         // Does searching the live index via rollup_search work match the live search?
-        assertThat(ObjectPath.eval("aggregations.date_histo.buckets", liveBody),
-            equalTo(ObjectPath.eval("aggregations.date_histo.buckets", liveRollupBody)));
+        assertThat(
+            ObjectPath.eval("aggregations.date_histo.buckets", liveBody),
+            equalTo(ObjectPath.eval("aggregations.date_histo.buckets", liveRollupBody))
+        );
 
     }
 
     @SuppressWarnings("unchecked")
     private void assertRollUpJob(final String rollupJob) throws Exception {
-        String[] states = new String[]{"indexing", "started"};
+        String[] states = new String[] { "indexing", "started" };
         waitForRollUpJob(rollupJob, states);
 
         // check that the rollup job is started using the RollUp API
         final Request getRollupJobRequest = new Request("GET", "_rollup/job/" + rollupJob);
-        Map<String, Object> getRollupJobResponse = toMap(client().performRequest(getRollupJobRequest));
-        Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
+        var getRollupJobResponse = responseAsMap(client().performRequest(getRollupJobRequest));
+        Map<?, ?> job = getJob(getRollupJobResponse, rollupJob);
         if (job != null) {
             assertThat(ObjectPath.eval("status.job_state", job), is(oneOf(states)));
         }
@@ -215,7 +218,7 @@ public class RollupIT extends ESRestTestCase {
         final Request taskRequest = new Request("GET", "_tasks");
         taskRequest.addParameter("detailed", "true");
         taskRequest.addParameter("actions", "xpack/rollup/*");
-        Map<String, Object> taskResponse = toMap(client().performRequest(taskRequest));
+        var taskResponse = responseAsMap(client().performRequest(taskRequest));
         Map<String, Object> taskResponseNodes = (Map<String, Object>) taskResponse.get("nodes");
         Map<String, Object> taskResponseNode = (Map<String, Object>) taskResponseNodes.values().iterator().next();
         Map<String, Object> taskResponseTasks = (Map<String, Object>) taskResponseNode.get("tasks");
@@ -224,7 +227,7 @@ public class RollupIT extends ESRestTestCase {
 
         // check that the rollup job is started using the Cluster State API
         final Request clusterStateRequest = new Request("GET", "_cluster/state/metadata");
-        Map<String, Object> clusterStateResponse = toMap(client().performRequest(clusterStateRequest));
+        var clusterStateResponse = responseAsMap(client().performRequest(clusterStateRequest));
         List<Map<String, Object>> rollupJobTasks = ObjectPath.eval("metadata.persistent_tasks.tasks", clusterStateResponse);
 
         boolean hasRollupTask = false;
@@ -233,8 +236,11 @@ public class RollupIT extends ESRestTestCase {
                 hasRollupTask = true;
 
                 final String jobStateField = "task.xpack/rollup/job.state.job_state";
-                assertThat("Expected field [" + jobStateField + "] to be started or indexing in " + task.get("id"),
-                    ObjectPath.eval(jobStateField, task), is(oneOf(states)));
+                assertThat(
+                    "Expected field [" + jobStateField + "] to be started or indexing in " + task.get("id"),
+                    ObjectPath.eval(jobStateField, task),
+                    is(oneOf(states))
+                );
                 break;
             }
         }
@@ -250,29 +256,26 @@ public class RollupIT extends ESRestTestCase {
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
-            Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
+            Map<?, ?> job = getJob(getRollupJobResponse, rollupJob);
             if (job != null) {
                 assertThat(ObjectPath.eval("status.job_state", job), is(oneOf(expectedStates)));
             }
         }, 30L, TimeUnit.SECONDS);
     }
 
-    private Map<String, Object> getJob(Response response, String targetJobId) throws IOException {
+    private Map<?, ?> getJob(Response response, String targetJobId) throws IOException {
         return getJob(ESRestTestCase.entityAsMap(response), targetJobId);
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> getJob(Map<String, Object> jobsMap, String targetJobId) throws IOException {
-
-        List<Map<String, Object>> jobs =
-            (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobsMap);
-
+    private Map<?, ?> getJob(Map<?, ?> jobsMap, String targetJobId) {
+        List<?> jobs = (List<?>) XContentMapValues.extractValue("jobs", jobsMap);
         if (jobs == null) {
             return null;
         }
 
-        for (Map<String, Object> job : jobs) {
-            String jobId = (String) ((Map<String, Object>) job.get("config")).get("id");
+        for (Object item : jobs) {
+            Map<?, ?> job = (Map<?, ?>) item;
+            String jobId = (String) ((Map<?, ?>) job.get("config")).get("id");
             if (jobId.equals(targetJobId)) {
                 return job;
             }

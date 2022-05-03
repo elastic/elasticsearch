@@ -19,9 +19,7 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.Internal;
-import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.api.tasks.options.Option;
 import org.gradle.process.ExecOperations;
 
 import java.io.File;
@@ -30,6 +28,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.inject.Inject;
 
 /**
@@ -47,8 +46,6 @@ public class PruneChangelogsTask extends DefaultTask {
     private final GitWrapper gitWrapper;
     private final Path rootDir;
 
-    private boolean dryRun;
-
     @Inject
     public PruneChangelogsTask(Project project, ObjectFactory objectFactory, ExecOperations execOperations) {
         changelogs = objectFactory.fileCollection();
@@ -65,16 +62,6 @@ public class PruneChangelogsTask extends DefaultTask {
         this.changelogs = files;
     }
 
-    @Internal
-    public boolean isDryRun() {
-        return dryRun;
-    }
-
-    @Option(option = "dry-run", description = "Find and print files to prune but don't actually delete them")
-    public void setDryRun(boolean dryRun) {
-        this.dryRun = dryRun;
-    }
-
     @TaskAction
     public void executeTask() {
         findAndDeleteFiles(
@@ -82,7 +69,6 @@ public class PruneChangelogsTask extends DefaultTask {
             files -> files.stream().filter(each -> each.delete() == false).collect(Collectors.toSet()),
             QualifiedVersion.of(VersionProperties.getElasticsearch()),
             this.getChangelogs().getFiles(),
-            this.dryRun,
             this.rootDir
         );
     }
@@ -93,7 +79,6 @@ public class PruneChangelogsTask extends DefaultTask {
         DeleteHelper deleteHelper,
         QualifiedVersion version,
         Set<File> allFilesInCheckout,
-        boolean dryRun,
         Path rootDir
     ) {
         if (allFilesInCheckout.isEmpty()) {
@@ -117,20 +102,18 @@ public class PruneChangelogsTask extends DefaultTask {
             return;
         }
 
-        LOGGER.warn("The following changelog files {} be deleted:", dryRun ? "can" : "will");
+        LOGGER.warn("The following changelog files will be deleted:");
         LOGGER.warn("");
         filesToDelete.forEach(file -> LOGGER.warn("\t{}", rootDir.relativize(file.toPath())));
 
-        if (dryRun == false) {
-            final Set<File> failedToDelete = deleteHelper.deleteFiles(filesToDelete);
+        final Set<File> failedToDelete = deleteHelper.deleteFiles(filesToDelete);
 
-            if (failedToDelete.isEmpty() == false) {
-                throw new GradleException(
-                    "Failed to delete some files:\n\n"
-                        + failedToDelete.stream().map(file -> "\t" + rootDir.relativize(file.toPath())).collect(Collectors.joining("\n"))
-                        + "\n"
-                );
-            }
+        if (failedToDelete.isEmpty() == false) {
+            throw new GradleException(
+                "Failed to delete some files:\n\n"
+                    + failedToDelete.stream().map(file -> "\t" + rootDir.relativize(file.toPath())).collect(Collectors.joining("\n"))
+                    + "\n"
+            );
         }
     }
 
@@ -146,16 +129,15 @@ public class PruneChangelogsTask extends DefaultTask {
      * @return filenames for changelog files in previous releases, without any path
      */
     private static Set<String> findAllFilesInEarlierVersions(GitWrapper gitWrapper, QualifiedVersion version) {
-        return findPreviousVersion(gitWrapper, version)
-            .flatMap(earlierVersion -> gitWrapper.listFiles("v" + earlierVersion, "docs/changelog"))
-            .map(line -> Path.of(line).getFileName().toString())
-            .collect(Collectors.toSet());
+        return findPreviousVersion(gitWrapper, version).flatMap(
+            earlierVersion -> gitWrapper.listFiles("v" + earlierVersion, "docs/changelog")
+        ).map(line -> Path.of(line).getFileName().toString()).collect(Collectors.toSet());
     }
 
     /**
-     * Find the releases prior to the supplied version. If the supplied version is the very first in a new
-     * major series, then the method will look tag in the previous major series. Otherwise, all git tags
-     * in the current major series will be inspected.
+     * Find the releases prior to the supplied version. The current major and the previous major are both
+     * listed, since changes may be backported to the prior major e.g. in the event of a series bug
+     * or security problem.
      *
      * @param gitWrapper used for git operations
      * @param version the git tags are inspected relative to this version
@@ -163,10 +145,10 @@ public class PruneChangelogsTask extends DefaultTask {
      */
     @VisibleForTesting
     static Stream<QualifiedVersion> findPreviousVersion(GitWrapper gitWrapper, QualifiedVersion version) {
-        final int majorSeries = version.getMinor() == 0 && version.getRevision() == 0 ? version.getMajor() - 1 : version.getMajor();
-        final String tagPattern = "v" + majorSeries + ".*";
+        final String currentMajorPattern = "v" + version.major() + ".*";
+        final String previousMajorPattern = "v" + (version.major() - 1) + ".*";
 
-        return gitWrapper.listVersions(tagPattern)
+        return Stream.concat(gitWrapper.listVersions(currentMajorPattern), gitWrapper.listVersions(previousMajorPattern))
             .filter(v -> v.isBefore(version));
     }
 

@@ -8,10 +8,10 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.test.ESTestCase;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
-
-import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
 

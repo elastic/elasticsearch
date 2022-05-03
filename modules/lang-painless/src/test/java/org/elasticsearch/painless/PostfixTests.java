@@ -19,11 +19,14 @@ public class PostfixTests extends ScriptTestCase {
 
     public void testConditionalPostfixes() {
         assertEquals("5", exec("boolean b = false; (b ? 4 : 5).toString()"));
-        assertEquals(3, exec(
-            "Map x = new HashMap(); x['test'] = 3;" +
-            "Map y = new HashMap(); y['test'] = 4;" +
-            "boolean b = true;" +
-            "return (int)(b ? x : y).get('test')")
+        assertEquals(
+            3,
+            exec(
+                "Map x = new HashMap(); x['test'] = 3;"
+                    + "Map y = new HashMap(); y['test'] = 4;"
+                    + "boolean b = true;"
+                    + "return (int)(b ? x : y).get('test')"
+            )
         );
     }
 
@@ -36,11 +39,14 @@ public class PostfixTests extends ScriptTestCase {
 
     public void testDefConditionalPostfixes() {
         assertEquals("5", exec("def b = false; (b ? 4 : 5).toString()"));
-        assertEquals(3, exec(
-            "def x = new HashMap(); x['test'] = 3;" +
-            "def y = new HashMap(); y['test'] = 4;" +
-            "boolean b = true;" +
-            "return (b ? x : y).get('test')")
+        assertEquals(
+            3,
+            exec(
+                "def x = new HashMap(); x['test'] = 3;"
+                    + "def y = new HashMap(); y['test'] = 4;"
+                    + "boolean b = true;"
+                    + "return (b ? x : y).get('test')"
+            )
         );
     }
 

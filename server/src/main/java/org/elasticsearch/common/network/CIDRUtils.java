@@ -15,32 +15,31 @@ import java.util.Arrays;
 
 public class CIDRUtils {
     // Borrowed from Lucene, rfc4291 prefix
-    static final byte[] IPV4_PREFIX = new byte[]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1};
+    static final byte[] IPV4_PREFIX = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1 };
 
-    private CIDRUtils() {
-    }
+    private CIDRUtils() {}
 
     public static boolean isInRange(String address, String... cidrAddresses) {
-            // Check if address is parsable first
-            byte[] addr = InetAddresses.forString(address).getAddress();
+        // Check if address is parsable first
+        byte[] addr = InetAddresses.forString(address).getAddress();
 
-            if (cidrAddresses == null || cidrAddresses.length == 0) {
-                return false;
-            }
+        if (cidrAddresses == null || cidrAddresses.length == 0) {
+            return false;
+        }
 
-            for (String cidrAddress : cidrAddresses) {
-                if (cidrAddress == null) continue;
-                byte[] lower, upper;
-                if (cidrAddress.contains("/")) {
-                    final Tuple<byte[], byte[]> range = getLowerUpper(InetAddresses.parseCidr(cidrAddress));
-                    lower = range.v1();
-                    upper = range.v2();
-                } else {
-                    lower = InetAddresses.forString(cidrAddress).getAddress();
-                    upper = lower;
-                }
-                if (isBetween(addr, lower, upper)) return true;
+        for (String cidrAddress : cidrAddresses) {
+            if (cidrAddress == null) continue;
+            byte[] lower, upper;
+            if (cidrAddress.contains("/")) {
+                final Tuple<byte[], byte[]> range = getLowerUpper(InetAddresses.parseCidr(cidrAddress));
+                lower = range.v1();
+                upper = range.v2();
+            } else {
+                lower = InetAddresses.forString(cidrAddress).getAddress();
+                upper = lower;
             }
+            if (isBetween(addr, lower, upper)) return true;
+        }
         return false;
     }
 
@@ -49,8 +48,9 @@ public class CIDRUtils {
         final Integer prefixLength = cidr.v2();
 
         if (prefixLength < 0 || prefixLength > 8 * value.getAddress().length) {
-            throw new IllegalArgumentException("illegal prefixLength '" + prefixLength +
-                "'. Must be 0-32 for IPv4 ranges, 0-128 for IPv6 ranges");
+            throw new IllegalArgumentException(
+                "illegal prefixLength '" + prefixLength + "'. Must be 0-32 for IPv4 ranges, 0-128 for IPv6 ranges"
+            );
         }
 
         byte[] lower = value.getAddress();
@@ -71,8 +71,7 @@ public class CIDRUtils {
             lower = encode(lower);
             upper = encode(upper);
         }
-        return Arrays.compareUnsigned(lower, addr) <= 0 &&
-            Arrays.compareUnsigned(upper, addr) >= 0;
+        return Arrays.compareUnsigned(lower, addr) <= 0 && Arrays.compareUnsigned(upper, addr) >= 0;
     }
 
     // Borrowed from Lucene to make this consistent IP fields matching for the mix of IPv4 and IPv6 values

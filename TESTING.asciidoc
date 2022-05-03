@@ -3,27 +3,36 @@
 
 [partintro]
 
-Elasticsearch uses jUnit for testing, it also uses randomness in the
-tests, that can be set using a seed, the following is a cheatsheet of
-options for running the tests for ES.
+Elasticsearch uses JUnit for testing. It also generated random inputs into
+tests, either using a random seed, or one that is set via a system
+property. The following is a cheatsheet of options for running the
+Elasticsearch tests.
 
 == Creating packages
 
-To create a distribution without running the tests, simply run the
-following:
+To build a distribution for your local OS and print its output location upon completion, run:
 
 -----------------------------
-./gradlew assemble
+./gradlew localDistro
 -----------------------------
 
-To create a platform-specific build including the x-pack modules, use the
-following depending on your operating system:
+To create a platform-specific build, use the following depending on your
+operating system:
 
 -----------------------------
 ./gradlew :distribution:archives:linux-tar:assemble
-./gradlew :distribution:archives:darwin-tar:assemble
+./gradlew :distribution:archives:darwin(-aarch64)-tar:assemble
 ./gradlew :distribution:archives:windows-zip:assemble
 -----------------------------
+
+You can build a Docker image with:
+
+-----------------------------
+./gradlew build(Aarch64)DockerImage
+-----------------------------
+
+Note: you almost certainly don't want to run `./gradlew assemble` as this
+will attempt build every single Elasticsearch distribution.
 
 === Running Elasticsearch from a checkout
 
@@ -48,12 +57,20 @@ to suspend and initiate a debug connection on port incrementing from `5005`.
 As such the IDE needs to be instructed to listen for connections on this port.
 Since we might run multiple JVMs as part of configuring and starting the cluster it's
 recommended to configure the IDE to initiate multiple listening attempts. In case of IntelliJ, this option
-is called "Auto restart" and needs to be checked. In case of Eclipse, "Connection limit" setting
-needs to be configured with a greater value (ie 10 or more).
+is called "Auto restart" and needs to be checked.
 
 NOTE: If you have imported the project into IntelliJ according to the instructions in
 link:/CONTRIBUTING.md#importing-the-project-into-intellij-idea[CONTRIBUTING.md] then a debug run configuration
 named "Debug Elasticsearch" will be created for you and configured appropriately.
+
+==== Disabling assertions
+
+When running Elasticsearch with `./gradlew run`, assertions are enabled by
+default. To disable them, add the following command line option:
+
+-------------------------
+-Dtests.jvm.argline="-da"
+-------------------------
 
 ==== Distribution
 
@@ -83,12 +100,12 @@ password: `elastic-password`.
 ==== Other useful arguments
 
 - In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
-- In order to disable assertions add: `-Dtests.asserts=false`
 - In order to use a custom data directory: `--data-dir=/tmp/foo`
 - In order to preserve data in between executions: `--preserve-data`
 - In order to remotely attach a debugger to the process: `--debug-jvm`
 - In order to set a different keystore password: `--keystore-password`
 - In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
+- In order to pass a JVM setting, e.g. to disable assertions: `-Dtests.jvm.argline="-da"`
 
 === Test case filtering.
 
@@ -183,7 +200,7 @@ Or in `~/.gradle/gradle.properties`:
 systemProp.tests.jvms=8
 ----------------------------
 
-Its difficult to pick the "right" number here. Hypercores don't count for CPU
+It's difficult to pick the "right" number here. Hypercores don't count for CPU
 intensive tests and you should leave some slack for JVM-internal threads like
 the garbage collector. And you have to have enough RAM to handle each JVM.
 
@@ -283,6 +300,36 @@ memory or some of the containers will fail to start. You can tell that you
 are short of memory if containers are exiting quickly after starting with
 code 137 (128 + 9, where 9 means SIGKILL).
 
+== Debugging tests
+
+If you would like to debug your tests themselves, simply pass the `--debug-jvm`
+flag to the testing task and connect a debugger on the default port of `5005`.
+
+---------------------------------------------------------------------------
+./gradlew :server:test --debug-jvm
+---------------------------------------------------------------------------
+
+For REST tests, if you'd like to debug the Elasticsearch server itself, and
+not your test code, use the `--debug-server-jvm` flag and use the
+"Debug Elasticsearch" run configuration in IntelliJ to listen on the default
+port of `5007`.
+
+---------------------------------------------------------------------------
+./gradlew :rest-api-spec:yamlRestTest --debug-server-jvm
+---------------------------------------------------------------------------
+
+NOTE: In the case of test clusters using multiple nodes, multiple debuggers
+will need to be attached on incrementing ports. For example, for a 3 node
+cluster ports `5007`, `5008`, and `5009` will attempt to attach to a listening
+debugger.
+
+You can also use a combination of both flags to debug both tests and server.
+This is only applicable to Java REST tests.
+
+---------------------------------------------------------------------------
+./gradlew :modules:kibana:javaRestTest --debug-jvm --debug-server-jvm
+---------------------------------------------------------------------------
+
 == Testing the REST layer
 
 The REST layer is tested through specific tests that are executed against
@@ -324,7 +371,7 @@ A specific test case can be run with the following command:
 ---------------------------------------------------------------------------
 ./gradlew ':rest-api-spec:yamlRestTest' \
   --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT" \
-  -Dtests.method="test {p0=cat.segments/10_basic/Help}"
+  -Dtests.method="test {yaml=cat.segments/10_basic/Help}"
 ---------------------------------------------------------------------------
 
 The YAML REST tests support all the options provided by the randomized runner, plus the following:
@@ -457,7 +504,7 @@ vagrant destroy -f ubuntu-1604 && vagrant up ubuntu-1604 --provider virtualbox
 The whole process takes a minute and a half on a modern laptop, two and a half
 without vagrant-cachier.
 
-Its possible that some downloads will fail and it'll be impossible to restart
+It's possible that some downloads will fail and it'll be impossible to restart
 them. This is a bug in vagrant. See the instructions here for how to work
 around it:
 https://github.com/mitchellh/vagrant/issues/4479
@@ -508,7 +555,7 @@ version 5.3.2 run:
 ./gradlew v5.3.2#bwcTest
 -------------------------------------------------
 
-Use -Dtest.class and -Dtests.method to run a specific bwcTest test.
+Use -Dtests.class and -Dtests.method to run a specific bwcTest test.
 For example to run a specific tests from the x-pack rolling upgrade from 7.7.0:
 -------------------------------------------------
 ./gradlew :x-pack:qa:rolling-upgrade:v7.7.0#bwcTest \
@@ -528,7 +575,7 @@ When running `./gradlew check`, minimal bwc checks are also run against compatib
 
 Sometimes a backward compatibility change spans two versions. A common case is a new functionality
 that needs a BWC bridge in an unreleased versioned of a release branch (for example, 5.x).
-To test the changes, you can instruct Gradle to build the BWC version from a another remote/branch combination instead of
+To test the changes, you can instruct Gradle to build the BWC version from another remote/branch combination instead of
 pulling the release branch from GitHub. You do so using the `bwc.remote` and `bwc.refspec.BRANCH` system properties:
 
 -------------------------------------------------
@@ -717,8 +764,7 @@ care.
 
 Generating test coverage reports for Elasticsearch is currently not possible through Gradle.
 However, it _is_ possible to gain insight in code coverage using IntelliJ's built-in coverage
-analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able
-to do the same using the EclEmma plugin.
+analysis tool that can measure coverage upon executing specific tests.
 
 Test coverage reporting used to be possible with JaCoCo when Elasticsearch was using Maven
 as its build system. Since the switch to Gradle though, this is no longer possible, seeing as

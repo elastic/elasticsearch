@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import com.carrotsearch.hppc.LongArrayList;
-
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -22,7 +20,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -33,8 +30,11 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 public class NestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
@@ -141,7 +141,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         final BitSet parentDocs;
         final LeafBucketCollector sub;
         final DocIdSetIterator childDocs;
-        final LongArrayList bucketBuffer = new LongArrayList();
+        final List<Long> bucketBuffer = new ArrayList<>();
 
         Scorable scorer;
         int currentParentDoc = -1;
@@ -193,10 +193,8 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
             for (; childDocId < currentParentDoc; childDocId = childDocs.nextDoc()) {
                 cachedScorer.doc = childDocId;
-                final long[] buffer = bucketBuffer.buffer;
-                final int size = bucketBuffer.size();
-                for (int i = 0; i < size; i++) {
-                    collectBucket(sub, childDocId, buffer[i]);
+                for (var bucket : bucketBuffer) {
+                    collectBucket(sub, childDocId, bucket);
                 }
             }
             bucketBuffer.clear();

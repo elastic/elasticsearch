@@ -13,9 +13,9 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -42,8 +42,9 @@ public class PutCalendarAction extends ActionType<PutCalendarAction.Response> {
                 builder.setId(calendarId);
             } else if (Strings.isNullOrEmpty(calendarId) == false && calendarId.equals(builder.getId()) == false) {
                 // If we have both URI and body filter ID, they must be identical
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, Calendar.ID.getPreferredName(),
-                        builder.getId(), calendarId));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.INCONSISTENT_ID, Calendar.ID.getPreferredName(), builder.getId(), calendarId)
+                );
             }
             return new Request(builder.build());
         }
@@ -67,19 +68,19 @@ public class PutCalendarAction extends ActionType<PutCalendarAction.Response> {
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if ("_all".equals(calendar.getId())) {
-                validationException =
-                        addValidationError("Cannot create a Calendar with the reserved name [_all]",
-                                validationException);
+                validationException = addValidationError("Cannot create a Calendar with the reserved name [_all]", validationException);
             }
             if (MlStrings.isValidId(calendar.getId()) == false) {
-                validationException = addValidationError(Messages.getMessage(
-                        Messages.INVALID_ID, Calendar.ID.getPreferredName(), calendar.getId()),
-                        validationException);
+                validationException = addValidationError(
+                    Messages.getMessage(Messages.INVALID_ID, Calendar.ID.getPreferredName(), calendar.getId()),
+                    validationException
+                );
             }
             if (MlStrings.hasValidLengthForId(calendar.getId()) == false) {
-                validationException = addValidationError(Messages.getMessage(
-                        Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT),
-                        validationException);
+                validationException = addValidationError(
+                    Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT),
+                    validationException
+                );
             }
             return validationException;
         }

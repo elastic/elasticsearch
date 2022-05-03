@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -36,14 +36,13 @@ public interface Processor {
      * otherwise just overwrite {@link #execute(IngestDocument)}.
      */
     default void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-        final IngestDocument result;
-        try {
-            result = execute(ingestDocument);
-        } catch (Exception e) {
-            handler.accept(null, e);
-            return;
+        if (isAsync() == false) {
+            handler.accept(
+                null,
+                new UnsupportedOperationException("asynchronous execute method should not be executed for sync processors")
+            );
         }
-        handler.accept(result, null);
+        handler.accept(ingestDocument, null);
     }
 
     /**
@@ -52,7 +51,12 @@ public interface Processor {
      * @return If <code>null</code> is returned then the current document will be dropped and not be indexed,
      *         otherwise this document will be kept and indexed
      */
-    IngestDocument execute(IngestDocument ingestDocument) throws Exception;
+    default IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+        if (isAsync()) {
+            throw new UnsupportedOperationException("synchronous execute method should not be executed for async processors");
+        }
+        return ingestDocument;
+    }
 
     /**
      * Gets the type of a processor
@@ -69,6 +73,10 @@ public interface Processor {
      */
     String getDescription();
 
+    default boolean isAsync() {
+        return false;
+    }
+
     /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
@@ -83,8 +91,8 @@ public interface Processor {
          *
          * <b>Note:</b> Implementations are responsible for removing the used configuration keys, so that after
          */
-        Processor create(Map<String, Factory> processorFactories, String tag,
-                         String description, Map<String, Object> config) throws Exception;
+        Processor create(Map<String, Factory> processorFactories, String tag, String description, Map<String, Object> config)
+            throws Exception;
     }
 
     /**
@@ -130,9 +138,17 @@ public interface Processor {
          */
         public final Client client;
 
-        public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
-                          LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
-                          IngestService ingestService, Client client, Consumer<Runnable> genericExecutor ) {
+        public Parameters(
+            Environment env,
+            ScriptService scriptService,
+            AnalysisRegistry analysisRegistry,
+            ThreadContext threadContext,
+            LongSupplier relativeTimeSupplier,
+            BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
+            IngestService ingestService,
+            Client client,
+            Consumer<Runnable> genericExecutor
+        ) {
             this.env = env;
             this.scriptService = scriptService;
             this.threadContext = threadContext;

@@ -7,14 +7,14 @@
  */
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
 
 /**
  * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality.

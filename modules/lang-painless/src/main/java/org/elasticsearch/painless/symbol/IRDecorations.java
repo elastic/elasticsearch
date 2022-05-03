@@ -286,7 +286,7 @@ public class IRDecorations {
 
         @Override
         public String toString() {
-            return PainlessLookupUtility.buildPainlessMethodKey(getValue().javaMethod.getName(), getValue().typeParameters.size());
+            return PainlessLookupUtility.buildPainlessMethodKey(getValue().javaMethod().getName(), getValue().typeParameters().size());
         }
     }
 
@@ -379,7 +379,7 @@ public class IRDecorations {
 
         @Override
         public String toString() {
-            return PainlessLookupUtility.buildPainlessMethodKey(getValue().javaMethod.getName(), getValue().typeParameters.size());
+            return PainlessLookupUtility.buildPainlessMethodKey(getValue().javaMethod().getName(), getValue().typeParameters().size());
         }
     }
 

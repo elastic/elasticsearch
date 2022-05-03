@@ -39,11 +39,14 @@ public class SecurityActionMapperTests extends ESTestCase {
             actionNameBuilder.append(randomAlphaOfLengthBetween(2, 12));
         }
         String randomAction = actionNameBuilder.toString();
-        assumeFalse("Random action is one of the known mapped values: " + randomAction, randomAction.equals(ClearScrollAction.NAME) ||
-                    randomAction.equals(AnalyzeAction.NAME) ||
-                    randomAction.equals(AnalyzeAction.NAME + "[s]"));
+        assumeFalse(
+            "Random action is one of the known mapped values: " + randomAction,
+            randomAction.equals(ClearScrollAction.NAME)
+                || randomAction.equals(AnalyzeAction.NAME)
+                || randomAction.equals(AnalyzeAction.NAME + "[s]")
+        );
 
-        assertThat(securityActionMapper.action(randomAction, null), equalTo(randomAction));
+        assertThat(SecurityActionMapper.action(randomAction, null), equalTo(randomAction));
     }
 
     public void testClearScroll() {
@@ -53,7 +56,7 @@ public class SecurityActionMapperTests extends ESTestCase {
         for (int i = 0; i < scrollIds; i++) {
             clearScrollRequest.addScrollId(randomAlphaOfLength(randomIntBetween(1, 30)));
         }
-        assertThat(securityActionMapper.action(ClearScrollAction.NAME, clearScrollRequest), equalTo(ClearScrollAction.NAME));
+        assertThat(SecurityActionMapper.action(ClearScrollAction.NAME, clearScrollRequest), equalTo(ClearScrollAction.NAME));
     }
 
     public void testClearScrollAll() {
@@ -64,11 +67,13 @@ public class SecurityActionMapperTests extends ESTestCase {
             clearScrollRequest.addScrollId(randomAlphaOfLength(randomIntBetween(1, 30)));
         }
         clearScrollRequest.addScrollId("_all");
-        //make sure that wherever the _all is among the scroll ids the action name gets translated
+        // make sure that wherever the _all is among the scroll ids the action name gets translated
         Collections.shuffle(clearScrollRequest.getScrollIds(), random());
 
-        assertThat(securityActionMapper.action(ClearScrollAction.NAME, clearScrollRequest),
-                equalTo(SecurityActionMapper.CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME));
+        assertThat(
+            SecurityActionMapper.action(ClearScrollAction.NAME, clearScrollRequest),
+            equalTo(SecurityActionMapper.CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME)
+        );
     }
 
     public void testIndicesAnalyze() {
@@ -80,13 +85,15 @@ public class SecurityActionMapperTests extends ESTestCase {
             analyzeRequest = new AnalyzeAction.Request(null).text("text");
             analyzeRequest.index(randomAlphaOfLength(randomIntBetween(1, 30)));
         }
-        assertThat(securityActionMapper.action(AnalyzeAction.NAME, analyzeRequest), equalTo(AnalyzeAction.NAME));
+        assertThat(SecurityActionMapper.action(AnalyzeAction.NAME, analyzeRequest), equalTo(AnalyzeAction.NAME));
     }
 
     public void testClusterAnalyze() {
         SecurityActionMapper securityActionMapper = new SecurityActionMapper();
         AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(null).text("text");
-        assertThat(securityActionMapper.action(AnalyzeAction.NAME, analyzeRequest),
-                equalTo(SecurityActionMapper.CLUSTER_PERMISSION_ANALYZE));
+        assertThat(
+            SecurityActionMapper.action(AnalyzeAction.NAME, analyzeRequest),
+            equalTo(SecurityActionMapper.CLUSTER_PERMISSION_ANALYZE)
+        );
     }
 }

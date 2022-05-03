@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[registered-domain-processor]]
 === Registered domain processor
 ++++

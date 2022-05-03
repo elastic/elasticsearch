@@ -44,18 +44,11 @@ public class SymbolicLinkPreservingTar extends Tar {
 
     @Override
     protected CopyAction createCopyAction() {
-        final ArchiveOutputStreamFactory compressor;
-        switch (getCompression()) {
-            case BZIP2:
-                compressor = Bzip2Archiver.getCompressor();
-                break;
-            case GZIP:
-                compressor = GzipArchiver.getCompressor();
-                break;
-            default:
-                compressor = new SimpleCompressor();
-                break;
-        }
+        final ArchiveOutputStreamFactory compressor = switch (getCompression()) {
+            case BZIP2 -> Bzip2Archiver.getCompressor();
+            case GZIP -> GzipArchiver.getCompressor();
+            default -> new SimpleCompressor();
+        };
         return new SymbolicLinkPreservingTarCopyAction(getArchiveFile(), compressor, isPreserveFileTimestamps());
     }
 

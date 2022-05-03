@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="enterprise"]
 [[autoscaling-put-autoscaling-policy]]
 === Create or update autoscaling policy API
 ++++

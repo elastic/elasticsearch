@@ -991,9 +991,9 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             xpack.ml.max_model_memory_limit: "20mb"
-  - match: {transient.xpack.ml.max_model_memory_limit: "20mb"}
+  - match: {persistent.xpack.ml.max_model_memory_limit: "20mb"}
 
   # Explicit request higher than limit is an error
   - do:
@@ -1050,9 +1050,9 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             xpack.ml.max_model_memory_limit: null
-  - match: {transient: {}}
+  - match: {persistent: {}}
 
 ---
 "Test put outlier_detection given n_neighbors is negative":

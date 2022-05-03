@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -30,17 +31,23 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
   into outputDir
 }
 
-for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
-  String bwcVersionString = bwcVersion.toString()
-  String baseName = "v" + bwcVersionString
+BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+  String oldVersion = bwcVersion.toString()
 
   // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
   String searchableSnapshotRepository = "${buildDir}/cluster/shared/searchable-snapshots-repo/${baseName}"
 
   def baseCluster = testClusters.register(baseName) {
     testDistribution = "DEFAULT"
-    versions = [bwcVersionString, project.version]
+    versions = [oldVersion, project.version]
     numberOfNodes = 3
+
+    systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
+    //we don't want to hit real service from each test
+    systemProperty 'ingest.geoip.downloader.endpoint.default', 'http://invalid.endpoint'
+    if (bwcVersion.onOrAfter('7.14.0')) {
+      setting 'ingest.geoip.downloader.endpoint', 'http://invalid.endpoint'
+    }
 
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
     setting 'path.repo', "['${buildDir}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"
@@ -67,6 +74,11 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     if (bwcVersion.onOrAfter('6.6.0')) {
       setting 'ccr.auto_follow.wait_for_metadata_timeout', '1s'
     }
+    if (bwcVersion.onOrAfter('7.11.0')) {
+      extraConfigFile 'operator_users.yml', file("${project.projectDir}/src/test/resources/operator_users.yml")
+      setting 'xpack.security.operator_privileges.enabled', "true"
+      user username: "non_operator", password: 'x-pack-test-password', role: "superuser"
+    }
 
     user username: "test_user", password: "x-pack-test-password"
 
@@ -75,6 +87,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
     keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
     setting 'xpack.watcher.encrypt_sensitive_data', 'true'
+
+    requiresFeature 'es.user_profile_feature_flag_enabled', Version.fromString("8.1.0")
 
     // Old versions of the code contain an invalid assertion that trips
     // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing
@@ -88,11 +102,10 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
 
     if (bwcVersion.onOrAfter('7.12.0')) {
-      setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
+      setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+      setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
     }
   }
-
-  String oldVersion = bwcVersionString
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     useCluster baseCluster
@@ -134,7 +147,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       'mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster',
       'mixed_cluster/110_enrich/Enrich stats query smoke test for mixed cluster',
       'mixed_cluster/120_api_key/Test API key authentication will work in a mixed cluster',
-      'mixed_cluster/120_api_key/Create API key with metadata in a mixed cluster'
+      'mixed_cluster/120_api_key/Create API key with metadata in a mixed cluster',
+      'mixed_cluster/130_operator_privileges/Test operator privileges will work in the mixed cluster'
     ].join(',')
   }
 

@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.analytics.normalize;
 
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -43,7 +43,7 @@ public class NormalizePipelineAggregator extends PipelineAggregator {
     }
 
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
         @SuppressWarnings("unchecked")
         InternalMultiBucketAggregation<?, InternalMultiBucketAggregation.InternalBucket> originalAgg = (InternalMultiBucketAggregation<
             ?,

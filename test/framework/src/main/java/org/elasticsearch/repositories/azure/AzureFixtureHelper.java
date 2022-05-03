@@ -13,8 +13,7 @@ import org.elasticsearch.common.Strings;
 import java.util.Base64;
 
 public class AzureFixtureHelper {
-    private AzureFixtureHelper() {
-    }
+    private AzureFixtureHelper() {}
 
     public static boolean assertValidBlockId(String blockId) {
         assert Strings.hasText(blockId) : "blockId missing";

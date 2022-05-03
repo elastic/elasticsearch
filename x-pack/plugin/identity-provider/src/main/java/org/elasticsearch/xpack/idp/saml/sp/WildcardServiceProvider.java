@@ -7,19 +7,19 @@
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.support.MustacheTemplateEvaluator;
 
 import java.io.IOException;
@@ -48,7 +48,8 @@ class WildcardServiceProvider {
             final Collection<String> tokens = (Collection<String>) args[2];
             final Map<String, Object> definition = (Map<String, Object>) args[3];
             return new WildcardServiceProvider(entityId, acs, tokens, definition);
-        });
+        }
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Fields.ENTITY_ID);
@@ -70,10 +71,12 @@ class WildcardServiceProvider {
     }
 
     WildcardServiceProvider(String matchEntityId, String matchAcs, Collection<String> tokens, Map<String, Object> serviceTemplate) {
-        this(Pattern.compile(Objects.requireNonNull(matchEntityId, "EntityID to match cannot be null")),
+        this(
+            Pattern.compile(Objects.requireNonNull(matchEntityId, "EntityID to match cannot be null")),
             Pattern.compile(Objects.requireNonNull(matchAcs, "ACS to match cannot be null")),
             Set.copyOf(Objects.requireNonNull(tokens, "Tokens collection may not be null")),
-            toMustacheScript(Objects.requireNonNull(serviceTemplate, "Service definition may not be null")));
+            toMustacheScript(Objects.requireNonNull(serviceTemplate, "Service definition may not be null"))
+        );
     }
 
     public static WildcardServiceProvider parse(XContentParser parser) throws IOException {
@@ -89,10 +92,10 @@ class WildcardServiceProvider {
             return false;
         }
         final WildcardServiceProvider that = (WildcardServiceProvider) o;
-        return matchEntityId.pattern().equals(that.matchEntityId.pattern()) &&
-            matchAcs.pattern().equals(that.matchAcs.pattern()) &&
-            tokens.equals(that.tokens) &&
-            serviceTemplate.equals(that.serviceTemplate);
+        return matchEntityId.pattern().equals(that.matchEntityId.pattern())
+            && matchAcs.pattern().equals(that.matchAcs.pattern())
+            && tokens.equals(that.tokens)
+            && serviceTemplate.equals(that.serviceTemplate);
     }
 
     @Override
@@ -151,8 +154,19 @@ class WildcardServiceProvider {
             if (entityIdToken != null) {
                 if (acsToken != null) {
                     if (entityIdToken.equals(acsToken) == false) {
-                        throw new IllegalArgumentException("Extracted token [" + token + "] values from EntityID ([" + entityIdToken
-                            + "] from [" + entityId + "]) and ACS ([" + acsToken + "] from [" + acs + "]) do not match");
+                        throw new IllegalArgumentException(
+                            "Extracted token ["
+                                + token
+                                + "] values from EntityID (["
+                                + entityIdToken
+                                + "] from ["
+                                + entityId
+                                + "]) and ACS (["
+                                + acsToken
+                                + "] from ["
+                                + acs
+                                + "]) do not match"
+                        );
                     }
                 }
                 parameters.put(token, entityIdToken);

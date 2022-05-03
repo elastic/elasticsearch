@@ -1,0 +1,133 @@
+setup:
+    - do:
+        indices.create:
+            index: test
+            body:
+                settings:
+                    number_of_shards: 1
+                mappings:
+                    properties:
+                        geo_shape:
+                            type: geo_shape
+
+    - do:
+        index:
+            index: test
+            id: "1"
+            body:
+               geo_shape: "POLYGON((24.04725 59.942,24.04825 59.94125,24.04875 59.94125,24.04875 59.94175,24.048 59.9425,24.0475 59.94275,24.0465 59.94225,24.046 59.94225,24.04575 59.9425,24.04525 59.94225,24.04725 59.942))"
+    - do:
+        indices.refresh: {}
+
+---
+"centroid":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            centroid:
+              script:
+                source: "doc['geo_shape'].getCentroid()"
+  - match: { hits.hits.0.fields.centroid.0.lat: 59.942043484188616 }
+  - match: { hits.hits.0.fields.centroid.0.lon: 24.047588920220733 }
+
+---
+"bounding box":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            bbox:
+              script:
+                source: "doc['geo_shape'].getBoundingBox()"
+  - match: { hits.hits.0.fields.bbox.0.top_left.lat: 59.942749994806945 }
+  - match: { hits.hits.0.fields.bbox.0.top_left.lon: 24.045249950140715 }
+  - match: { hits.hits.0.fields.bbox.0.bottom_right.lat: 59.94124996941537 }
+  - match: { hits.hits.0.fields.bbox.0.bottom_right.lon: 24.048749981448054 }
+
+---
+"bounding box points":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            topLeft:
+              script:
+                source: "doc['geo_shape'].getBoundingBox().topLeft()"
+            bottomRight:
+              script:
+                source: "doc['geo_shape'].getBoundingBox().bottomRight()"
+  - match: { hits.hits.0.fields.topLeft.0.lat: 59.942749994806945 }
+  - match: { hits.hits.0.fields.topLeft.0.lon: 24.045249950140715 }
+  - match: { hits.hits.0.fields.bottomRight.0.lat: 59.94124996941537 }
+  - match: { hits.hits.0.fields.bottomRight.0.lon: 24.048749981448054 }
+
+---
+"dimensional type":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            type:
+              script:
+                source: "doc['geo_shape'].getDimensionalType()"
+
+  - match: { hits.hits.0.fields.type.0: 2 }
+
+---
+"geoshape value":
+  - do:
+      catch: /illegal_argument_exception/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            type:
+              script:
+                source: "doc['geo_shape'].get(0)"
+
+  - match: { error.root_cause.0.reason: "cannot write xcontent for geo_shape doc value" }
+
+  - do:
+      catch: /illegal_argument_exception/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            type:
+              script:
+                source: "field('geo_shape').get(null)"
+
+  - match: { error.root_cause.0.reason: "cannot write xcontent for geo_shape doc value" }
+
+  - do:
+      catch: /illegal_argument_exception/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            type:
+              script:
+                source: "/* avoid yaml stash */ $('geo_shape', null)"
+
+  - match: { error.root_cause.0.reason: "cannot write xcontent for geo_shape doc value" }
+
+---
+"diagonal length":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            width:
+              script:
+                source: "doc['geo_shape'].getMercatorWidth()"
+            height:
+              script:
+                source: "doc['geo_shape'].getMercatorHeight()"
+  - match: { hits.hits.0.fields.width.0: 389.62170283915475 }
+  - match: { hits.hits.0.fields.height.0: 333.37976840604097 }

@@ -25,8 +25,13 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
     private final String executor;
     private final boolean forceExecution;
 
-    public ThreadedActionListener(Logger logger, ThreadPool threadPool, String executor, ActionListener<Response> listener,
-                                  boolean forceExecution) {
+    public ThreadedActionListener(
+        Logger logger,
+        ThreadPool threadPool,
+        String executor,
+        ActionListener<Response> listener,
+        boolean forceExecution
+    ) {
         super(listener);
         this.logger = logger;
         this.threadPool = threadPool;

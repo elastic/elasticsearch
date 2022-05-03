@@ -54,7 +54,7 @@ POST /_search <1>
     }
 }
 --------------------------------------------------
-// TEST[catch:missing]
+// TEST[catch:unavailable]
 
 <1> A search request with the `pit` parameter must not specify `index`, `routing`,
 and {ref}/search-request-body.html#request-body-search-preference[`preference`]
@@ -88,7 +88,8 @@ Additionally, if a segment contains deleted or updated documents then the
 point in time must keep track of whether each document in the segment was live at
 the time of the initial search request. Ensure that your nodes have sufficient heap
 space if you have many open point-in-times on an index that is subject to ongoing
-deletes or updates.
+deletes or updates. Note that a point-in-time doesn't prevent its associated indices
+from being deleted.
 
 You can check how many point-in-times (i.e, search contexts) are open with the
 <<cluster-nodes-stats,nodes stats API>>:

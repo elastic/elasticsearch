@@ -8,14 +8,12 @@
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
+import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
-import org.gradle.api.NamedDomainObjectContainer;
-
-import java.io.File;
 
 import static org.hamcrest.core.StringContains.containsString;
 
@@ -130,14 +128,13 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         return distribution;
     }
 
-
     protected ElasticsearchDistribution createDistro(
-            Project project,
-            String name,
-            String version,
-            ElasticsearchDistributionType type,
-            ElasticsearchDistribution.Platform platform,
-            Boolean bundledJdk
+        Project project,
+        String name,
+        String version,
+        ElasticsearchDistributionType type,
+        ElasticsearchDistribution.Platform platform,
+        Boolean bundledJdk
     ) {
         NamedDomainObjectContainer<ElasticsearchDistribution> distros = DistributionDownloadPlugin.getContainer(project);
         return distros.create(name, distro -> {
@@ -158,10 +155,10 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
 
     protected Project createProject() {
         rootProject = ProjectBuilder.builder().build();
-//        Project distributionProject = ProjectBuilder.builder().withParent(rootProject).withName("distribution").build();
-//        archivesProject = ProjectBuilder.builder().withParent(distributionProject).withName("archives").build();
-//        packagesProject = ProjectBuilder.builder().withParent(distributionProject).withName("packages").build();
-//        bwcProject = ProjectBuilder.builder().withParent(distributionProject).withName("bwc").build();
+        // Project distributionProject = ProjectBuilder.builder().withParent(rootProject).withName("distribution").build();
+        // archivesProject = ProjectBuilder.builder().withParent(distributionProject).withName("archives").build();
+        // packagesProject = ProjectBuilder.builder().withParent(distributionProject).withName("packages").build();
+        // bwcProject = ProjectBuilder.builder().withParent(distributionProject).withName("bwc").build();
         Project project = ProjectBuilder.builder().withParent(rootProject).build();
         project.getPlugins().apply("elasticsearch.distribution-download");
         return project;

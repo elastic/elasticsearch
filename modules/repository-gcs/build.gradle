@@ -1,0 +1,343 @@
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+
+import java.nio.file.Files
+import java.security.KeyPair
+import java.security.KeyPairGenerator
+
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact-base'
+
+esplugin {
+  description 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
+  classname 'org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin'
+}
+
+dependencies {
+  api 'com.google.cloud:google-cloud-storage:1.117.1'
+  api 'com.google.cloud:google-cloud-core:1.95.4'
+  api 'com.google.cloud:google-cloud-core-http:1.95.4'
+  runtimeOnly 'com.google.guava:guava:30.1.1-jre'
+  runtimeOnly 'com.google.guava:failureaccess:1.0.1'
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api 'com.google.api:api-common:1.10.4'
+  api 'com.google.api:gax:1.66.0'
+  api 'org.threeten:threetenbp:1.5.1'
+  api 'com.google.protobuf:protobuf-java-util:3.17.3'
+  api 'com.google.protobuf:protobuf-java:3.17.3'
+  api 'com.google.code.gson:gson:2.8.7'
+  api 'com.google.api.grpc:proto-google-common-protos:2.3.2'
+  api 'com.google.api.grpc:proto-google-iam-v1:1.0.14'
+  api 'com.google.auth:google-auth-library-credentials:0.26.0'
+  api 'com.google.auth:google-auth-library-oauth2-http:0.26.0'
+  api 'com.google.oauth-client:google-oauth-client:1.31.5'
+  api 'com.google.api-client:google-api-client:1.32.1'
+  api 'com.google.http-client:google-http-client:1.39.2'
+  api 'com.google.http-client:google-http-client-gson:1.39.2'
+  api 'com.google.http-client:google-http-client-appengine:1.39.2'
+  api 'com.google.http-client:google-http-client-jackson2:1.39.2'
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api 'com.google.api:gax-httpjson:0.83.0'
+  api 'io.grpc:grpc-context:1.39.0'
+  api 'io.opencensus:opencensus-api:0.28.0'
+  api 'io.opencensus:opencensus-contrib-http-util:0.28.0'
+  api 'com.google.apis:google-api-services-storage:v1-rev20210127-1.31.5'
+
+  testImplementation project(':test:fixtures:gcs-fixture')
+}
+
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
+}
+
+tasks.named("internalClusterTestJar").configure {
+  // for the plugin-security.policy resource
+  from sourceSets.test.output
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /google-cloud-.*/, to: 'google-cloud'
+  mapping from: /google-auth-.*/, to: 'google-auth'
+  mapping from: /google-http-.*/, to: 'google-http'
+  mapping from: /opencensus.*/, to: 'opencensus'
+  mapping from: /protobuf.*/, to: 'protobuf'
+  mapping from: /proto-google.*/, to: 'proto-google'
+  mapping from: /jackson.*/, to: 'jackson'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.protobuf.UnsafeUtil',
+    'com.google.protobuf.UnsafeUtil$1',
+    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
+    'com.google.protobuf.MessageSchema',
+    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+  )
+
+  ignoreMissingClasses(
+    'com.google.api.client.http.apache.v2.ApacheHttpTransport',
+    'com.google.appengine.api.datastore.Blob',
+    'com.google.appengine.api.datastore.DatastoreService',
+    'com.google.appengine.api.datastore.DatastoreServiceFactory',
+    'com.google.appengine.api.datastore.Entity',
+    'com.google.appengine.api.datastore.Key',
+    'com.google.appengine.api.datastore.KeyFactory',
+    'com.google.appengine.api.datastore.PreparedQuery',
+    'com.google.appengine.api.datastore.Query',
+    'com.google.appengine.api.memcache.Expiration',
+    'com.google.appengine.api.memcache.MemcacheService',
+    'com.google.appengine.api.memcache.MemcacheServiceFactory',
+    'com.google.appengine.api.urlfetch.FetchOptions$Builder',
+    'com.google.appengine.api.urlfetch.FetchOptions',
+    'com.google.appengine.api.urlfetch.HTTPHeader',
+    'com.google.appengine.api.urlfetch.HTTPMethod',
+    'com.google.appengine.api.urlfetch.HTTPRequest',
+    'com.google.appengine.api.urlfetch.HTTPResponse',
+    'com.google.appengine.api.urlfetch.URLFetchService',
+    'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+    // commons-logging optional dependencies
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger',
+    'javax.jms.Message',
+
+    // optional apache http client dependencies
+    'org.apache.http.ConnectionReuseStrategy',
+    'org.apache.http.Header',
+    'org.apache.http.HttpEntity',
+    'org.apache.http.HttpEntityEnclosingRequest',
+    'org.apache.http.HttpHost',
+    'org.apache.http.HttpRequest',
+    'org.apache.http.HttpResponse',
+    'org.apache.http.HttpVersion',
+    'org.apache.http.RequestLine',
+    'org.apache.http.StatusLine',
+    'org.apache.http.client.AuthenticationHandler',
+    'org.apache.http.client.HttpClient',
+    'org.apache.http.client.HttpRequestRetryHandler',
+    'org.apache.http.client.RedirectHandler',
+    'org.apache.http.client.RequestDirector',
+    'org.apache.http.client.UserTokenHandler',
+    'org.apache.http.client.methods.HttpEntityEnclosingRequestBase',
+    'org.apache.http.client.methods.HttpRequestBase',
+    'org.apache.http.config.Registry',
+    'org.apache.http.config.RegistryBuilder',
+    'org.apache.http.config.SocketConfig',
+    'org.apache.http.config.SocketConfig$Builder',
+    'org.apache.http.conn.ClientConnectionManager',
+    'org.apache.http.conn.ConnectionKeepAliveStrategy',
+    'org.apache.http.conn.params.ConnManagerParams',
+    'org.apache.http.conn.params.ConnRouteParams',
+    'org.apache.http.conn.routing.HttpRoutePlanner',
+    'org.apache.http.conn.scheme.PlainSocketFactory',
+    'org.apache.http.conn.scheme.SchemeRegistry',
+    'org.apache.http.conn.socket.PlainConnectionSocketFactory',
+    'org.apache.http.conn.ssl.SSLSocketFactory',
+    'org.apache.http.conn.ssl.X509HostnameVerifier',
+    'org.apache.http.entity.AbstractHttpEntity',
+    'org.apache.http.impl.client.DefaultHttpClient',
+    'org.apache.http.impl.client.HttpClientBuilder',
+    'org.apache.http.impl.conn.PoolingHttpClientConnectionManager',
+    'org.apache.http.params.HttpConnectionParams',
+    'org.apache.http.params.HttpParams',
+    'org.apache.http.params.HttpProtocolParams',
+    'org.apache.http.protocol.HttpContext',
+    'org.apache.http.protocol.HttpProcessor',
+    'org.apache.http.protocol.HttpRequestExecutor',
+    // commons-logging provided dependencies
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener'
+  )
+}
+
+boolean useFixture = false
+
+def fixtureAddress = { fixture ->
+  assert useFixture: 'closure should not be used without a fixture'
+  int ephemeralPort = project(':test:fixtures:gcs-fixture').postProcessFixture.ext."test.fixtures.${fixture}.tcp.80"
+  assert ephemeralPort > 0
+  'http://127.0.0.1:' + ephemeralPort
+}
+
+String gcsServiceAccount = System.getenv("google_storage_service_account")
+String gcsBucket = System.getenv("google_storage_bucket")
+String gcsBasePath = System.getenv("google_storage_base_path")
+File serviceAccountFile = null
+
+if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
+  serviceAccountFile = new File(project.buildDir, 'generated-resources/service_account_test.json')
+  gcsBucket = 'bucket'
+  gcsBasePath = 'integration_test'
+  useFixture = true
+
+  apply plugin: 'elasticsearch.test.fixtures'
+  testFixtures.useFixture(':test:fixtures:gcs-fixture', 'gcs-fixture')
+  testFixtures.useFixture(':test:fixtures:gcs-fixture', 'gcs-fixture-third-party')
+  testFixtures.useFixture(':test:fixtures:gcs-fixture', 'gcs-fixture-with-application-default-credentials')
+
+} else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
+  throw new IllegalArgumentException("not all options specified to run tests against external GCS service are present")
+} else {
+  serviceAccountFile = new File(gcsServiceAccount)
+}
+
+def encodedCredentials = {
+  Base64.encoder.encodeToString(Files.readAllBytes(serviceAccountFile.toPath()))
+}
+
+/** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
+tasks.register("createServiceAccountFile") {
+  doLast {
+    KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+    keyPairGenerator.initialize(2048)
+    KeyPair keyPair = keyPairGenerator.generateKeyPair()
+    String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
+
+    serviceAccountFile.parentFile.mkdirs()
+    serviceAccountFile.setText("{\n" +
+            '  "type": "service_account",\n' +
+            '  "project_id": "integration_test",\n' +
+            '  "private_key_id": "' + UUID.randomUUID().toString() + '",\n' +
+            '  "private_key": "-----BEGIN PRIVATE KEY-----\\n' + encodedKey + '\\n-----END PRIVATE KEY-----\\n",\n' +
+            '  "client_email": "integration_test@appspot.gserviceaccount.com",\n' +
+            '  "client_id": "123456789101112130594"\n' +
+            '}', 'UTF-8')
+  }
+}
+
+Map<String, Object> expansions = [
+  'bucket'   : gcsBucket,
+  'base_path': gcsBasePath + "_integration_tests"
+]
+
+tasks.named("processYamlRestTestResources").configure {
+  inputs.properties(expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
+}
+
+tasks.named("internalClusterTest").configure {
+  // this is tested explicitly in a separate test task
+  exclude '**/GoogleCloudStorageThirdPartyTests.class'
+}
+
+tasks.named("yamlRestTest").configure {
+  if (useFixture) {
+    dependsOn "createServiceAccountFile"
+  }
+}
+
+/*
+ * We only use a small amount of data in these tests, which means that the resumable upload path is not tested. We add
+ * an additional test that forces the large blob threshold to be small to exercise the resumable upload path.
+ */
+def largeBlobYamlRestTest = tasks.register("largeBlobYamlRestTest", RestIntegTestTask) {
+  if (useFixture) {
+    dependsOn "createServiceAccountFile"
+  }
+  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+  SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
+  setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
+  setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+
+  // We have to wait for configure the cluster here as it might not have been created otherwise yet.
+  testClusters {
+    largeBlobYamlRestTest {
+      module tasks.named("explodedBundlePlugin")
+
+      // force large blob uploads by setting the threshold small, forcing this code path to be tested
+      systemProperty 'es.repository_gcs.large_blob_threshold_byte_size', '256'
+    }
+  }
+}
+
+def gcsThirdPartyTest = tasks.register("gcsThirdPartyTest", Test) {
+  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+  SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
+  setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
+  setClasspath(internalTestSourceSet.getRuntimeClasspath())
+  include '**/GoogleCloudStorageThirdPartyTests.class'
+  systemProperty 'tests.security.manager', false
+  systemProperty 'test.google.bucket', gcsBucket
+  nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + BuildParams.testSeed
+  nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
+  if (useFixture) {
+    dependsOn "createServiceAccountFile"
+    nonInputProperties.systemProperty 'test.google.endpoint', "${-> fixtureAddress('gcs-fixture-third-party')}"
+    nonInputProperties.systemProperty 'test.google.tokenURI', "${-> fixtureAddress('gcs-fixture-third-party')}/o/oauth2/token"
+  }
+}
+
+testClusters.matching {
+  it.name == "yamlRestTest" ||
+  it.name == "largeBlobYamlRestTest" ||
+  it.name == "gcsThirdPartyTest" }.configureEach {
+  keystore 'gcs.client.integration_test.credentials_file', serviceAccountFile, IGNORE_VALUE
+
+  if (useFixture) {
+    /* Use a closure on the string to delay evaluation until tests are executed */
+    setting 'gcs.client.integration_test.endpoint', { "${-> fixtureAddress('gcs-fixture')}" }, IGNORE_VALUE
+    setting 'gcs.client.integration_test.token_uri', { "${-> fixtureAddress('gcs-fixture')}/o/oauth2/token" }, IGNORE_VALUE
+  } else {
+    println "Using an external service to test the repository-gcs plugin"
+  }
+}
+
+
+// Application Default Credentials
+if (useFixture) {
+  tasks.register("yamlRestTestApplicationDefaultCredentials", RestIntegTestTask.class) {
+    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
+    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
+    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+  }
+  tasks.named("check").configure { dependsOn("yamlRestTestApplicationDefaultCredentials") }
+
+  testClusters.matching { it.name == "yamlRestTestApplicationDefaultCredentials" }.configureEach {
+    setting 'gcs.client.integration_test.endpoint', { "${-> fixtureAddress('gcs-fixture-with-application-default-credentials')}" }, IGNORE_VALUE
+    module tasks.named("explodedBundlePlugin")
+    environment 'GCE_METADATA_HOST', { "${-> fixtureAddress('gcs-fixture-with-application-default-credentials')}".replace("http://", "") }, IGNORE_VALUE
+  }
+}
+
+tasks.named("check").configure {
+  dependsOn(largeBlobYamlRestTest, gcsThirdPartyTest)
+}

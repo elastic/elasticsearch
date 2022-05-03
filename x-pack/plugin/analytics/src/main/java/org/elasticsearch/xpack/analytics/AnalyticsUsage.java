@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.analytics;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 import org.elasticsearch.xpack.core.common.stats.EnumCounters;
 

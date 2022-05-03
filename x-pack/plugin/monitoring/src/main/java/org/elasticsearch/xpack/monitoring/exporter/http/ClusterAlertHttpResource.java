@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -17,13 +14,17 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -40,8 +41,10 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
     /**
      * Use this to retrieve the version of Cluster Alert in the Watch's JSON response from a request.
      */
-    public static final Map<String, String> CLUSTER_ALERT_VERSION_PARAMETERS =
-            Collections.singletonMap("filter_path", "metadata.xpack.version_created");
+    public static final Map<String, String> CLUSTER_ALERT_VERSION_PARAMETERS = Collections.singletonMap(
+        "filter_path",
+        "metadata.xpack.version_created"
+    );
 
     /**
      * License State is used to determine if we should even be add or delete our watches.
@@ -65,10 +68,12 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
      * @param watchId The name of the watch, which is lazily loaded.
      * @param watch The watch provider. {@code null} indicates that we should always delete this Watch.
      */
-    public ClusterAlertHttpResource(final String resourceOwnerName,
-                                    final XPackLicenseState licenseState,
-                                    final Supplier<String> watchId,
-                                    @Nullable final Supplier<String> watch) {
+    public ClusterAlertHttpResource(
+        final String resourceOwnerName,
+        final XPackLicenseState licenseState,
+        final Supplier<String> watchId,
+        @Nullable final Supplier<String> watch
+    ) {
         // Watcher does not support master_timeout
         super(resourceOwnerName, null, CLUSTER_ALERT_VERSION_PARAMETERS);
 
@@ -83,20 +88,39 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
     @Override
     protected void doCheck(final RestClient client, final ActionListener<Boolean> listener) {
         // if we should be adding, then we need to check for existence
-        if (isWatchDefined() && licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)) {
-            final CheckedFunction<Response, Boolean, IOException> watchChecker =
-                    (response) -> shouldReplaceClusterAlert(response, XContentType.JSON.xContent(), LAST_UPDATED_VERSION);
+        if (isWatchDefined() && Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE.check(licenseState)) {
+            final CheckedFunction<Response, Boolean, IOException> watchChecker = (response) -> shouldReplaceClusterAlert(
+                response,
+                XContentType.JSON.xContent(),
+                LAST_UPDATED_VERSION
+            );
 
-            checkForResource(client, listener, logger,
-                             "/_watcher/watch", watchId.get(), "monitoring cluster alert",
-                             resourceOwnerName, "monitoring cluster",
-                             GET_EXISTS, GET_DOES_NOT_EXIST,
-                             watchChecker, this::alwaysReplaceResource);
+            checkForResource(
+                client,
+                listener,
+                logger,
+                "/_watcher/watch",
+                watchId.get(),
+                "monitoring cluster alert",
+                resourceOwnerName,
+                "monitoring cluster",
+                GET_EXISTS,
+                GET_DOES_NOT_EXIST,
+                watchChecker,
+                this::alwaysReplaceResource
+            );
         } else {
             // if we should be deleting, then just try to delete it (same level of effort as checking)
-            deleteResource(client, listener, logger, "/_watcher/watch", watchId.get(),
-                           "monitoring cluster alert",
-                           resourceOwnerName, "monitoring cluster");
+            deleteResource(
+                client,
+                listener,
+                logger,
+                "/_watcher/watch",
+                watchId.get(),
+                "monitoring cluster alert",
+                resourceOwnerName,
+                "monitoring cluster"
+            );
         }
     }
 
@@ -105,9 +129,18 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
      */
     @Override
     protected void doPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
-        putResource(client, listener, logger,
-                    "/_watcher/watch", watchId.get(), Collections.emptyMap(), this::watchToHttpEntity, "monitoring cluster alert",
-                    resourceOwnerName, "monitoring cluster");
+        putResource(
+            client,
+            listener,
+            logger,
+            "/_watcher/watch",
+            watchId.get(),
+            Collections.emptyMap(),
+            this::watchToHttpEntity,
+            "monitoring cluster alert",
+            resourceOwnerName,
+            "monitoring cluster"
+        );
     }
 
     /**

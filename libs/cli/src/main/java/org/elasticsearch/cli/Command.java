@@ -90,7 +90,7 @@ public abstract class Command implements Closeable {
      * Executes the command, but all errors are thrown.
      */
     protected void mainWithoutErrorHandling(String[] args, Terminal terminal, ProcessInfo processInfo) throws Exception {
-        final OptionSet options = parser.parse(args);
+        final OptionSet options = parseOptions(args);
 
         if (options.has(helpOption)) {
             printHelp(terminal, false);
@@ -106,6 +106,10 @@ public abstract class Command implements Closeable {
         }
 
         execute(terminal, options, processInfo);
+    }
+
+    public OptionSet parseOptions(String[] args) {
+        return parser.parse(args);
     }
 
     /** Prints a help message for the command to the terminal. */

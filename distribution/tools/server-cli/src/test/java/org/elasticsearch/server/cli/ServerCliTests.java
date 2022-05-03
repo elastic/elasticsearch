@@ -9,6 +9,7 @@
 package org.elasticsearch.server.cli;
 
 import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.bootstrap.ServerArgs;
@@ -280,8 +281,11 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     private class MockAutoConfigCli extends EnvironmentAwareCommand {
+        private final OptionSpec<String> enrollmentTokenOption;
+
         MockAutoConfigCli() {
             super("mock auto config tool");
+            enrollmentTokenOption = parser.accepts("enrollment-token").withRequiredArg();
         }
 
         @Override

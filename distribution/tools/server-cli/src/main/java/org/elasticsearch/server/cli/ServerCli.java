@@ -165,15 +165,23 @@ class ServerCli extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
         }
 
+        logger.info("Running auto config");
         String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
         Command cmd = loadTool("auto-configure-node", autoConfigLibs);
         assert cmd instanceof EnvironmentAwareCommand;
         @SuppressWarnings("raw")
         var autoConfigNode = (EnvironmentAwareCommand) cmd;
+        final String[] autoConfigArgs;
+        if (options.has(enrollmentTokenOption)) {
+            autoConfigArgs = new String[] { "--enrollment-token", options.valueOf(enrollmentTokenOption) };
+        } else {
+            autoConfigArgs = new String[0];
+        }
+        OptionSet autoConfigOptions = autoConfigNode.parseOptions(autoConfigArgs);
 
         boolean changed = true;
         try (var autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword.clone())) {
-            autoConfigNode.execute(autoConfigTerminal, options, env, processInfo);
+            autoConfigNode.execute(autoConfigTerminal, autoConfigOptions, env, processInfo);
         } catch (UserException e) {
             logger.error("GOT USER EXCEPTION from auto config", e);
             boolean okCode = switch (e.exitCode) {

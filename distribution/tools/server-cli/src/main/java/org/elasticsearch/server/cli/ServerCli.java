@@ -174,6 +174,7 @@ class ServerCli extends EnvironmentAwareCommand {
         try (var autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword.clone())) {
             autoConfigNode.execute(autoConfigTerminal, options, env, processInfo);
         } catch (UserException e) {
+            logger.error("GOT USER EXCEPTION from auto config", e);
             boolean okCode = switch (e.exitCode) {
                 // these exit codes cover the cases where auto-conf cannot run but the node should NOT be prevented from starting as usual
                 // eg the node is restarted, is already configured in an incompatible way, or the file system permissions do not allow it

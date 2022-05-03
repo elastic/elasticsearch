@@ -234,6 +234,8 @@ public class ServerCliTests extends CommandTestCase {
         assertAutoConfigError(ExitCodes.IO_ERROR, ExitCodes.IO_ERROR);
         terminal.reset();
         assertAutoConfigError(ExitCodes.CONFIG, ExitCodes.CONFIG, "--enrollment-token", "mytoken");
+        terminal.reset();
+        assertAutoConfigError(ExitCodes.DATA_ERROR, ExitCodes.DATA_ERROR, "--enrollment-token", "bogus");
     }
 
     public void testAutoConfigOkErrors() throws Exception {

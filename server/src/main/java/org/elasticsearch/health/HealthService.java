@@ -65,7 +65,7 @@ public class HealthService {
         final boolean shouldDrillDownToIndicatorLevel = indicatorName != null;
         final boolean showRolledUpComponentStatus = shouldDrillDownToIndicatorLevel == false;
 
-        // Determine if cluster is stable enough to determine health before running other indicators
+        // Determine if cluster is stable enough to calculate health before running other indicators
         List<HealthIndicatorResult> preflightResults = preflightHealthIndicatorServices.stream()
             .map(service -> service.calculate(computeDetails))
             .toList();
@@ -74,7 +74,7 @@ public class HealthService {
         boolean clusterHealthIsObtainable = preflightResults.isEmpty()
             || preflightResults.stream().map(HealthIndicatorResult::status).allMatch(isEqual(HealthStatus.GREEN));
 
-        // Filter indicators by component name and indicator name if present before calculating their results
+        // Filter remaining indicators by component name and indicator name if present before calculating their results
         Stream<HealthIndicatorService> filteredIndicators = healthIndicatorServices.stream()
             .filter(service -> componentName == null || service.component().equals(componentName))
             .filter(service -> indicatorName == null || service.name().equals(indicatorName));
@@ -91,6 +91,7 @@ public class HealthService {
                     HealthStatus.UNKNOWN,
                     UNKNOWN_RESULT_SUMMARY,
                     unknownDetails,
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             );

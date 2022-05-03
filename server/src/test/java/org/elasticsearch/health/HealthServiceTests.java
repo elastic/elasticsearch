@@ -122,10 +122,10 @@ public class HealthServiceTests extends ESTestCase {
     }
 
     public void testPreflightIndicatorResultsPresent() {
-        var preflight1 = new HealthIndicatorResult("preflight1", "component1", GREEN, null, null, null);
-        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, null);
-        var indicator2 = new HealthIndicatorResult("indicator2", "component1", YELLOW, null, null, null);
-        var indicator3 = new HealthIndicatorResult("indicator3", "component2", GREEN, null, null, null);
+        var preflight1 = new HealthIndicatorResult("preflight1", "component1", GREEN, null, null, null, null);
+        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, null, null);
+        var indicator2 = new HealthIndicatorResult("indicator2", "component1", YELLOW, null, null, null, null);
+        var indicator3 = new HealthIndicatorResult("indicator3", "component2", GREEN, null, null, null, null);
 
         var service = new HealthService(
             List.of(createMockHealthIndicatorService(preflight1)),
@@ -187,11 +187,11 @@ public class HealthServiceTests extends ESTestCase {
     }
 
     public void testPreflightIndicatorFailureTriggersUnknownResults() {
-        var preflight1 = new HealthIndicatorResult("preflight1", "component1", RED, null, null, null);
-        var preflight2 = new HealthIndicatorResult("preflight2", "component2", GREEN, null, null, null);
-        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, null);
-        var indicator2 = new HealthIndicatorResult("indicator2", "component1", YELLOW, null, null, null);
-        var indicator3 = new HealthIndicatorResult("indicator3", "component2", GREEN, null, null, null);
+        var preflight1 = new HealthIndicatorResult("preflight1", "component1", RED, null, null, null, null);
+        var preflight2 = new HealthIndicatorResult("preflight2", "component2", GREEN, null, null, null, null);
+        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, null, null);
+        var indicator2 = new HealthIndicatorResult("indicator2", "component1", YELLOW, null, null, null, null);
+        var indicator3 = new HealthIndicatorResult("indicator3", "component2", GREEN, null, null, null, null);
 
         var service = new HealthService(
             List.of(createMockHealthIndicatorService(preflight1), createMockHealthIndicatorService(preflight2)),

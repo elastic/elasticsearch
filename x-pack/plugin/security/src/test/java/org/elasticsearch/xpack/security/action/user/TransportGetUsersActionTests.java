@@ -43,7 +43,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -245,7 +244,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
             public void onResponse(GetUsersResponse response) {
                 responseRef.set(response);
@@ -270,12 +269,16 @@ public class TransportGetUsersActionTests extends ESTestCase {
     }
 
     public void testGetStoreOnlyUsers() {
-        final List<User> storeUsers = randomFrom(
-            Collections.singletonList(new User("joe")),
-            Arrays.asList(new User("jane"), new User("fred")),
-            randomUsers(),
-            randomUsersMatchingInternalUsernames()
+        testGetStoreOnlyUsers(
+            randomFrom(Collections.singletonList(new User("joe")), Arrays.asList(new User("jane"), new User("fred")), randomUsers())
         );
+    }
+
+    public void testGetStoreOnlyUsersWithInternalUsername() {
+        testGetStoreOnlyUsers(randomUsersWithInternalUsernames());
+    }
+
+    private void testGetStoreOnlyUsers(List<User> storeUsers) {
         final String[] storeUsernames = storeUsers.stream().map(User::principal).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(
@@ -399,14 +402,15 @@ public class TransportGetUsersActionTests extends ESTestCase {
         return users;
     }
 
-    private List<User> randomUsersMatchingInternalUsernames() {
-        List<User> internalUserNames = Stream.of(
-            SystemUser.INSTANCE.principal(),
-            XPackUser.INSTANCE.principal(),
-            XPackSecurityUser.INSTANCE.principal(),
-            AsyncSearchUser.INSTANCE.principal(),
-            SecurityProfileUser.INSTANCE.principal()
-        ).map(u -> new User(u, randomAlphaOfLengthBetween(4, 12))).collect(Collectors.toList());
-        return randomSubsetOf(internalUserNames);
+    private List<User> randomUsersWithInternalUsernames() {
+        return randomSubsetOf(
+            List.of(
+                SystemUser.INSTANCE.principal(),
+                XPackUser.INSTANCE.principal(),
+                XPackSecurityUser.INSTANCE.principal(),
+                AsyncSearchUser.INSTANCE.principal(),
+                SecurityProfileUser.INSTANCE.principal()
+            )
+        ).stream().map(User::new).collect(Collectors.toList());
     }
 }

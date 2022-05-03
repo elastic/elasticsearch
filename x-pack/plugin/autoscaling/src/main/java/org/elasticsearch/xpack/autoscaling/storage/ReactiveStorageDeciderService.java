@@ -102,7 +102,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
     @Override
     public AutoscalingDeciderResult scale(Settings configuration, AutoscalingDeciderContext context) {
-        AllocationState allocationState = new AllocationState(context, diskThresholdSettings, allocationDeciders);
+        AllocationState allocationState = allocationState(context);
         var assignedBytesUnmovableShards = allocationState.storagePreventsRemainOrMove0();
         var unassignedBytesUnassignedShards = allocationState.storagePreventsAllocation0();
         AutoscalingCapacity autoscalingCapacity = context.currentCapacity();
@@ -140,6 +140,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 assignedBytesUnmovableShards.unmovableShards()
             )
         );
+    }
+
+    AllocationState allocationState(AutoscalingDeciderContext context) {
+        return new AllocationState(context, diskThresholdSettings, allocationDeciders);
     }
 
     static String message(long unassignedBytes, long assignedBytes) {

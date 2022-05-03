@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -1596,12 +1595,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable
-            ImmutableOpenIntMap.Builder<Set<String>> filledInSyncAllocationIds = ImmutableOpenIntMap.builder();
+            @SuppressWarnings({"unchecked", "rawtype"})
+            Map.Entry<Integer, Set<String>> denseInSyncAllocationIds[] = new Map.Entry[numberOfShards];
+            inSyncAllocationIds.entrySet().forEach(e -> denseInSyncAllocationIds[e.getKey()] = e);
             for (int i = 0; i < numberOfShards; i++) {
-                if (inSyncAllocationIds.containsKey(i)) {
-                    filledInSyncAllocationIds.put(i, Set.copyOf(inSyncAllocationIds.get(i)));
-                } else {
-                    filledInSyncAllocationIds.put(i, Collections.emptySet());
+                if (denseInSyncAllocationIds[i] == null) {
+                    denseInSyncAllocationIds[i] = Map.entry(i, Set.of());
                 }
             }
             var requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings);
@@ -1698,7 +1697,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 mapping,
                 aliases.build(),
                 newCustomMetadata,
-                filledInSyncAllocationIds.build(),
+                Map.ofEntries(denseInSyncAllocationIds),
                 requireFilters,
                 initialRecoveryFilters,
                 includeFilters,

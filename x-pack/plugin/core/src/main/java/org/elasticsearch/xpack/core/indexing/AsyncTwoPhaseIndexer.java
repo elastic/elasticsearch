@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.indexing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -499,6 +501,22 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
             // allowPartialSearchResults is set to false, so we should never see shard failures here
             assert (searchResponse.getShardFailures().length == 0);
+            SearchResponse.Clusters clusterResponse = searchResponse.getClusters();
+            // Since allowPartialSearchResults is false throw here if a remote cluster was skipped.
+            // Skipping remote clusters results in partial results.
+            if (clusterResponse != null && clusterResponse.getSkipped() > 0) {
+                finishWithSearchFailure(
+                    new RemoteTransportException(
+                        "error while communicating with remote clusters",
+                        new ElasticsearchException(
+                            "[{}] remote clusters out of [{}] were skipped when performing search",
+                            clusterResponse.getSkipped(),
+                            clusterResponse.getTotal()
+                        )
+                    )
+                );
+                return;
+            }
             stats.markStartProcessing();
             stats.incrementNumPages(1);
 

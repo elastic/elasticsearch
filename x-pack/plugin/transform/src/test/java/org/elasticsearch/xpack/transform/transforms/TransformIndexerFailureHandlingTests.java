@@ -833,6 +833,108 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         assertEquals(0, context.getFailureCount());
     }
 
+    public void testRemoteClusterSkip() throws Exception {
+        Integer pageSize = randomBoolean() ? null : randomIntBetween(500, 10_000);
+        String transformId = randomAlphaOfLength(10);
+        TransformConfig config = new TransformConfig(
+            transformId,
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            null,
+            null,
+            randomPivotConfig(),
+            null,
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            new SettingsConfig(pageSize, null, (Boolean) null, null, null, null),
+            null,
+            null,
+            null,
+            null
+        );
+        final InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
+            new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+            // Simulate completely null aggs
+            null,
+            new Suggest(Collections.emptyList()),
+            new SearchProfileResults(Collections.emptyMap()),
+            false,
+            false,
+            1
+        );
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+        Function<SearchRequest, SearchResponse> searchFunction = new Function<>() {
+            final AtomicInteger calls = new AtomicInteger(0);
+
+            @Override
+            public SearchResponse apply(SearchRequest searchRequest) {
+                int call = calls.getAndIncrement();
+                if (call == 0) {
+                    return new SearchResponse(
+                        internalSearchResponse,
+                        "",
+                        1,
+                        1,
+                        0,
+                        0,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        new SearchResponse.Clusters(2, 1, 1)
+                    );
+                }
+                return new SearchResponse(
+                    internalSearchResponse,
+                    "",
+                    1,
+                    1,
+                    0,
+                    0,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    new SearchResponse.Clusters(2, 2, 0)
+                );
+            }
+        };
+
+        Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
+
+        final AtomicBoolean failIndexerCalled = new AtomicBoolean(false);
+        final AtomicReference<String> failureMessage = new AtomicReference<>();
+        Consumer<String> failureConsumer = message -> {
+            failIndexerCalled.compareAndSet(false, true);
+            failureMessage.compareAndSet(null, message);
+        };
+
+        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
+
+        MockedTransformIndexer indexer = createMockIndexer(
+            config,
+            state,
+            searchFunction,
+            bulkFunction,
+            null,
+            failureConsumer,
+            threadPool,
+            ThreadPool.Names.GENERIC,
+            auditor,
+            context
+        );
+
+        final CountDownLatch latch = indexer.newLatch(1);
+
+        indexer.start();
+        assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+
+        latch.countDown();
+        assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.SECONDS);
+        assertFalse(failIndexerCalled.get());
+        assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+        // Our single cluster failure
+        assertEquals(1, context.getFailureCount());
+    }
+
     private MockedTransformIndexer createMockIndexer(
         TransformConfig config,
         AtomicReference<IndexerState> state,

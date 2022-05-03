@@ -21,7 +21,6 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -649,7 +648,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected static void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return updater.apply(currentState);
@@ -664,7 +663,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 future.onResponse(null);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         future.get();
     }
 

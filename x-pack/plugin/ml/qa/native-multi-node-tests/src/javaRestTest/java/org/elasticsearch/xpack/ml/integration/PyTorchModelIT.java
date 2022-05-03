@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -74,6 +75,8 @@ import static org.hamcrest.Matchers.nullValue;
  * torch.jit.save(traced_model, "simplemodel.pt")
  * ## End Python
  */
+
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/2258")
 public class PyTorchModelIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE_SUPER_USER = UsernamePasswordToken.basicAuthHeaderValue(

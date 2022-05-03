@@ -884,14 +884,20 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
 
-            // Endpoint diagnostic and APM data streams also have an ILM policy with a delete action, all others should not.
+            // Endpoint diagnostic, APM and Synthetics data streams also have an ILM policy with a delete action, all others should not.
             final boolean isAlsoIlmDeleteIndex = indexName.startsWith(".logs-endpoint.diagnostic.collection-")
                 || indexName.startsWith("logs-apm-")
                 || indexName.startsWith("logs-apm.")
                 || indexName.startsWith("metrics-apm-")
                 || indexName.startsWith("metrics-apm.")
                 || indexName.startsWith("traces-apm-")
-                || indexName.startsWith("traces-apm.");
+                || indexName.startsWith("traces-apm.")
+                || indexName.startsWith("synthetics-http-*")
+                || indexName.startsWith("synthetics-tcp-*")
+                || indexName.startsWith("synthetics-icmp-*")
+                || indexName.startsWith("synthetics-browser-*")
+                || indexName.startsWith("synthetics-browser.network-*")
+                || indexName.startsWith("synthetics-browser.screenshot-*");
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(isAlsoIlmDeleteIndex));
         });
 
@@ -952,7 +958,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // read-only datastream for csp indices
-        Arrays.asList("logs-cis_kubernetes_benchmark.findings-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((cspIndex) -> {
+        Arrays.asList("logs-cloud_security_posture.findings-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((cspIndex) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(cspIndex);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
@@ -1003,7 +1009,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "metrics-apm-" + randomAlphaOfLengthBetween(3, 8),
             "metrics-apm." + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8),
             "traces-apm-" + randomAlphaOfLengthBetween(3, 8),
-            "traces-apm." + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8)
+            "traces-apm." + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-http-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-icmp-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-tcp-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-browser-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-browser.network-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-browser.screenshot-" + randomAlphaOfLengthBetween(3, 8)
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);

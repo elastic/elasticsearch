@@ -13,6 +13,7 @@ import joptsimple.OptionSet;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -26,7 +27,7 @@ public class EvilCommandTests extends ESTestCase {
         final boolean shouldThrow = randomBoolean();
         final Command command = new Command("test-command-shutdown-hook") {
             @Override
-            protected void execute(Terminal terminal, OptionSet options) throws Exception {
+            protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
 
             }
 
@@ -38,8 +39,8 @@ public class EvilCommandTests extends ESTestCase {
                 }
             }
         };
-        final MockTerminal terminal = new MockTerminal();
-        command.main(new String[0], terminal);
+        final MockTerminal terminal = MockTerminal.create();
+        command.main(new String[0], terminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
         assertNotNull(command.getShutdownHookThread());
         // successful removal here asserts that the runtime hook was installed in Command#main
         assertTrue(Runtime.getRuntime().removeShutdownHook(command.getShutdownHookThread()));

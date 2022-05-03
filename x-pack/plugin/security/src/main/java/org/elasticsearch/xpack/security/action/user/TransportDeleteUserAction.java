@@ -44,13 +44,9 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
         if (ClientReservedRealm.isReserved(username, settings)) {
             if (AnonymousUser.isAnonymousUsername(username, settings)) {
                 listener.onFailure(new IllegalArgumentException("user [" + username + "] is anonymous and cannot be deleted"));
-                return;
             } else {
                 listener.onFailure(new IllegalArgumentException("user [" + username + "] is reserved and cannot be deleted"));
-                return;
             }
-        } else if (User.isInternalUsername(username)) {
-            listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
             return;
         }
 

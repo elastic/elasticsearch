@@ -51,9 +51,6 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
         if (securityContext.getUser().principal().equals(request.username())) {
             listener.onFailure(new IllegalArgumentException("users may not update the enabled status of their own account"));
             return;
-        } else if (User.isInternalUsername(username)) {
-            listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
-            return;
         } else if (AnonymousUser.isAnonymousUsername(username, settings)) {
             listener.onFailure(new IllegalArgumentException("user [" + username + "] is anonymous and cannot be modified using the api"));
             return;

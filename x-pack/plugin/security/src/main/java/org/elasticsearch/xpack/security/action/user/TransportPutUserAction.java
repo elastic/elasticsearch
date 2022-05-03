@@ -85,8 +85,6 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
                     validationException
                 );
             }
-        } else if (User.isInternalUsername(username)) {
-            validationException = addValidationError("user [" + username + "] is internal", validationException);
         } else {
             Validation.Error usernameError = Validation.Users.validateUsername(username, true, settings);
             if (usernameError != null) {

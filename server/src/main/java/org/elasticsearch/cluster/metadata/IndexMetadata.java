@@ -1466,7 +1466,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public Builder putInSyncAllocationIds(int shardId, Set<String> allocationIds) {
-            inSyncAllocationIds.put(shardId, new HashSet<>(allocationIds));
+            inSyncAllocationIds.put(shardId, Set.copyOf(allocationIds));
             return this;
         }
 
@@ -1597,11 +1597,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable
             @SuppressWarnings({ "unchecked", "rawtypes" })
             Map.Entry<Integer, Set<String>> denseInSyncAllocationIds[] = new Map.Entry[numberOfShards];
-            inSyncAllocationIds.entrySet().forEach(e -> denseInSyncAllocationIds[e.getKey()] = e);
             for (int i = 0; i < numberOfShards; i++) {
-                if (denseInSyncAllocationIds[i] == null) {
-                    denseInSyncAllocationIds[i] = Map.entry(i, Set.of());
-                }
+                Set<String> allocIds = inSyncAllocationIds.getOrDefault(i, Set.of());
+                denseInSyncAllocationIds[i] = Map.entry(i, allocIds);
             }
             var requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters requireFilters;

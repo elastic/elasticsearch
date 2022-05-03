@@ -279,6 +279,19 @@ class ServerCli extends EnvironmentAwareCommand {
     public void close() {
         if (process != null) {
             process.destroy();
+
+            // TODO: we should wait adn then forcibly kill, but after how long? this is configurable in eg systemd,
+            // but that is giving us. For systemd we should sd_notify that the main pid is different. For SIGINT
+            // we should have some default max time before sending SIGKILL? we should also maybe block on the main thread
+            // exiting after it the process is terminated
+            while (true) {
+                try {
+                    process.waitFor();
+                    break;
+                } catch (InterruptedException ignore) {
+                    // retry
+                }
+            }
         }
     }
 

@@ -1,5 +1,5 @@
 pr: 86389
 summary: "[ML][Transform] retry transform search if remote clusters are skipped"
-area: "Transform, Rollup"
+area: "Transform"
 type: bug
-issues: []
+issues: ["https://github.com/elastic/elasticsearch/issues/84090"]

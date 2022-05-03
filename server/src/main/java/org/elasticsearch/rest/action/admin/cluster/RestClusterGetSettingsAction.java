@@ -61,8 +61,10 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
+
         if (nodesInCluster.get().getMinNodeVersion().onOrAfter(Version.V_8_3_0) == false) {
-            return prepareLegacyRequest(request, client);
+            return prepareLegacyRequest(request, client, renderDefaults);
         }
 
         ClusterGetSettingsAction.Request clusterSettingsRequest = new ClusterGetSettingsAction.Request();
@@ -70,22 +72,41 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
         clusterSettingsRequest.local(request.paramAsBoolean("local", clusterSettingsRequest.local()));
         clusterSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterSettingsRequest.masterNodeTimeout()));
 
-        return channel -> client.execute(ClusterGetSettingsAction.INSTANCE, clusterSettingsRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            ClusterGetSettingsAction.INSTANCE,
+            clusterSettingsRequest,
+            new RestToXContentListener<RestClusterGetSettingsResponse>(channel).map(
+                response -> response(
+                    response.persistentSettings(),
+                    response.transientSettings(),
+                    response.settings(),
+                    renderDefaults,
+                    settingsFilter,
+                    clusterSettings,
+                    settings
+                )
+            )
+        );
     }
 
-    private RestChannelConsumer prepareLegacyRequest(final RestRequest request, final NodeClient client) {
+    private RestChannelConsumer prepareLegacyRequest(final RestRequest request, final NodeClient client, final boolean renderDefaults) {
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest().routingTable(false).nodes(false);
-        final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         return channel -> client.admin()
             .cluster()
-            .state(
-                clusterStateRequest,
-                new RestToXContentListener<RestClusterGetSettingsResponse>(channel).map(
-                    response -> response(response.getState(), renderDefaults, settingsFilter, clusterSettings, settings)
-                )
-            );
+            .state(clusterStateRequest, new RestToXContentListener<RestClusterGetSettingsResponse>(channel).map(response -> {
+                ClusterState state = response.getState();
+                return response(
+                    state.metadata().persistentSettings(),
+                    state.metadata().transientSettings(),
+                    state.metadata().settings(),
+                    renderDefaults,
+                    settingsFilter,
+                    clusterSettings,
+                    settings
+                );
+            }));
     }
 
     @Override
@@ -99,16 +120,18 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     }
 
     static RestClusterGetSettingsResponse response(
-        final ClusterState state,
+        final Settings persistentSettings,
+        final Settings transientSettings,
+        final Settings allSettings,
         final boolean renderDefaults,
         final SettingsFilter settingsFilter,
         final ClusterSettings clusterSettings,
         final Settings settings
     ) {
         return new RestClusterGetSettingsResponse(
-            settingsFilter.filter(state.metadata().persistentSettings()),
-            settingsFilter.filter(state.metadata().transientSettings()),
-            renderDefaults ? settingsFilter.filter(clusterSettings.diff(state.metadata().settings(), settings)) : Settings.EMPTY
+            settingsFilter.filter(persistentSettings),
+            settingsFilter.filter(transientSettings),
+            renderDefaults ? settingsFilter.filter(clusterSettings.diff(allSettings, settings)) : Settings.EMPTY
         );
     }
 

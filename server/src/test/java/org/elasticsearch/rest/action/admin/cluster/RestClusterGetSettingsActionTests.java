@@ -52,8 +52,11 @@ public class RestClusterGetSettingsActionTests extends ESTestCase {
             )
         ).collect(Collectors.toSet());
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
+        final ClusterState clusterState = builder.build();
         final RestClusterGetSettingsResponse response = RestClusterGetSettingsAction.response(
-            builder.build(),
+            clusterState.metadata().persistentSettings(),
+            clusterState.metadata().transientSettings(),
+            clusterState.metadata().settings(),
             randomBoolean(),
             filter,
             clusterSettings,

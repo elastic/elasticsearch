@@ -88,5 +88,17 @@ public class ClusterGetSettingsAction extends ActionType<ClusterGetSettingsActio
             Settings.writeSettingsToStream(persistentSettings, out);
             Settings.writeSettingsToStream(transientSettings, out);
         }
+
+        public Settings persistentSettings() {
+            return persistentSettings;
+        }
+
+        public Settings transientSettings() {
+            return transientSettings;
+        }
+
+        public Settings settings() {
+            return Settings.builder().put(persistentSettings).put(transientSettings).build();
+        }
     }
 }

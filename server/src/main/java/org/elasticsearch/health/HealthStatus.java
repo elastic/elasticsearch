@@ -38,7 +38,8 @@ public enum HealthStatus implements Writeable {
     }
 
     public static HealthStatus merge(Stream<HealthStatus> statuses) {
-        return statuses.max(Comparator.comparing(HealthStatus::value)).orElse(GREEN);
+        return statuses.max(Comparator.comparing(HealthStatus::value))
+            .orElseThrow(() -> new IllegalArgumentException("Cannot merge empty health status stream."));
     }
 
     public String xContentValue() {

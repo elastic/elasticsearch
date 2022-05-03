@@ -37,7 +37,7 @@ public class HealthStatusTests extends ESTestCase {
     }
 
     public void testEmpty() {
-        assertEquals(GREEN, HealthStatus.merge(Stream.empty()));
+        expectThrows(IllegalArgumentException.class, () -> HealthStatus.merge(Stream.empty()));
     }
 
     private static Stream<HealthStatus> randomStatusesContaining(HealthStatus... statuses) {

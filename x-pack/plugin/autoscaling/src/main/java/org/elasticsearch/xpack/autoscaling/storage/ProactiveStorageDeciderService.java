@@ -50,37 +50,30 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
 
     @Override
     public AutoscalingDeciderResult scale(Settings configuration, AutoscalingDeciderContext context) {
-        TimeValue forecastWindow = FORECAST_WINDOW.get(configuration);
+        AutoscalingCapacity autoscalingCapacity = context.currentCapacity();
+        if (autoscalingCapacity == null || autoscalingCapacity.total().storage() == null) {
+            return new AutoscalingDeciderResult(
+                null,
+                new ReactiveStorageDeciderService.ReactiveReason("current capacity not available", -1, -1, List.of(), List.of())
+            );
+        }
+
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             context,
             diskThresholdSettings,
             allocationDeciders
         );
+        long unassignedBytesBeforeForecast = allocationState.storagePreventsAllocation();
+        assert unassignedBytesBeforeForecast >= 0;
+
+        TimeValue forecastWindow = FORECAST_WINDOW.get(configuration);
         ReactiveStorageDeciderService.AllocationState allocationStateAfterForecast = allocationState.forecast(
             forecastWindow.millis(),
             System.currentTimeMillis()
         );
-        var assignedBytesUnmovableShards = allocationStateAfterForecast.storagePreventsRemainOrMove0();
-        var unassignedBytesUnassignedShardsBeforeForecast = allocationState.storagePreventsAllocation0();
 
-        AutoscalingCapacity autoscalingCapacity = context.currentCapacity();
-        if (autoscalingCapacity == null || autoscalingCapacity.total().storage() == null) {
-            return new AutoscalingDeciderResult(
-                null,
-                new ReactiveStorageDeciderService.ReactiveReason(
-                    "current capacity not available",
-                    -1,
-                    -1,
-                    unassignedBytesUnassignedShardsBeforeForecast.unassignedShards(),
-                    assignedBytesUnmovableShards.unmovableShards()
-                )
-            );
-        }
-
-        long unassignedBytesBeforeForecast = unassignedBytesUnassignedShardsBeforeForecast.unassignedBytes();
-        assert unassignedBytesBeforeForecast >= 0;
         long unassignedBytes = allocationStateAfterForecast.storagePreventsAllocation();
-        long assignedBytes = assignedBytesUnmovableShards.assignedBytes();
+        long assignedBytes = allocationStateAfterForecast.storagePreventsRemainOrMove();
         long maxShardSize = allocationStateAfterForecast.maxShardSize();
         assert assignedBytes >= 0;
         assert unassignedBytes >= unassignedBytesBeforeForecast;

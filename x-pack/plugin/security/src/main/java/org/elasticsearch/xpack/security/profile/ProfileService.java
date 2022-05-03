@@ -34,6 +34,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -79,10 +80,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.VERSION_SECURITY_PROFILE_ORIGIN;
 
 public class ProfileService {
     private static final Logger logger = LogManager.getLogger(ProfileService.class);
@@ -94,13 +97,22 @@ public class ProfileService {
     private final Clock clock;
     private final Client client;
     private final SecurityIndexManager profileIndex;
+    private final ClusterService clusterService;
     private final ThreadPool threadPool;
 
-    public ProfileService(Settings settings, Clock clock, Client client, SecurityIndexManager profileIndex, ThreadPool threadPool) {
+    public ProfileService(
+        Settings settings,
+        Clock clock,
+        Client client,
+        SecurityIndexManager profileIndex,
+        ClusterService clusterService,
+        ThreadPool threadPool
+    ) {
         this.settings = settings;
         this.clock = clock;
         this.client = client;
         this.profileIndex = profileIndex;
+        this.clusterService = clusterService;
         this.threadPool = threadPool;
     }
 
@@ -211,7 +223,7 @@ public class ProfileService {
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,
-                    SECURITY_PROFILE_ORIGIN,
+                    getActionOrigin(),
                     SearchAction.INSTANCE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
@@ -301,26 +313,20 @@ public class ProfileService {
             final GetRequest getRequest = new GetRequest(SECURITY_PROFILE_ALIAS, uidToDocId(uid));
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
-                () -> executeAsyncWithOrigin(
-                    client,
-                    SECURITY_PROFILE_ORIGIN,
-                    GetAction.INSTANCE,
-                    getRequest,
-                    ActionListener.wrap(response -> {
-                        if (false == response.isExists()) {
-                            logger.debug("profile with uid [{}] does not exist", uid);
-                            listener.onResponse(null);
-                            return;
-                        }
-                        listener.onResponse(
-                            new VersionedDocument(
-                                buildProfileDocument(response.getSourceAsBytesRef()),
-                                response.getPrimaryTerm(),
-                                response.getSeqNo()
-                            )
-                        );
-                    }, listener::onFailure)
-                )
+                () -> executeAsyncWithOrigin(client, getActionOrigin(), GetAction.INSTANCE, getRequest, ActionListener.wrap(response -> {
+                    if (false == response.isExists()) {
+                        logger.debug("profile with uid [{}] does not exist", uid);
+                        listener.onResponse(null);
+                        return;
+                    }
+                    listener.onResponse(
+                        new VersionedDocument(
+                            buildProfileDocument(response.getSourceAsBytesRef()),
+                            response.getPrimaryTerm(),
+                            response.getSeqNo()
+                        )
+                    );
+                }, listener::onFailure))
             );
         });
     }
@@ -402,7 +408,7 @@ public class ProfileService {
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,
-                    SECURITY_PROFILE_ORIGIN,
+                    getActionOrigin(),
                     SearchAction.INSTANCE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
@@ -474,7 +480,7 @@ public class ProfileService {
             listener::onFailure,
             () -> executeAsyncWithOrigin(
                 client,
-                SECURITY_PROFILE_ORIGIN,
+                getActionOrigin(),
                 BulkAction.INSTANCE,
                 bulkRequest,
                 TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(indexResponse -> {
@@ -626,7 +632,7 @@ public class ProfileService {
             listener::onFailure,
             () -> executeAsyncWithOrigin(
                 client,
-                SECURITY_PROFILE_ORIGIN,
+                getActionOrigin(),
                 UpdateAction.INSTANCE,
                 updateRequest,
                 ActionListener.wrap(updateResponse -> {
@@ -636,6 +642,15 @@ public class ProfileService {
                 }, listener::onFailure)
             )
         );
+    }
+
+    private String getActionOrigin() {
+        // profile origin and user is not available before v8.3.0
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(VERSION_SECURITY_PROFILE_ORIGIN)) {
+            return SECURITY_PROFILE_ORIGIN;
+        } else {
+            return SECURITY_ORIGIN;
+        }
     }
 
     private static String uidToDocId(String uid) {

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -32,6 +33,9 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
@@ -48,6 +52,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -83,6 +88,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
@@ -140,6 +146,7 @@ public class ProfileServiceTests extends ESTestCase {
     private Client client;
     private SecurityIndexManager profileIndex;
     private ProfileService profileService;
+    private Version minNodeVersion;
 
     @Before
     public void prepare() {
@@ -162,7 +169,14 @@ public class ProfileServiceTests extends ESTestCase {
             new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(SECURITY_PROFILE_ALIAS)
         );
         this.profileIndex = SecurityMocks.mockSecurityIndexManager(SECURITY_PROFILE_ALIAS);
-        this.profileService = new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, threadPool);
+        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterState clusterState = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        minNodeVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_17_0, Version.CURRENT);
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(minNodeVersion);
+        this.profileService = new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, clusterService, threadPool);
     }
 
     @After
@@ -173,7 +187,10 @@ public class ProfileServiceTests extends ESTestCase {
     public void testGetProfileByUid() {
         final String uid = randomAlphaOfLength(20);
         doAnswer(invocation -> {
-            assertThat(threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME), equalTo(SECURITY_PROFILE_ORIGIN));
+            assertThat(
+                threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
+                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+            );
             final GetRequest getRequest = (GetRequest) invocation.getArguments()[1];
             @SuppressWarnings("unchecked")
             final ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocation.getArguments()[2];
@@ -481,7 +498,10 @@ public class ProfileServiceTests extends ESTestCase {
     public void testSecurityProfileOrigin() {
         // Activate profile
         doAnswer(invocation -> {
-            assertThat(threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME), equalTo(SECURITY_PROFILE_ORIGIN));
+            assertThat(
+                threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
+                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+            );
             @SuppressWarnings("unchecked")
             final ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             listener.onResponse(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
@@ -494,7 +514,10 @@ public class ProfileServiceTests extends ESTestCase {
 
         final RuntimeException expectedException = new RuntimeException("expected");
         doAnswer(invocation -> {
-            assertThat(threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME), equalTo(SECURITY_PROFILE_ORIGIN));
+            assertThat(
+                threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
+                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+            );
             final ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(expectedException);
             return null;
@@ -507,7 +530,10 @@ public class ProfileServiceTests extends ESTestCase {
 
         // Update
         doAnswer(invocation -> {
-            assertThat(threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME), equalTo(SECURITY_PROFILE_ORIGIN));
+            assertThat(
+                threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
+                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+            );
             final ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(expectedException);
             return null;
@@ -519,7 +545,10 @@ public class ProfileServiceTests extends ESTestCase {
 
         // Suggest
         doAnswer(invocation -> {
-            assertThat(threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME), equalTo(SECURITY_PROFILE_ORIGIN));
+            assertThat(
+                threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
+                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+            );
             final ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(expectedException);
             return null;

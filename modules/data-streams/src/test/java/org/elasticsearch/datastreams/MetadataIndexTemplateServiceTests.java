@@ -46,6 +46,7 @@ import static org.mockito.Mockito.when;
  */
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86333")
     public void testValidateTsdbDataStreamsReferringTsdbTemplate() throws Exception {
         var state = ClusterState.EMPTY_STATE;
         final var service = getMetadataIndexTemplateService();

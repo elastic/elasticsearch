@@ -15,11 +15,16 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
+import static org.elasticsearch.health.HealthStatus.RED;
+import static org.elasticsearch.health.HealthStatus.UNKNOWN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class HealthServiceTests extends ESTestCase {
 
@@ -116,11 +121,177 @@ public class HealthServiceTests extends ESTestCase {
         );
     }
 
+    public void testPreflightIndicatorResultsPresent() {
+        var preflight1 = new HealthIndicatorResult("preflight1", "component1", GREEN, null, null, null);
+        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, null);
+        var indicator2 = new HealthIndicatorResult("indicator2", "component1", YELLOW, null, null, null);
+        var indicator3 = new HealthIndicatorResult("indicator3", "component2", GREEN, null, null, null);
+
+        var service = new HealthService(
+            List.of(createMockHealthIndicatorService(preflight1)),
+            List.of(
+                createMockHealthIndicatorService(indicator1),
+                createMockHealthIndicatorService(indicator2),
+                createMockHealthIndicatorService(indicator3)
+            )
+        );
+
+        // Get all indicators returns preflight result mixed in with appropriate component
+        List<HealthComponentResult> health = service.getHealth(null, null, false);
+        assertThat(health.size(), is(equalTo(2)));
+        {
+            HealthComponentResult component1 = health.stream().filter(result -> result.name().equals("component1")).findAny().orElseThrow();
+            assertThat(component1.status(), is(equalTo(YELLOW)));
+            assertThat(component1.indicators(), is(notNullValue()));
+            assertThat(component1.indicators(), containsInAnyOrder(preflight1, indicator1, indicator2));
+        }
+        {
+            HealthComponentResult component2 = health.stream().filter(result -> result.name().equals("component2")).findAny().orElseThrow();
+            assertThat(component2.status(), is(equalTo(GREEN)));
+            assertThat(component2.indicators(), is(notNullValue()));
+            assertThat(component2.indicators(), contains(indicator3));
+        }
+
+        // Getting single component returns preflight result mixed in with appropriate component
+        health = service.getHealth("component1", null, false);
+        assertThat(health.size(), is(equalTo(1)));
+        {
+            HealthComponentResult component1 = health.stream().filter(result -> result.name().equals("component1")).findAny().orElseThrow();
+            assertThat(component1.status(), is(equalTo(YELLOW)));
+            assertThat(component1.indicators(), is(notNullValue()));
+            assertThat(component1.indicators(), containsInAnyOrder(preflight1, indicator1, indicator2));
+        }
+
+        // Getting single indicator returns correct indicator still
+        health = service.getHealth("component1", "indicator2", false);
+        assertThat(health.size(), is(equalTo(1)));
+        {
+            HealthComponentResult component1 = health.stream().filter(result -> result.name().equals("component1")).findAny().orElseThrow();
+            assertThat(component1.indicators(), is(notNullValue()));
+            assertThat(component1.indicators(), contains(indicator2));
+        }
+
+        // Getting single preflight indicator returns preflight indicator correctly
+        health = service.getHealth("component1", "preflight1", false);
+        assertThat(health.size(), is(equalTo(1)));
+        {
+            HealthComponentResult component1 = health.stream().filter(result -> result.name().equals("component1")).findAny().orElseThrow();
+            assertThat(component1.indicators(), is(notNullValue()));
+            assertThat(component1.indicators(), contains(preflight1));
+        }
+    }
+
+    private void assertIndicatorIsUnknownStatus(HealthIndicatorResult result) {
+        assertThat(result.status(), is(equalTo(UNKNOWN)));
+        assertThat(result.summary(), is(equalTo(HealthService.UNKNOWN_RESULT_SUMMARY)));
+    }
+
+    public void testPreflightIndicatorFailureTriggersUnknownResults() {
+        var preflight1 = new HealthIndicatorResult("preflight1", "component1", RED, null, null, null);
+        var preflight2 = new HealthIndicatorResult("preflight2", "component2", GREEN, null, null, null);
+        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, null);
+        var indicator2 = new HealthIndicatorResult("indicator2", "component1", YELLOW, null, null, null);
+        var indicator3 = new HealthIndicatorResult("indicator3", "component2", GREEN, null, null, null);
+
+        var service = new HealthService(
+            List.of(createMockHealthIndicatorService(preflight1), createMockHealthIndicatorService(preflight2)),
+            List.of(
+                createMockHealthIndicatorService(indicator1),
+                createMockHealthIndicatorService(indicator2),
+                createMockHealthIndicatorService(indicator3)
+            )
+        );
+
+        List<HealthComponentResult> health = service.getHealth(null, null, false);
+        assertThat(health.size(), is(equalTo(2)));
+        {
+            HealthComponentResult component1 = health.stream().filter(result -> result.name().equals("component1")).findAny().orElseThrow();
+            // RED because preflight1 was RED
+            assertThat(component1.status(), is(equalTo(RED)));
+            assertThat(component1.indicators(), is(notNullValue()));
+            assertThat(component1.indicators().size(), is(equalTo(3)));
+            // Preflight 1 should be returned as is
+            HealthIndicatorResult preflight1Result = component1.findIndicator("preflight1");
+            assertThat(preflight1Result, is(equalTo(preflight1)));
+            // Indicator 1 should be UNKNOWN
+            HealthIndicatorResult indicator1Result = component1.findIndicator("indicator1");
+            assertIndicatorIsUnknownStatus(indicator1Result);
+            // Indicator 2 should be UNKNOWN
+            HealthIndicatorResult indicator2Result = component1.findIndicator("indicator2");
+            assertIndicatorIsUnknownStatus(indicator2Result);
+        }
+        {
+            HealthComponentResult component2 = health.stream().filter(result -> result.name().equals("component2")).findAny().orElseThrow();
+            // UNKNOWN because indicator3 will be marked UNKNOWN because preflight1 is RED
+            assertThat(component2.status(), is(equalTo(UNKNOWN)));
+            assertThat(component2.indicators(), is(notNullValue()));
+            assertThat(component2.indicators().size(), is(equalTo(2)));
+            // Preflight 2 should be returned as is
+            HealthIndicatorResult preflight2Result = component2.findIndicator("preflight2");
+            assertThat(preflight2Result, is(equalTo(preflight2)));
+            // Indicator 3 should be UNKNOWN
+            HealthIndicatorResult indicator3Result = component2.findIndicator("indicator3");
+            assertIndicatorIsUnknownStatus(indicator3Result);
+        }
+
+        health = service.getHealth("component1", null, false);
+        assertThat(health.size(), is(equalTo(1)));
+        {
+            HealthComponentResult component1 = health.stream().filter(result -> result.name().equals("component1")).findAny().orElseThrow();
+            // RED because preflight1 was RED
+            assertThat(component1.status(), is(equalTo(RED)));
+            assertThat(component1.indicators(), is(notNullValue()));
+            assertThat(component1.indicators().size(), is(equalTo(3)));
+            // Preflight 1 should be returned as is
+            HealthIndicatorResult preflight1Result = component1.findIndicator("preflight1");
+            assertThat(preflight1Result, is(equalTo(preflight1)));
+            // Indicator 1 should be UNKNOWN
+            HealthIndicatorResult indicator1Result = component1.findIndicator("indicator1");
+            assertIndicatorIsUnknownStatus(indicator1Result);
+            // Indicator 2 should be UNKNOWN
+            HealthIndicatorResult indicator2Result = component1.findIndicator("indicator2");
+            assertIndicatorIsUnknownStatus(indicator2Result);
+        }
+
+        health = service.getHealth("component1", "indicator2", false);
+        assertThat(health.size(), is(equalTo(1)));
+        {
+            HealthComponentResult component1 = health.stream().filter(result -> result.name().equals("component1")).findAny().orElseThrow();
+            assertThat(component1.indicators(), is(notNullValue()));
+            assertThat(component1.indicators().size(), is(equalTo(1)));
+            // Indicator 2 should be UNKNOWN
+            HealthIndicatorResult indicator2Result = component1.findIndicator("indicator2");
+            assertIndicatorIsUnknownStatus(indicator2Result);
+        }
+
+        health = service.getHealth("component1", "preflight1", false);
+        assertThat(health.size(), is(equalTo(1)));
+        {
+            HealthComponentResult component1 = health.stream().filter(result -> result.name().equals("component1")).findAny().orElseThrow();
+            assertThat(component1.indicators(), is(notNullValue()));
+            assertThat(component1.indicators().size(), is(equalTo(1)));
+            // Preflight 1 should be returned as is
+            HealthIndicatorResult preflight1Result = component1.findIndicator("preflight1");
+            assertThat(preflight1Result, is(equalTo(preflight1)));
+        }
+    }
+
     private static HealthIndicatorService createMockHealthIndicatorService(HealthIndicatorResult result) {
-        var healthIndicatorService = mock(HealthIndicatorService.class);
-        when(healthIndicatorService.calculate(false)).thenReturn(result);
-        when(healthIndicatorService.component()).thenReturn(result.component());
-        when(healthIndicatorService.name()).thenReturn(result.name());
-        return healthIndicatorService;
+        return new HealthIndicatorService() {
+            @Override
+            public String name() {
+                return result.name();
+            }
+
+            @Override
+            public String component() {
+                return result.component();
+            }
+
+            @Override
+            public HealthIndicatorResult calculate(boolean calculateDetails) {
+                return result;
+            }
+        };
     }
 }

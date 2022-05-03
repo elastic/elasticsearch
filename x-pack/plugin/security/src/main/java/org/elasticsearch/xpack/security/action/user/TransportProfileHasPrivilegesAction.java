@@ -74,7 +74,7 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
             }
             final Set<String> hasPrivilegeProfiles = Collections.synchronizedSet(new HashSet<>());
             final Set<String> errorProfiles = Collections.synchronizedSet(new HashSet<>(profileSubjectsAndFailures.failureProfileUids()));
-            final Runnable allDone = () -> listener.onResponse(new ProfileHasPrivilegesResponse(Set.of(), errorProfiles));
+            final Runnable allDone = () -> listener.onResponse(new ProfileHasPrivilegesResponse(hasPrivilegeProfiles, errorProfiles));
             final Collection<Map.Entry<String, Subject>> profileUidAndSubjects = profileSubjectsAndFailures.profileUidToSubject()
                 .entrySet();
             final AtomicInteger counter = new AtomicInteger(profileUidAndSubjects.size());

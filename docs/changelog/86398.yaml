@@ -1,5 +1,5 @@
 pr: 86398
-summary: User API actions allow users with names matching internal usernames
+summary: User API actions allow use of internal usernames
 area: Security
 type: enhancement
 issues:

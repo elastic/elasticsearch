@@ -445,52 +445,34 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     public String toString(String prefix) {
-        final StringBuilder information = new StringBuilder().append(prefix)
-            .append("- Plugin information:\n")
-            .append(prefix)
-            .append("Name: ")
-            .append(name)
-            .append("\n")
-            .append(prefix)
-            .append("Description: ")
-            .append(description)
-            .append("\n")
-            .append(prefix)
-            .append("Version: ")
-            .append(version)
-            .append("\n")
-            .append(prefix)
-            .append("Elasticsearch Version: ")
-            .append(elasticsearchVersion)
-            .append("\n")
-            .append(prefix)
-            .append("Java Version: ")
-            .append(javaVersion)
-            .append("\n")
-            .append(prefix)
-            .append("Native Controller: ")
-            .append(hasNativeController)
-            .append("\n")
-            .append(prefix)
-            .append("Licensed: ")
-            .append(isLicensed)
-            .append("\n")
-            .append(prefix)
-            .append("Type: ")
-            .append(type)
-            .append("\n");
+        final StringBuilder information = new StringBuilder();
+
+        addln(information, prefix, "- Plugin information:", "");
+        addln(information, prefix, "Name: ", name);
+        addln(information, prefix, "Description: ", description);
+        addln(information, prefix, "Version: ", version);
+        addln(information, prefix, "Elasticsearch Version: ", elasticsearchVersion);
+        addln(information, prefix, "Java Version: ", javaVersion);
+        addln(information, prefix, "Native Controller: ", hasNativeController);
+        addln(information, prefix, "Licensed: ", isLicensed);
+        addln(information, prefix, "Type: ", type);
 
         if (type == PluginType.BOOTSTRAP) {
-            information.append(prefix).append("Java Opts: ").append(javaOpts).append("\n");
+            addln(information, prefix, "Java Opts: ", javaOpts);
         }
 
-        information.append(prefix)
-            .append("Extended Plugins: ")
-            .append(extendedPlugins)
-            .append("\n")
-            .append(prefix)
-            .append(" * Classname: ")
-            .append(classname);
+        addln(information, prefix, "Extended Plugins: ", extendedPlugins);
+        add(information, prefix, " * Classname: ", classname);
+
         return information.toString();
+    }
+
+    private static void add(StringBuilder builder, String prefix, String field, Object value) {
+        builder.append(prefix).append(field).append(value);
+    }
+
+    private static void addln(StringBuilder builder, String prefix, String field, Object value) {
+        add(builder, prefix, field, value);
+        builder.append(System.lineSeparator());
     }
 }

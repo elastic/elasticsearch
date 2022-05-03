@@ -1595,7 +1595,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable
-            @SuppressWarnings({"unchecked", "rawtype"})
+            @SuppressWarnings({ "unchecked", "rawtypes" })
             Map.Entry<Integer, Set<String>> denseInSyncAllocationIds[] = new Map.Entry[numberOfShards];
             inSyncAllocationIds.entrySet().forEach(e -> denseInSyncAllocationIds[e.getKey()] = e);
             for (int i = 0; i < numberOfShards; i++) {

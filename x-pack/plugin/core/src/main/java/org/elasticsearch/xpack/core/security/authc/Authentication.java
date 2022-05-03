@@ -76,13 +76,7 @@ public class Authentication implements ToXContentObject {
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
 
-    // TODO: remove this constructor. all usages have been removed
-    public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy) {
-        this(user, authenticatedBy, lookedUpBy, Version.CURRENT, AuthenticationType.REALM, Collections.emptyMap());
-    }
-
-    // TODO: make this constructor private to favour dedicate methods for instantiation Authentication
-    public Authentication(
+    private Authentication(
         User user,
         RealmRef authenticatedBy,
         RealmRef lookedUpBy,

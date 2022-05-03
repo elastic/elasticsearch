@@ -100,7 +100,7 @@ public class SuggestProfilesRequest extends ActionRequest {
 
     @Override
     public String getDescription() {
-        return "SuggestProfiles{" + "name='" + name + '\'' + ", hint=" + hint + '}';
+        return "SuggestProfiles{" + "name='" + name + "', hint=" + hint + '}';
     }
 
     public static class Hint implements Writeable {

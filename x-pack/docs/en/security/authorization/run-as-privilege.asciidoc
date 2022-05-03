@@ -34,12 +34,19 @@ To submit a request as another user, you specify the user in the
 curl -H "es-security-runas-user: jacknich"  -u es_admin -XGET 'http://localhost:9200/'
 ----
 
+[[run-as-privilege-apply]]
 == Apply the `run_as` privilege to roles
 
 You can apply the `run_as` privilege when creating roles with the
 <<security-api-put-role,create or update roles API>>. Users who are assigned
 a role that contains the `run_as` privilege inherit all privileges from their
 role, and can also submit requests on behalf of the indicated users.
+
+When <<authorization_realms,delegated authorization>> is disabled, {es} handles
+role mapping. If delegated authorization is enabled, {es} checks the defined
+roles for the `run_as` user in all configured realms. If the `run_as` privilege
+is present and delegated authorization is enabled, {es} searches all configured
+realms for the `run_as` user.
 
 Consider an admin role and an analyst role. The admin role has higher privileges,
 but might also want to submit requests as another user to test and verify their

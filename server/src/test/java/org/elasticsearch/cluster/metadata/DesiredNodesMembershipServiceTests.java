@@ -66,11 +66,11 @@ public class DesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
         applyClusterState("add new nodes", this::withNewNodes);
 
         assertThat(DesiredNodesMetadata.fromClusterState(clusterService.state()), is(equalTo(DesiredNodesMetadata.EMPTY)));
-        assertThat(tracker.trackedMembers(), is(equalTo(0)));
+        assertThat(tracker.trackedMembersCount(), is(equalTo(0)));
 
         applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
 
-        assertThat(tracker.trackedMembers(), is(greaterThan(0)));
+        assertThat(tracker.trackedMembersCount(), is(greaterThan(0)));
 
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
         assertThat(desiredNodes.nodes(), is(not(empty())));
@@ -95,11 +95,11 @@ public class DesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
         applyClusterState("add new nodes", this::withNewNodes);
 
         assertThat(DesiredNodesMetadata.fromClusterState(clusterService.state()), is(equalTo(DesiredNodesMetadata.EMPTY)));
-        assertThat(tracker.trackedMembers(), is(equalTo(0)));
+        assertThat(tracker.trackedMembersCount(), is(equalTo(0)));
 
         applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
 
-        assertThat(tracker.trackedMembers(), is(greaterThan(0)));
+        assertThat(tracker.trackedMembersCount(), is(greaterThan(0)));
 
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
         assertThat(desiredNodes.nodes(), is(not(empty())));
@@ -138,11 +138,11 @@ public class DesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
 
         applyClusterState("add a few nodes", this::withNewNodes);
 
-        assertThat(tracker.trackedMembers(), is(equalTo(0)));
+        assertThat(tracker.trackedMembersCount(), is(equalTo(0)));
 
         applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
 
-        assertThat(tracker.trackedMembers(), is(greaterThan(0)));
+        assertThat(tracker.trackedMembersCount(), is(greaterThan(0)));
 
         final var clusterState = clusterService.state();
         final var originalDesiredNodes = DesiredNodes.latestFromClusterState(clusterState);

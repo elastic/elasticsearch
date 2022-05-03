@@ -35,10 +35,7 @@ public class DesiredNodesMembershipService implements ClusterStateListener {
         final var clusterState = event.state();
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
         if (desiredNodes == null) {
-            final var previousDesiredNodes = DesiredNodes.latestFromClusterState(event.previousState());
-            if (previousDesiredNodes != null) {
-                members.clear();
-            }
+            members.clear();
             return;
         }
 
@@ -76,7 +73,7 @@ public class DesiredNodesMembershipService implements ClusterStateListener {
     }
 
     // visible for testing
-    synchronized int trackedMembers() {
+    synchronized int trackedMembersCount() {
         return members.size();
     }
 }

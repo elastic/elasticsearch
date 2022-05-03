@@ -50,6 +50,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anything;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -72,14 +73,14 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     private void assertOk(String... args) throws Exception {
-        assertOkWithOutput(emptyString(), args);
+        assertOkWithOutput(emptyString(), emptyString(), args);
     }
 
-    private void assertOkWithOutput(Matcher<String> matcher, String... args) throws Exception {
+    private void assertOkWithOutput(Matcher<String> outMatcher, Matcher<String> errMatcher, String... args) throws Exception {
         int status = executeMain(args);
         assertThat(status, equalTo(ExitCodes.OK));
-        assertThat(terminal.getErrorOutput(), emptyString());
-        assertThat(terminal.getOutput(), matcher);
+        assertThat(terminal.getErrorOutput(), errMatcher);
+        assertThat(terminal.getOutput(), outMatcher);
     }
 
     private void assertUsage(Matcher<String> matcher, String... args) throws Exception {
@@ -119,9 +120,9 @@ public class ServerCliTests extends CommandTestCase {
             containsString("JVM: " + JvmInfo.jvmInfo().version())
         );
         terminal.reset();
-        assertOkWithOutput(versionOutput, "-V");
+        assertOkWithOutput(versionOutput, emptyString(), "-V");
         terminal.reset();
-        assertOkWithOutput(versionOutput, "--version");
+        assertOkWithOutput(versionOutput, emptyString(), "--version");
     }
 
     public void testPositionalArgs() throws Exception {
@@ -219,7 +220,7 @@ public class ServerCliTests extends CommandTestCase {
 
     public void testAutoConfig() throws Exception {
         autoConfigCallback = (t, options, env, processInfo) -> { t.println("message from auto config"); };
-        assertOkWithOutput(containsString("message from auto config"));
+        assertOkWithOutput(containsString("message from auto config"), emptyString());
     }
 
     public void assertAutoConfigError(int autoConfigExitCode, int expectedMainExitCode, String... args) throws Exception {
@@ -246,12 +247,13 @@ public class ServerCliTests extends CommandTestCase {
 
     public void assertKeystorePassword(String password) throws Exception {
         terminal.reset();
-        if (password != null && password.isEmpty() == false) {
+        boolean hasPassword = password != null && password.isEmpty() == false;
+        if (hasPassword) {
             terminal.addSecretInput(password);
         }
         Path configDir = esHomeDir.resolve("config");
         Files.createDirectories(configDir);
-        if (password != null) {
+        if (hasPassword) {
             try (KeyStoreWrapper keystore = KeyStoreWrapper.create()) {
                 keystore.save(configDir, password.toCharArray(), false);
             }
@@ -259,10 +261,10 @@ public class ServerCliTests extends CommandTestCase {
         String expectedPassword = password == null ? "" : password;
         mainCallback = (args, stdout, stderr, exitCode) -> { assertThat(args.keystorePassword().toString(), equalTo(expectedPassword)); };
         autoConfigCallback = (t, options, env, processInfo) -> {
-            char[] gotPassword = t.readSecret("keystore password");
+            char[] gotPassword = t.readSecret("");
             assertThat(gotPassword, equalTo(expectedPassword.toCharArray()));
         };
-        assertOk();
+        assertOkWithOutput(emptyString(), hasPassword ? containsString("Enter password") : emptyString());
     }
 
     public void testKeystorePassword() throws Exception {

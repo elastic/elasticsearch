@@ -92,21 +92,17 @@ class ServerCli extends EnvironmentAwareCommand {
         }
 
         // setup security
-        terminal.errorPrintln("Configuring security");
         final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
         env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
 
-        terminal.errorPrintln("Starting process");
         // start Elasticsearch, stashing the process into a volatile so the close via the shutdown handler will kill the process
         this.process = createProcess(processInfo, env.configFile(), env.pluginsFile());
         final Process process = this.process; // avoid volatile read locally, we only set it once above
         logger.info("ES PID: " + process.pid());
-        terminal.errorPrintln("Starting error pump");
         final ErrorPumpThread errorPump = new ErrorPumpThread(terminal, process.getErrorStream());
         errorPump.start();
         sendArgs(options, keystorePassword, env, process.getOutputStream());
 
-        terminal.errorPrintln("Waiting for error pump");
         // Read from stderr until we get a signal back that ES is either ready or it had an error.
         // If we are running in the foreground, this pump will never exit.
         errorPump.join();

@@ -74,8 +74,9 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     Collections.singletonList(
                         new HealthIndicatorImpact(
                             3,
-                            "Indices are not being rolled over, which could lead to future instability.",
-                            List.of(ImpactArea.SEARCH)
+                            "Automatic index lifecycle and data retention management is disabled. The performance and stability of your "
+                                + "system could be impacted.",
+                            List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                         )
                     ),
                     Collections.emptyList()

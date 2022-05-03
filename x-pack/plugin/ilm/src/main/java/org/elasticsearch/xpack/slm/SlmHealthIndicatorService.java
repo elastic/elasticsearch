@@ -69,7 +69,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 new HealthIndicatorImpact(
                     3,
                     "Scheduled snapshots are not running, which could lead to future data loss.",
-                    List.of(ImpactArea.SEARCH)
+                    List.of(ImpactArea.BACKUP)
                 )
             );
             return createIndicator(

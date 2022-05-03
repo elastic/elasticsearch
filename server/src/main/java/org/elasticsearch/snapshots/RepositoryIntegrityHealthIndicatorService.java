@@ -21,6 +21,7 @@ import org.elasticsearch.repositories.RepositoryData;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.Strings.collectionToDelimitedStringWithLimit;
@@ -93,9 +94,13 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         }
         List<HealthIndicatorImpact> impacts = Collections.singletonList(
             new HealthIndicatorImpact(
-                2,
-                "Snapshots in corrupted repositories cannot be restored. Data loss is possible.",
-                List.of(ImpactArea.SEARCH)
+                1,
+                String.format(
+                    Locale.ROOT,
+                    "Snapshots in corrupted repositories %s cannot be restored. Data loss is possible.",
+                    limitSize(corrupted, 10)
+                ),
+                List.of(ImpactArea.BACKUP)
             )
         );
         return createIndicator(

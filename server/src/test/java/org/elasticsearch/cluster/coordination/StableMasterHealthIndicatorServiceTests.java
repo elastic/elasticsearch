@@ -173,7 +173,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         assertThat(result.status(), equalTo(HealthStatus.GREEN));
         assertThat(result.summary(), equalTo("The cluster has a stable master node"));
 
-        List<DiscoveryNode> sameAsLocalHistory = localMasterHistory.getImmutableView();
+        List<DiscoveryNode> sameAsLocalHistory = localMasterHistory.getNodes();
         when(masterHistoryService.getRemoteMasterHistory(any())).thenReturn(sameAsLocalHistory);
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
@@ -282,7 +282,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
-        List<DiscoveryNode> remoteHistory = localMasterHistory.getImmutableView();
+        List<DiscoveryNode> remoteHistory = localMasterHistory.getNodes();
         when(masterHistoryService.getRemoteMasterHistory(any())).thenReturn(remoteHistory);
         HealthIndicatorResult result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));

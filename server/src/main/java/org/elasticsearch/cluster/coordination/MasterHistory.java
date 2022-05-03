@@ -21,7 +21,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
  */
 public class MasterHistory implements ClusterStateListener {
     private volatile List<TimeAndMaster> masterHistory;
-    Supplier<Long> nowSupplier; // Can be changed for testing
+    private LongSupplier currentTimeMillisSupplier;
     /**
      * The maximum amount of time that the master history covers.
      */
@@ -39,7 +39,7 @@ public class MasterHistory implements ClusterStateListener {
 
     public MasterHistory(ThreadPool threadPool, ClusterService clusterService) {
         this.masterHistory = new ArrayList<>();
-        this.nowSupplier = threadPool::relativeTimeInMillis;
+        this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
         clusterService.addListener(this);
     }
 
@@ -49,7 +49,7 @@ public class MasterHistory implements ClusterStateListener {
         DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
         if (currentMaster == null || currentMaster.equals(previousMaster) == false || masterHistory.isEmpty()) {
             List<TimeAndMaster> newMasterHistory = new ArrayList<>(masterHistory);
-            newMasterHistory.add(new TimeAndMaster(nowSupplier.get(), currentMaster));
+            newMasterHistory.add(new TimeAndMaster(currentTimeMillisSupplier.getAsLong(), currentMaster));
             masterHistory = removeOldMasterHistory(newMasterHistory);
         }
     }
@@ -85,7 +85,7 @@ public class MasterHistory implements ClusterStateListener {
      * @return True if non-null masters have transitioned to null n or more times.
      */
     public boolean hasMasterGoneNullAtLeastNTimes(int n) {
-        return hasMasterGoneNullAtLeastNTimes(getImmutableView(), n);
+        return hasMasterGoneNullAtLeastNTimes(getNodes(), n);
     }
 
     /**
@@ -149,7 +149,7 @@ public class MasterHistory implements ClusterStateListener {
      */
     public boolean hasSeenMasterInLastNSeconds(int n) {
         List<TimeAndMaster> masterHistoryCopy = getRecentMasterHistory(masterHistory);
-        long now = nowSupplier.get();
+        long now = currentTimeMillisSupplier.getAsLong();
         TimeValue nSeconds = new TimeValue(n, TimeUnit.SECONDS);
         long nSecondsAgo = now - nSeconds.getMillis();
         return getMostRecentMaster() != null
@@ -166,7 +166,7 @@ public class MasterHistory implements ClusterStateListener {
         if (history.size() < 2) {
             return history;
         }
-        long now = nowSupplier.get();
+        long now = currentTimeMillisSupplier.getAsLong();
         long oldestRelevantHistoryTime = now - MAX_HISTORY_AGE.getMillis();
         TimeAndMaster mostRecent = history.isEmpty() ? null : history.get(history.size() - 1);
         List<TimeAndMaster> filteredHistory = history.stream()
@@ -186,7 +186,7 @@ public class MasterHistory implements ClusterStateListener {
         if (possiblyOldMasterHistory.size() < 2) {
             return new ArrayList<>(possiblyOldMasterHistory);
         }
-        long now = nowSupplier.get();
+        long now = currentTimeMillisSupplier.getAsLong();
         long oldestRelevantHistoryTime = now - MAX_HISTORY_AGE.getMillis();
         TimeAndMaster mostRecent = possiblyOldMasterHistory.isEmpty()
             ? null
@@ -206,7 +206,7 @@ public class MasterHistory implements ClusterStateListener {
      * intentionally not included because they cannot be compared across machines.
      * @return An immutable view of this master history
      */
-    public List<DiscoveryNode> getImmutableView() {
+    public List<DiscoveryNode> getNodes() {
         List<TimeAndMaster> masterHistoryCopy = getRecentMasterHistory(masterHistory);
         return masterHistoryCopy.stream().map(TimeAndMaster::master).toList();
     }

@@ -73,7 +73,7 @@ public class MasterHistoryTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
         long oneHourAgo = System.currentTimeMillis() - (60 * 60 * 1000);
-        masterHistory.nowSupplier = () -> oneHourAgo;
+        when(threadPool.relativeTimeInMillis()).thenReturn(oneHourAgo);
         assertFalse(masterHistory.hasMasterGoneNullAtLeastNTimes(3));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
         assertFalse(masterHistory.hasMasterGoneNullAtLeastNTimes(3));
@@ -91,7 +91,7 @@ public class MasterHistoryTests extends ESTestCase {
         assertTrue(masterHistory.hasMasterGoneNullAtLeastNTimes(3));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         assertTrue(masterHistory.hasMasterGoneNullAtLeastNTimes(3));
-        masterHistory.nowSupplier = System::currentTimeMillis;
+        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
         assertFalse(masterHistory.hasMasterGoneNullAtLeastNTimes(3));
     }
 
@@ -100,13 +100,13 @@ public class MasterHistoryTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
         long oneHourAgo = System.currentTimeMillis() - (60 * 60 * 1000);
-        masterHistory.nowSupplier = () -> oneHourAgo;
+        when(threadPool.relativeTimeInMillis()).thenReturn(oneHourAgo);
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node1MasterClusterState));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, node2MasterClusterState));
         assertThat(masterHistory.getMostRecentMaster(), equalTo(node3MasterClusterState.nodes().getMasterNode()));
-        masterHistory.nowSupplier = System::currentTimeMillis;
+        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
         assertThat(masterHistory.getMostRecentMaster(), equalTo(node3MasterClusterState.nodes().getMasterNode()));
         assertTrue(masterHistory.hasSeenMasterInLastNSeconds(5));
     }
@@ -115,26 +115,26 @@ public class MasterHistoryTests extends ESTestCase {
         var clusterService = mock(ClusterService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
-        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getImmutableView()), equalTo(0));
+        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getNodes()), equalTo(0));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
-        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getImmutableView()), equalTo(0)); // The first master
-                                                                                                                  // doesn't count as a
-                                                                                                                  // change
+        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getNodes()), equalTo(0)); // The first master
+                                                                                                          // doesn't count as a
+                                                                                                          // change
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
-        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getImmutableView()), equalTo(0)); // Nulls don't count
+        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getNodes()), equalTo(0)); // Nulls don't count
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
-        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getImmutableView()), equalTo(0)); // Still no change in the
-                                                                                                                  // last non-null master
+        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getNodes()), equalTo(0)); // Still no change in the
+                                                                                                          // last non-null master
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
-        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getImmutableView()), equalTo(0)); // Nulls don't count
+        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getNodes()), equalTo(0)); // Nulls don't count
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node1MasterClusterState));
-        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getImmutableView()), equalTo(1)); // Finally a new non-null
-                                                                                                                  // master
+        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getNodes()), equalTo(1)); // Finally a new non-null
+                                                                                                          // master
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node2MasterClusterState));
-        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getImmutableView()), equalTo(1)); // Nulls don't count
+        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getNodes()), equalTo(1)); // Nulls don't count
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
-        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getImmutableView()), equalTo(2)); // Back to node1, but it's
-                                                                                                                  // a change from node2
+        assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getNodes()), equalTo(2)); // Back to node1, but it's
+                                                                                                          // a change from node2
     }
 
     private static String randomNodeId() {

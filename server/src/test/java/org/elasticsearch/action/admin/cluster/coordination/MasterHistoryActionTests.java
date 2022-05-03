@@ -72,6 +72,6 @@ public class MasterHistoryActionTests extends ESTestCase {
             }
         };
         action.doExecute(null, new MasterHistoryAction.Request(), listener);
-        assertEquals(masterHistory.getImmutableView(), result.get(0));
+        assertEquals(masterHistory.getNodes(), result.get(0));
     }
 }

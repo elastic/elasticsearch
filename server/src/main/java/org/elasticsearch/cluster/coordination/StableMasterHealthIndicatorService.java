@@ -109,7 +109,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @return The HealthIndicatorResult for the given localMasterHistory
      */
     private HealthIndicatorResult calculateWhenHaveSeenMasterRecently(MasterHistory localMasterHistory, boolean includeDetails) {
-        int masterChanges = MasterHistory.getNumberOfMasterIdentityChanges(localMasterHistory.getImmutableView());
+        int masterChanges = MasterHistory.getNumberOfMasterIdentityChanges(localMasterHistory.getNodes());
         logger.trace("Have seen a master in the last {}): {}", VERY_RECENT_PAST, localMasterHistory.getMostRecentNonNullMaster());
         final HealthIndicatorResult result;
         if (masterChanges > ACCEPTABLE_IDENTITY_CHANGES) {
@@ -155,7 +155,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             )
         );
         if (includeDetails) {
-            List<DiscoveryNode> recentMasters = localMasterHistory.getImmutableView();
+            List<DiscoveryNode> recentMasters = localMasterHistory.getNodes();
             details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
             details.put("recent_masters", recentMasters.stream().map(DiscoveryNodeXContentObject::new).toList());
         }

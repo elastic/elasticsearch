@@ -278,6 +278,15 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         testAddUserAndRoleThenAuth(randomInternalUsername());
     }
 
+    public void testAuthWithInternalUsernameFailsWithoutCorrespondingUser() {
+        String token = basicAuthHeaderValue(randomInternalUsername(), new SecureString("s3krit-password"));
+        ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get()
+        );
+        assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
+    }
+
     public void testAddUserAndRoleThenAuth(String username) {
         logger.error("--> creating role");
         preparePutRole("test_role").cluster("all")

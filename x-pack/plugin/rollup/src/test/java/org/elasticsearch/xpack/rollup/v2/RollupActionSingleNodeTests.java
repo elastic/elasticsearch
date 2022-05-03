@@ -561,7 +561,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES),
+            new ComposableIndexTemplate.DataStreamTemplate(false, false),
             null
         );
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(dataStreamName + "_template")

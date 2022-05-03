@@ -95,7 +95,7 @@ public class ProfileIT extends ESRestTestCase {
         final Request profileHasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
         profileHasPrivilegesRequest.setJsonEntity("""
             {
-              "uids": ["%s"],
+              "uids": ["some_missing_profile", "%s"],
               "privileges": {
                 "index": [
                   {

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -98,61 +99,15 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         assertThat(throwableRef.get().getMessage(), containsString("is anonymous and cannot be modified"));
         verifyNoMoreInteractions(usersStore);
     }
-
-    public void testInternalUsers() {
-        final Hasher hasher = getFastStoredHashAlgoForTests();
-        NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        Settings passwordHashingSettings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hasher.name()).build();
-        TransportService transportService = new TransportService(
-            Settings.EMPTY,
-            mock(Transport.class),
-            mock(ThreadPool.class),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> null,
-            null,
-            Collections.emptySet()
-        );
-        TransportChangePasswordAction action = new TransportChangePasswordAction(
-            passwordHashingSettings,
-            transportService,
-            mock(ActionFilters.class),
-            usersStore
-        );
-        // Request will fail before the request hashing algorithm is checked, but we use the same algorithm as in settings for consistency
-        ChangePasswordRequest request = new ChangePasswordRequest();
-        request.username(
-            randomFrom(
-                SystemUser.INSTANCE.principal(),
-                XPackUser.INSTANCE.principal(),
-                XPackSecurityUser.INSTANCE.principal(),
-                AsyncSearchUser.INSTANCE.principal()
-            )
-        );
-        request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
-
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<>() {
-            @Override
-            public void onResponse(ActionResponse.Empty changePasswordResponse) {
-                responseRef.set(changePasswordResponse);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throwableRef.set(e);
-            }
-        });
-
-        assertThat(responseRef.get(), is(nullValue()));
-        assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
-        assertThat(throwableRef.get().getMessage(), containsString("is internal"));
-        verifyNoMoreInteractions(usersStore);
-    }
-
+    
     public void testValidUser() {
         final Hasher hasher = getFastStoredHashAlgoForTests();
-        final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
+        final User user = randomFrom(
+            new ElasticUser(true),
+            new KibanaUser(true),
+            new User("joe"),
+            new User(SystemUser.INSTANCE.principal())
+        );
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());

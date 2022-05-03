@@ -45,9 +45,6 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
         if (AnonymousUser.isAnonymousUsername(username, settings)) {
             listener.onFailure(new IllegalArgumentException("user [" + username + "] is anonymous and cannot be modified via the API"));
             return;
-        } else if (User.isInternalUsername(username)) {
-            listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
-            return;
         }
         final String requestPwdHashAlgo = Hasher.resolveFromHash(request.passwordHash()).name();
         final String configPwdHashAlgo = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings)).name();

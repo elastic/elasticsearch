@@ -202,7 +202,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
 
             // First, test that we don't request any components or indicators, and get back everything (but no details):
             {
-                var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
+                var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(false)).get();
 
                 assertThat(
                     response.getStatus(),
@@ -264,7 +264,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
             {
                 var response = client.execute(
                     GetHealthAction.INSTANCE,
-                    new GetHealthAction.Request(DATA_COMPONENT_NAME, ILM_INDICATOR_NAME)
+                    new GetHealthAction.Request(DATA_COMPONENT_NAME, ILM_INDICATOR_NAME, true)
                 ).get();
                 assertNull(response.getStatus());
                 assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
@@ -293,7 +293,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
 
             // Test that if we specify a component name and no indicator name that we get all indicators for that component:
             {
-                var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(DATA_COMPONENT_NAME, null)).get();
+                var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(DATA_COMPONENT_NAME, null, true)).get();
                 assertNull(response.getStatus());
                 assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
                 assertThat(
@@ -334,7 +334,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     ExecutionException.class,
                     () -> client.execute(
                         GetHealthAction.INSTANCE,
-                        new GetHealthAction.Request(NONEXISTENT_COMPONENT_NAME, NONEXISTENT_INDICATOR_NAME)
+                        new GetHealthAction.Request(NONEXISTENT_COMPONENT_NAME, NONEXISTENT_INDICATOR_NAME, randomBoolean())
                     ).get()
                 );
                 assertThat(exception.getCause(), instanceOf(ResourceNotFoundException.class));

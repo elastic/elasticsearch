@@ -6,14 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.windows_service;
+package org.elasticsearch.windows.service;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MultiCommand;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,58 +27,47 @@ import java.util.Map;
 class WindowsServiceCli extends MultiCommand {
 
     private static final Command installCommand = new ProcrunCommand("Install Elasticsearch as a Windows Service", "install") {
-        private final Path javaHome;
-        private final Path javaDll;
-        {
-            javaHome = Paths.get(System.getProperty("java.home"));
-            Path dll = javaHome.resolve("jre/bin/server/jvm.dll");
-            if (Files.exists(dll) == false) {
-                dll = javaHome.resolve("bin/server/jvm.dll");
-            }
-            javaDll = dll;
-        }
-
         @Override
-        protected String getAdditionalArgs(String serviceId, Path esHome, Map<String, String> env) {
+        protected String getAdditionalArgs(String serviceId, ProcessInfo pinfo) {
             List<String> args = new ArrayList<>();
-            addArg(args, "--Startup", env.getOrDefault("ES_START_TYPE", "manual"));
-            addArg(args, "--StopTimeout", env.getOrDefault("ES_STOP_TIMEOUT", "0"));
+            addArg(args, "--Startup", pinfo.envVars().getOrDefault("ES_START_TYPE", "manual"));
+            addArg(args, "--StopTimeout", pinfo.envVars().getOrDefault("ES_STOP_TIMEOUT", "0"));
             addArg(args, "--StartClass", "org.elasticsearch.launcher.CliToolLauncher");
             addArg(args, "--StartMethod", "main");
             addArg(args, "++StartParams", "--quiet");
             addArg(args, "--StopClass", "org.elasticsearch.launcher.CliToolLauncher");
             addArg(args, "--StopMethod", "close");
-            addArg(args, "--Classpath", System.getProperty("java.class.path"));
+            addArg(args, "--Classpath", pinfo.sysprops().get("java.class.path"));
             addArg(args, "--JvmMs", "4m");
             addArg(args, "--JvmMx", "64m");
-            addArg(args, "--JvmOptions", getJvmOptions());
+            addArg(args, "--JvmOptions", getJvmOptions(pinfo.sysprops()));
             addArg(args, "--PidFile", "%s.pid".formatted(serviceId));
             addArg(
                 args,
                 "--DisplayName",
-                env.getOrDefault("SERVICE_DISPLAY_NAME", "Elasticsearch %s (%s)".formatted(Version.CURRENT, serviceId))
+                pinfo.envVars().getOrDefault("SERVICE_DISPLAY_NAME", "Elasticsearch %s (%s)".formatted(Version.CURRENT, serviceId))
             );
             addArg(
                 args,
                 "--Description",
-                env.getOrDefault("SERVICE_DESCRIPTION", "Elasticsearch ES_VERSION Windows Service - https://elastic.co")
+                pinfo.envVars().getOrDefault("SERVICE_DESCRIPTION", "Elasticsearch ES_VERSION Windows Service - https://elastic.co")
             );
-            addArg(args, "--Jvm", javaDll.toString());
+            addArg(args, "--Jvm", getJvmDll(getJavaHome(pinfo.sysprops())).toString());
             addArg(args, "--StartMode", "jvm");
-            addArg(args, "--StartPath", esHome.toString());
+            addArg(args, "--StartPath", pinfo.workingDir().toString());
             addArg(args, "++Environment", "LAUNCHER_TOOLNAME=server");
             addArg(args, "++Environment", "LAUNCHER_LIBS=lib/tools/server-cli");
 
-            String serviceUsername = env.get("SERVICE_USERNAME");
+            String serviceUsername = pinfo.envVars().get("SERVICE_USERNAME");
             if (serviceUsername != null) {
-                String servicePassword = env.get("SERVICE_PASSWORD");
+                String servicePassword = pinfo.envVars().get("SERVICE_PASSWORD");
                 if (servicePassword != null) {
                     addArg(args, "--ServiceUser", serviceUsername);
                     addArg(args, "--ServicePassword", servicePassword);
                 } // else WHY ISN'T THIS AN ERROR? username provided but no password...
             }
 
-            String serviceParams = env.get("SERVICE_PARAMS");
+            String serviceParams = pinfo.envVars().get("SERVICE_PARAMS");
             if (serviceParams != null) {
                 args.add(serviceParams);
             }
@@ -92,21 +83,36 @@ class WindowsServiceCli extends MultiCommand {
             args.add(value);
         }
 
-        private static String getJvmOptions() {
+        @SuppressForbidden(reason = "get java home path to pass through")
+        private static Path getJavaHome(Map<String, String> sysprops) {
+            return Paths.get(sysprops.get("java.home"));
+        }
+
+        private static Path getJvmDll(Path javaHome) {
+            Path dll = javaHome.resolve("jre/bin/server/jvm.dll");
+            if (Files.exists(dll) == false) {
+                dll = javaHome.resolve("bin/server/jvm.dll");
+            }
+            return dll;
+        }
+
+        private static String getJvmOptions(Map<String, String> sysprops) {
             List<String> jvmOptions = new ArrayList<>();
             jvmOptions.add("-XX:+UseSerialGC");
             // passthrough these properties
             for (var prop : List.of("es.path.home", "es.path.conf", "es.distribution.type")) {
-                jvmOptions.add("-D%s=%s".formatted(prop, System.getProperty(prop)));
+                jvmOptions.add("-D%s=%s".formatted(prop, sysprops.get(prop)));
             }
             return String.join(";", jvmOptions);
         }
 
         @Override
-        protected void preExecute(Terminal terminal, String serviceId) throws UserException {
+        protected void preExecute(Terminal terminal, ProcessInfo pinfo, String serviceId) throws UserException {
+            Path javaHome = getJavaHome(pinfo.sysprops());
             terminal.println("Installing service : %s".formatted(serviceId));
             terminal.println("Using ES_JAVA_HOME : %s".formatted(javaHome.toString()));
 
+            Path javaDll = getJvmDll(javaHome);
             if (Files.exists(javaDll) == false) {
                 throw new UserException(
                     ExitCodes.CONFIG,

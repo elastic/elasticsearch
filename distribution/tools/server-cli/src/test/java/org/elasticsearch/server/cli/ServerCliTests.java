@@ -50,7 +50,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.anything;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -72,23 +71,10 @@ public class ServerCliTests extends CommandTestCase {
         mockProcessExecutor.shutdown();
     }
 
-    private void assertOk(String... args) throws Exception {
-        assertOkWithOutput(emptyString(), emptyString(), args);
-    }
-
-    private void assertOkWithOutput(Matcher<String> outMatcher, Matcher<String> errMatcher, String... args) throws Exception {
-        int status = executeMain(args);
-        assertThat(status, equalTo(ExitCodes.OK));
-        assertThat(terminal.getErrorOutput(), errMatcher);
-        assertThat(terminal.getOutput(), outMatcher);
-    }
-
-    private void assertUsage(Matcher<String> matcher, String... args) throws Exception {
-        terminal.reset();
+    @Override
+    protected void assertUsage(Matcher<String> matcher, String... args) throws Exception {
         mainCallback = FAIL_MAIN;
-        int status = executeMain(args);
-        assertThat(status, equalTo(ExitCodes.USAGE));
-        assertThat(terminal.getErrorOutput(), matcher);
+        super.assertUsage(matcher, args);
     }
 
     private void assertMutuallyExclusiveOptions(String... args) throws Exception {

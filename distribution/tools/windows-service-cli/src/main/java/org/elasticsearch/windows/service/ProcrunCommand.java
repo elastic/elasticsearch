@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.windows_service;
+package org.elasticsearch.windows.service;
 
 import joptsimple.OptionSet;
 
@@ -18,7 +18,6 @@ import org.elasticsearch.cli.UserException;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -28,15 +27,10 @@ import java.util.Map;
  * Base command for interacting with Apache procrun executable.
  */
 abstract class ProcrunCommand extends Command {
-    private final Path procrun;
     private final String cmd;
 
     protected ProcrunCommand(String desc, String cmd) {
         super(desc);
-        this.procrun = Paths.get("").resolve("bin").resolve(getExecutable()).toAbsolutePath();
-        if (Files.exists(procrun) == false) {
-            throw new IllegalStateException("Missing procrun exe: " + procrun);
-        }
         this.cmd = cmd;
     }
 
@@ -46,17 +40,19 @@ abstract class ProcrunCommand extends Command {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
-        Map<String, String> env = System.getenv();
-        Path esHome = Paths.get("").toAbsolutePath(); // TODO: this should be passed through execute
-        String serviceId = getServiceId(options, env);
-        preExecute(terminal, serviceId);
+        Path procrun = processInfo.workingDir().resolve("bin").resolve(getExecutable()).toAbsolutePath();
+        if (Files.exists(procrun) == false) {
+            throw new IllegalStateException("Missing procrun exe: " + procrun);
+        }
+        String serviceId = getServiceId(options, processInfo.envVars());
+        preExecute(terminal, processInfo, serviceId);
 
         List<String> procrunCmd = new ArrayList<>();
         procrunCmd.add(procrun.toString());
         procrunCmd.add(cmd);
         procrunCmd.add(serviceId);
-        procrunCmd.add(getLogArgs(serviceId, esHome, env));
-        procrunCmd.add(getAdditionalArgs(serviceId, esHome, env));
+        procrunCmd.add(getLogArgs(serviceId, processInfo.workingDir(), processInfo.envVars()));
+        procrunCmd.add(getAdditionalArgs(serviceId, processInfo));
 
         ProcessBuilder processBuilder = new ProcessBuilder("cmd.exe", "/C", String.join(" ", procrunCmd).trim());
         processBuilder.inheritIO();
@@ -96,11 +92,11 @@ abstract class ProcrunCommand extends Command {
         return String.format(Locale.ROOT, logArgsFormat, logsDir, serviceId);
     }
 
-    protected String getAdditionalArgs(String serviceId, Path esHome, Map<String, String> env) {
+    protected String getAdditionalArgs(String serviceId, ProcessInfo processInfo) {
         return "";
     }
 
-    protected void preExecute(Terminal terminal, String serviceId) throws UserException {}
+    protected void preExecute(Terminal terminal, ProcessInfo pinfo, String serviceId) throws UserException {}
 
     protected abstract String getSuccessMessage(String serviceId);
 

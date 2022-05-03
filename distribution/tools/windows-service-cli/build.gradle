@@ -3,4 +3,6 @@ apply plugin: 'elasticsearch.java'
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")
+
+  testImplementation project(":test:framework")
 }

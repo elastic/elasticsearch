@@ -97,27 +97,10 @@ public class WindowsServiceTests extends PackagingTestCase {
         serviceScript = installation.bin("elasticsearch-service.bat").toString();
     }
 
-    public void test11InstallServiceExeMissing() throws IOException {
-        Path serviceExe = installation.bin("elasticsearch-service-x64.exe");
-        Path tmpServiceExe = serviceExe.getParent().resolve(serviceExe.getFileName() + ".tmp");
-        Files.move(serviceExe, tmpServiceExe);
-        Result result = sh.runIgnoreExitCode(serviceScript + " install");
-        assertThat(result.exitCode(), equalTo(1));
-        assertThat(result.stdout(), containsString("elasticsearch-service-x64.exe was not found..."));
-        Files.move(tmpServiceExe, serviceExe);
-    }
-
     public void test12InstallService() {
         sh.run(serviceScript + " install");
         assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);
         sh.run(serviceScript + " remove");
-    }
-
-    public void test14InstallBadJavaHome() throws IOException {
-        sh.getEnv().put("ES_JAVA_HOME", "doesnotexist");
-        Result result = sh.runIgnoreExitCode(serviceScript + " install");
-        assertThat(result.exitCode(), equalTo(1));
-        assertThat(result.stderr(), containsString("could not find java in ES_JAVA_HOME"));
     }
 
     public void test15RemoveNotInstalled() {
@@ -242,12 +225,6 @@ public class WindowsServiceTests extends PackagingTestCase {
         TestCase.assertEquals(1, result.exitCode());
         TestCase.assertTrue(result.stdout(), result.stdout().contains("Fake Service Manager GUI Failure"));
         Files.move(tmpServiceMgr, serviceMgr);
-    }
-
-    public void test70UnknownCommand() {
-        Result result = sh.runIgnoreExitCode(serviceScript + " bogus");
-        assertThat(result.exitCode(), equalTo(1));
-        assertThat(result.stdout(), containsString("Unknown option \"bogus\""));
     }
 
     public void test80JavaOptsInEnvVar() throws Exception {

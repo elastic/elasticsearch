@@ -8,6 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
@@ -37,6 +40,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -71,12 +75,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.apache.lucene.util.ByteBlockPool.BYTE_BLOCK_SIZE;
+import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
  */
 public final class KeywordFieldMapper extends FieldMapper {
+
+    private static final Logger logger = LogManager.getLogger(KeywordFieldMapper.class);
 
     public static final String CONTENT_TYPE = "keyword";
 
@@ -90,6 +96,13 @@ public final class KeywordFieldMapper extends FieldMapper {
             FIELD_TYPE.freeze();
         }
 
+        public static TextSearchInfo TEXT_SEARCH_INFO = new TextSearchInfo(
+            FIELD_TYPE,
+            null,
+            Lucene.KEYWORD_ANALYZER,
+            Lucene.KEYWORD_ANALYZER
+        );
+
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
@@ -99,6 +112,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             super(field, term, ft);
         }
 
+    }
+
+    private static TextSearchInfo textSearchInfo(
+        FieldType fieldType,
+        @Nullable SimilarityProvider similarity,
+        NamedAnalyzer searchAnalyzer,
+        NamedAnalyzer searchQuoteAnalyzer
+    ) {
+        final TextSearchInfo textSearchInfo = new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer);
+        if (textSearchInfo.equals(Defaults.TEXT_SEARCH_INFO)) {
+            return Defaults.TEXT_SEARCH_INFO;
+        }
+        return textSearchInfo;
     }
 
     private static KeywordFieldMapper toType(FieldMapper in) {
@@ -131,8 +157,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
 
-        private final Parameter<String> normalizer = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, null)
-            .acceptsNull();
+        private final Parameter<String> normalizer;
 
         private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(
             "split_queries_on_whitespace",
@@ -156,6 +181,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexAnalyzers = indexAnalyzers;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
+            this.normalizer = Parameter.stringParam(
+                "normalizer",
+                indexCreatedVersion.isLegacyIndexVersion(),
+                m -> toType(m).normalizerName,
+                null
+            ).acceptsNull();
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
 
@@ -245,7 +276,17 @@ public final class KeywordFieldMapper extends FieldMapper {
                 assert indexAnalyzers != null;
                 normalizer = indexAnalyzers.getNormalizer(normalizerName);
                 if (normalizer == null) {
-                    throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name + "]");
+                    if (indexCreatedVersion.isLegacyIndexVersion()) {
+                        logger.warn(
+                            new ParameterizedMessage(
+                                "Could not find normalizer [{}] of legacy index, falling back to default",
+                                normalizerName
+                            )
+                        );
+                        normalizer = Lucene.KEYWORD_ANALYZER;
+                    } else {
+                        throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name + "]");
+                    }
                 }
                 searchAnalyzer = quoteAnalyzer = normalizer;
                 if (splitQueriesOnWhitespace.getValue()) {
@@ -263,6 +304,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
             fieldtype.setStored(this.stored.getValue());
+            if (fieldtype.equals(Defaults.FIELD_TYPE)) {
+                // deduplicate in the common default case to save some memory
+                fieldtype = Defaults.FIELD_TYPE;
+            }
             return new KeywordFieldMapper(
                 name,
                 fieldtype,
@@ -274,8 +319,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
+    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
+
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler(), c.indexVersionCreated())
+        (n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler(), c.indexVersionCreated()),
+        MINIMUM_COMPATIBILITY_VERSION
     );
 
     public static final class KeywordFieldType extends StringFieldType {
@@ -300,7 +348,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 fieldType.indexOptions() != IndexOptions.NONE && builder.indexCreatedVersion.isLegacyIndexVersion() == false,
                 fieldType.stored(),
                 builder.hasDocValues.getValue(),
-                new TextSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, quoteAnalyzer),
+                textSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, quoteAnalyzer),
                 builder.meta.getValue()
             );
             this.eagerGlobalOrdinals = builder.eagerGlobalOrdinals.getValue();
@@ -331,7 +379,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 fieldType.indexOptions() != IndexOptions.NONE,
                 false,
                 false,
-                new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
+                textSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
                 Collections.emptyMap()
             );
             this.normalizer = Lucene.KEYWORD_ANALYZER;
@@ -343,7 +391,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
-            super(name, true, false, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
+            super(name, true, false, true, textSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
@@ -675,7 +723,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         protected BytesRef indexedValueForSearch(Object value) {
-            if (getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
+            if (getTextSearchInfo().searchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
                 // keyword analyzer with the default attribute source which encodes terms using UTF8
                 // in that case we skip normalization, which may be slow if there many terms need to
                 // parse (eg. large terms query) since Analyzer.normalize involves things like creating
@@ -690,7 +738,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (value instanceof BytesRef) {
                 value = ((BytesRef) value).utf8ToString();
             }
-            return getTextSearchInfo().getSearchAnalyzer().normalize(name(), value.toString());
+            return getTextSearchInfo().searchAnalyzer().normalize(name(), value.toString());
         }
 
         /**
@@ -707,8 +755,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (isIndexed()) {
                 return super.wildcardQuery(value, method, caseInsensitive, true, context);
             } else {
-                if (getTextSearchInfo().getSearchAnalyzer() != null) {
-                    value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
+                if (getTextSearchInfo().searchAnalyzer() != null) {
+                    value = normalizeWildcardPattern(name(), value, getTextSearchInfo().searchAnalyzer());
                 } else {
                     value = indexedValueForSearch(value).utf8ToString();
                 }
@@ -728,8 +776,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (isIndexed()) {
                 return super.normalizedWildcardQuery(value, method, context);
             } else {
-                if (getTextSearchInfo().getSearchAnalyzer() != null) {
-                    value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
+                if (getTextSearchInfo().searchAnalyzer() != null) {
+                    value = normalizeWildcardPattern(name(), value, getTextSearchInfo().searchAnalyzer());
                 } else {
                     value = indexedValueForSearch(value).utf8ToString();
                 }
@@ -914,14 +962,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         // back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an append-only
         // workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC instead of
         // MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
-        if (binaryValue.length > BYTE_BLOCK_SIZE - 2) {
+        if (binaryValue.length > MAX_TERM_LENGTH) {
             byte[] prefix = new byte[30];
             System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);
             String msg = "Document contains at least one immense term in field=\""
                 + fieldType().name()
                 + "\" (whose "
                 + "UTF8 encoding is longer than the max length "
-                + (BYTE_BLOCK_SIZE - 2)
+                + MAX_TERM_LENGTH
                 + "), all of which were "
                 + "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense "
                 + "term is: '"

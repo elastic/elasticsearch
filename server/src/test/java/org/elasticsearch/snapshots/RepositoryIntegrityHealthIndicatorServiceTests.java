@@ -43,7 +43,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -51,6 +51,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "No corrupted repositories.",
                     new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size())),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -66,7 +67,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -76,6 +77,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     new SimpleHealthIndicatorDetails(
                         Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
                     ),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -87,7 +89,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(false),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -95,6 +97,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "No repositories configured.",
                     HealthIndicatorDetails.EMPTY,
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )

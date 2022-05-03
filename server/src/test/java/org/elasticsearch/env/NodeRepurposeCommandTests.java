@@ -200,7 +200,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
     private static void withTerminal(boolean verbose, Matcher<String> outputMatcher, CheckedConsumer<MockTerminal, Exception> consumer)
         throws Exception {
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         if (verbose) {
             terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
         }

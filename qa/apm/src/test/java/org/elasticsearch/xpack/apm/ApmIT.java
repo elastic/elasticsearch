@@ -47,18 +47,20 @@ public class ApmIT extends ESRestTestCase {
     }
 
     /**
-     * Check that if we send HTTP traffic to Elasticsearch, then traces are captured in APM server.
+     * Check that if we send HTTP traffic to Elasticsearch, then traces are captured in APM server. The traces are generated in
+     * a separate Docker container, which continually fetches `/_notes/stats`.
      */
     public void testCapturesTracesForHttpTraffic() throws Exception {
-        generateTraces();
-
         checkTracesDataStream();
 
         assertTracesExist();
     }
 
-    private void checkTracesDataStream() throws IOException {
-        assertOK(client().performRequest(new Request("GET", "/_data_stream/traces-apm-default")));
+    private void checkTracesDataStream() throws Exception {
+        assertBusy(() -> {
+            final Response response = performRequestTolerantly(new Request("GET", "/_data_stream/traces-apm-default"));
+            assertOK(response);
+        }, 1, TimeUnit.MINUTES);
     }
 
     private void assertTracesExist() throws Exception {
@@ -75,15 +77,7 @@ public class ApmIT extends ESRestTestCase {
 
             final List<Map<String, Object>> documents = getDocuments(tracesSearchResponse);
             assertThat(documents, not(empty()));
-        }, 1, TimeUnit.MINUTES);
-    }
-
-    private void generateTraces() throws IOException {
-        for (int i = 0; i < 20; i++) {
-            final Request nodesRequest = new Request("GET", "/_nodes/stats");
-            final Response nodesResponse = client().performRequest(nodesRequest);
-            assertOK(nodesResponse);
-        }
+        }, 2, TimeUnit.MINUTES);
     }
 
     /**

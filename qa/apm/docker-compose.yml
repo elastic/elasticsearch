@@ -6,8 +6,6 @@ networks:
 
 services:
   apmserver:
-    # Referenced in the APM agent config in the ES container
-    # container_name: apmserver
     depends_on:
       kibana:
         condition: service_healthy
@@ -24,9 +22,7 @@ services:
       KIBANA_FLEET_SERVICE_TOKEN: AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL2VsYXN0aWMtcGFja2FnZS1mbGVldC1zZXJ2ZXItdG9rZW46bmgtcFhoQzRRQ2FXbms2U0JySGlWQQ
       KIBANA_FLEET_SETUP: "1"
     healthcheck:
-      test:
-        - CMD
-        - /bin/true
+      test: /bin/true
     image: docker.elastic.co/beats/elastic-agent:${STACK_VERSION}
     labels:
       - co.elastic.apm.stack-version=${STACK_VERSION}
@@ -66,9 +62,7 @@ services:
     healthcheck:
       interval: 20s
       retries: 10
-      test:
-        - CMD-SHELL
-        - curl -s -k http://localhost:9200/_cluster/health | grep -vq '"status":"red"'
+      test: curl -s -k http://localhost:9200/_cluster/health | grep -vq '"status":"red"'
     image: elasticsearch:test
     labels:
       - co.elastic.apm.stack-version=${STACK_VERSION}
@@ -124,9 +118,7 @@ services:
       interval: 10s
       retries: 30
       start_period: 10s
-      test:
-        - CMD-SHELL
-        - curl -s -k http://kibana:5601/api/status | grep -q 'All services are available'
+      test: curl -s -k http://kibana:5601/api/status | grep -q 'All services are available'
     image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
     labels:
       - co.elastic.apm.stack-version=${STACK_VERSION}
@@ -140,8 +132,10 @@ services:
     volumes:
       - ./config/kibana/kibana-8.yml:/usr/share/kibana/config/kibana.yml
 
-  wait-service:
-    container_name: wait
+  # Rather than mess aroud with threads in the test, just run `curl` in a
+  # loop to generate traces with a known path
+  tracegenerator:
+    container_name: tracegenerator
     depends_on:
       apmserver:
         condition: service_healthy
@@ -149,7 +143,9 @@ services:
         condition: service_healthy
       kibana:
         condition: service_healthy
-    image: busybox
+    # Using this image is a simple way to get `curl`.
+    image: elasticsearch:test
+    command: /bin/sh -c "while true; do curl -s -k -u admin:changeme http://elasticsearch:9200/_nodes/stats ; sleep 5; done"
 
 volumes:
   esdata:

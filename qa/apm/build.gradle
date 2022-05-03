@@ -22,7 +22,6 @@ dependencies {
 
 dockerCompose {
   environment.put 'STACK_VERSION', VersionProperties.elasticsearch
-  // removeContainers = false
 }
 
 elasticsearch_distributions {

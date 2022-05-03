@@ -8,11 +8,14 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -23,6 +26,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -31,11 +35,18 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     private final Settings settings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
+    private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestClusterGetSettingsAction(Settings settings, ClusterSettings clusterSettings, SettingsFilter settingsFilter) {
+    public RestClusterGetSettingsAction(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        SettingsFilter settingsFilter,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         this.settings = settings;
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
+        this.nodesInCluster = nodesInCluster;
     }
 
     @Override
@@ -50,6 +61,19 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (nodesInCluster.get().getMinNodeVersion().onOrAfter(Version.V_8_3_0) == false) {
+            return prepareLegacyRequest(request, client);
+        }
+
+        ClusterGetSettingsAction.Request clusterSettingsRequest = new ClusterGetSettingsAction.Request();
+
+        clusterSettingsRequest.local(request.paramAsBoolean("local", clusterSettingsRequest.local()));
+        clusterSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterSettingsRequest.masterNodeTimeout()));
+
+        return channel -> client.execute(ClusterGetSettingsAction.INSTANCE, clusterSettingsRequest, new RestToXContentListener<>(channel));
+    }
+
+    private RestChannelConsumer prepareLegacyRequest(final RestRequest request, final NodeClient client) {
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest().routingTable(false).nodes(false);
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));

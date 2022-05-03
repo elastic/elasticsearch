@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.assignment.planning;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
@@ -193,10 +194,10 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 throw new IllegalArgumentException("there should be no duplicate models");
             }
 
-            assignments = new HashMap<>(nodes.size() * models.size(), 1.0f);
-            remainingNodeMemory = new HashMap<>(nodes.size(), 1.0f);
-            remainingNodeCores = new HashMap<>(nodes.size(), 1.0f);
-            remainingModelAllocations = new HashMap<>(models.size(), 1.0f);
+            assignments = Maps.newHashMapWithExpectedSize(nodes.size() * models.size());
+            remainingNodeMemory = Maps.newHashMapWithExpectedSize(nodes.size());
+            remainingNodeCores = Maps.newHashMapWithExpectedSize(nodes.size());
+            remainingModelAllocations = Maps.newHashMapWithExpectedSize(models.size());
 
             nodes.forEach(n -> {
                 remainingNodeMemory.put(n, n.availableMemoryBytes());

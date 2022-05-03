@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.assignment.planning;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Model;
@@ -392,9 +393,9 @@ class RandomizedAssignmentRounding {
         final Map<Model, Integer> remainingModelAllocations;
 
         ResourceTracker(Collection<Node> nodes, Collection<Model> models) {
-            remainingNodeMemory = new HashMap<>(nodes.size(), 1.0f);
-            remainingNodeCores = new HashMap<>(nodes.size(), 1.0f);
-            remainingModelAllocations = new HashMap<>(models.size(), 1.0f);
+            remainingNodeMemory = Maps.newHashMapWithExpectedSize(nodes.size());
+            remainingNodeCores = Maps.newHashMapWithExpectedSize(nodes.size());
+            remainingModelAllocations = Maps.newHashMapWithExpectedSize(models.size());
 
             nodes.forEach(n -> {
                 remainingNodeMemory.put(n, n.availableMemoryBytes());

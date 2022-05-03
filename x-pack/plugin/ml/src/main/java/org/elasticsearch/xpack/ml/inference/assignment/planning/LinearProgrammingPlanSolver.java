@@ -219,7 +219,7 @@ class LinearProgrammingPlanSolver {
         // Furthermore, we assign a weight from bin packing to break ties in assigning models to nodes
         // since this yields higher quality solutions.
         // Finally, we want to penalize solutions that use more memory.
-        // We express the objective function as: maximize sum(a_i_j * w_i_j) - L1 * sum(m_i * y_i_j / t_i).
+        // We express the objective function as: maximize sum(a_i_j * w_i_j) - L1' * sum(m_i * y_i_j / t_i).
         // Note we divide the memory penalty term by t_i to maximize allocations, not threads.
         //
         // Both our a_i_j and y_i_j variables are integer variables. This means the problem is a mixed integer linear program (MILP).
@@ -233,10 +233,10 @@ class LinearProgrammingPlanSolver {
         // Thus, we can express: y_i_j = (a_i_j * t_i) / N_j
         //
         // The memory constraint is then rewritten as: sum(m_i * a_i_j * t_i / N_j) <= M_j
-        // The objective function becomes: maximize sum(a_i_j * w_i_j) - L1 * sum(m_i * a_i_j * t_i / N_j).
-        // We want to choose L1 in such a way that we will always assign models to a node if there is capacity.
-        // Since w_i_j can be equal to 1 and m_i <= 1, for each node it has to be that L1 * t_i / N_j < 1.
-        // The max value for t_i is C, where C is the max number of cores across nodes. Thus, we can write L1 * C / N_j < 1.
+        // The objective function becomes: maximize sum(a_i_j * w_i_j) - L1' * sum(m_i * a_i_j * t_i / N_j).
+        // We want to choose L1' in such a way that we will always assign models to a node if there is capacity.
+        // Since w_i_j can be equal to 1 and m_i <= 1, for each node it has to be that L1' * t_i / N_j < 1.
+        // The max value for t_i is C, where C is the max number of cores across nodes. Thus, we can write L1' * C / N_j < 1.
         // We define L1 so that L1 = L1' * C / N_j < 1. Solving for L1', we get L1' = L1 * N_j / C.
         // Replacing L1' with L1 in the objective function we get: maximize sum(a_i_j * w_i_j) - L1 * sum(m_i * a_i_j / C).
 

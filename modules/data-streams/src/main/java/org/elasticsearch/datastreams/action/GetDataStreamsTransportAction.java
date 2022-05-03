@@ -18,18 +18,23 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -105,8 +110,38 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                 state,
                 dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new)
             );
+
+            GetDataStreamAction.Response.TimeSeries timeSeries = null;
+            if (dataStream.getIndexMode() == IndexMode.TIME_SERIES) {
+                List<Tuple<Instant, Instant>> ranges = new ArrayList<>();
+                Tuple<Instant, Instant> current = null;
+                for (Index index : dataStream.getIndices()) {
+                    IndexMetadata metadata = state.getMetadata().index(index);
+                    Instant start = IndexSettings.TIME_SERIES_START_TIME.get(metadata.getSettings());
+                    Instant end = IndexSettings.TIME_SERIES_END_TIME.get(metadata.getSettings());
+                    if (current == null) {
+                        current = new Tuple<>(start, end);
+                    } else if (current.v2().compareTo(start) == 0) {
+                        current = new Tuple<>(current.v1(), end);
+                    } else if (current.v2().compareTo(start) < 0) {
+                        ranges.add(current);
+                        current = new Tuple<>(start, end);
+                    }
+                }
+                if (current != null) {
+                    ranges.add(current);
+                }
+                timeSeries = new GetDataStreamAction.Response.TimeSeries(ranges);
+            }
+
             dataStreamInfos.add(
-                new GetDataStreamAction.Response.DataStreamInfo(dataStream, streamHealth.getStatus(), indexTemplate, ilmPolicyName)
+                new GetDataStreamAction.Response.DataStreamInfo(
+                    dataStream,
+                    streamHealth.getStatus(),
+                    indexTemplate,
+                    ilmPolicyName,
+                    timeSeries
+                )
             );
         }
         listener.onResponse(new GetDataStreamAction.Response(dataStreamInfos));

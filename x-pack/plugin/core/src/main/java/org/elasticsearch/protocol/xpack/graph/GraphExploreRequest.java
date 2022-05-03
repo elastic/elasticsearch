@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
@@ -313,7 +314,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         return hops.get(hopNumber);
     }
 
-    public static class TermBoost {
+    public static class TermBoost implements Writeable {
         String term;
         float boost;
 
@@ -341,7 +342,8 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
             this.boost = in.readFloat();
         }
 
-        void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeString(term);
             out.writeFloat(boost);
         }

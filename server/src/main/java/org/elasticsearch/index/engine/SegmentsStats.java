@@ -224,10 +224,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         out.writeLong(bitsetMemoryInBytes);
         out.writeLong(maxUnsafeAutoIdTimestamp);
 
-        out.writeVInt(files.size());
-        for (FileStats file : files.values()) {
-            file.writeTo(out);
-        }
+        out.writeCollection(files.values());
     }
 
     public void clearFiles() {

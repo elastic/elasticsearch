@@ -370,14 +370,13 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(entries.size());
-        for (Entry entry : entries.values()) {
-            out.writeString(entry.uuid);
-            entry.snapshot().writeTo(out);
-            out.writeByte(entry.state().value());
-            out.writeStringCollection(entry.indices);
-            out.writeMap(entry.shards);
-        }
+        out.writeCollection(entries.values(), (o, entry) -> {
+            o.writeString(entry.uuid);
+            entry.snapshot().writeTo(o);
+            o.writeByte(entry.state().value());
+            o.writeStringCollection(entry.indices);
+            o.writeMap(entry.shards);
+        });
     }
 
     @Override

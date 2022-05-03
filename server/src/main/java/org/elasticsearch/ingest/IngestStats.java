@@ -77,12 +77,11 @@ public class IngestStats implements Writeable, ToXContentFragment {
             if (processorStatsForPipeline == null) {
                 out.writeVInt(0);
             } else {
-                out.writeVInt(processorStatsForPipeline.size());
-                for (ProcessorStat processorStat : processorStatsForPipeline) {
-                    out.writeString(processorStat.getName());
-                    out.writeString(processorStat.getType());
-                    processorStat.getStats().writeTo(out);
-                }
+                out.writeCollection(processorStatsForPipeline, (o, processorStat) -> {
+                    o.writeString(processorStat.getName());
+                    o.writeString(processorStat.getType());
+                    processorStat.getStats().writeTo(o);
+                });
             }
         }
     }

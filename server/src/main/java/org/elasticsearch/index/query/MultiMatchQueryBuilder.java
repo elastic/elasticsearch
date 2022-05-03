@@ -234,11 +234,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeGenericValue(value);
-        out.writeVInt(fieldsBoosts.size());
-        for (Map.Entry<String, Float> fieldsEntry : fieldsBoosts.entrySet()) {
-            out.writeString(fieldsEntry.getKey());
-            out.writeFloat(fieldsEntry.getValue());
-        }
+        out.writeMap(fieldsBoosts, StreamOutput::writeString, StreamOutput::writeFloat);
         type.writeTo(out);
         operator.writeTo(out);
         out.writeOptionalString(analyzer);

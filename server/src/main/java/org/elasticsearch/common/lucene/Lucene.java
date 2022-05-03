@@ -414,20 +414,12 @@ public class Lucene {
             out.writeFloat(topDocs.maxScore);
 
             out.writeArray(Lucene::writeSortField, topFieldDocs.fields);
-
-            out.writeVInt(topDocs.topDocs.scoreDocs.length);
-            for (ScoreDoc doc : topFieldDocs.scoreDocs) {
-                writeFieldDoc(out, (FieldDoc) doc);
-            }
+            out.writeArray((o, doc) -> writeFieldDoc(o, (FieldDoc) doc), topFieldDocs.scoreDocs);
         } else {
             out.writeByte((byte) 0);
             writeTotalHits(out, topDocs.topDocs.totalHits);
             out.writeFloat(topDocs.maxScore);
-
-            out.writeVInt(topDocs.topDocs.scoreDocs.length);
-            for (ScoreDoc doc : topDocs.topDocs.scoreDocs) {
-                writeScoreDoc(out, doc);
-            }
+            out.writeArray(Lucene::writeScoreDoc, topDocs.topDocs.scoreDocs);
         }
     }
 
@@ -495,10 +487,7 @@ public class Lucene {
     }
 
     public static void writeFieldDoc(StreamOutput out, FieldDoc fieldDoc) throws IOException {
-        out.writeVInt(fieldDoc.fields.length);
-        for (Object field : fieldDoc.fields) {
-            writeSortValue(out, field);
-        }
+        out.writeArray(Lucene::writeSortValue, fieldDoc.fields);
         out.writeVInt(fieldDoc.doc);
         out.writeFloat(fieldDoc.score);
     }
@@ -627,10 +616,7 @@ public class Lucene {
         out.writeBoolean(explanation.isMatch());
         out.writeString(explanation.getDescription());
         Explanation[] subExplanations = explanation.getDetails();
-        out.writeVInt(subExplanations.length);
-        for (Explanation subExp : subExplanations) {
-            writeExplanation(out, subExp);
-        }
+        out.writeArray(Lucene::writeExplanation, subExplanations);
         if (explanation.isMatch()) {
             writeExplanationValue(out, explanation.getValue());
         }

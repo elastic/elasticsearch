@@ -141,10 +141,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(buckets.size());
-        for (InternalBucket bucket : buckets) {
-            bucket.writeTo(out);
-        }
+        out.writeCollection(buckets);
     }
 
     @Override

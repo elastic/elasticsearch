@@ -106,10 +106,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(ranges.size());
-        for (Range range : ranges) {
-            range.writeTo(out);
-        }
+        out.writeList(ranges);
         out.writeBoolean(keyed);
     }
 

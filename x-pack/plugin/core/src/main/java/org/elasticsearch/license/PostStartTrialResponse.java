@@ -88,14 +88,7 @@ public class PostStartTrialResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(status);
         out.writeOptionalString(acknowledgeMessage);
-        out.writeVInt(acknowledgeMessages.size());
-        for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVInt(entry.getValue().length);
-            for (String message : entry.getValue()) {
-                out.writeString(message);
-            }
-        }
+        out.writeMap(acknowledgeMessages, StreamOutput::writeString, StreamOutput::writeStringArray);
     }
 
     Map<String, String[]> getAcknowledgementMessages() {

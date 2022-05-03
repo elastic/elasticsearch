@@ -201,132 +201,19 @@ public class GetHealthActionIT extends ESIntegTestCase {
             );
 
             // First, test that we don't request any components or indicators, and get back everything (but no details):
-            {
-                var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(false)).get();
+            testRootLevel(client, ilmIndicatorStatus, slmIndicatorStatus, clusterCoordinationIndicatorStatus, false);
+            // Now, test the same thing but get back details):
+            testRootLevel(client, ilmIndicatorStatus, slmIndicatorStatus, clusterCoordinationIndicatorStatus, true);
 
-                assertThat(
-                    response.getStatus(),
-                    equalTo(HealthStatus.merge(Stream.of(ilmIndicatorStatus, slmIndicatorStatus, clusterCoordinationIndicatorStatus)))
-                );
-                assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
-                assertThat(
-                    response.findComponent(DATA_COMPONENT_NAME),
-                    equalTo(
-                        new HealthComponentResult(
-                            DATA_COMPONENT_NAME,
-                            HealthStatus.merge(Stream.of(ilmIndicatorStatus, slmIndicatorStatus)),
-                            List.of(
-                                new HealthIndicatorResult(
-                                    ILM_INDICATOR_NAME,
-                                    DATA_COMPONENT_NAME,
-                                    ilmIndicatorStatus,
-                                    "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
-                                    new SimpleHealthIndicatorDetails(Map.of("include_details", false)),
-                                    Collections.emptyList(),
-                                    Collections.emptyList()
-                                ),
-                                new HealthIndicatorResult(
-                                    SLM_INDICATOR_NAME,
-                                    DATA_COMPONENT_NAME,
-                                    slmIndicatorStatus,
-                                    "Health is set to [" + slmIndicatorStatus + "] by test plugin",
-                                    new SimpleHealthIndicatorDetails(Map.of("include_details", false)),
-                                    Collections.emptyList(),
-                                    Collections.emptyList()
-                                )
-                            )
-                        )
-                    )
-                );
-                assertThat(
-                    response.findComponent(CLUSTER_COORDINATION_COMPONENT_NAME),
-                    equalTo(
-                        new HealthComponentResult(
-                            CLUSTER_COORDINATION_COMPONENT_NAME,
-                            clusterCoordinationIndicatorStatus,
-                            List.of(
-                                new HealthIndicatorResult(
-                                    INSTANCE_HAS_MASTER_INDICATOR_NAME,
-                                    CLUSTER_COORDINATION_COMPONENT_NAME,
-                                    clusterCoordinationIndicatorStatus,
-                                    "Health is set to [" + clusterCoordinationIndicatorStatus + "] by test plugin",
-                                    new SimpleHealthIndicatorDetails(Map.of("include_details", false)),
-                                    Collections.emptyList(),
-                                    Collections.emptyList()
-                                )
-                            )
-                        )
-                    )
-                );
-            }
+            // Next, test that if we ask for a specific component and indicator, we get only those back (without details):
+            testComponentAndIndicator(client, ilmIndicatorStatus, false);
+            // And now with details:
+            testComponentAndIndicator(client, ilmIndicatorStatus, true);
 
-            // Next, test that if we ask for a specific component and indicator, we get only those back (with details):
-            {
-                var response = client.execute(
-                    GetHealthAction.INSTANCE,
-                    new GetHealthAction.Request(DATA_COMPONENT_NAME, ILM_INDICATOR_NAME, true)
-                ).get();
-                assertNull(response.getStatus());
-                assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
-                assertThat(
-                    response.findComponent(DATA_COMPONENT_NAME),
-                    equalTo(
-                        new HealthComponentResult(
-                            DATA_COMPONENT_NAME,
-                            null,
-                            List.of(
-                                new HealthIndicatorResult(
-                                    ILM_INDICATOR_NAME,
-                                    DATA_COMPONENT_NAME,
-                                    ilmIndicatorStatus,
-                                    "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
-                                    new SimpleHealthIndicatorDetails(Map.of("include_details", true)),
-                                    Collections.emptyList(),
-                                    Collections.emptyList()
-                                )
-                            )
-                        )
-                    )
-                );
-                expectThrows(NoSuchElementException.class, () -> response.findComponent(CLUSTER_COORDINATION_COMPONENT_NAME));
-            }
-
-            // Test that if we specify a component name and no indicator name that we get all indicators for that component:
-            {
-                var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(DATA_COMPONENT_NAME, null, true)).get();
-                assertNull(response.getStatus());
-                assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
-                assertThat(
-                    response.findComponent(DATA_COMPONENT_NAME),
-                    equalTo(
-                        new HealthComponentResult(
-                            DATA_COMPONENT_NAME,
-                            HealthStatus.merge(Stream.of(ilmIndicatorStatus, slmIndicatorStatus)),
-                            List.of(
-                                new HealthIndicatorResult(
-                                    ILM_INDICATOR_NAME,
-                                    DATA_COMPONENT_NAME,
-                                    ilmIndicatorStatus,
-                                    "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
-                                    new SimpleHealthIndicatorDetails(Map.of("include_details", true)),
-                                    Collections.emptyList(),
-                                    Collections.emptyList()
-                                ),
-                                new HealthIndicatorResult(
-                                    SLM_INDICATOR_NAME,
-                                    DATA_COMPONENT_NAME,
-                                    slmIndicatorStatus,
-                                    "Health is set to [" + slmIndicatorStatus + "] by test plugin",
-                                    new SimpleHealthIndicatorDetails(Map.of("include_details", true)),
-                                    Collections.emptyList(),
-                                    Collections.emptyList()
-                                )
-                            )
-                        )
-                    )
-                );
-                expectThrows(NoSuchElementException.class, () -> response.findComponent(CLUSTER_COORDINATION_COMPONENT_NAME));
-            }
+            // Test that if we specify a component name and no indicator name that we get all indicators for that component (no details):
+            testComponentNoIndicator(client, ilmIndicatorStatus, slmIndicatorStatus, false);
+            // And now with details:
+            testComponentNoIndicator(client, ilmIndicatorStatus, slmIndicatorStatus, false);
 
             // Next, test that if we ask for a nonexistent component and indicator, we get an exception
             {
@@ -348,5 +235,143 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     .putNull(CLUSTER_COORDINATION_HEALTH_STATUS_SETTING.getKey())
             );
         }
+    }
+
+    private void testRootLevel(
+        Client client,
+        HealthStatus ilmIndicatorStatus,
+        HealthStatus slmIndicatorStatus,
+        HealthStatus clusterCoordinationIndicatorStatus,
+        boolean includeDetails
+    ) throws Exception {
+        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(includeDetails)).get();
+
+        assertThat(
+            response.getStatus(),
+            equalTo(HealthStatus.merge(Stream.of(ilmIndicatorStatus, slmIndicatorStatus, clusterCoordinationIndicatorStatus)))
+        );
+        assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
+        assertThat(
+            response.findComponent(DATA_COMPONENT_NAME),
+            equalTo(
+                new HealthComponentResult(
+                    DATA_COMPONENT_NAME,
+                    HealthStatus.merge(Stream.of(ilmIndicatorStatus, slmIndicatorStatus)),
+                    List.of(
+                        new HealthIndicatorResult(
+                            ILM_INDICATOR_NAME,
+                            DATA_COMPONENT_NAME,
+                            ilmIndicatorStatus,
+                            "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
+                            new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
+                            Collections.emptyList(),
+                            Collections.emptyList()
+                        ),
+                        new HealthIndicatorResult(
+                            SLM_INDICATOR_NAME,
+                            DATA_COMPONENT_NAME,
+                            slmIndicatorStatus,
+                            "Health is set to [" + slmIndicatorStatus + "] by test plugin",
+                            new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
+                            Collections.emptyList(),
+                            Collections.emptyList()
+                        )
+                    )
+                )
+            )
+        );
+        assertThat(
+            response.findComponent(CLUSTER_COORDINATION_COMPONENT_NAME),
+            equalTo(
+                new HealthComponentResult(
+                    CLUSTER_COORDINATION_COMPONENT_NAME,
+                    clusterCoordinationIndicatorStatus,
+                    List.of(
+                        new HealthIndicatorResult(
+                            INSTANCE_HAS_MASTER_INDICATOR_NAME,
+                            CLUSTER_COORDINATION_COMPONENT_NAME,
+                            clusterCoordinationIndicatorStatus,
+                            "Health is set to [" + clusterCoordinationIndicatorStatus + "] by test plugin",
+                            new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
+                            Collections.emptyList(),
+                            Collections.emptyList()
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    private void testComponentAndIndicator(Client client, HealthStatus ilmIndicatorStatus, boolean includeDetails) throws Exception {
+        var response = client.execute(
+            GetHealthAction.INSTANCE,
+            new GetHealthAction.Request(DATA_COMPONENT_NAME, ILM_INDICATOR_NAME, includeDetails)
+        ).get();
+        assertNull(response.getStatus());
+        assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
+        assertThat(
+            response.findComponent(DATA_COMPONENT_NAME),
+            equalTo(
+                new HealthComponentResult(
+                    DATA_COMPONENT_NAME,
+                    null,
+                    List.of(
+                        new HealthIndicatorResult(
+                            ILM_INDICATOR_NAME,
+                            DATA_COMPONENT_NAME,
+                            ilmIndicatorStatus,
+                            "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
+                            new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
+                            Collections.emptyList(),
+                            Collections.emptyList()
+                        )
+                    )
+                )
+            )
+        );
+        expectThrows(NoSuchElementException.class, () -> response.findComponent(CLUSTER_COORDINATION_COMPONENT_NAME));
+    }
+
+    private void testComponentNoIndicator(
+        Client client,
+        HealthStatus ilmIndicatorStatus,
+        HealthStatus slmIndicatorStatus,
+        boolean includeDetails
+    ) throws Exception {
+        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(DATA_COMPONENT_NAME, null, includeDetails))
+            .get();
+        assertNull(response.getStatus());
+        assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
+        assertThat(
+            response.findComponent(DATA_COMPONENT_NAME),
+            equalTo(
+                new HealthComponentResult(
+                    DATA_COMPONENT_NAME,
+                    HealthStatus.merge(Stream.of(ilmIndicatorStatus, slmIndicatorStatus)),
+                    List.of(
+                        new HealthIndicatorResult(
+                            ILM_INDICATOR_NAME,
+                            DATA_COMPONENT_NAME,
+                            ilmIndicatorStatus,
+                            "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
+                            new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
+                            Collections.emptyList(),
+                            Collections.emptyList()
+                        ),
+                        new HealthIndicatorResult(
+                            SLM_INDICATOR_NAME,
+                            DATA_COMPONENT_NAME,
+                            slmIndicatorStatus,
+                            "Health is set to [" + slmIndicatorStatus + "] by test plugin",
+                            new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
+                            Collections.emptyList(),
+                            Collections.emptyList()
+                        )
+                    )
+                )
+            )
+        );
+        expectThrows(NoSuchElementException.class, () -> response.findComponent(CLUSTER_COORDINATION_COMPONENT_NAME));
+
     }
 }

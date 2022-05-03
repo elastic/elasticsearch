@@ -14,6 +14,7 @@ public class ScriptContextTests extends ESTestCase {
 
     public interface TwoNewInstance {
         String newInstance(int foo, int bar);
+
         String newInstance(int foo);
 
         interface StatefulFactory {
@@ -23,6 +24,7 @@ public class ScriptContextTests extends ESTestCase {
 
     public interface TwoNewFactory {
         String newFactory(int foo, int bar);
+
         String newFactory(int foo);
     }
 
@@ -40,40 +42,60 @@ public class ScriptContextTests extends ESTestCase {
 
     public interface DummyStatefulScript {
         int execute(int foo);
+
         interface StatefulFactory {
             DummyStatefulScript newInstance();
         }
+
         interface Factory {
             StatefulFactory newFactory();
         }
     }
 
     public void testTwoNewInstanceMethods() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            new ScriptContext<>("test", TwoNewInstance.class));
-        assertEquals("Cannot have multiple newInstance methods on FactoryType class ["
-            + TwoNewInstance.class.getName() + "] for script context [test]", e.getMessage());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new ScriptContext<>("test", TwoNewInstance.class));
+        assertEquals(
+            "Cannot have multiple newInstance methods on FactoryType class ["
+                + TwoNewInstance.class.getName()
+                + "] for script context [test]",
+            e.getMessage()
+        );
     }
 
     public void testTwoNewFactoryMethods() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            new ScriptContext<>("test", TwoNewFactory.class));
-        assertEquals("Cannot have multiple newFactory methods on FactoryType class ["
-            + TwoNewFactory.class.getName() + "] for script context [test]", e.getMessage());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new ScriptContext<>("test", TwoNewFactory.class));
+        assertEquals(
+            "Cannot have multiple newFactory methods on FactoryType class ["
+                + TwoNewFactory.class.getName()
+                + "] for script context [test]",
+            e.getMessage()
+        );
     }
 
     public void testTwoNewInstanceStatefulFactoryMethods() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            new ScriptContext<>("test", TwoNewInstance.StatefulFactory.class));
-        assertEquals("Cannot have multiple newInstance methods on StatefulFactoryType class ["
-            + TwoNewInstance.class.getName() + "] for script context [test]", e.getMessage());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ScriptContext<>("test", TwoNewInstance.StatefulFactory.class)
+        );
+        assertEquals(
+            "Cannot have multiple newInstance methods on StatefulFactoryType class ["
+                + TwoNewInstance.class.getName()
+                + "] for script context [test]",
+            e.getMessage()
+        );
     }
 
     public void testMissingNewInstanceMethod() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            new ScriptContext<>("test", MissingNewInstance.class));
-        assertEquals("Could not find method newInstance or method newFactory on FactoryType class ["
-            + MissingNewInstance.class.getName() + "] for script context [test]", e.getMessage());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ScriptContext<>("test", MissingNewInstance.class)
+        );
+        assertEquals(
+            "Could not find method newInstance or method newFactory on FactoryType class ["
+                + MissingNewInstance.class.getName()
+                + "] for script context [test]",
+            e.getMessage()
+        );
     }
 
     public void testInstanceTypeReflection() {

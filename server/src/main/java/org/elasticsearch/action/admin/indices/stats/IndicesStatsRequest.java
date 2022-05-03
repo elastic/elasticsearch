@@ -32,7 +32,7 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     private CommonStatsFlags flags = new CommonStatsFlags();
 
     public IndicesStatsRequest() {
-        super((String[])null);
+        super((String[]) null);
     }
 
     public IndicesStatsRequest(StreamInput in) throws IOException {
@@ -251,6 +251,7 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         flags.set(Flag.Bulk, bulk);
         return this;
     }
+
     public boolean bulk() {
         return flags.isSet(Flag.Bulk);
     }

@@ -1,0 +1,840 @@
+setup:
+  - skip:
+      features: ["headers", "allowed_warnings"]
+
+  - do:
+      indices.create:
+          index:  test
+          body:
+            mappings:
+              dynamic: false
+              properties:
+                nested:
+                  type: nested
+                  properties:
+                    binary:
+                      type: binary
+                      doc_values: true
+                    boolean:
+                      type: boolean
+                    date:
+                      type: date
+                    geo_point:
+                      type: geo_point
+                    ip:
+                      type: ip
+                    keyword:
+                      type: keyword
+                    byte:
+                      type: byte
+                    double:
+                      type: double
+                    float:
+                      type: float
+                    half_float:
+                      type: half_float
+                    integer:
+                      type: integer
+                    long:
+                      type: long
+                    short:
+                      type: short
+                    object:
+                      type: object
+                      properties:
+                        inner1:
+                          type: keyword
+                        inner2:
+                          type: keyword
+                    text:
+                      type: text
+
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+          index:  "test"
+          id:     "1"
+          body:
+            nested:
+              - binary: "YWJjZGUxMjM0"
+                boolean: true
+                date: "2017-01-01"
+                geo_point: [0.0, 20.0]
+                ip: "192.168.0.1"
+                keyword: "foo"
+              - byte: 1
+                double: 1.0
+                float: 1.0
+                half_float: 1.0
+                integer: 1
+              - long: 1
+                short: 1
+                object:
+                  inner1: "foo"
+                  inner2: "bar"
+                text: "foo bar"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+          index:  "test"
+          id:     "2"
+          body:
+            nested:
+              - binary: "YWJjZGUxMjM0"
+                boolean: false
+                date: "2017-01-01"
+                geo_point: [0.0, 20.0]
+                ip: "192.168.0.1"
+                keyword: "foo"
+              - byte: 1
+                double: 1.0
+                float: 1.0
+                half_float: 1.0
+                integer: 1
+              - long: 1
+                short: 1
+                object:
+                  inner1: "foo"
+                text: "foo bar"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+          index:  "test"
+          id:     "3"
+          routing: "route_me"
+          body:
+            nested:
+              - binary: "YWJjZGUxMjM0"
+                boolean: true
+                date: "2017-01-01"
+                geo_point: [0.0, 20.0]
+                ip: "192.168.0.1"
+                keyword: "foo"
+              - byte: 1
+                double: 1.0
+                float: 1.0
+                half_float: 1.0
+                integer: 1
+              - long: 1
+                short: 1
+                object:
+                  inner2: "bar"
+                text: "foo bar"
+
+  - do:
+      index:
+          index:  "test"
+          id:     "4"
+          body: {}
+
+  - do:
+      indices.create:
+          index:  test-no-dv
+          body:
+            mappings:
+              dynamic: false
+              properties:
+                nested:
+                  type: nested
+                  properties:
+                    binary:
+                      type: binary
+                      doc_values: false
+                      store: true
+                    boolean:
+                      type: boolean
+                      doc_values: false
+                    date:
+                      type: date
+                      doc_values: false
+                    geo_point:
+                      type: geo_point
+                      doc_values: false
+                    ip:
+                      type: ip
+                      doc_values: false
+                    keyword:
+                      type: keyword
+                      doc_values: false
+                    byte:
+                      type: byte
+                      doc_values: false
+                    double:
+                      type: double
+                      doc_values: false
+                    float:
+                      type: float
+                      doc_values: false
+                    half_float:
+                      type: half_float
+                      doc_values: false
+                    integer:
+                      type: integer
+                      doc_values: false
+                    long:
+                      type: long
+                      doc_values: false
+                    short:
+                      type: short
+                      doc_values: false
+                    object:
+                      type: object
+                      properties:
+                        inner1:
+                          type: keyword
+                          doc_values: false
+                        inner2:
+                          type: keyword
+                          doc_values: false
+                    text:
+                      type: text
+
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+          index:  "test-no-dv"
+          id:     "1"
+          body:
+            nested:
+              - binary: "YWJjZGUxMjM0"
+                boolean: true
+                date: "2017-01-01"
+                geo_point: [0.0, 20.0]
+                ip: "192.168.0.1"
+                keyword: "foo"
+              - byte: 1
+                double: 1.0
+                float: 1.0
+                half_float: 1.0
+                integer: 1
+              - long: 1
+                short: 1
+                object:
+                  inner1: "foo"
+                  inner2: "bar"
+                text: "foo bar"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+          index:  "test-no-dv"
+          id:     "2"
+          body:
+            nested:
+              - binary: "YWJjZGUxMjM0"
+                boolean: false
+                date: "2017-01-01"
+                geo_point: [0.0, 20.0]
+                ip: "192.168.0.1"
+                keyword: "foo"
+              - byte: 1
+                double: 1.0
+                float: 1.0
+                half_float: 1.0
+                integer: 1
+              - long: 1
+                short: 1
+                object:
+                  inner1: "foo"
+                text: "foo bar"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+          index:  "test-no-dv"
+          id:     "3"
+          routing: "route_me"
+          body:
+            nested:
+              - binary: "YWJjZGUxMjM0"
+                boolean: true
+                date: "2017-01-01"
+                geo_point: [0.0, 20.0]
+                ip: "192.168.0.1"
+                keyword: "foo"
+              - byte: 1
+                double: 1.0
+                float: 1.0
+                half_float: 1.0
+                integer: 1
+              - long: 1
+                short: 1
+                object:
+                  inner2: "bar"
+                text: "foo bar"
+
+  - do:
+      index:
+          index:  "test-no-dv"
+          id:     "4"
+          body: {}
+
+  - do:
+      indices.refresh:
+          index: [test, test-no-dv]
+
+---
+"Test exists query within nested query on mapped binary field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.binary
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped boolean field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.boolean
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped date field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.date
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped geo_point field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.geo_point
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped ip field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.ip
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped keyword field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.keyword
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped byte field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.byte
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped double field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.double
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped float field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.float
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped half_float field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.half_float
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped integer field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.integer
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped long field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.long
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped short field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.short
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped object field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.object
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped object inner field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.object.inner1
+
+  - match: {hits.total: 2}
+
+---
+"Test exists query within nested query on mapped text field":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.text
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped binary field with no doc values":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fixed in 7.16 (backport pending)"
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.binary
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped boolean field with no doc values":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fixed in 7.16 (backport pending)"
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.boolean
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped date field with no doc values":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fixed in 7.16 (backport pending)"
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.date
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped geo_point field with no doc values":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fixed in 7.16 (backport pending)"
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.geo_point
+
+  - match: {hits.total: 3}
+
+
+---
+"Test exists query within nested query on mapped ip field with no doc values":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fixed in 7.16 (backport pending)"
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.ip
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped keyword field with no doc values":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fixed in 7.16 (backport pending)"
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.keyword
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped byte field with no doc values":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fixed in 7.16 (backport pending)"
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.byte
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped double field with no doc values":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fixed in 7.16 (backport pending)"
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.double
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped float field with no doc values":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fixed in 7.16 (backport pending)"
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.float
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped half_float field with no doc values":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fixed in 7.16 (backport pending)"
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.half_float
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped integer field with no doc values":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fixed in 7.16 (backport pending)"
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.integer
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped long field with no doc values":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fixed in 7.16 (backport pending)"
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.long
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped short field with no doc values":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fixed in 7.16 (backport pending)"
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.short
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped object field with no doc values":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fixed in 7.16 (backport pending)"
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.object
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query within nested query on mapped object inner field with no doc values":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Fixed in 7.16 (backport pending)"
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.object.inner1
+
+  - match: {hits.total: 2}
+
+---
+"Test exists query within nested query on mapped text field with no doc values":
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test-no-dv
+          body:
+            query:
+              nested:
+                path: nested
+                query:
+                  exists:
+                    field: nested.text
+
+  - match: {hits.total: 3}

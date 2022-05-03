@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.convert;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.toUnsignedLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.fromTypeName;
 
 public class InternalQlScriptUtils {
@@ -58,6 +59,9 @@ public class InternalQlScriptUtils {
         return number == null || Double.isNaN(number.doubleValue()) ? null : (Number) convert(number, fromTypeName(typeName));
     }
 
+    public static Number nullSafeCastToUnsignedLong(Number number) {
+        return number == null || Double.isNaN(number.doubleValue()) ? null : toUnsignedLong(number);
+    }
 
     //
     // Operators

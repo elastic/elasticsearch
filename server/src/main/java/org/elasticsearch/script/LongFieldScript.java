@@ -18,17 +18,20 @@ import java.util.function.Function;
 public abstract class LongFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("long_field", Factory.class);
 
-    public static final LongFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (LongFieldScript.LeafFactory) ctx -> new LongFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
+    public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public void execute() {
-            emitFromSource();
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
+            return ctx -> new LongFieldScript(field, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    emitFromSource();
+                }
+            };
+        }
+
+        @Override
+        public boolean isResultDeterministic() {
+            return true;
         }
     };
 

@@ -11,8 +11,8 @@ package org.elasticsearch.monitor.os;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.Probes;
 
 import java.io.IOException;
@@ -29,7 +29,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -59,6 +58,10 @@ import java.util.stream.Stream;
 public class OsProbe {
 
     private static final OperatingSystemMXBean osMxBean = ManagementFactory.getOperatingSystemMXBean();
+
+    // This property is specified without units because it also needs to be parsed by the launcher
+    // code, which does not have access to all the utility classes of the Elasticsearch server.
+    private static final String memoryOverrideProperty = System.getProperty("es.total_memory_bytes");
 
     private static final Method getFreePhysicalMemorySize;
     private static final Method getTotalPhysicalMemorySize;
@@ -120,6 +123,35 @@ public class OsProbe {
         } catch (Exception e) {
             logger.warn("exception retrieving total physical memory", e);
             return 0;
+        }
+    }
+
+    /**
+     * Returns the adjusted total amount of physical memory in bytes.
+     * Total memory may be overridden when some other process is running
+     * that is known to consume a non-negligible amount of memory. This
+     * is read from the "es.total_memory_bytes" system property. When
+     * there is no override this method returns the same value as
+     * {@link #getTotalPhysicalMemorySize}.
+     */
+    public long getAdjustedTotalMemorySize() {
+        return Optional.ofNullable(getTotalMemoryOverride(memoryOverrideProperty)).orElse(getTotalPhysicalMemorySize());
+    }
+
+    static Long getTotalMemoryOverride(String memoryOverrideProperty) {
+        if (memoryOverrideProperty == null) {
+            return null;
+        }
+        try {
+            long memoryOverride = Long.parseLong(memoryOverrideProperty);
+            if (memoryOverride < 0) {
+                throw new IllegalArgumentException(
+                    "Negative memory size specified in [es.total_memory_bytes]: [" + memoryOverrideProperty + "]"
+                );
+            }
+            return memoryOverride;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid value for [es.total_memory_bytes]: [" + memoryOverrideProperty + "]", e);
         }
     }
 
@@ -220,7 +252,7 @@ public class OsProbe {
         return readSingleLine(PathUtils.get("/proc/loadavg"));
     }
 
-    public short getSystemCpuPercent() {
+    public static short getSystemCpuPercent() {
         return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
     }
 
@@ -231,7 +263,7 @@ public class OsProbe {
      * @return the single line
      * @throws IOException if an I/O exception occurs reading the file
      */
-    private String readSingleLine(final Path path) throws IOException {
+    private static String readSingleLine(final Path path) throws IOException {
         final List<String> lines = Files.readAllLines(path);
         assert lines.size() == 1 : String.join("\n", lines);
         return lines.get(0);
@@ -408,15 +440,9 @@ public class OsProbe {
         for (final String line : lines) {
             final String[] fields = line.split("\\s+");
             switch (fields[0]) {
-                case "nr_periods":
-                    numberOfPeriods = Long.parseLong(fields[1]);
-                    break;
-                case "nr_throttled":
-                    numberOfTimesThrottled = Long.parseLong(fields[1]);
-                    break;
-                case "throttled_time":
-                    timeThrottledNanos = Long.parseLong(fields[1]);
-                    break;
+                case "nr_periods" -> numberOfPeriods = Long.parseLong(fields[1]);
+                case "nr_throttled" -> numberOfTimesThrottled = Long.parseLong(fields[1]);
+                case "throttled_time" -> timeThrottledNanos = Long.parseLong(fields[1]);
             }
         }
         assert numberOfPeriods != -1;
@@ -750,9 +776,7 @@ public class OsProbe {
              * wrapped in single- or double-quotes.
              */
             final List<String> etcOsReleaseLines = readOsRelease();
-            final List<String> prettyNameLines = etcOsReleaseLines.stream()
-                .filter(line -> line.startsWith("PRETTY_NAME"))
-                .collect(Collectors.toList());
+            final List<String> prettyNameLines = etcOsReleaseLines.stream().filter(line -> line.startsWith("PRETTY_NAME")).toList();
             assert prettyNameLines.size() <= 1 : prettyNameLines;
             final Optional<String> maybePrettyNameLine = prettyNameLines.size() == 1
                 ? Optional.of(prettyNameLines.get(0))
@@ -825,7 +849,7 @@ public class OsProbe {
      */
     long getTotalMemFromProcMeminfo() throws IOException {
         List<String> meminfoLines = readProcMeminfo();
-        final List<String> memTotalLines = meminfoLines.stream().filter(line -> line.startsWith("MemTotal")).collect(Collectors.toList());
+        final List<String> memTotalLines = meminfoLines.stream().filter(line -> line.startsWith("MemTotal")).toList();
         assert memTotalLines.size() <= 1 : memTotalLines;
         if (memTotalLines.size() == 1) {
             final String memTotalLine = memTotalLines.get(0);
@@ -859,7 +883,7 @@ public class OsProbe {
 
     public OsStats osStats() {
         final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());
-        final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getFreePhysicalMemorySize());
+        final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getAdjustedTotalMemorySize(), getFreePhysicalMemorySize());
         final OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
         final OsStats.Cgroup cgroup = getCgroup(Constants.LINUX);
         return new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.function.Consumer;

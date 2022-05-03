@@ -60,7 +60,7 @@ abstract class DateTimeArithmeticOperation extends SqlArithmeticOperation {
         DataType r = right().dataType();
 
         if ((SqlDataTypes.isDateOrTimeBased(r) || SqlDataTypes.isInterval(r) || DataTypes.isNull(r)) == false
-                || (SqlDataTypes.isDateOrTimeBased(l) || SqlDataTypes.isInterval(l) || DataTypes.isNull(l)) == false) {
+            || (SqlDataTypes.isDateOrTimeBased(l) || SqlDataTypes.isInterval(l) || DataTypes.isNull(l)) == false) {
             return new TypeResolution(format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
         }
         return TypeResolution.TYPE_RESOLVED;

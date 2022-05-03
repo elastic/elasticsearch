@@ -16,7 +16,7 @@
     ]
   },
   "inference_config" : {"classification" : {}},
-  "estimated_heap_memory_usage_bytes" : 1053992,
+  "model_size_bytes" : 1053992,
   "estimated_operations" : 39629,
   "license_level" : "basic"
 }

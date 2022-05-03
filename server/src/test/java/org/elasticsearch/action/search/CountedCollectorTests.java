@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,32 +37,38 @@ public class CountedCollectorTests extends ESTestCase {
                 runnable.run();
             }
         };
-        CountedCollector<SearchPhaseResult> collector = new CountedCollector<>(consumer, numResultsExpected,
-            latch::countDown, context);
+        CountedCollector<SearchPhaseResult> collector = new CountedCollector<>(consumer, numResultsExpected, latch::countDown, context);
         for (int i = 0; i < numResultsExpected; i++) {
             int shardID = i;
             switch (randomIntBetween(0, 2)) {
-                case 0:
+                case 0 -> {
                     state.add(0);
                     executor.execute(() -> collector.countDown());
-                    break;
-                case 1:
+                }
+                case 1 -> {
                     state.add(1);
                     executor.execute(() -> {
                         DfsSearchResult dfsSearchResult = new DfsSearchResult(
-                            new ShardSearchContextId(UUIDs.randomBase64UUID(), shardID), null, null);
+                            new ShardSearchContextId(UUIDs.randomBase64UUID(), shardID),
+                            null,
+                            null
+                        );
                         dfsSearchResult.setShardIndex(shardID);
-                        dfsSearchResult.setSearchShardTarget(new SearchShardTarget("foo",
-                            new ShardId("bar", "baz", shardID), null, OriginalIndices.NONE));
-                        collector.onResult(dfsSearchResult);});
-                    break;
-                case 2:
+                        dfsSearchResult.setSearchShardTarget(new SearchShardTarget("foo", new ShardId("bar", "baz", shardID), null));
+                        collector.onResult(dfsSearchResult);
+                    });
+                }
+                case 2 -> {
                     state.add(2);
-                    executor.execute(() -> collector.onFailure(shardID, new SearchShardTarget("foo", new ShardId("bar", "baz", shardID),
-                        null, OriginalIndices.NONE), new RuntimeException("boom")));
-                    break;
-                default:
-                    fail("unknown state");
+                    executor.execute(
+                        () -> collector.onFailure(
+                            shardID,
+                            new SearchShardTarget("foo", new ShardId("bar", "baz", shardID), null),
+                            new RuntimeException("boom")
+                        )
+                    );
+                }
+                default -> fail("unknown state");
             }
         }
         latch.await();
@@ -71,19 +76,16 @@ public class CountedCollectorTests extends ESTestCase {
         AtomicArray<SearchPhaseResult> results = consumer.getAtomicArray();
         for (int i = 0; i < numResultsExpected; i++) {
             switch (state.get(i)) {
-                case 0:
-                    assertNull(results.get(i));
-                    break;
-                case 1:
+                case 0 -> assertNull(results.get(i));
+                case 1 -> {
                     assertNotNull(results.get(i));
                     assertEquals(i, results.get(i).getContextId().getId());
-                    break;
-                case 2:
+                }
+                case 2 -> {
                     final int shardId = i;
                     assertEquals(1, context.failures.stream().filter(f -> f.shardId() == shardId).count());
-                    break;
-                default:
-                    fail("unknown state");
+                }
+                default -> fail("unknown state");
             }
         }
 

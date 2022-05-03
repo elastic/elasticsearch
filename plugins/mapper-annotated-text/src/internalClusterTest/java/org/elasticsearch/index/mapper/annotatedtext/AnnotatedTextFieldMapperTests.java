@@ -24,9 +24,6 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -43,6 +40,9 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -77,16 +77,14 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     protected void registerParameters(ParameterChecker checker) throws IOException {
 
         checker.registerUpdateCheck(b -> {
-                b.field("analyzer", "default");
-                b.field("search_analyzer", "keyword");
-            },
-            m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+            b.field("analyzer", "default");
+            b.field("search_analyzer", "keyword");
+        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
         checker.registerUpdateCheck(b -> {
-                b.field("analyzer", "default");
-                b.field("search_analyzer", "keyword");
-                b.field("search_quote_analyzer", "keyword");
-            },
-            m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
+            b.field("analyzer", "default");
+            b.field("search_analyzer", "keyword");
+            b.field("search_quote_analyzer", "keyword");
+        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
 
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("index_options", b -> b.field("index_options", "docs"));
@@ -97,26 +95,20 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("position_increment_gap", b -> b.field("position_increment_gap", 10));
 
         // norms can be set from true to false, but not vice versa
-        checker.registerConflictCheck("norms",
-            fieldMapping(b -> {
-                b.field("type", "annotated_text");
-                b.field("norms", false);
-            }),
-            fieldMapping(b -> {
-                b.field("type", "annotated_text");
-                b.field("norms", true);
-            }));
-        checker.registerUpdateCheck(
-            b -> {
-                b.field("type", "annotated_text");
-                b.field("norms", true);
-            },
-            b -> {
-                b.field("type", "annotated_text");
-                b.field("norms", false);
-            },
-            m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
-        );
+        checker.registerConflictCheck("norms", fieldMapping(b -> {
+            b.field("type", "annotated_text");
+            b.field("norms", false);
+        }), fieldMapping(b -> {
+            b.field("type", "annotated_text");
+            b.field("norms", true);
+        }));
+        checker.registerUpdateCheck(b -> {
+            b.field("type", "annotated_text");
+            b.field("norms", true);
+        }, b -> {
+            b.field("type", "annotated_text");
+            b.field("norms", false);
+        }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
     }
 
     @Override
@@ -189,7 +181,6 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
             assertEquals(0, postings.nextDoc());
             assertEquals(2, postings.nextPosition());
 
-
             assertTrue(terms.seekExact(new BytesRef("hush")));
             postings = terms.postings(null, PostingsEnum.POSITIONS);
             assertEquals(0, postings.nextDoc());
@@ -238,8 +229,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         }));
 
         String text = "the quick [brown](Color) fox jumped over the lazy dog";
-        ParsedDocument doc
-            = mapperService.documentMapper().parse(source(b -> b.field("field", text)));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", text)));
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             LeafReader leaf = reader.leaves().get(0).reader();
@@ -250,7 +240,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
             while ((term = iterator.next()) != null) {
                 foundTerms.add(term.utf8ToString());
             }
-            //Check we have both text and annotation tokens
+            // Check we have both text and annotation tokens
             assertTrue(foundTerms.contains("brown"));
             assertTrue(foundTerms.contains("Color"));
             assertTrue(foundTerms.contains("fox"));
@@ -374,62 +364,92 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSearchAnalyzerSerialization() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
                 .startObject("properties")
-                    .startObject("field")
-                        .field("type", "annotated_text")
-                        .field("analyzer", "standard")
-                        .field("search_analyzer", "keyword")
-                    .endObject()
-                .endObject().endObject().endObject());
+                .startObject("field")
+                .field("type", "annotated_text")
+                .field("analyzer", "standard")
+                .field("search_analyzer", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         DocumentMapper mapper = createDocumentMapper(mapping);
-        assertEquals(mapping,  mapper.mappingSource().toString());
+        assertEquals(mapping, mapper.mappingSource().toString());
 
         // special case: default index analyzer
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
                 .startObject("properties")
-                    .startObject("field")
-                        .field("type", "annotated_text")
-                        .field("analyzer", "default")
-                        .field("search_analyzer", "keyword")
-                    .endObject()
-                .endObject().endObject().endObject());
+                .startObject("field")
+                .field("type", "annotated_text")
+                .field("analyzer", "default")
+                .field("search_analyzer", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         mapper = createDocumentMapper(mapping);
-        assertEquals(mapping,  mapper.mappingSource().toString());
+        assertEquals(mapping, mapper.mappingSource().toString());
 
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties")
-            .startObject("field")
-            .field("type", "annotated_text")
-            .field("analyzer", "keyword")
-            .endObject()
-            .endObject().endObject().endObject());
+        mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("field")
+                .field("type", "annotated_text")
+                .field("analyzer", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         mapper = createDocumentMapper(mapping);
-        assertEquals(mapping,  mapper.mappingSource().toString());
+        assertEquals(mapping, mapper.mappingSource().toString());
 
         // special case: default search analyzer
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties")
-            .startObject("field")
-            .field("type", "annotated_text")
-            .field("analyzer", "keyword")
-            .field("search_analyzer", "default")
-            .endObject()
-            .endObject().endObject().endObject());
+        mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("field")
+                .field("type", "annotated_text")
+                .field("analyzer", "keyword")
+                .field("search_analyzer", "default")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         mapper = createDocumentMapper(mapping);
-        assertEquals(mapping,  mapper.mappingSource().toString());
+        assertEquals(mapping, mapper.mappingSource().toString());
 
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties")
-            .startObject("field")
-            .field("type", "annotated_text")
-            .field("analyzer", "keyword")
-            .endObject()
-            .endObject().endObject().endObject());
+        mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("field")
+                .field("type", "annotated_text")
+                .field("analyzer", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         mapper = createDocumentMapper(mapping);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -444,32 +464,44 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSearchQuoteAnalyzerSerialization() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
                 .startObject("properties")
-                    .startObject("field")
-                        .field("type","annotated_text")
-                        .field("analyzer", "standard")
-                        .field("search_analyzer", "standard")
-                        .field("search_quote_analyzer", "keyword")
-                    .endObject()
-                .endObject().endObject().endObject());
+                .startObject("field")
+                .field("type", "annotated_text")
+                .field("analyzer", "standard")
+                .field("search_analyzer", "standard")
+                .field("search_quote_analyzer", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         DocumentMapper mapper = createDocumentMapper(mapping);
-        assertEquals(mapping,  mapper.mappingSource().toString());
+        assertEquals(mapping, mapper.mappingSource().toString());
 
         // special case: default index/search analyzer
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
                 .startObject("properties")
-                    .startObject("field")
-                        .field("type", "annotated_text")
-                        .field("analyzer", "default")
-                        .field("search_analyzer", "default")
-                        .field("search_quote_analyzer", "keyword")
-                    .endObject()
-                .endObject().endObject().endObject());
+                .startObject("field")
+                .field("type", "annotated_text")
+                .field("analyzer", "default")
+                .field("search_analyzer", "default")
+                .field("search_quote_analyzer", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         mapper = createDocumentMapper(mapping);
-        assertEquals(mapping,  mapper.mappingSource().toString());
+        assertEquals(mapping, mapper.mappingSource().toString());
     }
 
     public void testTermVectors() throws IOException {
@@ -536,8 +568,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
             b.field("type", "annotated_text");
             b.field("index", false);
         })));
-        assertEquals("Failed to parse mapping: unknown parameter [index] on mapper [field] of type [annotated_text]",
-            e.getMessage());
+        assertEquals("Failed to parse mapping: unknown parameter [index] on mapper [field] of type [annotated_text]", e.getMessage());
     }
 
     public void testAnalyzedFieldPositionIncrementWithoutPositions() {
@@ -547,8 +578,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
                 b.field("index_options", indexOptions);
                 b.field("position_increment_gap", 0);
             })));
-            assertThat(e.getMessage(),
-                containsString("Cannot set position_increment_gap on field [field] without positions enabled"));
+            assertThat(e.getMessage(), containsString("Cannot set position_increment_gap on field [field] without positions enabled"));
         }
     }
 

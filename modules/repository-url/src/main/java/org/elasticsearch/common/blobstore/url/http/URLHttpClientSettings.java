@@ -24,13 +24,15 @@ public class URLHttpClientSettings {
         "http_socket_timeout",
         TimeValue.timeValueMillis(URLHttpClientSettings.DEFAULT_SOCKET_TIMEOUT_MILLIS),
         TimeValue.timeValueMillis(1),
-        TimeValue.timeValueMinutes(60));
+        TimeValue.timeValueMinutes(60)
+    );
 
     static final Setting<Integer> HTTP_MAX_RETRIES_SETTING = Setting.intSetting(
         "http_max_retries",
         URLHttpClientSettings.DEFAULT_MAX_RETRIES,
         0,
-        Integer.MAX_VALUE);
+        Integer.MAX_VALUE
+    );
 
     private int maxRetries = DEFAULT_MAX_RETRIES;
     private int connectionPoolTimeoutMs = DEFAULT_CONNECTION_POOL_TIMEOUT_MILLIS;

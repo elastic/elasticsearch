@@ -91,11 +91,10 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
     }
 
-    public void testOrdinalsSorted() {
+    public void testGlobalOrdinalsSorted() {
         final MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType("keyword");
-        OrdinalValuesSource source = new OrdinalValuesSource(
+        GlobalOrdinalValuesSource source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
-            (b) -> {},
             keyword,
             context -> null,
             DocValueFormat.RAW,
@@ -111,9 +110,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
 
-        source = new OrdinalValuesSource(
+        source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
-            (b) -> {},
             keyword,
             context -> null,
             DocValueFormat.RAW,
@@ -126,9 +124,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
 
-        source = new OrdinalValuesSource(
+        source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
-            (b) -> {},
             keyword,
             context -> null,
             DocValueFormat.RAW,
@@ -141,9 +138,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
 
         final MappedFieldType ip = new IpFieldMapper.IpFieldType("ip");
-        source = new OrdinalValuesSource(
+        source = new GlobalOrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
-            (b) -> {},
             ip,
             context -> null,
             DocValueFormat.RAW,

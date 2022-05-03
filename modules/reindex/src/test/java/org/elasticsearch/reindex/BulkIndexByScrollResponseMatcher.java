@@ -19,6 +19,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressWarnings("HiddenField")
 public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByScrollResponse> {
 
     private Matcher<Long> createdMatcher = equalTo(0L);
@@ -121,14 +122,14 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByScro
 
     @Override
     protected boolean matchesSafely(BulkByScrollResponse item) {
-        return updatedMatcher.matches(item.getUpdated()) &&
-                createdMatcher.matches(item.getCreated()) &&
-                deletedMatcher.matches(item.getDeleted()) &&
-                (batchesMatcher == null || batchesMatcher.matches(item.getBatches())) &&
-                versionConflictsMatcher.matches(item.getVersionConflicts()) &&
-                failuresMatcher.matches(item.getBulkFailures().size()) &&
-                reasonCancelledMatcher.matches(item.getReasonCancelled()) &&
-                slicesMatcher.matches(item.getStatus().getSliceStatuses());
+        return updatedMatcher.matches(item.getUpdated())
+            && createdMatcher.matches(item.getCreated())
+            && deletedMatcher.matches(item.getDeleted())
+            && (batchesMatcher == null || batchesMatcher.matches(item.getBatches()))
+            && versionConflictsMatcher.matches(item.getVersionConflicts())
+            && failuresMatcher.matches(item.getBulkFailures().size())
+            && reasonCancelledMatcher.matches(item.getReasonCancelled())
+            && slicesMatcher.matches(item.getStatus().getSliceStatuses());
     }
 
     @Override

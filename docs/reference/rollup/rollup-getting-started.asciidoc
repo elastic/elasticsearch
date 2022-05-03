@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[rollup-getting-started]]
 === Getting started with {rollups}
 ++++

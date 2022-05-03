@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.EvictingQueue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -18,18 +19,17 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.diff;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -69,16 +69,12 @@ public class SerialDiffIT extends ESIntegTestCase {
     private ValuesSourceAggregationBuilder<? extends ValuesSourceAggregationBuilder<?>> randomMetric(String name, String field) {
         int rand = randomIntBetween(0, 3);
 
-        switch (rand) {
-            case 0:
-                return min(name).field(field);
-            case 2:
-                return max(name).field(field);
-            case 3:
-                return avg(name).field(field);
-            default:
-                return avg(name).field(field);
-        }
+        return switch (rand) {
+            case 0 -> min(name).field(field);
+            case 2 -> max(name).field(field);
+            case 3 -> avg(name).field(field);
+            default -> avg(name).field(field);
+        };
     }
 
     private void assertValidIterators(Iterator<?> expectedBucketIter, Iterator<?> expectedCountsIter, Iterator<?> expectedValuesIter) {
@@ -135,7 +131,7 @@ public class SerialDiffIT extends ESIntegTestCase {
         metric = randomMetric("the_metric", VALUE_FIELD);
         mockHisto = PipelineAggregationHelperTests.generateHistogram(interval, numBuckets, randomDouble(), randomDouble());
 
-        testValues = new HashMap<>(8);
+        testValues = Maps.newMapWithExpectedSize(8);
 
         for (MetricTarget target : MetricTarget.values()) {
             setupExpected(target);

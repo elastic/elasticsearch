@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.lucene.queries;
 
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.index.mapper.RangeType;
 
 public class IntegerRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryDocValuesRangeQueryTestCase {
@@ -96,13 +96,13 @@ public class IntegerRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinar
 
         @Override
         protected boolean isDisjoint(Range o) {
-            IntTestRange other = (IntTestRange)o;
+            IntTestRange other = (IntTestRange) o;
             return this.min > other.max || this.max < other.min;
         }
 
         @Override
         protected boolean isWithin(Range o) {
-            IntTestRange other = (IntTestRange)o;
+            IntTestRange other = (IntTestRange) o;
             if ((this.min >= other.min && this.max <= other.max) == false) {
                 // not within:
                 return false;

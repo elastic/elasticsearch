@@ -40,7 +40,8 @@ public class ReopenJobWithGapIT extends MlNativeAutodetectIntegTestCase {
 
     public void test() throws Exception {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
-                Collections.singletonList(new Detector.Builder("count", null).build()));
+            Collections.singletonList(new Detector.Builder("count", null).build())
+        );
         analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(BUCKET_SPAN_SECONDS));
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeFormat("epoch");

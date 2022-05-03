@@ -35,8 +35,12 @@ final class Debugger {
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists))
-                    .compile("<debugging>", source, settings, textifier);
+            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists)).compile(
+                "<debugging>",
+                source,
+                settings,
+                textifier
+            );
         } catch (RuntimeException e) {
             textifier.print(outputWriter);
             e.addSuppressed(new Exception("current bytecode: \n" + output));
@@ -48,15 +52,28 @@ final class Debugger {
     }
 
     /** compiles to bytecode, and returns debugging output */
-    private static String tree(Class<?> iface, String source, CompilerSettings settings, List<Whitelist> whitelists,
-                               UserTreeVisitor<ScriptScope> semanticPhaseVisitor, UserTreeVisitor<ScriptScope> irPhaseVisitor,
-                               IRTreeVisitor<WriteScope> asmPhaseVisitor) {
+    private static String tree(
+        Class<?> iface,
+        String source,
+        CompilerSettings settings,
+        List<Whitelist> whitelists,
+        UserTreeVisitor<ScriptScope> semanticPhaseVisitor,
+        UserTreeVisitor<ScriptScope> irPhaseVisitor,
+        IRTreeVisitor<WriteScope> asmPhaseVisitor
+    ) {
         StringWriter output = new StringWriter();
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists))
-                    .compile("<debugging>", source, settings, textifier, semanticPhaseVisitor, irPhaseVisitor, asmPhaseVisitor);
+            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists)).compile(
+                "<debugging>",
+                source,
+                settings,
+                textifier,
+                semanticPhaseVisitor,
+                irPhaseVisitor,
+                asmPhaseVisitor
+            );
         } catch (RuntimeException e) {
             textifier.print(outputWriter);
             e.addSuppressed(new Exception("current bytecode: \n" + output));
@@ -67,9 +84,20 @@ final class Debugger {
         return output.toString();
     }
 
-    static void phases(final String source, UserTreeVisitor<ScriptScope> semanticPhaseVisitor, UserTreeVisitor<ScriptScope> irPhaseVisitor,
-                       IRTreeVisitor<WriteScope> asmPhaseVisitor) {
-        tree(PainlessTestScript.class, source, new CompilerSettings(), PainlessPlugin.BASE_WHITELISTS, semanticPhaseVisitor, irPhaseVisitor,
-             asmPhaseVisitor);
+    static void phases(
+        final String source,
+        UserTreeVisitor<ScriptScope> semanticPhaseVisitor,
+        UserTreeVisitor<ScriptScope> irPhaseVisitor,
+        IRTreeVisitor<WriteScope> asmPhaseVisitor
+    ) {
+        tree(
+            PainlessTestScript.class,
+            source,
+            new CompilerSettings(),
+            PainlessPlugin.BASE_WHITELISTS,
+            semanticPhaseVisitor,
+            irPhaseVisitor,
+            asmPhaseVisitor
+        );
     }
 }

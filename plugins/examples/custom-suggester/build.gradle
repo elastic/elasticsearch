@@ -16,6 +16,10 @@ esplugin {
   noticeFile rootProject.file('NOTICE.txt')
 }
 
-testClusters.all {
+testClusters.configureEach {
   numberOfNodes = 2
+}
+
+dependencies {
+  yamlRestTestRuntimeOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"
 }

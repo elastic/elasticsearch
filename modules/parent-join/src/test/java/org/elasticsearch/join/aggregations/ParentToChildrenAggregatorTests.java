@@ -15,15 +15,15 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -37,7 +37,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 
 import java.io.IOException;
@@ -66,8 +66,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
         testCase(new MatchAllDocsQuery(), newSearcher(indexReader, false, true), parentToChild -> {
             assertEquals(0, parentToChild.getDocCount());
-            assertEquals(Double.POSITIVE_INFINITY, ((InternalMin) parentToChild.getAggregations().get("in_child")).getValue(),
-                    Double.MIN_VALUE);
+            assertEquals(Double.POSITIVE_INFINITY, ((Min) parentToChild.getAggregations().get("in_child")).value(), Double.MIN_VALUE);
         });
         indexReader.close();
         directory.close();
@@ -80,8 +79,10 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         final Map<String, Tuple<Integer, Integer>> expectedParentChildRelations = setupIndex(indexWriter);
         indexWriter.close();
 
-        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory),
-                new ShardId(new Index("foo", "_na_"), 1));
+        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(
+            DirectoryReader.open(directory),
+            new ShardId(new Index("foo", "_na_"), 1)
+        );
         // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
         IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
 
@@ -94,14 +95,17 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             }
             assertEquals(expectedTotalChildren, child.getDocCount());
             assertTrue(JoinAggregationInspectionHelper.hasValue(child));
-            assertEquals(expectedMinValue, ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
+            assertEquals(expectedMinValue, ((Min) child.getAggregations().get("in_child")).value(), Double.MIN_VALUE);
         });
 
         for (String parent : expectedParentChildRelations.keySet()) {
             testCase(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId(parent)), indexSearcher, child -> {
                 assertEquals((long) expectedParentChildRelations.get(parent).v1(), child.getDocCount());
-                assertEquals(expectedParentChildRelations.get(parent).v2(),
-                        ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
+                assertEquals(
+                    expectedParentChildRelations.get(parent).v2(),
+                    ((Min) child.getAggregations().get("in_child")).value(),
+                    Double.MIN_VALUE
+                );
             });
         }
         indexReader.close();
@@ -153,16 +157,16 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
                 StringTerms.Bucket evenBucket = result.getBucketByKey("even");
                 InternalChildren evenChildren = evenBucket.getAggregations().get("children");
-                InternalMin evenMin = evenChildren.getAggregations().get("min");
+                Min evenMin = evenChildren.getAggregations().get("min");
                 assertThat(evenChildren.getDocCount(), equalTo(expectedEvenChildCount));
-                assertThat(evenMin.getValue(), equalTo(expectedEvenMin));
+                assertThat(evenMin.value(), equalTo(expectedEvenMin));
 
                 if (expectedOddChildCount > 0) {
                     StringTerms.Bucket oddBucket = result.getBucketByKey("odd");
                     InternalChildren oddChildren = oddBucket.getAggregations().get("children");
-                    InternalMin oddMin = oddChildren.getAggregations().get("min");
+                    Min oddMin = oddChildren.getAggregations().get("min");
                     assertThat(oddChildren.getDocCount(), equalTo(expectedOddChildCount));
-                    assertThat(oddMin.getValue(), equalTo(expectedOddMin));
+                    assertThat(oddMin.value(), equalTo(expectedOddMin));
                 } else {
                     assertNull(result.getBucketByKey("odd"));
                 }
@@ -190,20 +194,20 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
     private static List<Field> createParentDocument(String id, String kwd) {
         return Arrays.asList(
-                new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO),
-                new SortedSetDocValuesField("kwd", new BytesRef(kwd)),
-                new Field("kwd", new BytesRef(kwd), KeywordFieldMapper.Defaults.FIELD_TYPE),
-                new StringField("join_field", PARENT_TYPE, Field.Store.NO),
-                createJoinField(PARENT_TYPE, id)
+            new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO),
+            new SortedSetDocValuesField("kwd", new BytesRef(kwd)),
+            new Field("kwd", new BytesRef(kwd), KeywordFieldMapper.Defaults.FIELD_TYPE),
+            new StringField("join_field", PARENT_TYPE, Field.Store.NO),
+            createJoinField(PARENT_TYPE, id)
         );
     }
 
     private static List<Field> createChildDocument(String childId, String parentId, int value) {
         return Arrays.asList(
-                new StringField(IdFieldMapper.NAME, Uid.encodeId(childId), Field.Store.NO),
-                new StringField("join_field", CHILD_TYPE, Field.Store.NO),
-                createJoinField(PARENT_TYPE, parentId),
-                new SortedNumericDocValuesField("number", value)
+            new StringField(IdFieldMapper.NAME, Uid.encodeId(childId), Field.Store.NO),
+            new StringField("join_field", CHILD_TYPE, Field.Store.NO),
+            createJoinField(PARENT_TYPE, parentId),
+            new SortedNumericDocValuesField("number", value)
         );
     }
 
@@ -211,8 +215,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         return new SortedDocValuesField("join_field#" + parentType, new BytesRef(id));
     }
 
-    private void testCase(Query query, IndexSearcher indexSearcher, Consumer<InternalChildren> verify)
-            throws IOException {
+    private void testCase(Query query, IndexSearcher indexSearcher, Consumer<InternalChildren> verify) throws IOException {
 
         ChildrenAggregationBuilder aggregationBuilder = new ChildrenAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_child").field("number"));

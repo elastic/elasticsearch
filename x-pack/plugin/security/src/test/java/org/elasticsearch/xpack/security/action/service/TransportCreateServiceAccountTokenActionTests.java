@@ -40,8 +40,11 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
         serviceAccountService = mock(ServiceAccountService.class);
         securityContext = mock(SecurityContext.class);
         transportCreateServiceAccountTokenAction = new TransportCreateServiceAccountTokenAction(
-            mock(TransportService.class), new ActionFilters(Collections.emptySet()),
-            serviceAccountService, securityContext);
+            mock(TransportService.class),
+            new ActionFilters(Collections.emptySet()),
+            serviceAccountService,
+            securityContext
+        );
     }
 
     public void testAuthenticationIsRequired() {

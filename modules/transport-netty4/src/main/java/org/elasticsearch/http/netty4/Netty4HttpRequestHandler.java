@@ -11,8 +11,10 @@ package org.elasticsearch.http.netty4;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.transport.Transports;
 
 @ChannelHandler.Sharable
 class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
@@ -25,6 +27,8 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest httpRequest) {
+        assert Transports.assertDefaultThreadContext(serverTransport.getThreadPool().getThreadContext());
+        assert Transports.assertTransportThread();
         final Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
         boolean success = false;
         try {
@@ -40,6 +44,8 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         ExceptionsHelper.maybeDieOnAnotherThread(cause);
+        assert Transports.assertDefaultThreadContext(serverTransport.getThreadPool().getThreadContext());
+
         Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
         if (cause instanceof Error) {
             serverTransport.onException(channel, new Exception(cause));

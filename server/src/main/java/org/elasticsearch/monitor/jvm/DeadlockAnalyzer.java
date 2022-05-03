@@ -49,8 +49,7 @@ public class DeadlockAnalyzer {
         return createDeadlockDescriptions(cycles);
     }
 
-
-    private Deadlock[] createDeadlockDescriptions(Set<LinkedHashSet<ThreadInfo>> cycles) {
+    private static Deadlock[] createDeadlockDescriptions(Set<LinkedHashSet<ThreadInfo>> cycles) {
         Deadlock result[] = new Deadlock[cycles.size()];
         int count = 0;
         for (LinkedHashSet<ThreadInfo> cycle : cycles) {
@@ -61,8 +60,7 @@ public class DeadlockAnalyzer {
         return result;
     }
 
-
-    private Set<LinkedHashSet<ThreadInfo>> calculateCycles(Map<Long, ThreadInfo> threadInfoMap) {
+    private static Set<LinkedHashSet<ThreadInfo>> calculateCycles(Map<Long, ThreadInfo> threadInfoMap) {
         Set<LinkedHashSet<ThreadInfo>> cycles = new HashSet<>();
         for (Map.Entry<Long, ThreadInfo> entry : threadInfoMap.entrySet()) {
             LinkedHashSet<ThreadInfo> cycle = new LinkedHashSet<>();
@@ -77,9 +75,10 @@ public class DeadlockAnalyzer {
         return cycles;
     }
 
-
-    private Set<LinkedHashSet<ThreadInfo>> calculateCycleDeadlockChains(Map<Long, ThreadInfo> threadInfoMap,
-            Set<LinkedHashSet<ThreadInfo>> cycles) {
+    private Set<LinkedHashSet<ThreadInfo>> calculateCycleDeadlockChains(
+        Map<Long, ThreadInfo> threadInfoMap,
+        Set<LinkedHashSet<ThreadInfo>> cycles
+    ) {
         ThreadInfo allThreads[] = threadBean.getThreadInfo(threadBean.getAllThreadIds());
         Set<LinkedHashSet<ThreadInfo>> deadlockChain = new HashSet<>();
         Set<Long> knownDeadlockedThreads = threadInfoMap.keySet();
@@ -103,7 +102,6 @@ public class DeadlockAnalyzer {
 
         return deadlockChain;
     }
-
 
     private Map<Long, ThreadInfo> createThreadInfoMap(long threadIds[]) {
         ThreadInfo threadInfos[] = threadBean.getThreadInfo(threadIds);

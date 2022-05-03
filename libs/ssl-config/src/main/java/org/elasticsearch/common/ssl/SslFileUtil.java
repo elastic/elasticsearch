@@ -25,10 +25,7 @@ import java.util.stream.Collectors;
 final class SslFileUtil {
 
     static String pathsToString(List<Path> paths) {
-        return paths.stream()
-            .map(Path::toAbsolutePath)
-            .map(Object::toString)
-            .collect(Collectors.joining(","));
+        return paths.stream().map(Path::toAbsolutePath).map(Object::toString).collect(Collectors.joining(","));
     }
 
     static SslConfigException ioException(String fileType, List<Path> paths, IOException cause) {
@@ -87,7 +84,7 @@ final class SslFileUtil {
         } else {
             message += "access to read one or more files is blocked";
         }
-        message += "; SSL resources should be placed in the " ;
+        message += "; SSL resources should be placed in the ";
         if (basePath == null) {
             message += "Elasticsearch config directory";
         } else {

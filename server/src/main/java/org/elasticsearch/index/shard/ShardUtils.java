@@ -10,9 +10,9 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.ElasticsearchLeafReader;
+import org.elasticsearch.core.Nullable;
 
 public final class ShardUtils {
 
@@ -44,7 +44,5 @@ public final class ShardUtils {
         }
         throw new IllegalArgumentException("can't extract shard ID, can't unwrap ElasticsearchDirectoryReader");
     }
-
-
 
 }

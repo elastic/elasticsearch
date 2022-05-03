@@ -1,4 +1,4 @@
-==== Running as a daemon
+==== Run as a daemon
 
 To run Elasticsearch as a daemon, specify `-d` on the command line, and record
 the process ID in a file using the `-p` option:

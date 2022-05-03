@@ -86,8 +86,17 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
     public static class TestTask extends StoredAsyncTask<TestResponse> {
         public volatile AtomicReference<TestResponse> finalResponse = new AtomicReference<>();
 
-        public TestTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers,
-                        Map<String, String> originHeaders, AsyncExecutionId asyncExecutionId, TimeValue keepAlive) {
+        public TestTask(
+            long id,
+            String type,
+            String action,
+            String description,
+            TaskId parentTaskId,
+            Map<String, String> headers,
+            Map<String, String> originHeaders,
+            AsyncExecutionId asyncExecutionId,
+            TimeValue keepAlive
+        ) {
             super(id, type, action, description, parentTaskId, headers, originHeaders, asyncExecutionId, keepAlive);
         }
 
@@ -100,10 +109,27 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
     public static class TestOperation implements AsyncTaskManagementService.AsyncOperation<TestRequest, TestResponse, TestTask> {
 
         @Override
-        public TestTask createTask(TestRequest request, long id, String type, String action, TaskId parentTaskId,
-                                   Map<String, String> headers, Map<String, String> originHeaders, AsyncExecutionId asyncExecutionId) {
-            return new TestTask(id, type, action, request.getDescription(), parentTaskId, headers, originHeaders, asyncExecutionId,
-                TimeValue.timeValueDays(5));
+        public TestTask createTask(
+            TestRequest request,
+            long id,
+            String type,
+            String action,
+            TaskId parentTaskId,
+            Map<String, String> headers,
+            Map<String, String> originHeaders,
+            AsyncExecutionId asyncExecutionId
+        ) {
+            return new TestTask(
+                id,
+                type,
+                action,
+                request.getDescription(),
+                parentTaskId,
+                headers,
+                originHeaders,
+                asyncExecutionId,
+                TimeValue.timeValueDays(5)
+            );
         }
 
         @Override
@@ -133,12 +159,24 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         clusterService = getInstanceFromNode(ClusterService.class);
         transportService = getInstanceFromNode(TransportService.class);
         BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
-        AsyncTaskIndexService<StoredAsyncResponse<TestResponse>> store =
-            new AsyncTaskIndexService<>(index, clusterService, transportService.getThreadPool().getThreadContext(), client(), "test",
-                in -> new StoredAsyncResponse<>(TestResponse::new, in), writableRegistry(), bigArrays);
-        results = new AsyncResultsService<>(store, true, TestTask.class,
+        AsyncTaskIndexService<StoredAsyncResponse<TestResponse>> store = new AsyncTaskIndexService<>(
+            index,
+            clusterService,
+            transportService.getThreadPool().getThreadContext(),
+            client(),
+            "test",
+            in -> new StoredAsyncResponse<>(TestResponse::new, in),
+            writableRegistry(),
+            bigArrays
+        );
+        results = new AsyncResultsService<>(
+            store,
+            true,
+            TestTask.class,
             (task, listener, timeout) -> addCompletionListener(transportService.getThreadPool(), task, listener, timeout),
-            transportService.getTaskManager(), clusterService);
+            transportService.getTaskManager(),
+            clusterService
+        );
     }
 
     /**
@@ -150,11 +188,22 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
     }
 
     private AsyncTaskManagementService<TestRequest, TestResponse, TestTask> createManagementService(
-        AsyncTaskManagementService.AsyncOperation<TestRequest, TestResponse, TestTask> operation) {
+        AsyncTaskManagementService.AsyncOperation<TestRequest, TestResponse, TestTask> operation
+    ) {
         BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
-        return new AsyncTaskManagementService<>(index, client(), "test_origin", writableRegistry(),
-            transportService.getTaskManager(), "test_action", operation, TestTask.class, clusterService, transportService.getThreadPool(),
-            bigArrays);
+        return new AsyncTaskManagementService<>(
+            index,
+            client(),
+            "test_origin",
+            writableRegistry(),
+            transportService.getTaskManager(),
+            "test_action",
+            operation,
+            TestTask.class,
+            clusterService,
+            transportService.getThreadPool(),
+            bigArrays
+        );
     }
 
     public void testReturnBeforeTimeout() throws Exception {
@@ -163,7 +212,11 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         boolean keepOnCompletion = randomBoolean();
         CountDownLatch latch = new CountDownLatch(1);
         TestRequest request = new TestRequest(success ? randomAlphaOfLength(10) : "die");
-        service.asyncExecute(request, TimeValue.timeValueMinutes(1), TimeValue.timeValueMinutes(10), keepOnCompletion,
+        service.asyncExecute(
+            request,
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueMinutes(10),
+            keepOnCompletion,
             ActionListener.wrap(r -> {
                 assertThat(success, equalTo(true));
                 assertThat(r.string, equalTo("response for [" + request.string + "]"));
@@ -173,7 +226,8 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
                 assertThat(success, equalTo(false));
                 assertThat(e.getMessage(), equalTo("test exception"));
                 latch.countDown();
-            }));
+            })
+        );
         assertThat(latch.await(10, TimeUnit.SECONDS), equalTo(true));
     }
 
@@ -199,13 +253,18 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         TestRequest request = new TestRequest(success ? randomAlphaOfLength(10) : "die");
         AtomicReference<TestResponse> responseHolder = new AtomicReference<>();
-        service.asyncExecute(request, TimeValue.timeValueMillis(1), TimeValue.timeValueMinutes(10), keepOnCompletion,
+        service.asyncExecute(
+            request,
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(10),
+            keepOnCompletion,
             ActionListener.wrap(r -> {
                 assertThat(r.string, nullValue());
                 assertThat(r.id, notNullValue());
                 assertThat(responseHolder.getAndSet(r), nullValue());
                 latch.countDown();
-            }, e -> fail("Shouldn't be here")));
+            }, e -> fail("Shouldn't be here"))
+        );
         assertThat(latch.await(20, TimeUnit.SECONDS), equalTo(true));
 
         if (timeoutOnFirstAttempt) {
@@ -222,8 +281,11 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             // now we are waiting for the task to finish
             logger.trace("Waiting for response to complete");
             AtomicReference<StoredAsyncResponse<TestResponse>> responseRef = new AtomicReference<>();
-            CountDownLatch getResponseCountDown = getResponse(responseHolder.get().id, TimeValue.timeValueSeconds(5),
-                ActionListener.wrap(responseRef::set, e -> fail("Shouldn't be here")));
+            CountDownLatch getResponseCountDown = getResponse(
+                responseHolder.get().id,
+                TimeValue.timeValueSeconds(5),
+                ActionListener.wrap(responseRef::set, e -> fail("Shouldn't be here"))
+            );
 
             executionLatch.countDown();
             assertThat(getResponseCountDown.await(10, TimeUnit.SECONDS), equalTo(true));
@@ -272,22 +334,16 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         return response.get();
     }
 
-    private CountDownLatch getResponse(String id,
-                                       TimeValue timeout,
-                                       ActionListener<StoredAsyncResponse<TestResponse>> listener) {
+    private CountDownLatch getResponse(String id, TimeValue timeout, ActionListener<StoredAsyncResponse<TestResponse>> listener) {
         CountDownLatch responseLatch = new CountDownLatch(1);
-        GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(id)
-            .setWaitForCompletionTimeout(timeout);
-        results.retrieveResult(getResultsRequest, ActionListener.wrap(
-            r -> {
-                listener.onResponse(r);
-                responseLatch.countDown();
-            },
-            e -> {
-                listener.onFailure(e);
-                responseLatch.countDown();
-            }
-        ));
+        GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(id).setWaitForCompletionTimeout(timeout);
+        results.retrieveResult(getResultsRequest, ActionListener.wrap(r -> {
+            listener.onResponse(r);
+            responseLatch.countDown();
+        }, e -> {
+            listener.onFailure(e);
+            responseLatch.countDown();
+        }));
         return responseLatch;
     }
 

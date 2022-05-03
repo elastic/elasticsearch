@@ -52,7 +52,8 @@
       },
       "keep_alive": {
         "type": "string",
-        "description": "Specific the time to live for the point in time"
+        "description": "Specific the time to live for the point in time",
+        "required": true
       }
     }
   }

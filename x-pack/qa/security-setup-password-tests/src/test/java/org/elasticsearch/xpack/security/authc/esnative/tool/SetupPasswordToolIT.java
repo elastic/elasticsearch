@@ -23,16 +23,16 @@ public class SetupPasswordToolIT extends AbstractPasswordToolTestCase {
 
     public void testSetupPasswordToolAutoSetup() throws Exception {
 
-        MockTerminal mockTerminal = new MockTerminal();
+        MockTerminal mockTerminal = MockTerminal.create();
         SetupPasswordTool tool = new SetupPasswordTool();
         final int status;
         if (randomBoolean()) {
-            mockTerminal.addTextInput("y"); // answer yes to continue prompt
             possiblyDecryptKeystore(mockTerminal);
-            status = tool.main(new String[] { "auto" }, mockTerminal);
+            mockTerminal.addTextInput("y"); // answer yes to continue prompt
+            status = tool.main(new String[] { "auto" }, mockTerminal, getToolProcessInfo());
         } else {
             possiblyDecryptKeystore(mockTerminal);
-            status = tool.main(new String[] { "auto", "--batch" }, mockTerminal);
+            status = tool.main(new String[] { "auto", "--batch" }, mockTerminal, getToolProcessInfo());
         }
         assertEquals(0, status);
         String output = mockTerminal.getOutput();
@@ -51,8 +51,8 @@ public class SetupPasswordToolIT extends AbstractPasswordToolTestCase {
 
         assertEquals(7, userPasswordMap.size());
         userPasswordMap.entrySet().forEach(entry -> {
-            final String basicHeader = "Basic " +
-                    Base64.getEncoder().encodeToString((entry.getKey() + ":" + entry.getValue()).getBytes(StandardCharsets.UTF_8));
+            final String basicHeader = "Basic "
+                + Base64.getEncoder().encodeToString((entry.getKey() + ":" + entry.getValue()).getBytes(StandardCharsets.UTF_8));
             try {
                 Request request = new Request("GET", "/_security/_authenticate");
                 RequestOptions.Builder options = request.getOptions().toBuilder();

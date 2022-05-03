@@ -9,8 +9,8 @@ package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.search.BaseRangeFieldQueryTestCase;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.tests.search.BaseRangeFieldQueryTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
@@ -19,10 +19,10 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CONTAINS;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CROSSES;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
-import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITHIN;
+import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CONTAINS;
+import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.CROSSES;
+import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
+import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITHIN;
 
 public abstract class BaseRandomBinaryDocValuesRangeQueryTestCase extends BaseRangeFieldQueryTestCase {
 
@@ -34,7 +34,7 @@ public abstract class BaseRandomBinaryDocValuesRangeQueryTestCase extends BaseRa
     @Override
     protected final Field newRangeField(Range box) {
         AbstractRange<?> testRange = (AbstractRange<?>) box;
-        RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType(), testRange.getMin(), testRange.getMax(), true , true);
+        RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType(), testRange.getMin(), testRange.getMax(), true, true);
         try {
             BytesRef encodeRange = rangeType().encodeRanges(Collections.singleton(range));
             return new BinaryDocValuesField(fieldName(), encodeRange);

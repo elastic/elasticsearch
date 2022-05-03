@@ -7,26 +7,25 @@
 
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTestCase<DelegatePkiAuthenticationResponse> {
@@ -47,9 +46,14 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
 
     @Override
     protected DelegatePkiAuthenticationResponse createTestInstance() {
-        return new DelegatePkiAuthenticationResponse(randomAlphaOfLengthBetween(0, 10),
-                TimeValue.parseTimeValue(randomTimeValue(), getClass().getSimpleName() + ".expiresIn"),
-                createAuthentication());
+        return new DelegatePkiAuthenticationResponse(
+            randomAlphaOfLengthBetween(0, 10),
+            TimeValue.parseTimeValue(randomTimeValue(), getClass().getSimpleName() + ".expiresIn"),
+            AuthenticationTestHelper.builder()
+                .realm()
+                .realmRef(new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8), PkiRealmSettings.TYPE, "node_name"))
+                .build(false)
+        );
     }
 
     @Override
@@ -68,17 +72,20 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
     private static final ParseField AUTHENTICATION = new ParseField("authentication");
 
     public static final ConstructingObjectParser<DelegatePkiAuthenticationResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "delegate_pki_response", true, a -> {
-        final String accessToken = (String) a[0];
-        final String type = (String) a[1];
-        if (false == "Bearer".equals(type)) {
-            throw new IllegalArgumentException("Unknown token type [" + type + "], only [Bearer] type permitted");
-        }
-        final Long expiresIn = (Long) a[2];
-        final Authentication authentication = (Authentication) a[3];
+        "delegate_pki_response",
+        true,
+        a -> {
+            final String accessToken = (String) a[0];
+            final String type = (String) a[1];
+            if (false == "Bearer".equals(type)) {
+                throw new IllegalArgumentException("Unknown token type [" + type + "], only [Bearer] type permitted");
+            }
+            final Long expiresIn = (Long) a[2];
+            final Authentication authentication = (Authentication) a[3];
 
-        return new DelegatePkiAuthenticationResponse(accessToken, TimeValue.timeValueSeconds(expiresIn), authentication);
-    });
+            return new DelegatePkiAuthenticationResponse(accessToken, TimeValue.timeValueSeconds(expiresIn), authentication);
+        }
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ACCESS_TOKEN_FIELD);
@@ -89,13 +96,31 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Authentication, Void> AUTH_PARSER = new ConstructingObjectParser<>(
-        "authentication", true,
-        a -> new Authentication(new User((String) a[0], ((ArrayList<String>) a[1]).toArray(new String[0]), (String) a[2], (String) a[3],
-            (Map<String, Object>) a[4], (boolean) a[5]), (Authentication.RealmRef) a[6], (Authentication.RealmRef) a[7], Version.CURRENT,
-            Authentication.AuthenticationType.valueOf(a[8].toString().toUpperCase(Locale.ROOT)), (Map<String, Object>) a[4]));
+        "authentication",
+        true,
+        a -> {
+            // No lookup realm
+            assertThat(a[6], equalTo(a[7]));
+            assertThat(a[8], equalTo("realm"));
+            return Authentication.newRealmAuthentication(
+                new User(
+                    (String) a[0],
+                    ((ArrayList<String>) a[1]).toArray(new String[0]),
+                    (String) a[2],
+                    (String) a[3],
+                    (Map<String, Object>) a[4],
+                    (boolean) a[5]
+                ),
+                (Authentication.RealmRef) a[6]
+            );
+        }
+    );
     static {
-        final ConstructingObjectParser<Authentication.RealmRef, Void> realmInfoParser = new ConstructingObjectParser<>("realm_info", true,
-            a -> new Authentication.RealmRef((String) a[0], (String) a[1], "node_name"));
+        final ConstructingObjectParser<Authentication.RealmRef, Void> realmInfoParser = new ConstructingObjectParser<>(
+            "realm_info",
+            true,
+            a -> new Authentication.RealmRef((String) a[0], (String) a[1], "node_name")
+        );
         realmInfoParser.declareString(ConstructingObjectParser.constructorArg(), User.Fields.REALM_NAME);
         realmInfoParser.declareString(ConstructingObjectParser.constructorArg(), User.Fields.REALM_TYPE);
         AUTH_PARSER.declareString(ConstructingObjectParser.constructorArg(), User.Fields.USERNAME);
@@ -111,34 +136,5 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
 
     public static Authentication parseAuthentication(final XContentParser parser) throws IOException {
         return AUTH_PARSER.apply(parser, null);
-    }
-
-    public static Authentication createAuthentication() {
-        final String username = randomAlphaOfLengthBetween(1, 4);
-        final String[] roles = generateRandomStringArray(4, 4, false, true);
-        final Map<String, Object> metadata;
-        metadata = new HashMap<>();
-        if (randomBoolean()) {
-            metadata.put("string", null);
-        } else {
-            metadata.put("string", randomAlphaOfLengthBetween(0, 4));
-        }
-        if (randomBoolean()) {
-            metadata.put("string_list", null);
-        } else {
-            metadata.put("string_list", Arrays.asList(generateRandomStringArray(4, 4, false, true)));
-        }
-        final String fullName = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 4));
-        final String email = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 4));
-        final String authenticationRealmName = randomAlphaOfLength(5);
-        final String authenticationRealmType = randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos");
-        final String lookupRealmName = randomAlphaOfLength(5);
-        final String lookupRealmType = randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos");
-        final String nodeName = "node_name";
-        final Authentication.AuthenticationType authenticationType = randomFrom(Authentication.AuthenticationType.values());
-        return new Authentication(
-            new User(username, roles, fullName, email, metadata, true),
-            new Authentication.RealmRef(authenticationRealmName, authenticationRealmType, nodeName),
-            new Authentication.RealmRef(lookupRealmName, lookupRealmType, nodeName), Version.CURRENT, authenticationType, metadata);
     }
 }

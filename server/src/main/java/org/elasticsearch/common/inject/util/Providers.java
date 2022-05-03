@@ -27,8 +27,7 @@ import org.elasticsearch.common.inject.Provider;
  */
 public final class Providers {
 
-    private Providers() {
-    }
+    private Providers() {}
 
     /**
      * Returns a provider which always provides {@code instance}.  This should not

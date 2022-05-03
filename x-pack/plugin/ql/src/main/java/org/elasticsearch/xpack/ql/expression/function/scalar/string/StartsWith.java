@@ -90,18 +90,18 @@ public abstract class StartsWith extends CaseInsensitiveScalarFunction {
         ParamsBuilder params = paramsBuilder();
 
         String template = formatTemplate("{ql}.startsWith(" + fieldScript.template() + ", " + patternScript.template() + ", {})");
-        params.script(fieldScript.params())
-            .script(patternScript.params())
-            .variable(isCaseInsensitive());
+        params.script(fieldScript.params()).script(patternScript.params()).variable(isCaseInsensitive());
 
         return new ScriptTemplate(template, params.build(), dataType());
     }
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
-                paramsBuilder().variable(field.exactAttribute().name()).build(),
-                dataType());
+        return new ScriptTemplate(
+            processScript(Scripts.DOC_VALUE),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
+            dataType()
+        );
     }
 
     @Override

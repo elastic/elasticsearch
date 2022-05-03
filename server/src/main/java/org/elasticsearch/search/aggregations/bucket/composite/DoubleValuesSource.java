@@ -46,7 +46,15 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.bits = this.missingBucket ? new BitArray(100, bigArrays) : null;
-        this.values = bigArrays.newDoubleArray(Math.min(size, 100), false);
+        boolean success = false;
+        try {
+            this.values = bigArrays.newDoubleArray(Math.min(size, 100), false);
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override

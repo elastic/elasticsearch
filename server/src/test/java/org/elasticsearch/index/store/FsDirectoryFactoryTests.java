@@ -46,16 +46,16 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         try (Directory directory = newDirectory(build)) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
             FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
-            assertTrue(hybridDirectory.useDelegate("foo.dvd", newIOContext(random())));
-            assertTrue(hybridDirectory.useDelegate("foo.nvd", newIOContext(random())));
-            assertTrue(hybridDirectory.useDelegate("foo.tim", newIOContext(random())));
-            assertTrue(hybridDirectory.useDelegate("foo.tip", newIOContext(random())));
-            assertTrue(hybridDirectory.useDelegate("foo.cfs", newIOContext(random())));
-            assertTrue(hybridDirectory.useDelegate("foo.dim", newIOContext(random())));
-            assertTrue(hybridDirectory.useDelegate("foo.kdd", newIOContext(random())));
-            assertTrue(hybridDirectory.useDelegate("foo.kdi", newIOContext(random())));
-            assertFalse(hybridDirectory.useDelegate("foo.kdi", Store.READONCE_CHECKSUM));
-            assertFalse(hybridDirectory.useDelegate("foo.tmp", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.dvd", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.nvd", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tim", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tip", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.cfs", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.dim", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdd", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", newIOContext(random())));
+            assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", Store.READONCE_CHECKSUM));
+            assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tmp", newIOContext(random())));
             MMapDirectory delegate = hybridDirectory.getDelegate();
             assertThat(delegate, Matchers.instanceOf(FsDirectoryFactory.PreLoadMMapDirectory.class));
             FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) delegate;
@@ -72,13 +72,13 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         return new FsDirectoryFactory().newDirectory(idxSettings, path);
     }
 
-    private void doTestPreload(String...preload) throws IOException {
+    private void doTestPreload(String... preload) throws IOException {
         Settings build = Settings.builder()
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "mmapfs")
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), preload)
             .build();
         Directory directory = newDirectory(build);
-        try (Directory dir = directory){
+        try (Directory dir = directory) {
             assertSame(dir, directory); // prevent warnings
             assertFalse(directory instanceof SleepingLockWrapper);
             if (preload.length == 0) {
@@ -97,12 +97,16 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                 assertFalse(preLoadMMapDirectory.useDelegate("XXX"));
                 assertFalse(preLoadMMapDirectory.getPreload());
                 preLoadMMapDirectory.close();
-                expectThrows(AlreadyClosedException.class, () -> preLoadMMapDirectory.getDelegate().openInput("foo.tmp",
-                    IOContext.DEFAULT));
+                expectThrows(
+                    AlreadyClosedException.class,
+                    () -> preLoadMMapDirectory.getDelegate().openInput("foo.tmp", IOContext.DEFAULT)
+                );
             }
         }
-        expectThrows(AlreadyClosedException.class, () -> directory.openInput(randomBoolean() && preload.length != 0 ?
-            "foo." + preload[0] : "foo.tmp", IOContext.DEFAULT));
+        expectThrows(
+            AlreadyClosedException.class,
+            () -> directory.openInput(randomBoolean() && preload.length != 0 ? "foo." + preload[0] : "foo.tmp", IOContext.DEFAULT)
+        );
     }
 
     public void testStoreDirectory() throws IOException {
@@ -117,8 +121,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
     }
 
     private void doTestStoreDirectory(Path tempDir, String typeSettingValue, IndexModule.Type type) throws IOException {
-        Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings.Builder settingsBuilder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
         if (typeSettingValue != null) {
             settingsBuilder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), typeSettingValue);
         }

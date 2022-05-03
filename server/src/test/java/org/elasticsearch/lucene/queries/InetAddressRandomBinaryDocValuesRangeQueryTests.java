@@ -76,7 +76,7 @@ public class InetAddressRandomBinaryDocValuesRangeQueryTests extends BaseRandomB
         @Override
         protected void setMin(int dim, Object val) {
             assert dim == 0;
-            InetAddress v = (InetAddress)val;
+            InetAddress v = (InetAddress) val;
             byte[] e = InetAddressPoint.encode(v);
 
             if (Arrays.compareUnsigned(min, 0, e.length, e, 0, e.length) < 0) {
@@ -96,10 +96,10 @@ public class InetAddressRandomBinaryDocValuesRangeQueryTests extends BaseRandomB
         @Override
         protected void setMax(int dim, Object val) {
             assert dim == 0;
-            InetAddress v = (InetAddress)val;
+            InetAddress v = (InetAddress) val;
             byte[] e = InetAddressPoint.encode(v);
 
-            if (Arrays.compareUnsigned(max, 0, e.length,  e, 0, e.length) > 0) {
+            if (Arrays.compareUnsigned(max, 0, e.length, e, 0, e.length) > 0) {
                 min = e;
                 minAddress = v;
             } else {
@@ -111,22 +111,22 @@ public class InetAddressRandomBinaryDocValuesRangeQueryTests extends BaseRandomB
         @Override
         protected boolean isDisjoint(Range o) {
             IpRange other = (IpRange) o;
-            return Arrays.compareUnsigned(min, 0, min.length, other.max, 0, min.length) > 0 ||
-                Arrays.compareUnsigned(max, 0, max.length, other.min, 0, max.length) < 0;
+            return Arrays.compareUnsigned(min, 0, min.length, other.max, 0, min.length) > 0
+                || Arrays.compareUnsigned(max, 0, max.length, other.min, 0, max.length) < 0;
         }
 
         @Override
         protected boolean isWithin(Range o) {
-            IpRange other = (IpRange)o;
-            return Arrays.compareUnsigned(min, 0, min.length, other.min, 0, min.length) >= 0 &&
-                Arrays.compareUnsigned(max, 0, max.length, other.max, 0, max.length) <= 0;
+            IpRange other = (IpRange) o;
+            return Arrays.compareUnsigned(min, 0, min.length, other.min, 0, min.length) >= 0
+                && Arrays.compareUnsigned(max, 0, max.length, other.max, 0, max.length) <= 0;
         }
 
         @Override
         protected boolean contains(Range o) {
-            IpRange other = (IpRange)o;
-            return Arrays.compareUnsigned(min, 0, min.length, other.min, 0, min.length) <= 0 &&
-                Arrays.compareUnsigned(max, 0, max.length, other.max, 0, max.length) >= 0;
+            IpRange other = (IpRange) o;
+            return Arrays.compareUnsigned(min, 0, min.length, other.min, 0, min.length) <= 0
+                && Arrays.compareUnsigned(max, 0, max.length, other.max, 0, max.length) >= 0;
         }
 
     }

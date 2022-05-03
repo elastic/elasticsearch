@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.conventions.GUtils;
 import org.elasticsearch.gradle.internal.conventions.LicensingPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
@@ -19,7 +20,6 @@ import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -29,7 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
-import org.elasticsearch.gradle.internal.conventions.GUtils;
+
+import javax.inject.Inject;
 
 public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
 

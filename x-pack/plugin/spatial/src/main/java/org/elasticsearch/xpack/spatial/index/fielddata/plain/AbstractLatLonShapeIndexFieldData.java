@@ -12,26 +12,34 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexGeoShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafGeoShapeFieldData;
 
 public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShapeFieldData {
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
+    protected final ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory;
 
-    AbstractLatLonShapeIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
+    AbstractLatLonShapeIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory
+    ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -45,14 +53,22 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
     }
 
     @Override
-    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
-            boolean reverse) {
+    public SortField sortField(
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        XFieldComparatorSource.Nested nested,
+        boolean reverse
+    ) {
         throw new IllegalArgumentException("can't sort on geo_shape field without using specific sorting feature, like geo_distance");
     }
 
     public static class LatLonShapeIndexFieldData extends AbstractLatLonShapeIndexFieldData {
-        public LatLonShapeIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
-            super(fieldName, valuesSourceType);
+        public LatLonShapeIndexFieldData(
+            String fieldName,
+            ValuesSourceType valuesSourceType,
+            ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory
+        ) {
+            super(fieldName, valuesSourceType, toScriptFieldFactory);
         }
 
         @Override
@@ -62,7 +78,7 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
             if (info != null) {
                 checkCompatible(info);
             }
-            return new LatLonShapeDVAtomicShapeFieldData(reader, fieldName);
+            return new LatLonShapeDVAtomicShapeFieldData(reader, fieldName, toScriptFieldFactory);
         }
 
         @Override
@@ -71,20 +87,32 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
         }
 
         @Override
-        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
-                                            IndexFieldData.XFieldComparatorSource.Nested nested, SortOrder sortOrder, DocValueFormat format,
-                                            int bucketSize, BucketedSort.ExtraData extra) {
+        public BucketedSort newBucketedSort(
+            BigArrays bigArrays,
+            Object missingValue,
+            MultiValueMode sortMode,
+            IndexFieldData.XFieldComparatorSource.Nested nested,
+            SortOrder sortOrder,
+            DocValueFormat format,
+            int bucketSize,
+            BucketedSort.ExtraData extra
+        ) {
             throw new IllegalArgumentException("can't sort on geo_shape field without using specific sorting feature, like geo_distance");
         }
 
         /** helper: checks a fieldinfo and throws exception if its definitely not a LatLonDocValuesField */
         static void checkCompatible(FieldInfo fieldInfo) {
             // dv properties could be "unset", if you e.g. used only StoredField with this same name in the segment.
-            if (fieldInfo.getDocValuesType() != DocValuesType.NONE
-                && fieldInfo.getDocValuesType() != DocValuesType.BINARY) {
-                throw new IllegalArgumentException("field=\"" + fieldInfo.name + "\" was indexed with docValuesType="
-                    + fieldInfo.getDocValuesType() + " but this type has docValuesType="
-                    + DocValuesType.BINARY + ", is the field really a geo-shape field?");
+            if (fieldInfo.getDocValuesType() != DocValuesType.NONE && fieldInfo.getDocValuesType() != DocValuesType.BINARY) {
+                throw new IllegalArgumentException(
+                    "field=\""
+                        + fieldInfo.name
+                        + "\" was indexed with docValuesType="
+                        + fieldInfo.getDocValuesType()
+                        + " but this type has docValuesType="
+                        + DocValuesType.BINARY
+                        + ", is the field really a geo-shape field?"
+                );
             }
         }
     }
@@ -92,16 +120,18 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final ValuesSourceType valuesSourceType;
+        private final ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory;
 
-        public Builder(String name, ValuesSourceType valuesSourceType) {
+        public Builder(String name, ValuesSourceType valuesSourceType, ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
             this.name = name;
             this.valuesSourceType = valuesSourceType;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             // ignore breaker
-            return new LatLonShapeIndexFieldData(name, valuesSourceType);
+            return new LatLonShapeIndexFieldData(name, valuesSourceType, toScriptFieldFactory);
         }
     }
 }

@@ -30,7 +30,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -48,9 +47,14 @@ public class SourceIntervalsSourceTests extends ESTestCase {
         final FieldType ft = new FieldType(TextField.TYPE_STORED);
         ft.setIndexOptions(IndexOptions.DOCS);
         ft.freeze();
-        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER)
-                .setMergePolicy(NoMergePolicy.INSTANCE)
-                .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH))) {
+        try (
+            Directory dir = newDirectory();
+            IndexWriter w = new IndexWriter(
+                dir,
+                newIndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE)
+                    .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+            )
+        ) {
 
             Document doc = new Document();
             doc.add(new Field("body", "a b", ft));
@@ -76,7 +80,8 @@ public class SourceIntervalsSourceTests extends ESTestCase {
                     Intervals.term(new BytesRef("d")),
                     new TermQuery(new Term("body", "d")),
                     SOURCE_FETCHER_PROVIDER,
-                    Lucene.STANDARD_ANALYZER);
+                    Lucene.STANDARD_ANALYZER
+                );
 
                 IntervalIterator intervals = source.intervals("body", reader.leaves().get(0));
 
@@ -108,7 +113,8 @@ public class SourceIntervalsSourceTests extends ESTestCase {
                     Intervals.term(new BytesRef("d")),
                     new MatchAllDocsQuery(),
                     SOURCE_FETCHER_PROVIDER,
-                    Lucene.STANDARD_ANALYZER);
+                    Lucene.STANDARD_ANALYZER
+                );
 
                 intervals = source.intervals("body", reader.leaves().get(0));
 

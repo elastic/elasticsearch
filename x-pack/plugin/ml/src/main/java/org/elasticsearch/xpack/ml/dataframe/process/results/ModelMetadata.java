@@ -7,20 +7,20 @@
 
 package org.elasticsearch.xpack.ml.dataframe.process.results;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaseline;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.Hyperparameters;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportance;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class ModelMetadata implements ToXContentObject {
 
@@ -31,7 +31,8 @@ public class ModelMetadata implements ToXContentObject {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ModelMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "trained_model_metadata",
-        a -> new ModelMetadata((List<TotalFeatureImportance>) a[0], (FeatureImportanceBaseline) a[1], (List<Hyperparameters>) a[2]));
+        a -> new ModelMetadata((List<TotalFeatureImportance>) a[0], (FeatureImportanceBaseline) a[1], (List<Hyperparameters>) a[2])
+    );
 
     static {
         PARSER.declareObjectArray(constructorArg(), TotalFeatureImportance.STRICT_PARSER, TOTAL_FEATURE_IMPORTANCE);
@@ -43,9 +44,11 @@ public class ModelMetadata implements ToXContentObject {
     private final FeatureImportanceBaseline featureImportanceBaseline;
     private final List<Hyperparameters> hyperparameters;
 
-    public ModelMetadata(List<TotalFeatureImportance> featureImportances,
+    public ModelMetadata(
+        List<TotalFeatureImportance> featureImportances,
         FeatureImportanceBaseline featureImportanceBaseline,
-        List<Hyperparameters> hyperparameters) {
+        List<Hyperparameters> hyperparameters
+    ) {
         this.featureImportances = featureImportances;
         this.featureImportanceBaseline = featureImportanceBaseline;
         this.hyperparameters = hyperparameters;

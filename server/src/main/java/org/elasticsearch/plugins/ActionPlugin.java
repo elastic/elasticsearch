@@ -8,9 +8,9 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 /**
  * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality. Implement it like this:
@@ -60,7 +59,7 @@ public interface ActionPlugin {
      * {@linkplain ActionPlugin#getActions()}.
      */
     default List<ActionType<? extends ActionResponse>> getClientActions() {
-        return getActions().stream().map(a -> a.action).collect(Collectors.toList());
+        return getActions().stream().<ActionType<? extends ActionResponse>>map(a -> a.action).toList();
     }
 
     /**
@@ -69,12 +68,19 @@ public interface ActionPlugin {
     default List<ActionFilter> getActionFilters() {
         return Collections.emptyList();
     }
+
     /**
      * Rest handlers added by this plugin.
      */
-    default List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
+    default List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         return Collections.emptyList();
     }
 
@@ -148,8 +154,7 @@ public interface ActionPlugin {
                 return false;
             }
             ActionHandler<?, ?> other = (ActionHandler<?, ?>) obj;
-            return Objects.equals(action, other.action)
-                    && Objects.equals(transportAction, other.transportAction);
+            return Objects.equals(action, other.action) && Objects.equals(transportAction, other.transportAction);
         }
 
         @Override

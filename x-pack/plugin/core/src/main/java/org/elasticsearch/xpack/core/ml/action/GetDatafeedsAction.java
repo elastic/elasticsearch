@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -33,8 +33,6 @@ public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> 
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        @Deprecated
-        public static final String ALLOW_NO_DATAFEEDS = "allow_no_datafeeds";
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
         private String datafeedId;

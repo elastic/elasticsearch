@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -87,6 +88,10 @@ public class EnrichPolicyExecutor {
     public void runPolicyLocally(ExecuteEnrichPolicyTask task, String policyName, ActionListener<ExecuteEnrichPolicyStatus> listener) {
         try {
             EnrichPolicy policy = EnrichStore.getPolicy(policyName, clusterService.state());
+            if (policy == null) {
+                throw new ResourceNotFoundException("policy [{}] does not exist", policyName);
+            }
+
             task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.SCHEDULED));
             Runnable runnable = createPolicyRunner(policyName, policy, task, listener);
             threadPool.executor(ThreadPool.Names.GENERIC).execute(runnable);

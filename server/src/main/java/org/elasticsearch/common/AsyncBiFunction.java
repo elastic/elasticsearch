@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 /**
  * A {@link java.util.function.BiFunction}-like interface designed to be used with asynchronous executions.
  */
-public interface AsyncBiFunction<T,U,C> {
+public interface AsyncBiFunction<T, U, C> {
 
     void apply(T t, U u, ActionListener<C> listener);
 }

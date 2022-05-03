@@ -22,6 +22,7 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.util.PatternSet;
 
 import java.io.File;
+
 import javax.inject.Inject;
 
 /**
@@ -76,20 +77,33 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
             task.setReleaseNotesTemplate(projectDirectory.file(RESOURCES + "templates/release-notes.asciidoc"));
             task.setReleaseNotesFile(
-                projectDirectory.file(String.format("docs/reference/release-notes/%d.%d.asciidoc", version.getMajor(), version.getMinor()))
+                projectDirectory.file(
+                    String.format(
+                        "docs/reference/release-notes/%d.%d.%d.asciidoc",
+                        version.getMajor(),
+                        version.getMinor(),
+                        version.getRevision()
+                    )
+                )
             );
 
             task.setReleaseHighlightsTemplate(projectDirectory.file(RESOURCES + "templates/release-highlights.asciidoc"));
             task.setReleaseHighlightsFile(projectDirectory.file("docs/reference/release-notes/highlights.asciidoc"));
 
             task.setBreakingChangesTemplate(projectDirectory.file(RESOURCES + "templates/breaking-changes.asciidoc"));
-            task.setBreakingChangesFile(
+            task.setBreakingChangesMigrationFile(
                 projectDirectory.file(
                     String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor())
                 )
             );
 
             task.dependsOn(validateChangelogsTask);
+        });
+
+        project.getTasks().register("pruneChangelogs", PruneChangelogsTask.class).configure(task -> {
+            task.setGroup("Documentation");
+            task.setDescription("Removes changelog files that have been used in a previous release");
+            task.setChangelogs(yamlFiles);
         });
 
         project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask));

@@ -24,7 +24,7 @@ missing them.
 Unlike the <<query-dsl-function-score-query,`function_score`>> query or other
 ways to change <<relevance-scores,relevance scores>>, the
 `rank_feature` query efficiently skips non-competitive hits when the
-<<search-uri-request,`track_total_hits`>> parameter is **not** `true`. This can
+<<track-total-hits,`track_total_hits`>> parameter is **not** `true`. This can
 dramatically improve query speed.
 
 [[rank-feature-query-functions]]

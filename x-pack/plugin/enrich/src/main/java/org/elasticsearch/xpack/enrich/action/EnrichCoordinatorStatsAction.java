@@ -154,7 +154,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
 
         @Override
         protected void resolveRequest(Request request, ClusterState clusterState) {
-            DiscoveryNode[] ingestNodes = clusterState.getNodes().getIngestNodes().values().toArray(DiscoveryNode.class);
+            DiscoveryNode[] ingestNodes = clusterState.getNodes().getIngestNodes().values().toArray(DiscoveryNode[]::new);
             request.setConcreteNodes(ingestNodes);
         }
 

@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
@@ -195,8 +195,7 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
         writeControlCodeFollowedByTimeRange(RESET_BUCKETS_MESSAGE_CODE, params.getStart(), params.getEnd());
     }
 
-    private void writeControlCodeFollowedByTimeRange(String code, String start, String end)
-            throws IOException {
+    private void writeControlCodeFollowedByTimeRange(String code, String start, String end) throws IOException {
         StringBuilder message = new StringBuilder(code);
         if (start.isEmpty() == false) {
             message.append(start);

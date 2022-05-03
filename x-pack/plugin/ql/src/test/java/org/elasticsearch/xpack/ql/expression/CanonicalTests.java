@@ -50,7 +50,7 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public class CanonicalTests extends ESTestCase {
 
-    Comparator<? super Expression> c = Comparator.comparingInt(Object::hashCode);
+    Comparator<? super Expression> comparator = Comparator.comparingInt(Object::hashCode);
 
     public void testNonCommutativeBinary() throws Exception {
         Div div = new Div(EMPTY, of(2), of(1));
@@ -171,8 +171,8 @@ public class CanonicalTests extends ESTestCase {
 
         assertNotEquals(list, shuffle);
 
-        list.sort(c);
-        shuffle.sort(c);
+        list.sort(comparator);
+        shuffle.sort(comparator);
 
         assertEquals(list, shuffle);
     }

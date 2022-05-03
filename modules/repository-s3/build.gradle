@@ -1,0 +1,365 @@
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact-base'
+
+esplugin {
+  description 'The S3 repository plugin adds S3 repositories'
+  classname 'org.elasticsearch.repositories.s3.S3RepositoryPlugin'
+}
+
+versions << [
+  'aws': '1.11.749'
+]
+
+dependencies {
+  api "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
+  api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  api "com.amazonaws:aws-java-sdk-sts:${versions.aws}"
+  api "com.amazonaws:jmespath-java:${versions.aws}"
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  api "joda-time:joda-time:2.8.1"
+
+  // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
+  // and whitelist this hack in JarHell
+  api 'javax.xml.bind:jaxb-api:2.2.2'
+
+  testImplementation project(':test:fixtures:s3-fixture')
+}
+
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
+}
+
+tasks.named("internalClusterTestJar").configure {
+  // for the plugin-security.policy resource
+  from sourceSets.test.output
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
+  mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /jaxb-.*/, to: 'jaxb'
+}
+
+esplugin.bundleSpec.from('config/repository-s3') {
+    into 'config'
+}
+
+boolean useFixture = false
+
+def fixtureAddress = { fixture, name, port ->
+  assert useFixture: 'closure should not be used without a fixture'
+  int ephemeralPort = project(":test:fixtures:${fixture}").postProcessFixture.ext."test.fixtures.${name}.tcp.${port}"
+  assert ephemeralPort > 0
+  'http://127.0.0.1:' + ephemeralPort
+}
+
+// We test against two repositories, one which uses the usual two-part "permanent" credentials and
+// the other which uses three-part "temporary" or "session" credentials.
+
+String s3PermanentAccessKey = System.getenv("amazon_s3_access_key")
+String s3PermanentSecretKey = System.getenv("amazon_s3_secret_key")
+String s3PermanentBucket = System.getenv("amazon_s3_bucket")
+String s3PermanentBasePath = System.getenv("amazon_s3_base_path")
+
+String s3TemporaryAccessKey = System.getenv("amazon_s3_access_key_temporary")
+String s3TemporarySecretKey = System.getenv("amazon_s3_secret_key_temporary")
+String s3TemporarySessionToken = System.getenv("amazon_s3_session_token_temporary")
+String s3TemporaryBucket = System.getenv("amazon_s3_bucket_temporary")
+String s3TemporaryBasePath = System.getenv("amazon_s3_base_path_temporary")
+
+String s3EC2Bucket = System.getenv("amazon_s3_bucket_ec2")
+String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
+
+String s3ECSBucket = System.getenv("amazon_s3_bucket_ecs")
+String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
+
+String s3STSBucket = System.getenv("amazon_s3_bucket_sts")
+String s3STSBasePath = System.getenv("amazon_s3_base_path_sts")
+
+boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+
+// If all these variables are missing then we are testing against the internal fixture instead, which has the following
+// credentials hard-coded in.
+
+if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
+  s3PermanentAccessKey = 's3_test_access_key'
+  s3PermanentSecretKey = 's3_test_secret_key'
+  s3PermanentBucket = 'bucket'
+  s3PermanentBasePath = 'base_path'
+
+  apply plugin: 'elasticsearch.test.fixtures'
+  useFixture = true
+
+} else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath) {
+  throw new IllegalArgumentException("not all options specified to run against external S3 service as permanent credentials are present")
+}
+
+if (!s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3TemporaryBasePath && !s3TemporarySessionToken) {
+  s3TemporaryAccessKey = 'session_token_access_key'
+  s3TemporarySecretKey = 'session_token_secret_key'
+  s3TemporaryBucket = 'session_token_bucket'
+  s3TemporaryBasePath = 'session_token_base_path'
+  s3TemporarySessionToken = 'session_token'
+
+} else if (!s3TemporaryAccessKey || !s3TemporarySecretKey || !s3TemporaryBucket || !s3TemporaryBasePath || !s3TemporarySessionToken) {
+  throw new IllegalArgumentException("not all options specified to run against external S3 service as temporary credentials are present")
+}
+
+if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath) {
+  s3EC2Bucket = 'ec2_bucket'
+  s3EC2BasePath = 'ec2_base_path'
+  s3ECSBucket = 'ecs_bucket'
+  s3ECSBasePath = 'ecs_base_path'
+} else if (!s3EC2Bucket || !s3EC2BasePath || !s3ECSBucket || !s3ECSBasePath) {
+  throw new IllegalArgumentException("not all options specified to run EC2/ECS tests are present")
+}
+
+if (!s3STSBucket && !s3STSBasePath) {
+  s3STSBucket = 'sts_bucket'
+  s3STSBasePath = 'sts_base_path'
+} else if (!s3STSBucket || !s3STSBasePath) {
+  throw new IllegalArgumentException("not all options specified to run STS tests are present")
+}
+
+tasks.named("processYamlRestTestResources").configure {
+  Map<String, Object> expansions = [
+    'permanent_bucket'        : s3PermanentBucket,
+    'permanent_base_path'     : s3PermanentBasePath + "_integration_tests",
+    'temporary_bucket'        : s3TemporaryBucket,
+    'temporary_base_path'     : s3TemporaryBasePath + "_integration_tests",
+    'ec2_bucket'              : s3EC2Bucket,
+    'ec2_base_path'           : s3EC2BasePath,
+    'ecs_bucket'              : s3ECSBucket,
+    'ecs_base_path'           : s3ECSBasePath,
+    'sts_bucket'              : s3STSBucket,
+    'sts_base_path'           : s3STSBasePath,
+    'disable_chunked_encoding': s3DisableChunkedEncoding
+  ]
+  inputs.properties(expansions)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
+}
+
+tasks.named("internalClusterTest").configure {
+  // this is tested explicitly in a separate test task
+  exclude '**/S3RepositoryThirdPartyTests.class'
+}
+
+tasks.named("yamlRestTest").configure {
+    systemProperty 'tests.rest.blacklist', (
+      useFixture ?
+        ['repository_s3/50_repository_ecs_credentials/*',
+         'repository_s3/60_repository_sts_credentials/*']
+        :
+        [
+          'repository_s3/30_repository_temporary_credentials/*',
+          'repository_s3/40_repository_ec2_credentials/*',
+          'repository_s3/50_repository_ecs_credentials/*',
+          'repository_s3/60_repository_sts_credentials/*'
+        ]
+    ).join(",")
+}
+
+if (useFixture) {
+  testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture')
+  testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-session-token')
+  testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-ec2')
+
+  normalization {
+    runtimeClasspath {
+      // ignore generated address file for the purposes of build avoidance
+      ignore 's3Fixture.address'
+    }
+  }
+}
+
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
+  keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
+  keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
+
+  keystore 's3.client.integration_test_temporary.access_key', s3TemporaryAccessKey
+  keystore 's3.client.integration_test_temporary.secret_key', s3TemporarySecretKey
+  keystore 's3.client.integration_test_temporary.session_token', s3TemporarySessionToken
+
+  if (useFixture) {
+    setting 's3.client.integration_test_permanent.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture', '80')}" }, IGNORE_VALUE
+    setting 's3.client.integration_test_temporary.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-session-token', '80')}" }, IGNORE_VALUE
+    setting 's3.client.integration_test_ec2.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ec2', '80')}" }, IGNORE_VALUE
+
+    // to redirect InstanceProfileCredentialsProvider to custom auth point
+    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ec2', '80')}" }, IGNORE_VALUE
+  } else {
+    println "Using an external service to test the repository-s3 plugin"
+  }
+}
+
+// MinIO
+if (useFixture) {
+  testFixtures.useFixture(':test:fixtures:minio-fixture', 'minio-fixture')
+
+  tasks.register("yamlRestTestMinio", RestIntegTestTask) {
+    description = "Runs REST tests using the Minio repository."
+    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
+    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
+    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+
+    // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
+    systemProperty 'tests.rest.blacklist', [
+      'repository_s3/30_repository_temporary_credentials/*',
+      'repository_s3/40_repository_ec2_credentials/*',
+      'repository_s3/50_repository_ecs_credentials/*',
+      'repository_s3/60_repository_sts_credentials/*'
+    ].join(",")
+  }
+  tasks.named("check").configure { dependsOn("yamlRestTestMinio") }
+
+  testClusters.matching { it.name == "yamlRestTestMinio" }.configureEach {
+    keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
+    keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
+    setting 's3.client.integration_test_permanent.endpoint', { "${-> fixtureAddress('minio-fixture', 'minio-fixture', '9000')}" }, IGNORE_VALUE
+    module tasks.named("explodedBundlePlugin")
+  }
+}
+
+// ECS
+if (useFixture) {
+  testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-ecs')
+  tasks.register("yamlRestTestECS", RestIntegTestTask.class) {
+    description = "Runs tests using the ECS repository."
+    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
+    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
+    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+    systemProperty 'tests.rest.blacklist', [
+      'repository_s3/10_basic/*',
+      'repository_s3/20_repository_permanent_credentials/*',
+      'repository_s3/30_repository_temporary_credentials/*',
+      'repository_s3/40_repository_ec2_credentials/*',
+      'repository_s3/60_repository_sts_credentials/*'
+    ].join(",")
+  }
+  tasks.named("check").configure { dependsOn("yamlRestTestECS") }
+
+  testClusters.matching { it.name == "yamlRestTestECS" }.configureEach {
+    setting 's3.client.integration_test_ecs.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}" }, IGNORE_VALUE
+    module tasks.named('explodedBundlePlugin')
+    environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}/ecs_credentials_endpoint" }, IGNORE_VALUE
+  }
+}
+
+// STS (Secure Token Service)
+if (useFixture) {
+  testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-sts')
+  tasks.register("yamlRestTestSTS", RestIntegTestTask.class) {
+    description = "Runs tests with the STS (Secure Token Service)"
+    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
+    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
+    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+    systemProperty 'tests.rest.blacklist', [
+      'repository_s3/10_basic/*',
+      'repository_s3/20_repository_permanent_credentials/*',
+      'repository_s3/30_repository_temporary_credentials/*',
+      'repository_s3/40_repository_ec2_credentials/*',
+      'repository_s3/50_repository_ecs_credentials/*'
+    ].join(",")
+  }
+  tasks.named("check").configure { dependsOn("yamlRestTestSTS") }
+
+  testClusters.matching { it.name == "yamlRestTestSTS" }.configureEach {
+    module tasks.named("explodedBundlePlugin")
+
+    setting 's3.client.integration_test_sts.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-sts', '80')}" }, IGNORE_VALUE
+    systemProperty 'com.amazonaws.sdk.stsMetadataServiceEndpointOverride',
+      { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-sts', '80')}/assume-role-with-web-identity" }, IGNORE_VALUE
+
+    File awsWebIdentityTokenExternalLocation = file('src/test/resources/aws-web-identity-token-file')
+    // The web identity token can be read only from the plugin config directory because of security restrictions
+    // Ideally we would create a symlink, but extraConfigFile doesn't support it
+    extraConfigFile 'repository-s3/aws-web-identity-token-file', awsWebIdentityTokenExternalLocation
+    environment 'AWS_WEB_IDENTITY_TOKEN_FILE', "$awsWebIdentityTokenExternalLocation"
+
+    // The AWS STS SDK requires the role and session names to be set. We can verify that they are sent to S3S in the S3HttpFixtureWithSTS fixture
+    environment 'AWS_ROLE_ARN', 'arn:aws:iam::123456789012:role/FederatedWebIdentityRole'
+    environment 'AWS_ROLE_SESSION_NAME', 'sts-fixture-test'
+  }
+}
+
+// 3rd Party Tests
+TaskProvider s3ThirdPartyTest = tasks.register("s3ThirdPartyTest", Test) {
+  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+  SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
+  setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
+  setClasspath(internalTestSourceSet.getRuntimeClasspath())
+  include '**/S3RepositoryThirdPartyTests.class'
+  systemProperty 'test.s3.account', s3PermanentAccessKey
+  systemProperty 'test.s3.key', s3PermanentSecretKey
+  systemProperty 'test.s3.bucket', s3PermanentBucket
+  nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + BuildParams.testSeed
+  if (useFixture) {
+    nonInputProperties.systemProperty 'test.s3.endpoint', "${-> fixtureAddress('minio-fixture', 'minio-fixture', '9000') }"
+  }
+}
+tasks.named("check").configure { dependsOn(s3ThirdPartyTest) }
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // classes are missing
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener',
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger',
+          'javax.jms.Message',
+          'software.amazon.ion.IonReader',
+          'software.amazon.ion.IonSystem',
+          'software.amazon.ion.IonType',
+          'software.amazon.ion.IonWriter',
+          'software.amazon.ion.Timestamp',
+          'software.amazon.ion.system.IonBinaryWriterBuilder',
+          'software.amazon.ion.system.IonSystemBuilder',
+          'software.amazon.ion.system.IonTextWriterBuilder',
+          'software.amazon.ion.system.IonWriterBuilder',
+          // We don't use the kms dependency
+          'com.amazonaws.services.kms.AWSKMS',
+          'com.amazonaws.services.kms.AWSKMSClient',
+          'com.amazonaws.services.kms.model.DecryptRequest',
+          'com.amazonaws.services.kms.model.DecryptResult',
+          'com.amazonaws.services.kms.model.EncryptRequest',
+          'com.amazonaws.services.kms.model.EncryptResult',
+          'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
+          'com.amazonaws.services.kms.model.GenerateDataKeyResult',
+          'javax.activation.DataHandler'
+  )
+}

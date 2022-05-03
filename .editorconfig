@@ -10,10 +10,6 @@ trim_trailing_whitespace = true
 insert_final_newline = true
 indent_style = space
 
-ij_formatter_off_tag = @formatter:off
-ij_formatter_on_tag = @formatter:on
-ij_formatter_tags_enabled = false
-
 [*.gradle]
 ij_continuation_indent_size = 2
 indent_size = 2

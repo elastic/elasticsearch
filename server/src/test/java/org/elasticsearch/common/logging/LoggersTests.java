@@ -25,7 +25,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class LoggersTests extends ESTestCase {
 
     public void testParameterizedMessageLambda() throws Exception {
-        final MockAppender appender = new MockAppender("trace_appender");
+        // adding a random id to allow test to run multiple times. See AbstractConfiguration#addAppender
+        final MockAppender appender = new MockAppender("trace_appender" + randomInt());
         appender.start();
         final Logger testLogger = LogManager.getLogger(LoggersTests.class);
         Loggers.addAppender(testLogger, appender);
@@ -58,14 +59,14 @@ public class LoggersTests extends ESTestCase {
         assertThat(appender.lastParameterizedMessage().getParameters(), arrayContaining(Arrays.asList("yes", "no")));
 
         ex = randomException();
-        testLogger.trace(() -> new ParameterizedMessage("a trace message; element = [{}]", new Object[]{null}), ex);
+        testLogger.trace(() -> new ParameterizedMessage("a trace message; element = [{}]", new Object[] { null }), ex);
         assertThat(appender.lastEvent.getLevel(), equalTo(Level.TRACE));
         assertThat(appender.lastEvent.getThrown(), equalTo(ex));
         assertThat(appender.lastParameterizedMessage().getFormattedMessage(), equalTo("a trace message; element = [null]"));
-        assertThat(appender.lastParameterizedMessage().getParameters(), arrayContaining(new Object[]{null}));
+        assertThat(appender.lastParameterizedMessage().getParameters(), arrayContaining(new Object[] { null }));
     }
 
-    private Throwable randomException(){
+    private Throwable randomException() {
         return randomFrom(
             new IOException("file not found"),
             new UnknownHostException("unknown hostname"),

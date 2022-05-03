@@ -33,27 +33,30 @@ public class PipelineProcessor extends AbstractProcessor {
         if (pipeline != null) {
             ingestDocument.executePipeline(pipeline, handler);
         } else {
-            handler.accept(null,
-                new IllegalStateException("Pipeline processor configured for non-existent pipeline [" + pipelineName + ']'));
+            handler.accept(
+                null,
+                new IllegalStateException("Pipeline processor configured for non-existent pipeline [" + pipelineName + ']')
+            );
         }
-    }
-
-    @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        throw new UnsupportedOperationException("this method should not get executed");
     }
 
     Pipeline getPipeline(IngestDocument ingestDocument) {
         return ingestService.getPipeline(getPipelineToCallName(ingestDocument));
     }
 
-    String getPipelineToCallName(IngestDocument ingestDocument){
+    String getPipelineToCallName(IngestDocument ingestDocument) {
         return ingestDocument.renderTemplate(this.pipelineTemplate);
     }
 
     @Override
     public String getType() {
         return TYPE;
+    }
+
+    @Override
+    public boolean isAsync() {
+        // the pipeline processor always presents itself as async
+        return true;
     }
 
     TemplateScript.Factory getPipelineTemplate() {
@@ -69,10 +72,19 @@ public class PipelineProcessor extends AbstractProcessor {
         }
 
         @Override
-        public PipelineProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                        String description, Map<String, Object> config) throws Exception {
-            TemplateScript.Factory pipelineTemplate =
-                ConfigurationUtils.readTemplateProperty(TYPE, processorTag, config, "name", ingestService.getScriptService());
+        public PipelineProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
+            TemplateScript.Factory pipelineTemplate = ConfigurationUtils.readTemplateProperty(
+                TYPE,
+                processorTag,
+                config,
+                "name",
+                ingestService.getScriptService()
+            );
             return new PipelineProcessor(processorTag, description, pipelineTemplate, ingestService);
         }
     }

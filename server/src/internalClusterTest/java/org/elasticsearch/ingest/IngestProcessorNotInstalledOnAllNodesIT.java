@@ -11,17 +11,17 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -34,14 +34,16 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
     private volatile boolean installPlugin;
 
     public IngestProcessorNotInstalledOnAllNodesIT() throws IOException {
-        pipelineSource = BytesReference.bytes(jsonBuilder().startObject()
+        pipelineSource = BytesReference.bytes(
+            jsonBuilder().startObject()
                 .startArray("processors")
-                    .startObject()
-                        .startObject("test")
-                        .endObject()
-                    .endObject()
+                .startObject()
+                .startObject("test")
+                .endObject()
+                .endObject()
                 .endArray()
-                .endObject());
+                .endObject()
+        );
     }
 
     @Override
@@ -95,8 +97,10 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
 
         assertNotNull(pipeline);
         assertThat(pipeline.getId(), equalTo("_id"));
-        assertThat(pipeline.getDescription(), equalTo("this is a place holder pipeline, " +
-            "because pipeline with id [_id] could not be loaded"));
+        assertThat(
+            pipeline.getDescription(),
+            equalTo("this is a place holder pipeline, " + "because pipeline with id [_id] could not be loaded")
+        );
     }
 
 }

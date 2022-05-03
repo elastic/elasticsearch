@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.blobstore;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.List;
@@ -54,14 +54,11 @@ public class BlobPath {
     @Nullable
     public BlobPath parent() {
         int size = paths.size();
-        switch (size) {
-            case 0:
-                return null;
-            case 1:
-                return EMPTY;
-            default:
-                return new BlobPath(List.copyOf(paths.subList(0, size - 1)));
-        }
+        return switch (size) {
+            case 0 -> null;
+            case 1 -> EMPTY;
+            default -> new BlobPath(List.copyOf(paths.subList(0, size - 1)));
+        };
     }
 
     @Override

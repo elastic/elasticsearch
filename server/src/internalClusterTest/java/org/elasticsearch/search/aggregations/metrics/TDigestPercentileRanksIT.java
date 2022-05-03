@@ -57,17 +57,11 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         final int length = randomIntBetween(1, 20);
         final double[] percents = new double[length];
         for (int i = 0; i < percents.length; ++i) {
-            switch (randomInt(20)) {
-                case 0:
-                    percents[i] = minValue;
-                    break;
-                case 1:
-                    percents[i] = maxValue;
-                    break;
-                default:
-                    percents[i] = (randomDouble() * (maxValue - minValue)) + minValue;
-                    break;
-            }
+            percents[i] = switch (randomInt(20)) {
+                case 0 -> minValue;
+                case 1 -> maxValue;
+                default -> (randomDouble() * (maxValue - minValue)) + minValue;
+            };
         }
         Arrays.sort(percents);
         LogManager.getLogger(TDigestPercentileRanksIT.class).info("Using values={}", Arrays.toString(percents));

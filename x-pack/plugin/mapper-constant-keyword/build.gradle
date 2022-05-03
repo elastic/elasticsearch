@@ -1,16 +1,25 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   name 'constant-keyword'
   description 'Module for the constant-keyword field type, which is a specialization of keyword for the case when all documents have the same value.'
   classname 'org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 archivesBaseName = 'x-pack-constant-keyword'
 
 dependencies {
+  compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("internalClusterTest").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+}

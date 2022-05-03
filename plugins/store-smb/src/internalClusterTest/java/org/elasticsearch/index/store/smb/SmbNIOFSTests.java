@@ -10,13 +10,9 @@ package org.elasticsearch.index.store.smb;
 
 import org.elasticsearch.common.settings.Settings;
 
-
 public class SmbNIOFSTests extends AbstractAzureFsTestCase {
     @Override
     public Settings indexSettings() {
-        return Settings.builder()
-                .put(super.indexSettings())
-                .put("index.store.type", randomFrom("smb_simple_fs", "smb_nio_fs"))
-                .build();
+        return Settings.builder().put(super.indexSettings()).put("index.store.type", randomFrom("smb_simple_fs", "smb_nio_fs")).build();
     }
 }

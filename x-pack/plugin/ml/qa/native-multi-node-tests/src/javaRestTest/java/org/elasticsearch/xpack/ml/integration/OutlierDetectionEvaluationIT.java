@@ -45,9 +45,10 @@ public class OutlierDetectionEvaluationIT extends MlNativeDataFrameAnalyticsInte
     }
 
     public void testEvaluate_DefaultMetrics() {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(
-                ANIMALS_DATA_INDEX, new OutlierDetection(IS_PREDATOR_BOOLEAN_FIELD, IS_PREDATOR_PREDICTION_PROBABILITY_FIELD, null));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            ANIMALS_DATA_INDEX,
+            new OutlierDetection(IS_PREDATOR_BOOLEAN_FIELD, IS_PREDATOR_PREDICTION_PROBABILITY_FIELD, null)
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(OutlierDetection.NAME.getPreferredName()));
         assertThat(
@@ -56,21 +57,20 @@ public class OutlierDetectionEvaluationIT extends MlNativeDataFrameAnalyticsInte
                 AucRoc.NAME.getPreferredName(),
                 Precision.NAME.getPreferredName(),
                 Recall.NAME.getPreferredName(),
-                ConfusionMatrix.NAME.getPreferredName()));
+                ConfusionMatrix.NAME.getPreferredName()
+            )
+        );
     }
 
     public void testEvaluate_AllMetrics() {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(
-                ANIMALS_DATA_INDEX,
-                new OutlierDetection(
-                    IS_PREDATOR_BOOLEAN_FIELD,
-                    IS_PREDATOR_PREDICTION_PROBABILITY_FIELD,
-                    List.of(
-                        new AucRoc(false),
-                        new Precision(List.of(0.5)),
-                        new Recall(List.of(0.5)),
-                        new ConfusionMatrix(List.of(0.5)))));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            ANIMALS_DATA_INDEX,
+            new OutlierDetection(
+                IS_PREDATOR_BOOLEAN_FIELD,
+                IS_PREDATOR_PREDICTION_PROBABILITY_FIELD,
+                List.of(new AucRoc(false), new Precision(List.of(0.5)), new Recall(List.of(0.5)), new ConfusionMatrix(List.of(0.5)))
+            )
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(OutlierDetection.NAME.getPreferredName()));
         assertThat(
@@ -79,14 +79,16 @@ public class OutlierDetectionEvaluationIT extends MlNativeDataFrameAnalyticsInte
                 AucRoc.NAME.getPreferredName(),
                 Precision.NAME.getPreferredName(),
                 Recall.NAME.getPreferredName(),
-                ConfusionMatrix.NAME.getPreferredName()));
+                ConfusionMatrix.NAME.getPreferredName()
+            )
+        );
     }
 
     private AucRoc.Result evaluateAucRoc(String actualField, String predictedField, boolean includeCurve) {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(
-                ANIMALS_DATA_INDEX,
-                new OutlierDetection(actualField, predictedField, List.of(new AucRoc(includeCurve))));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            ANIMALS_DATA_INDEX,
+            new OutlierDetection(actualField, predictedField, List.of(new AucRoc(includeCurve)))
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(OutlierDetection.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));

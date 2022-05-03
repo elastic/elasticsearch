@@ -35,6 +35,7 @@ public class TerminalPolicyStepTests extends AbstractStepTestCase<TerminalPolicy
     public TerminalPolicyStep copyInstance(TerminalPolicyStep instance) {
         return new TerminalPolicyStep(instance.getKey(), instance.getNextStepKey());
     }
+
     public void testInstance() {
         assertEquals(new Step.StepKey("completed", "completed", "completed"), TerminalPolicyStep.INSTANCE.getKey());
         assertNull(TerminalPolicyStep.INSTANCE.getNextStepKey());

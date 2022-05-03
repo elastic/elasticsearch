@@ -8,19 +8,21 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class InternalFilterTests extends InternalSingleBucketAggregationTestCase<InternalFilter> {
@@ -32,6 +34,16 @@ public class InternalFilterTests extends InternalSingleBucketAggregationTestCase
         Map<String, Object> metadata
     ) {
         return new InternalFilter(name, docCount, aggregations, metadata);
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalFilter sampled, InternalFilter reduced, SamplingContext samplingContext) {
+        assertThat(sampled.getDocCount(), equalTo(samplingContext.scaleUp(reduced.getDocCount())));
     }
 
     @Override
@@ -61,7 +73,7 @@ public class InternalFilterTests extends InternalSingleBucketAggregationTestCase
         InternalFilter test = createTestInstance("test", randomNonNegativeLong(), sub, emptyMap());
         PipelineAggregator mockPipeline = new PipelineAggregator(null, null, null) {
             @Override
-            public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+            public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
                 return dummy;
             }
         };

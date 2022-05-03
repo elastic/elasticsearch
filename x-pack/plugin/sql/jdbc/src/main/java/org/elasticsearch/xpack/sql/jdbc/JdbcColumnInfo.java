@@ -79,12 +79,12 @@ class JdbcColumnInfo {
         }
         JdbcColumnInfo other = (JdbcColumnInfo) obj;
         return name.equals(other.name)
-                && type.equals(other.type)
-                && table.equals(other.table)
-                && catalog.equals(other.catalog)
-                && schema.equals(other.schema)
-                && label.equals(other.label)
-                && displaySize == other.displaySize;
+            && type.equals(other.type)
+            && table.equals(other.table)
+            && catalog.equals(other.catalog)
+            && schema.equals(other.schema)
+            && label.equals(other.label)
+            && displaySize == other.displaySize;
     }
 
     @Override

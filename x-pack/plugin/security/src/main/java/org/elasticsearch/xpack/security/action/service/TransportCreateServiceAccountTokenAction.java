@@ -20,24 +20,31 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
-public class TransportCreateServiceAccountTokenAction
-    extends HandledTransportAction<CreateServiceAccountTokenRequest, CreateServiceAccountTokenResponse> {
+public class TransportCreateServiceAccountTokenAction extends HandledTransportAction<
+    CreateServiceAccountTokenRequest,
+    CreateServiceAccountTokenResponse> {
 
     private final ServiceAccountService serviceAccountService;
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportCreateServiceAccountTokenAction(TransportService transportService, ActionFilters actionFilters,
-                                                    ServiceAccountService serviceAccountService,
-                                                    SecurityContext securityContext) {
+    public TransportCreateServiceAccountTokenAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ServiceAccountService serviceAccountService,
+        SecurityContext securityContext
+    ) {
         super(CreateServiceAccountTokenAction.NAME, transportService, actionFilters, CreateServiceAccountTokenRequest::new);
         this.serviceAccountService = serviceAccountService;
         this.securityContext = securityContext;
     }
 
     @Override
-    protected void doExecute(Task task, CreateServiceAccountTokenRequest request,
-                             ActionListener<CreateServiceAccountTokenResponse> listener) {
+    protected void doExecute(
+        Task task,
+        CreateServiceAccountTokenRequest request,
+        ActionListener<CreateServiceAccountTokenResponse> listener
+    ) {
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));

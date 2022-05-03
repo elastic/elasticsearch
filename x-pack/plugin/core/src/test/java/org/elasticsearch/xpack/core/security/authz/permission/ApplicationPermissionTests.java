@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -133,13 +133,15 @@ public class ApplicationPermissionTests extends ESTestCase {
 
     public void testInspectPermissionContents() {
         final ApplicationPrivilege app1ReadWrite = compositePrivilege("app1", app1Read, app1Write);
-        ApplicationPermission perm = new ApplicationPermission(Arrays.asList(
-            new Tuple<>(app1Read, Sets.newHashSet("obj/1", "obj/2")),
-            new Tuple<>(app1Write, Sets.newHashSet("obj/3", "obj/4")),
-            new Tuple<>(app1ReadWrite, Sets.newHashSet("obj/5")),
-            new Tuple<>(app1All, Sets.newHashSet("obj/6", "obj/7")),
-            new Tuple<>(app2Read, Sets.newHashSet("obj/1", "obj/8"))
-        ));
+        ApplicationPermission perm = new ApplicationPermission(
+            Arrays.asList(
+                new Tuple<>(app1Read, Sets.newHashSet("obj/1", "obj/2")),
+                new Tuple<>(app1Write, Sets.newHashSet("obj/3", "obj/4")),
+                new Tuple<>(app1ReadWrite, Sets.newHashSet("obj/5")),
+                new Tuple<>(app1All, Sets.newHashSet("obj/6", "obj/7")),
+                new Tuple<>(app2Read, Sets.newHashSet("obj/1", "obj/8"))
+            )
+        );
         assertThat(perm.getApplicationNames(), containsInAnyOrder("app1", "app2"));
         assertThat(perm.getPrivileges("app1"), containsInAnyOrder(app1Read, app1Write, app1ReadWrite, app1All));
         assertThat(perm.getPrivileges("app2"), containsInAnyOrder(app2Read));
@@ -169,7 +171,7 @@ public class ApplicationPermissionTests extends ESTestCase {
 
     private ApplicationPermission buildPermission(Collection<ApplicationPrivilege> privileges, String... resources) {
         final Set<String> resourceSet = Sets.newHashSet(resources);
-        final List<Tuple<ApplicationPrivilege, Set<String>>> privilegesAndResources =  privileges.stream()
+        final List<Tuple<ApplicationPrivilege, Set<String>>> privilegesAndResources = privileges.stream()
             .map(p -> new Tuple<>(p, resourceSet))
             .collect(Collectors.toList());
         return new ApplicationPermission(privilegesAndResources);

@@ -33,7 +33,6 @@ import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
-
     private int from;
     private int size;
     private TopDocsAndMaxScore topDocsAndMaxScore;
@@ -65,6 +64,15 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public QuerySearchResult(StreamInput in) throws IOException {
+        this(in, false);
+    }
+
+    /**
+     * Read the object, but using a delayed aggregations field when delayedAggregations=true. Using this, the caller must ensure that
+     * either `consumeAggs` or `releaseAggs` is called if `hasAggs() == true`.
+     * @param delayedAggregations whether to use delayed aggregations or not
+     */
+    public QuerySearchResult(StreamInput in, boolean delayedAggregations) throws IOException {
         super(in);
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             isNull = in.readBoolean();
@@ -73,7 +81,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         if (isNull == false) {
             ShardSearchContextId id = new ShardSearchContextId(in);
-            readFromWithId(id, in);
+            readFromWithId(id, in, delayedAggregations);
         }
     }
 
@@ -162,8 +170,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (topDocs.topDocs.scoreDocs.length > 0 && topDocs.topDocs.scoreDocs[0] instanceof FieldDoc) {
             int numFields = ((FieldDoc) topDocs.topDocs.scoreDocs[0]).fields.length;
             if (numFields != sortValueFormats.length) {
-                throw new IllegalArgumentException("The number of sort fields does not match: "
-                        + numFields + " != " + sortValueFormats.length);
+                throw new IllegalArgumentException(
+                    "The number of sort fields does not match: " + numFields + " != " + sortValueFormats.length
+                );
             }
         }
         this.sortValueFormats = sortValueFormats;
@@ -308,7 +317,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns <code>true</code> if this result has any suggest score docs
      */
     public boolean hasSuggestHits() {
-      return (suggest != null && suggest.hasScoreDocs());
+        return (suggest != null && suggest.hasScoreDocs());
     }
 
     public boolean hasSearchContext() {
@@ -316,6 +325,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public void readFromWithId(ShardSearchContextId id, StreamInput in) throws IOException {
+        readFromWithId(id, in, false);
+    }
+
+    private void readFromWithId(ShardSearchContextId id, StreamInput in, boolean delayedAggregations) throws IOException {
         this.contextId = id;
         from = in.readVInt();
         size = in.readVInt();
@@ -333,7 +346,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         boolean success = false;
         try {
             if (hasAggs) {
-                aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
+                if (delayedAggregations) {
+                    aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
+                } else {
+                    aggregations = DelayableWriteable.referencing(InternalAggregations::readFrom, in);
+                }
             }
             if (in.readBoolean()) {
                 suggest = new Suggest(in);
@@ -359,6 +376,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        // we do not know that it is being sent over transport, but this at least protects all writes from happening, including sending.
+        if (aggregations != null && aggregations.isSerialized()) {
+            throw new IllegalStateException("cannot send serialized version since it will leak");
+        }
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeBoolean(isNull);
         }

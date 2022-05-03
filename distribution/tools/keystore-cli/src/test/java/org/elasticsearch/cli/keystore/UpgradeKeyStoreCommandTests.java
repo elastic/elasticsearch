@@ -8,7 +8,10 @@
 
 package org.elasticsearch.cli.keystore;
 
+import joptsimple.OptionSet;
+
 import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.env.Environment;
@@ -17,7 +20,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -29,32 +31,35 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
     @Override
     protected Command newCommand() {
         return new UpgradeKeyStoreCommand() {
-
             @Override
-            protected Environment createEnv(final Map<String, String> settings) {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) {
                 return env;
             }
-
         };
     }
 
-    public void testKeystoreUpgrade() throws Exception {
+    public void testKeystoreUpgradeV3() throws Exception {
+        assertKeystoreUpgrade("/format-v3-elasticsearch.keystore", KeyStoreWrapper.V3_VERSION);
+    }
+
+    public void testKeystoreUpgradeV4() throws Exception {
+        assertKeystoreUpgrade("/format-v4-elasticsearch.keystore", KeyStoreWrapper.V4_VERSION);
+    }
+
+    private void assertKeystoreUpgrade(String file, int version) throws Exception {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         final Path keystore = KeyStoreWrapper.keystorePath(env.configFile());
-        try (
-            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
-            OutputStream os = Files.newOutputStream(keystore)
-        ) {
+        try (InputStream is = KeyStoreWrapperTests.class.getResourceAsStream(file); OutputStream os = Files.newOutputStream(keystore)) {
             is.transferTo(os);
         }
         try (KeyStoreWrapper beforeUpgrade = KeyStoreWrapper.load(env.configFile())) {
             assertNotNull(beforeUpgrade);
-            assertThat(beforeUpgrade.getFormatVersion(), equalTo(3));
+            assertThat(beforeUpgrade.getFormatVersion(), equalTo(version));
         }
         execute();
         try (KeyStoreWrapper afterUpgrade = KeyStoreWrapper.load(env.configFile())) {
             assertNotNull(afterUpgrade);
-            assertThat(afterUpgrade.getFormatVersion(), equalTo(KeyStoreWrapper.FORMAT_VERSION));
+            assertThat(afterUpgrade.getFormatVersion(), equalTo(KeyStoreWrapper.CURRENT_VERSION));
             afterUpgrade.decrypt(new char[0]);
             assertThat(afterUpgrade.getSettingNames(), hasItem(KeyStoreWrapper.SEED_SETTING.getKey()));
         }

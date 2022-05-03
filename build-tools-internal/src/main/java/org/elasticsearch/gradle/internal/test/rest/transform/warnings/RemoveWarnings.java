@@ -39,6 +39,7 @@ public class RemoveWarnings implements RestTestTransformByParentObject {
     public RemoveWarnings(Set<String> warnings) {
         this.warnings = warnings;
     }
+
     /**
      * @param warnings The allowed warnings to inject
      * @param testName The testName to inject
@@ -81,7 +82,7 @@ public class RemoveWarnings implements RestTestTransformByParentObject {
 
     @Override
     public boolean shouldApply(RestTestContext testContext) {
-        return testName == null || testContext.getTestName().equals(testName);
+        return testName == null || testContext.testName().equals(testName);
     }
 
     @Input

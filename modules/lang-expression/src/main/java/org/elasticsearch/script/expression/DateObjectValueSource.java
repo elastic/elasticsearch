@@ -10,26 +10,30 @@ package org.elasticsearch.script.expression;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
-import org.joda.time.DateTimeZone;
-import org.joda.time.MutableDateTime;
-import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Objects;
 import java.util.function.ToIntFunction;
 
-/** Extracts a portion of a date field with joda time */
+/** Extracts a portion of a date field with Java time */
 class DateObjectValueSource extends FieldDataValueSource {
 
     final String methodName;
-    final ToIntFunction<ReadableDateTime> function;
+    final ToIntFunction<ZonedDateTime> function;
 
-    DateObjectValueSource(IndexFieldData<?> indexFieldData, MultiValueMode multiValueMode,
-                          String methodName, ToIntFunction<ReadableDateTime> function) {
+    DateObjectValueSource(
+        IndexFieldData<?> indexFieldData,
+        MultiValueMode multiValueMode,
+        String methodName,
+        ToIntFunction<ZonedDateTime> function
+    ) {
         super(indexFieldData, multiValueMode);
 
         Objects.requireNonNull(methodName);
@@ -41,13 +45,11 @@ class DateObjectValueSource extends FieldDataValueSource {
     @Override
     public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
         LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(leaf);
-        MutableDateTime joda = new MutableDateTime(0, DateTimeZone.UTC);
         NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
         return new DoubleValues() {
             @Override
             public double doubleValue() throws IOException {
-                joda.setMillis((long)docValues.doubleValue());
-                return function.applyAsInt(joda);
+                return function.applyAsInt(ZonedDateTime.ofInstant(Instant.ofEpochMilli((long) docValues.doubleValue()), ZoneOffset.UTC));
             }
 
             @Override

@@ -11,8 +11,8 @@ package org.elasticsearch.action.admin.indices.cache.clear;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -23,12 +23,19 @@ import java.util.List;
  */
 public class ClearIndicesCacheResponse extends BroadcastResponse {
 
-    private static final ConstructingObjectParser<ClearIndicesCacheResponse, Void> PARSER = new ConstructingObjectParser<>("clear_cache",
-            true, arg -> {
-                BroadcastResponse response = (BroadcastResponse) arg[0];
-                return new ClearIndicesCacheResponse(response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(),
-                        Arrays.asList(response.getShardFailures()));
-            });
+    private static final ConstructingObjectParser<ClearIndicesCacheResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "clear_cache",
+        true,
+        arg -> {
+            BroadcastResponse response = (BroadcastResponse) arg[0];
+            return new ClearIndicesCacheResponse(
+                response.getTotalShards(),
+                response.getSuccessfulShards(),
+                response.getFailedShards(),
+                Arrays.asList(response.getShardFailures())
+            );
+        }
+    );
 
     static {
         declareBroadcastFields(PARSER);
@@ -38,8 +45,12 @@ public class ClearIndicesCacheResponse extends BroadcastResponse {
         super(in);
     }
 
-    ClearIndicesCacheResponse(int totalShards, int successfulShards, int failedShards,
-                              List<DefaultShardOperationFailedException> shardFailures) {
+    ClearIndicesCacheResponse(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> shardFailures
+    ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
     }
 

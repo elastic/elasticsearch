@@ -71,7 +71,7 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
 
     private static SpatialPredicate getPredicate(ShapeRelation relation, LatLonGeometry... geometries) {
         switch (relation) {
-            case INTERSECTS: {
+            case INTERSECTS -> {
                 final GeoEncodingUtils.Component2DPredicate predicate = GeoEncodingUtils.createComponentPredicate(
                     LatLonGeometry.create(geometries)
                 );
@@ -87,7 +87,7 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
                     return false;
                 };
             }
-            case DISJOINT: {
+            case DISJOINT -> {
                 final GeoEncodingUtils.Component2DPredicate predicate = GeoEncodingUtils.createComponentPredicate(
                     LatLonGeometry.create(geometries)
                 );
@@ -104,7 +104,7 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
                     return count > 0;
                 };
             }
-            case WITHIN: {
+            case WITHIN -> {
                 final GeoEncodingUtils.Component2DPredicate predicate = GeoEncodingUtils.createComponentPredicate(
                     LatLonGeometry.create(geometries)
                 );
@@ -121,7 +121,7 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
                     return count > 0;
                 };
             }
-            case CONTAINS: {
+            case CONTAINS -> {
                 final Component2D[] component2DS = new Component2D[geometries.length];
                 for (int i = 0; i < geometries.length; i++) {
                     component2DS[i] = LatLonGeometry.create(geometries[i]);
@@ -144,8 +144,7 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
                     return answer == Component2D.WithinRelation.CANDIDATE;
                 };
             }
-            default:
-                throw new IllegalArgumentException("Unknown spatial relationship [" + relation.getRelationName() + "]");
+            default -> throw new IllegalArgumentException("Unknown spatial relationship [" + relation.getRelationName() + "]");
         }
     }
 }

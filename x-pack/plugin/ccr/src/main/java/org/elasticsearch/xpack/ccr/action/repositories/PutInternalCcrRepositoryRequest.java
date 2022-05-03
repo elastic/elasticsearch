@@ -47,8 +47,7 @@ public class PutInternalCcrRepositoryRequest extends ActionRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PutInternalCcrRepositoryRequest that = (PutInternalCcrRepositoryRequest) o;
-        return Objects.equals(name, that.name) &&
-            Objects.equals(type, that.type);
+        return Objects.equals(name, that.name) && Objects.equals(type, that.type);
     }
 
     @Override
@@ -58,9 +57,6 @@ public class PutInternalCcrRepositoryRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return "PutInternalCcrRepositoryRequest{" +
-            "name='" + name + '\'' +
-            ", type='" + type + '\'' +
-            '}';
+        return "PutInternalCcrRepositoryRequest{" + "name='" + name + '\'' + ", type='" + type + '\'' + '}';
     }
 }

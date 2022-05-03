@@ -1,0 +1,7 @@
+---
+"Test without a setup":
+  - do:
+      something:
+        id: "something"
+  - match: { acknowledged: true }
+

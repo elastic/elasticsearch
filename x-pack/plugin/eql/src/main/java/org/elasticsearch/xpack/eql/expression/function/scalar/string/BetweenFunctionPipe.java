@@ -21,13 +21,15 @@ public class BetweenFunctionPipe extends Pipe {
     private final Pipe input, left, right, greedy;
     private final boolean caseInsensitive;
 
-    public BetweenFunctionPipe(Source source,
-                               Expression expression,
-                               Pipe input,
-                               Pipe left,
-                               Pipe right,
-                               Pipe greedy,
-                               boolean caseInsensitive) {
+    public BetweenFunctionPipe(
+        Source source,
+        Expression expression,
+        Pipe input,
+        Pipe left,
+        Pipe right,
+        Pipe greedy,
+        boolean caseInsensitive
+    ) {
         super(source, expression, Arrays.asList(input, left, right, greedy));
         this.input = input;
         this.left = left;
@@ -55,7 +57,9 @@ public class BetweenFunctionPipe extends Pipe {
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return input.supportedByAggsOnlyQuery() && left.supportedByAggsOnlyQuery() && right.supportedByAggsOnlyQuery()
+        return input.supportedByAggsOnlyQuery()
+            && left.supportedByAggsOnlyQuery()
+            && right.supportedByAggsOnlyQuery()
             && greedy.supportedByAggsOnlyQuery();
     }
 
@@ -83,8 +87,13 @@ public class BetweenFunctionPipe extends Pipe {
 
     @Override
     public BetweenFunctionProcessor asProcessor() {
-        return new BetweenFunctionProcessor(input.asProcessor(), left.asProcessor(), right.asProcessor(),
-            greedy.asProcessor(), caseInsensitive);
+        return new BetweenFunctionProcessor(
+            input.asProcessor(),
+            left.asProcessor(),
+            right.asProcessor(),
+            greedy.asProcessor(),
+            caseInsensitive
+        );
     }
 
     public Pipe input() {

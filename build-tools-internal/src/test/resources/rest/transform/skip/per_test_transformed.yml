@@ -1,0 +1,24 @@
+---
+"One Test":
+  - do:
+      something:
+        id: "something1"
+  - match: { acknowledged: true }
+---
+"Two Test":
+  - skip:
+      version: "all"
+      reason: "my reason"
+  - do:
+      something:
+        id: "something2"
+  - match: { acknowledged: true }
+---
+"Three Test":
+  - skip:
+      version: "all"
+      reason: "another reason"
+  - do:
+      something:
+        id: "something3"
+  - match: { acknowledged: true }

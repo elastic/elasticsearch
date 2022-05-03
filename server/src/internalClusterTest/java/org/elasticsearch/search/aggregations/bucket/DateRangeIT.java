@@ -37,13 +37,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -442,7 +442,7 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(2L));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
-        assertThat(sum.getValue(), equalTo((double) 1 + 2));
+        assertThat(sum.value(), equalTo((double) 1 + 2));
         assertThat((String) propertiesKeys[0], equalTo("r1"));
         assertThat((long) propertiesDocCounts[0], equalTo(2L));
         assertThat((double) propertiesCounts[0], equalTo((double) 1 + 2));
@@ -457,7 +457,7 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(2L));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
-        assertThat(sum.getValue(), equalTo((double) 3 + 4));
+        assertThat(sum.value(), equalTo((double) 3 + 4));
         assertThat((String) propertiesKeys[1], equalTo("r2"));
         assertThat((long) propertiesDocCounts[1], equalTo(2L));
         assertThat((double) propertiesCounts[1], equalTo((double) 3 + 4));

@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -65,7 +64,7 @@ public class GeoHashCellIdSource extends ValuesSource.Numeric {
         }
 
         @Override
-        int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
+        protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
             values[valuesIdx] = Geohash.longEncode(target.getLon(), target.getLat(), precision);
             return valuesIdx + 1;
         }
@@ -73,33 +72,32 @@ public class GeoHashCellIdSource extends ValuesSource.Numeric {
 
     private static class BoundedCellValues extends CellValues {
 
+        private final GeoHashBoundedPredicate predicate;
         private final GeoBoundingBox bbox;
-        private final boolean crossesDateline;
 
         BoundedCellValues(MultiGeoPointValues geoValues, int precision, GeoBoundingBox bbox) {
             super(geoValues, precision);
+            this.predicate = new GeoHashBoundedPredicate(precision, bbox);
             this.bbox = bbox;
-            this.crossesDateline = bbox.right() < bbox.left();
         }
 
         @Override
-        int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
+        protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
             final String hash = Geohash.stringEncode(target.getLon(), target.getLat(), precision);
-            if (validHash(hash)) {
+            if (validPoint(target.getLon(), target.getLat()) || predicate.validHash(hash)) {
                 values[valuesIdx] = Geohash.longEncode(hash);
                 return valuesIdx + 1;
             }
             return valuesIdx;
         }
 
-        private boolean validHash(String hash) {
-            final Rectangle rectangle = Geohash.toBoundingBox(hash);
-            // touching hashes are excluded
-            if (bbox.top() > rectangle.getMinY() && bbox.bottom() < rectangle.getMaxY()) {
+        private boolean validPoint(double x, double y) {
+            if (bbox.top() > y && bbox.bottom() < y) {
+                boolean crossesDateline = bbox.left() > bbox.right();
                 if (crossesDateline) {
-                    return bbox.left() < rectangle.getMaxX() || bbox.right() > rectangle.getMinX();
+                    return bbox.left() < x || bbox.right() > x;
                 } else {
-                    return bbox.left() < rectangle.getMaxX() && bbox.right() > rectangle.getMinX();
+                    return bbox.left() < x && bbox.right() > x;
                 }
             }
             return false;

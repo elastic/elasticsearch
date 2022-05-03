@@ -23,15 +23,12 @@ public class GeoHashTests extends ESTestCase {
     public void testGeohashAsLongRoutines() {
         final GeoPoint expected = new GeoPoint();
         final GeoPoint actual = new GeoPoint();
-        //Ensure that for all points at all supported levels of precision
+        // Ensure that for all points at all supported levels of precision
         // that the long encoding of a geohash is compatible with its
         // String based counterpart
-        for (double lat=-90;lat<90;lat++)
-        {
-            for (double lng=-180;lng<180;lng++)
-            {
-                for(int p=1;p<=12;p++)
-                {
+        for (double lat = -90; lat < 90; lat++) {
+            for (double lng = -180; lng < 180; lng++) {
+                for (int p = 1; p <= 12; p++) {
                     long geoAsLong = Geohash.longEncode(lng, lat, p);
 
                     // string encode from geohashlong encoded location
@@ -85,11 +82,11 @@ public class GeoHashTests extends ESTestCase {
             // Adding some random geohash characters at the end
             String extendedGeohash = geohash + randomGeohash(1, 10);
             GeoPoint actual = GeoPoint.fromGeohash(extendedGeohash);
-            assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]" , expected, actual);
+            assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]", expected, actual);
 
             Rectangle expectedBbox = Geohash.toBoundingBox(geohash);
             Rectangle actualBbox = Geohash.toBoundingBox(extendedGeohash);
-            assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]" , expectedBbox, actualBbox);
+            assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]", expectedBbox, actualBbox);
         }
     }
 
@@ -123,14 +120,11 @@ public class GeoHashTests extends ESTestCase {
         assertThat(addNeighbors("r", new ArrayList<>()), containsInAnyOrder("0", "2", "8", "n", "p", "q", "w", "x"));
 
         // level1: simple case
-        assertThat(addNeighbors("dk", new ArrayList<>()),
-            containsInAnyOrder("d5", "d7", "de", "dh", "dj", "dm", "ds", "dt"));
+        assertThat(addNeighbors("dk", new ArrayList<>()), containsInAnyOrder("d5", "d7", "de", "dh", "dj", "dm", "ds", "dt"));
 
         // Level1: crossing cells
-        assertThat(addNeighbors("d5", new ArrayList<>()),
-            containsInAnyOrder("d4", "d6", "d7", "dh", "dk", "9f", "9g", "9u"));
-        assertThat(addNeighbors("d0", new ArrayList<>()),
-            containsInAnyOrder("d1", "d2", "d3", "9b", "9c", "6p", "6r", "3z"));
+        assertThat(addNeighbors("d5", new ArrayList<>()), containsInAnyOrder("d4", "d6", "d7", "dh", "dk", "9f", "9g", "9u"));
+        assertThat(addNeighbors("d0", new ArrayList<>()), containsInAnyOrder("d1", "d2", "d3", "9b", "9c", "6p", "6r", "3z"));
     }
 
 }

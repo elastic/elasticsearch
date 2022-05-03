@@ -22,7 +22,7 @@ public class GeoPointFieldTests extends ESTestCase {
     public void testGivenGeoPoint() {
         double lat = 38.897676;
         double lon = -77.03653;
-        String[] expected = new String[] {lat + "," + lon};
+        String[] expected = new String[] { lat + "," + lon };
         SearchHit hit = new SearchHitBuilder(42).addField("geo", lat + ", " + lon).build();
 
         // doc_value field

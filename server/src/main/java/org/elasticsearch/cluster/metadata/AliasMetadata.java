@@ -9,21 +9,20 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,7 +32,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
-public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements ToXContentFragment {
+public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentFragment {
 
     private final String alias;
 
@@ -51,8 +50,14 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     @Nullable
     private final Boolean isHidden;
 
-    private AliasMetadata(String alias, CompressedXContent filter, String indexRouting, String searchRouting, Boolean writeIndex,
-                          @Nullable Boolean isHidden) {
+    private AliasMetadata(
+        String alias,
+        CompressedXContent filter,
+        String indexRouting,
+        String searchRouting,
+        Boolean writeIndex,
+        @Nullable Boolean isHidden
+    ) {
         this.alias = alias;
         this.filter = filter;
         this.indexRouting = indexRouting;
@@ -67,8 +72,14 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     }
 
     private AliasMetadata(AliasMetadata aliasMetadata, String alias) {
-        this(alias, aliasMetadata.filter(), aliasMetadata.indexRouting(), aliasMetadata.searchRouting(), aliasMetadata.writeIndex(),
-            aliasMetadata.isHidden);
+        this(
+            alias,
+            aliasMetadata.filter(),
+            aliasMetadata.indexRouting(),
+            aliasMetadata.searchRouting(),
+            aliasMetadata.writeIndex(),
+            aliasMetadata.isHidden
+        );
     }
 
     public String alias() {
@@ -211,7 +222,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     }
 
     public static Diff<AliasMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(AliasMetadata::new, in);
+        return SimpleDiffable.readDiffFrom(AliasMetadata::new, in);
     }
 
     @Override
@@ -225,12 +236,13 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         return builder;
     }
 
-    public static AliasMetadata getFirstAliasMetadata(IndexAbstraction ia) {
+    public static AliasMetadata getFirstAliasMetadata(Metadata metadata, IndexAbstraction ia) {
         if (ia.getType() != IndexAbstraction.Type.ALIAS) {
             throw new IllegalArgumentException("unexpected type: [" + ia.getType() + "]");
         }
 
-        return ia.getIndices().get(0).getAliases().get(ia.getName());
+        IndexMetadata firstIndex = metadata.index(ia.getIndices().get(0));
+        return firstIndex.getAliases().get(ia.getName());
     }
 
     public static class Builder {
@@ -276,8 +288,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                 return this;
             }
             try {
-                XContentBuilder builder = XContentFactory.jsonBuilder().map(filter);
-                this.filter = new CompressedXContent(BytesReference.bytes(builder));
+                this.filter = new CompressedXContent(filter);
                 return this;
             } catch (IOException e) {
                 throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
@@ -323,7 +334,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                 if (binary) {
                     builder.field("filter", aliasMetadata.filter.compressed());
                 } else {
-                    builder.field("filter", XContentHelper.convertToMap(aliasMetadata.filter().uncompressed(), true).v2());
+                    aliasMetadata.filter.copyTo(builder.field("filter"));
                 }
             }
             if (aliasMetadata.indexRouting() != null) {

@@ -10,13 +10,14 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Nullable;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 /**
@@ -127,7 +128,7 @@ public class BytesStreamOutput extends BytesStream {
      *
      * @return the value of the <code>count</code> field, which is the number of valid
      *         bytes in this output stream.
-     * @see java.io.ByteArrayOutputStream#count
+     * @see ByteArrayOutputStream#size()
      */
     public int size() {
         return count;
@@ -147,19 +148,28 @@ public class BytesStreamOutput extends BytesStream {
      * @return copy of the bytes in this instances
      */
     public BytesReference copyBytes() {
-        final byte[] keyBytes = new byte[count];
+        final BytesReference bytesReference = bytes();
+        final byte[] arr = new byte[count];
+        if (bytesReference.hasArray()) {
+            System.arraycopy(bytesReference.array(), bytesReference.arrayOffset(), arr, 0, bytesReference.length());
+        } else {
+            copyToArray(bytesReference, arr);
+        }
+        return new BytesArray(arr);
+    }
+
+    private static void copyToArray(BytesReference bytesReference, byte[] arr) {
         int offset = 0;
-        final BytesRefIterator iterator = bytes().iterator();
+        final BytesRefIterator iterator = bytesReference.iterator();
         try {
             BytesRef slice;
             while ((slice = iterator.next()) != null) {
-                System.arraycopy(slice.bytes, slice.offset, keyBytes, offset, slice.length);
+                System.arraycopy(slice.bytes, slice.offset, arr, offset, slice.length);
                 offset += slice.length;
             }
         } catch (IOException e) {
             throw new AssertionError(e);
         }
-        return new BytesArray(keyBytes);
     }
 
     /**

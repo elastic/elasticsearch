@@ -11,12 +11,12 @@ package org.elasticsearch.cli.keystore;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.junit.After;
@@ -71,8 +71,12 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
         for (int i = 0; i < settings.length; i += 2) {
             keystore.setString(settings[i], settings[i + 1].toCharArray());
         }
-        keystore.save(env.configFile(), password.toCharArray());
+        saveKeystore(keystore, password);
         return keystore;
+    }
+
+    void saveKeystore(KeyStoreWrapper keystore, String password) throws Exception {
+        keystore.save(env.configFile(), password.toCharArray());
     }
 
     KeyStoreWrapper loadKeystore(String password) throws Exception {

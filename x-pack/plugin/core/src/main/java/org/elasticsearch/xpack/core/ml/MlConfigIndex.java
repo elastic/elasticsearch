@@ -32,7 +32,8 @@ public final class MlConfigIndex {
         return TemplateUtils.loadTemplate(
             "/org/elasticsearch/xpack/core/ml/config_index_mappings.json",
             Version.CURRENT.toString(),
-            MAPPINGS_VERSION_VARIABLE);
+            MAPPINGS_VERSION_VARIABLE
+        );
     }
 
     public static Settings settings() {

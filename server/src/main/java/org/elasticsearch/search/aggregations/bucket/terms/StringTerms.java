@@ -10,10 +10,10 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -85,6 +85,9 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
 
         @Override
         protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
+            if (format == DocValueFormat.TIME_SERIES_ID) {
+                return builder.field(CommonFields.KEY.getPreferredName(), format.format(termBytes));
+            }
             return builder.field(CommonFields.KEY.getPreferredName(), getKeyAsString());
         }
 

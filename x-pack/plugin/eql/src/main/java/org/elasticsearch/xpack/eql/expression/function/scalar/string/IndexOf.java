@@ -68,8 +68,14 @@ public class IndexOf extends CaseInsensitiveScalarFunction implements OptionalAr
 
     @Override
     protected Pipe makePipe() {
-        return new IndexOfFunctionPipe(source(), this, Expressions.pipe(input), Expressions.pipe(substring), Expressions.pipe(start),
-            isCaseInsensitive());
+        return new IndexOfFunctionPipe(
+            source(),
+            this,
+            Expressions.pipe(input),
+            Expressions.pipe(substring),
+            Expressions.pipe(start),
+            isCaseInsensitive()
+        );
     }
 
     @Override
@@ -97,18 +103,23 @@ public class IndexOf extends CaseInsensitiveScalarFunction implements OptionalAr
     }
 
     protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate substringScript, ScriptTemplate startScript) {
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s,%s)"),
-            "indexOf",
-            inputScript.template(),
-            substringScript.template(),
-            startScript.template(),
-            "{}"),
-            paramsBuilder()
-                .script(inputScript.params())
+        return new ScriptTemplate(
+            format(
+                Locale.ROOT,
+                formatTemplate("{eql}.%s(%s,%s,%s,%s)"),
+                "indexOf",
+                inputScript.template(),
+                substringScript.template(),
+                startScript.template(),
+                "{}"
+            ),
+            paramsBuilder().script(inputScript.params())
                 .script(substringScript.params())
                 .script(startScript.params())
                 .variable(isCaseInsensitive())
-                .build(), dataType());
+                .build(),
+            dataType()
+        );
     }
 
     @Override

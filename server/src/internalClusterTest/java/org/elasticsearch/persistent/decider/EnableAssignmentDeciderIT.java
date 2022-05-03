@@ -53,8 +53,12 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(numberOfTasks);
         for (int i = 0; i < numberOfTasks; i++) {
             PersistentTasksService service = internalCluster().getInstance(PersistentTasksService.class);
-            service.sendStartRequest("task_" + i, TestPersistentTasksExecutor.NAME, new TestParams(randomAlphaOfLength(10)),
-                ActionListener.wrap(latch::countDown));
+            service.sendStartRequest(
+                "task_" + i,
+                TestPersistentTasksExecutor.NAME,
+                new TestParams(randomAlphaOfLength(10)),
+                ActionListener.wrap(latch::countDown)
+            );
         }
         latch.await();
 
@@ -64,9 +68,11 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
 
         logger.trace("waiting for the tasks to be running");
         assertBusy(() -> {
-            ListTasksResponse listTasks = client().admin().cluster().prepareListTasks()
-                                                                    .setActions(TestPersistentTasksExecutor.NAME + "[c]")
-                                                                    .get();
+            ListTasksResponse listTasks = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(TestPersistentTasksExecutor.NAME + "[c]")
+                .get();
             assertThat(listTasks.getTasks().size(), equalTo(numberOfTasks));
         });
 
@@ -83,12 +89,18 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
 
             logger.trace("persistent tasks are not assigned");
             tasks = internalCluster().clusterService().state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-            assertEquals(numberOfTasks, tasks.tasks().stream()
-                .filter(t -> TestPersistentTasksExecutor.NAME.equals(t.getTaskName()))
-                .filter(t -> t.isAssigned() == false)
-                .count());
+            assertEquals(
+                numberOfTasks,
+                tasks.tasks()
+                    .stream()
+                    .filter(t -> TestPersistentTasksExecutor.NAME.equals(t.getTaskName()))
+                    .filter(t -> t.isAssigned() == false)
+                    .count()
+            );
 
-            ListTasksResponse runningTasks = client().admin().cluster().prepareListTasks()
+            ListTasksResponse runningTasks = client().admin()
+                .cluster()
+                .prepareListTasks()
                 .setActions(TestPersistentTasksExecutor.NAME + "[c]")
                 .get();
             assertThat(runningTasks.getTasks().size(), equalTo(0));
@@ -101,7 +113,9 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
             }
 
             assertBusy(() -> {
-                ListTasksResponse listTasks = client().admin().cluster().prepareListTasks()
+                ListTasksResponse listTasks = client().admin()
+                    .cluster()
+                    .prepareListTasks()
                     .setActions(TestPersistentTasksExecutor.NAME + "[c]")
                     .get();
                 assertThat(listTasks.getTasks().size(), equalTo(numberOfTasks));

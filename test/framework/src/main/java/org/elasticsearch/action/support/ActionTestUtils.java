@@ -15,6 +15,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.Transport;
 
@@ -25,20 +26,24 @@ public class ActionTestUtils {
 
     private ActionTestUtils() { /* no construction */ }
 
-    public static <Request extends ActionRequest, Response extends ActionResponse>
-    Response executeBlocking(TransportAction<Request, Response> action, Request request) {
+    public static <Request extends ActionRequest, Response extends ActionResponse> Response executeBlocking(
+        TransportAction<Request, Response> action,
+        Request request
+    ) {
         PlainActionFuture<Response> future = newFuture();
         Task task = mock(Task.class);
         action.execute(task, request, future);
         return future.actionGet();
     }
 
-    public static <Request extends ActionRequest, Response extends ActionResponse>
-    Response executeBlockingWithTask(TaskManager taskManager, Transport.Connection localConnection,
-                                     TransportAction<Request, Response> action, Request request) {
+    public static <Request extends ActionRequest, Response extends ActionResponse> Response executeBlockingWithTask(
+        TaskManager taskManager,
+        Transport.Connection localConnection,
+        TransportAction<Request, Response> action,
+        Request request
+    ) {
         PlainActionFuture<Response> future = newFuture();
-        taskManager.registerAndExecute("transport", action, request, localConnection,
-            (t, r) -> future.onResponse(r), (t, e) -> future.onFailure(e));
+        taskManager.registerAndExecute("transport", action, request, localConnection, wrapAsTaskListener(future));
         return future.actionGet();
     }
 
@@ -47,15 +52,17 @@ public class ActionTestUtils {
      *
      * This is a shim method to make execution publicly available in tests.
      */
-    public static <Request extends ActionRequest, Response extends ActionResponse>
-    void execute(TransportAction<Request, Response> action, Task task, Request request, ActionListener<Response> listener) {
+    public static <Request extends ActionRequest, Response extends ActionResponse> void execute(
+        TransportAction<Request, Response> action,
+        Task task,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         action.execute(task, request, listener);
     }
 
     public static <T> ActionListener<T> assertNoFailureListener(CheckedConsumer<T, Exception> consumer) {
-        return ActionListener.wrap(consumer, e -> {
-            throw new AssertionError(e);
-        });
+        return ActionListener.wrap(consumer, e -> { throw new AssertionError(e); });
     }
 
     public static ResponseListener wrapAsRestResponseListener(ActionListener<Response> listener) {
@@ -68,6 +75,20 @@ public class ActionTestUtils {
             @Override
             public void onFailure(Exception exception) {
                 listener.onFailure(exception);
+            }
+        };
+    }
+
+    public static <T> TaskListener<T> wrapAsTaskListener(ActionListener<T> listener) {
+        return new TaskListener<>() {
+            @Override
+            public void onResponse(Task task, T t) {
+                listener.onResponse(t);
+            }
+
+            @Override
+            public void onFailure(Task task, Exception e) {
+                listener.onFailure(e);
             }
         };
     }

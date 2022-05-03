@@ -20,9 +20,7 @@ public class InsertFunctionPipe extends Pipe {
 
     private final Pipe input, start, length, replacement;
 
-    public InsertFunctionPipe(Source source, Expression expression,
-            Pipe input, Pipe start,
-            Pipe length, Pipe replacement) {
+    public InsertFunctionPipe(Source source, Expression expression, Pipe input, Pipe start, Pipe length, Pipe replacement) {
         super(source, expression, Arrays.asList(input, start, length, replacement));
         this.input = input;
         this.start = start;
@@ -41,10 +39,7 @@ public class InsertFunctionPipe extends Pipe {
         Pipe newStart = start.resolveAttributes(resolver);
         Pipe newLength = length.resolveAttributes(resolver);
         Pipe newReplacement = replacement.resolveAttributes(resolver);
-        if (newInput == input
-                && newStart == start
-                && newLength == length
-                && newReplacement == replacement) {
+        if (newInput == input && newStart == start && newLength == length && newReplacement == replacement) {
             return this;
         }
         return replaceChildren(newInput, newStart, newLength, newReplacement);
@@ -53,9 +48,9 @@ public class InsertFunctionPipe extends Pipe {
     @Override
     public boolean supportedByAggsOnlyQuery() {
         return input.supportedByAggsOnlyQuery()
-                && start.supportedByAggsOnlyQuery()
-                && length.supportedByAggsOnlyQuery()
-                && replacement.supportedByAggsOnlyQuery();
+            && start.supportedByAggsOnlyQuery()
+            && length.supportedByAggsOnlyQuery()
+            && replacement.supportedByAggsOnlyQuery();
     }
 
     @Override
@@ -63,10 +58,7 @@ public class InsertFunctionPipe extends Pipe {
         return input.resolved() && start.resolved() && length.resolved() && replacement.resolved();
     }
 
-    protected Pipe replaceChildren(Pipe newInput,
-            Pipe newStart,
-            Pipe newLength,
-            Pipe newReplacement) {
+    protected Pipe replaceChildren(Pipe newInput, Pipe newStart, Pipe newLength, Pipe newReplacement) {
         return new InsertFunctionPipe(source(), expression(), newInput, newStart, newLength, newReplacement);
     }
 
@@ -121,8 +113,8 @@ public class InsertFunctionPipe extends Pipe {
 
         InsertFunctionPipe other = (InsertFunctionPipe) obj;
         return Objects.equals(input, other.input)
-                && Objects.equals(start, other.start)
-                && Objects.equals(length, other.length)
-                && Objects.equals(replacement, other.replacement);
+            && Objects.equals(start, other.start)
+            && Objects.equals(length, other.length)
+            && Objects.equals(replacement, other.replacement);
     }
 }

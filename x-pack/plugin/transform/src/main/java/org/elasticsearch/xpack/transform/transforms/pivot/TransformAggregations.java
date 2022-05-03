@@ -65,11 +65,13 @@ public final class TransformAggregations {
         "geotile_grid",
         "global",
         "histogram",
+        "ip_prefix",
         "ip_range",
         "matrix_stats",
         "nested",
         "percentile_ranks",
         "range",
+        "random_sampler",
         "reverse_nested",
         "sampler",
         "significant_terms", // https://github.com/elastic/elasticsearch/issues/51073
@@ -79,7 +81,8 @@ public final class TransformAggregations {
         "t_test", // https://github.com/elastic/elasticsearch/issues/54503,
         "variable_width_histogram", // https://github.com/elastic/elasticsearch/issues/58140
         "rate", // https://github.com/elastic/elasticsearch/issues/61351
-        "multi_terms" // https://github.com/elastic/elasticsearch/issues/67609
+        "multi_terms", // https://github.com/elastic/elasticsearch/issues/67609
+        "time_series" // https://github.com/elastic/elasticsearch/issues/74660
     );
 
     private TransformAggregations() {}
@@ -202,8 +205,7 @@ public final class TransformAggregations {
      */
     public static Tuple<Map<String, String>, Map<String, String>> getAggregationInputAndOutputTypes(AggregationBuilder agg) {
         // todo: can this be removed?
-        if (agg instanceof PercentilesAggregationBuilder) {
-            PercentilesAggregationBuilder percentilesAgg = (PercentilesAggregationBuilder) agg;
+        if (agg instanceof PercentilesAggregationBuilder percentilesAgg) {
 
             // note: eclipse does not like p -> agg.getType()
             // the merge function (p1, p2) -> p1 ignores duplicates
@@ -224,26 +226,17 @@ public final class TransformAggregations {
                 outputFieldNames.get()
                     .stream()
                     .collect(
-                        Collectors.toMap(
-                            outputField -> agg.getName() + "." + outputField,
-                            outputField -> outputField,
-                            (v1, v2) -> v1
-                        )
+                        Collectors.toMap(outputField -> agg.getName() + "." + outputField, outputField -> outputField, (v1, v2) -> v1)
                     ),
                 outputFieldNames.get()
                     .stream()
                     .collect(
-                        Collectors.toMap(
-                            outputField -> agg.getName() + "." + outputField,
-                            outputField -> agg.getType(),
-                            (v1, v2) -> v1
-                        )
+                        Collectors.toMap(outputField -> agg.getName() + "." + outputField, outputField -> agg.getType(), (v1, v2) -> v1)
                     )
             );
         }
 
-        if (agg instanceof ValuesSourceAggregationBuilder) {
-            ValuesSourceAggregationBuilder<?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?>) agg;
+        if (agg instanceof ValuesSourceAggregationBuilder<?> valueSourceAggregation) {
             return new Tuple<>(
                 Collections.singletonMap(valueSourceAggregation.getName(), valueSourceAggregation.field()),
                 Collections.singletonMap(valueSourceAggregation.getName(), valueSourceAggregation.getType())

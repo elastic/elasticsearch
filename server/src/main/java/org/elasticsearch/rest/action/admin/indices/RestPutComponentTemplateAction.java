@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -25,9 +25,7 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/_component_template/{name}"),
-            new Route(PUT, "/_component_template/{name}"));
+        return List.of(new Route(POST, "/_component_template/{name}"), new Route(PUT, "/_component_template/{name}"));
     }
 
     @Override

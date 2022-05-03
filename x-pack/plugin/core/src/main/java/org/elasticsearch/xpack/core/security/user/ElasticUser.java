@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
-
 /**
  * The reserved {@code elastic} superuser. Has full permission/access to the cluster/indices and can
  * run as any other user.
@@ -23,4 +22,3 @@ public class ElasticUser extends User {
         super(NAME, new String[] { ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
     }
 }
-

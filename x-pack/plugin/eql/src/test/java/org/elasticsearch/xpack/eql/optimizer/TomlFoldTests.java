@@ -62,15 +62,16 @@ public class TomlFoldTests extends ESTestCase {
 
     private static List<Object[]> asArray(Collection<EqlFoldSpec> specs) {
         AtomicInteger counter = new AtomicInteger();
-        return specs.stream().map(spec -> new Object[] {
-            counter.incrementAndGet(), spec
-        }).collect(toList());
+        return specs.stream().map(spec -> new Object[] { counter.incrementAndGet(), spec }).collect(toList());
     }
 
     public void test() {
         Expression expr = PARSER.createExpression(spec.expression());
-        LogicalPlan logicalPlan = new Project(EMPTY, new LocalRelation(EMPTY, emptyList()),
-            singletonList(new Alias(Source.EMPTY, "test", expr)));
+        LogicalPlan logicalPlan = new Project(
+            EMPTY,
+            new LocalRelation(EMPTY, emptyList()),
+            singletonList(new Alias(Source.EMPTY, "test", expr))
+        );
         LogicalPlan analyzed = ANALYZER.analyze(logicalPlan);
 
         assertTrue(analyzed instanceof Project);
@@ -84,7 +85,7 @@ public class TomlFoldTests extends ESTestCase {
 
         // upgrade to a long, because the parser typically downgrades Long -> Integer when possible
         if (folded instanceof Integer) {
-            folded  = ((Integer) folded).longValue();
+            folded = ((Integer) folded).longValue();
         }
 
         assertEquals(spec.expected(), folded);

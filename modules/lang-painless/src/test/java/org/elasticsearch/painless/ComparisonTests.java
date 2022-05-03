@@ -136,10 +136,10 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(false, exec("def x = new HashMap(); x.put(3, 3); def y = new HashMap(); y.put(3, 3); return x != y"));
         assertEquals(false, exec("def x = new HashMap(); def y = x; x.put(3, 3); y.put(3, 3); return x != y"));
 
-        assertEquals(false,  exec("def x = true;  def y = true; return x != y"));
-        assertEquals(true,   exec("def x = true;  def y = false; return x != y"));
-        assertEquals(true,   exec("def x = false; def y = true; return x != y"));
-        assertEquals(false,  exec("def x = false; def y = false; return x != y"));
+        assertEquals(false, exec("def x = true;  def y = true; return x != y"));
+        assertEquals(true, exec("def x = true;  def y = false; return x != y"));
+        assertEquals(true, exec("def x = false; def y = true; return x != y"));
+        assertEquals(false, exec("def x = false; def y = false; return x != y"));
     }
 
     public void testDefNeTypedLHS() {
@@ -164,10 +164,10 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(false, exec("Map x = new HashMap(); x.put(3, 3); def y = new HashMap(); y.put(3, 3); return x != y"));
         assertEquals(false, exec("Map x = new HashMap(); def y = x; x.put(3, 3); y.put(3, 3); return x != y"));
 
-        assertEquals(false,  exec("boolean x = true;  def y = true; return x != y"));
-        assertEquals(true,   exec("boolean x = true;  def y = false; return x != y"));
-        assertEquals(true,   exec("boolean x = false; def y = true; return x != y"));
-        assertEquals(false,  exec("boolean x = false; def y = false; return x != y"));
+        assertEquals(false, exec("boolean x = true;  def y = true; return x != y"));
+        assertEquals(true, exec("boolean x = true;  def y = false; return x != y"));
+        assertEquals(true, exec("boolean x = false; def y = true; return x != y"));
+        assertEquals(false, exec("boolean x = false; def y = false; return x != y"));
     }
 
     public void testDefNeTypedRHS() {
@@ -192,10 +192,10 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(false, exec("def x = new HashMap(); x.put(3, 3); Map y = new HashMap(); y.put(3, 3); return x != y"));
         assertEquals(false, exec("def x = new HashMap(); Map y = x; x.put(3, 3); y.put(3, 3); return x != y"));
 
-        assertEquals(false,  exec("def x = true;  boolean y = true; return x != y"));
-        assertEquals(true,   exec("def x = true;  boolean y = false; return x != y"));
-        assertEquals(true,   exec("def x = false; boolean y = true; return x != y"));
-        assertEquals(false,  exec("def x = false; boolean y = false; return x != y"));
+        assertEquals(false, exec("def x = true;  boolean y = true; return x != y"));
+        assertEquals(true, exec("def x = true;  boolean y = false; return x != y"));
+        assertEquals(true, exec("def x = false; boolean y = true; return x != y"));
+        assertEquals(false, exec("def x = false; boolean y = false; return x != y"));
     }
 
     public void testDefNer() {

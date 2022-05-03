@@ -9,7 +9,7 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 /**
  * Parameters used to start persistent task

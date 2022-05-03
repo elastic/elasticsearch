@@ -1,0 +1,54 @@
+# Integration tests for HDFS Repository plugin
+#
+# Tests creating a repository, then deleting it and creating it again.
+#
+"HDFS Delete Repository":
+    # Create repository
+    - do:
+        snapshot.create_repository:
+          repository: test_repo_hdfs_1
+          body:
+            type: hdfs
+            settings:
+              uri: "hdfs://localhost:@secure_hdfs_port@"
+              path: "/user/elasticsearch/foo/bar"
+              security:
+                principal: "elasticsearch@BUILD.ELASTIC.CO"
+
+    # Get repository
+    - do:
+        snapshot.get_repository:
+          repository: test_repo_hdfs_1
+
+    - is_true: test_repo_hdfs_1
+    - match: {test_repo_hdfs_1.settings.path : "/user/elasticsearch/foo/bar"}
+
+    # Delete repository
+    - do:
+        snapshot.delete_repository:
+          repository: test_repo_hdfs_1
+
+    # Get repository: It should be gone
+    - do:
+        catch:    /repository_missing_exception/
+        snapshot.get_repository:
+          repository: test_repo_hdfs_1
+
+    # Create it again
+    - do:
+        snapshot.create_repository:
+          repository: test_repo_hdfs_1
+          body:
+            type: hdfs
+            settings:
+              uri: "hdfs://localhost:@secure_hdfs_port@"
+              path: "/user/elasticsearch/foo/bar"
+              security:
+                principal: "elasticsearch@BUILD.ELASTIC.CO"
+
+    # Get repository again
+    - do:
+        snapshot.get_repository:
+          repository: test_repo_hdfs_1
+
+    - is_true: test_repo_hdfs_1

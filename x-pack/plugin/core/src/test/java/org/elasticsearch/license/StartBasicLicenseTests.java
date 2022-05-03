@@ -28,7 +28,8 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(addRoles(super.nodeSettings(nodeOrdinal, otherSettings), Set.of(DiscoveryNodeRole.DATA_ROLE)))
-            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic").build();
+            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic")
+            .build();
     }
 
     @Override
@@ -38,7 +39,7 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
 
     public void testStartBasicLicense() throws Exception {
         LicensingClient licensingClient = new LicensingClient(client());
-        License license = TestUtils.generateSignedLicense("trial",  License.VERSION_CURRENT, -1, TimeValue.timeValueHours(24));
+        License license = TestUtils.generateSignedLicense("trial", License.VERSION_CURRENT, -1, TimeValue.timeValueHours(24));
         licensingClient.preparePutLicense(license).get();
 
         assertBusy(() -> {
@@ -68,7 +69,6 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
         GetBasicStatusResponse response4 = licensingClient.prepareGetStartBasic().get();
         assertFalse(response4.isEligibleToStartBasic());
 
-
         PostStartBasicResponse response5 = licensingClient.preparePostStartBasic().setAcknowledge(true).get();
         assertEquals(403, response5.status().getStatus());
         assertFalse(response5.getStatus().isBasicStarted());
@@ -78,7 +78,7 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
 
     public void testUnacknowledgedStartBasicLicense() throws Exception {
         LicensingClient licensingClient = new LicensingClient(client());
-        License license = TestUtils.generateSignedLicense("trial",  License.VERSION_CURRENT, -1, TimeValue.timeValueHours(24));
+        License license = TestUtils.generateSignedLicense("trial", License.VERSION_CURRENT, -1, TimeValue.timeValueHours(24));
         licensingClient.preparePutLicense(license).get();
 
         assertBusy(() -> {
@@ -91,8 +91,10 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
         assertFalse(response.isAcknowledged());
         assertFalse(response.getStatus().isBasicStarted());
         assertEquals("Operation failed: Needs acknowledgement.", response.getStatus().getErrorMessage());
-        assertEquals("This license update requires acknowledgement. To acknowledge the license, " +
-                "please read the following messages and call /start_basic again, this time with the \"acknowledge=true\" parameter:",
-            response.getAcknowledgeMessage());
+        assertEquals(
+            "This license update requires acknowledgement. To acknowledge the license, "
+                + "please read the following messages and call /start_basic again, this time with the \"acknowledge=true\" parameter:",
+            response.getAcknowledgeMessage()
+        );
     }
 }

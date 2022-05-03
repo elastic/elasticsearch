@@ -9,6 +9,7 @@
 package org.elasticsearch.plugin.analysis.icu;
 
 import com.ibm.icu.text.Transliterator;
+
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.icu.ICUTransformFilter;
 import org.elasticsearch.common.settings.Settings;

@@ -11,10 +11,10 @@ package org.elasticsearch.node;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -33,8 +33,10 @@ public class AdaptiveSelectionStats implements Writeable, ToXContentFragment {
     private final Map<String, Long> clientOutgoingConnections;
     private final Map<String, ResponseCollectorService.ComputedNodeStats> nodeComputedStats;
 
-    public AdaptiveSelectionStats(Map<String, Long> clientConnections,
-                                  Map<String, ResponseCollectorService.ComputedNodeStats> nodeComputedStats) {
+    public AdaptiveSelectionStats(
+        Map<String, Long> clientConnections,
+        Map<String, ResponseCollectorService.ComputedNodeStats> nodeComputedStats
+    ) {
         this.clientOutgoingConnections = clientConnections;
         this.nodeComputedStats = nodeComputedStats;
     }
@@ -95,8 +97,8 @@ public class AdaptiveSelectionStats implements Writeable, ToXContentFragment {
      * Returns a map of node id to the ranking of the nodes based on the adaptive replica formula
      */
     public Map<String, Double> getRanks() {
-        return nodeComputedStats.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey,
-                                e -> e.getValue().rank(clientOutgoingConnections.getOrDefault(e.getKey(), 0L))));
+        return nodeComputedStats.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().rank(clientOutgoingConnections.getOrDefault(e.getKey(), 0L))));
     }
 }

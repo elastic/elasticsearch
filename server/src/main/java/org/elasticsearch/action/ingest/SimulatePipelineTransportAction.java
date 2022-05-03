@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
@@ -27,10 +26,13 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
     private final SimulateExecutionService executionService;
 
     @Inject
-    public SimulatePipelineTransportAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-                                           IngestService ingestService) {
-        super(SimulatePipelineAction.NAME, transportService, actionFilters,
-            (Writeable.Reader<SimulatePipelineRequest>) SimulatePipelineRequest::new);
+    public SimulatePipelineTransportAction(
+        ThreadPool threadPool,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IngestService ingestService
+    ) {
+        super(SimulatePipelineAction.NAME, transportService, actionFilters, SimulatePipelineRequest::new);
         this.ingestService = ingestService;
         this.executionService = new SimulateExecutionService(threadPool);
     }
@@ -42,8 +44,13 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
         final SimulatePipelineRequest.Parsed simulateRequest;
         try {
             if (request.getId() != null) {
-                simulateRequest = SimulatePipelineRequest.parseWithPipelineId(request.getId(), source, request.isVerbose(), ingestService,
-                    request.getRestApiVersion());
+                simulateRequest = SimulatePipelineRequest.parseWithPipelineId(
+                    request.getId(),
+                    source,
+                    request.isVerbose(),
+                    ingestService,
+                    request.getRestApiVersion()
+                );
             } else {
                 simulateRequest = SimulatePipelineRequest.parse(source, request.isVerbose(), ingestService, request.getRestApiVersion());
             }

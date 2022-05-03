@@ -27,7 +27,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public class ShapeIndexer  {
+public class ShapeIndexer {
     private final String name;
 
     public ShapeIndexer(String name) {
@@ -85,7 +85,7 @@ public class ShapeIndexer  {
 
         @Override
         public Void visit(MultiPoint multiPoint) {
-            for(Point point : multiPoint) {
+            for (Point point : multiPoint) {
                 visit(point);
             }
             return null;
@@ -93,7 +93,7 @@ public class ShapeIndexer  {
 
         @Override
         public Void visit(MultiPolygon multiPolygon) {
-            for(Polygon polygon : multiPolygon) {
+            for (Polygon polygon : multiPolygon) {
                 visit(polygon);
             }
             return null;

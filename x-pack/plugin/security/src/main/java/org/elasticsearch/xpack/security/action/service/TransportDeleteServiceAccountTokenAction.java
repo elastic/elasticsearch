@@ -18,22 +18,31 @@ import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
-public class TransportDeleteServiceAccountTokenAction
-    extends HandledTransportAction<DeleteServiceAccountTokenRequest, DeleteServiceAccountTokenResponse> {
+public class TransportDeleteServiceAccountTokenAction extends HandledTransportAction<
+    DeleteServiceAccountTokenRequest,
+    DeleteServiceAccountTokenResponse> {
 
     private final ServiceAccountService serviceAccountService;
 
     @Inject
-    public TransportDeleteServiceAccountTokenAction(TransportService transportService, ActionFilters actionFilters,
-                                                    ServiceAccountService serviceAccountService) {
+    public TransportDeleteServiceAccountTokenAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ServiceAccountService serviceAccountService
+    ) {
         super(DeleteServiceAccountTokenAction.NAME, transportService, actionFilters, DeleteServiceAccountTokenRequest::new);
         this.serviceAccountService = serviceAccountService;
     }
 
     @Override
-    protected void doExecute(Task task, DeleteServiceAccountTokenRequest request,
-                             ActionListener<DeleteServiceAccountTokenResponse> listener) {
-        serviceAccountService.deleteIndexToken(request, ActionListener.wrap(found ->
-            listener.onResponse(new DeleteServiceAccountTokenResponse(found)), listener::onFailure));
+    protected void doExecute(
+        Task task,
+        DeleteServiceAccountTokenRequest request,
+        ActionListener<DeleteServiceAccountTokenResponse> listener
+    ) {
+        serviceAccountService.deleteIndexToken(
+            request,
+            ActionListener.wrap(found -> listener.onResponse(new DeleteServiceAccountTokenResponse(found)), listener::onFailure)
+        );
     }
 }

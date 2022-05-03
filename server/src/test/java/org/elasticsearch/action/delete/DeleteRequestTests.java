@@ -25,7 +25,7 @@ public class DeleteRequestTests extends ESTestCase {
         }
 
         {
-            final DeleteRequest request = new DeleteRequest("index4",  null);
+            final DeleteRequest request = new DeleteRequest("index4", null);
             final ActionRequestValidationException validate = request.validate();
 
             assertThat(validate, not(nullValue()));

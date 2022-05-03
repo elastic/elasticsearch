@@ -16,7 +16,7 @@ setup:
         body:
           - index:
               _index: eql_test
-              _id:    1
+              _id:    "1"
           - event:
               - category: process
             "@timestamp": 2020-02-03T12:34:56Z
@@ -26,7 +26,7 @@ setup:
             raw_message: "199.72.81.55 - - [01/Jul/1995:00:00:01 -0400] GET /history/apollo/ HTTP/1.0 200 6245"
           - index:
               _index: eql_test
-              _id:    2
+              _id:    "2"
           - event:
               - category: process
             "@timestamp": 2020-02-04T12:34:56Z
@@ -36,7 +36,7 @@ setup:
             raw_message: "199.72.81.123 - - [01/Jul/1995:00:00:02 -0400] GET /history/apollo/a HTTP/1.0 200 500"
           - index:
               _index: eql_test
-              _id:    3
+              _id:    "3"
           - event:
               - category: process
             "@timestamp": 2020-02-05T12:34:56Z
@@ -46,7 +46,7 @@ setup:
             raw_message: "199.72.81.34 - - [01/Jul/1995:00:00:03 -0400] GET /history/apollo/b HTTP/1.0 200 1500"
           - index:
               _index: eql_test
-              _id:    4
+              _id:    "4"
           - event:
               - category: process
             "@timestamp": 2020-02-05T12:34:57Z
@@ -88,7 +88,7 @@ setup:
           query: 'process where true'
           fields: ["address"]
           runtime_mappings: {"address": {"type": "ip","script": "if (doc[\"raw_message.keyword\"].size() == 0) return; else {Matcher m = /\\d+\\.\\d+\\.\\d+\\.\\d+/.matcher(doc[\"raw_message.keyword\"].value);if (m.find()) emit(m.group());}"}}
-  
+
   - match: {hits.events.0._id: "1"}
   - match: {hits.events.0.fields.address: ["199.72.81.55"]}
   - match: {hits.events.0._source.raw_message: "199.72.81.55 - - [01/Jul/1995:00:00:01 -0400] GET /history/apollo/ HTTP/1.0 200 6245"}
@@ -165,7 +165,7 @@ setup:
   - match: {hits.sequences.1.events.2._id: "4"}
   - match: {hits.sequences.1.events.2._source.@timestamp: "2020-02-05T12:34:57Z"}
   - match: {hits.sequences.1.events.2.fields.day_of_week: [3]}
-  
+
 ---
 "Validate valid runtime mappings request":
   - do:

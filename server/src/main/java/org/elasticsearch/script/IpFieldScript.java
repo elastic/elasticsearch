@@ -40,17 +40,20 @@ import java.util.function.Function;
 public abstract class IpFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("ip_field", Factory.class);
 
-    public static final IpFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (IpFieldScript.LeafFactory) ctx -> new IpFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
+    public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public void execute() {
-            emitFromSource();
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
+            return ctx -> new IpFieldScript(field, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    emitFromSource();
+                }
+            };
+        }
+
+        @Override
+        public boolean isResultDeterministic() {
+            return true;
         }
     };
 

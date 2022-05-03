@@ -31,8 +31,11 @@ public class MockTaskManager extends TaskManager {
 
     private static final Logger logger = LogManager.getLogger(MockTaskManager.class);
 
-    public static final Setting<Boolean> USE_MOCK_TASK_MANAGER_SETTING =
-        Setting.boolSetting("tests.mock.taskmanager.enabled", false, Property.NodeScope);
+    public static final Setting<Boolean> USE_MOCK_TASK_MANAGER_SETTING = Setting.boolSetting(
+        "tests.mock.taskmanager.enabled",
+        false,
+        Property.NodeScope
+    );
 
     private final Collection<MockTaskManagerListener> listeners = new CopyOnWriteArrayList<>();
 
@@ -50,8 +53,10 @@ public class MockTaskManager extends TaskManager {
                 logger.warn(
                     (Supplier<?>) () -> new ParameterizedMessage(
                         "failed to notify task manager listener about registering the task with id {}",
-                        task.getId()),
-                    e);
+                        task.getId()
+                    ),
+                    e
+                );
             }
         }
         return task;
@@ -67,7 +72,11 @@ public class MockTaskManager extends TaskManager {
                 } catch (Exception e) {
                     logger.warn(
                         (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to notify task manager listener about unregistering the task with id {}", task.getId()), e);
+                            "failed to notify task manager listener about unregistering the task with id {}",
+                            task.getId()
+                        ),
+                        e
+                    );
                 }
             }
         } else {
@@ -85,8 +94,10 @@ public class MockTaskManager extends TaskManager {
                 logger.warn(
                     (Supplier<?>) () -> new ParameterizedMessage(
                         "failed to notify task manager listener about waitForTaskCompletion the task with id {}",
-                        task.getId()),
-                    e);
+                        task.getId()
+                    ),
+                    e
+                );
             }
         }
         super.waitForTaskCompletion(task, untilInNanos);

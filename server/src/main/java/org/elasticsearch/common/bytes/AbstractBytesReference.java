@@ -10,7 +10,7 @@ package org.elasticsearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -18,7 +18,8 @@ import java.util.function.ToIntBiFunction;
 
 public abstract class AbstractBytesReference implements BytesReference {
 
-    private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it
+    private int hash;           // we cache the hash of this reference since it can be quite costly to re-calculated it
+    private boolean hashIsZero; // if the calculated hash is actually zero
 
     @Override
     public int getInt(int index) {
@@ -59,6 +60,7 @@ public abstract class AbstractBytesReference implements BytesReference {
     public BytesRefIterator iterator() {
         return new BytesRefIterator() {
             BytesRef ref = length() == 0 ? null : toBytesRef();
+
             @Override
             public BytesRef next() {
                 BytesRef r = ref;
@@ -73,13 +75,14 @@ public abstract class AbstractBytesReference implements BytesReference {
         if (this == other) {
             return true;
         }
-        if (other instanceof BytesReference) {
-            final BytesReference otherRef = (BytesReference) other;
+        if (other instanceof final BytesReference otherRef) {
             if (length() != otherRef.length()) {
                 return false;
             }
-            return compareIterators(this, otherRef, (a, b) ->
-                a.bytesEquals(b) ? 0 : 1 // this is a call to BytesRef#bytesEquals - this method is the hot one in the comparison
+            return compareIterators(
+                this,
+                otherRef,
+                (a, b) -> a.bytesEquals(b) ? 0 : 1 // this is a call to BytesRef#bytesEquals - this method is the hot one in the comparison
             ) == 0;
         }
         return false;
@@ -87,7 +90,7 @@ public abstract class AbstractBytesReference implements BytesReference {
 
     @Override
     public int hashCode() {
-        if (hash == null) {
+        if (hash == 0 && hashIsZero == false) {
             final BytesRefIterator iterator = iterator();
             BytesRef ref;
             int result = 1;
@@ -100,10 +103,13 @@ public abstract class AbstractBytesReference implements BytesReference {
             } catch (IOException ex) {
                 throw new AssertionError("wont happen", ex);
             }
-            return hash = result;
-        } else {
-            return hash;
+            if (result == 0) {
+                hashIsZero = true;
+            } else {
+                hash = result;
+            }
         }
+        return hash;
     }
 
     @Override
@@ -162,7 +168,7 @@ public abstract class AbstractBytesReference implements BytesReference {
 
     private static void advance(final BytesRef ref, final int length) {
         assert ref.length >= length : " ref.length: " + ref.length + " length: " + length;
-        assert ref.offset+length < ref.bytes.length || (ref.offset+length == ref.bytes.length && ref.length-length == 0)
+        assert ref.offset + length < ref.bytes.length || (ref.offset + length == ref.bytes.length && ref.length - length == 0)
             : "offset: " + ref.offset + " ref.bytes.length: " + ref.bytes.length + " length: " + length + " ref.length: " + ref.length;
         ref.length -= length;
         ref.offset += length;

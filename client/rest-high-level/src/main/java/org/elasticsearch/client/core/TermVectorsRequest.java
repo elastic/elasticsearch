@@ -9,10 +9,10 @@
 package org.elasticsearch.client.core;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,7 +21,8 @@ import java.util.Map;
 public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     private final String index;
-    @Nullable private final String type;
+    @Nullable
+    private final String type;
     private String id = null;
     private XContentBuilder docBuilder = null;
 
@@ -94,7 +95,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
         this.docBuilder = docBuilder;
     }
 
-
     /**
      * Constructs a new TermVectorRequest from a template
      * using the provided document id
@@ -156,36 +156,36 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
     /**
      * Sets whether to request term positions
      */
-    public void setPositions(boolean requestPositions) {
-        this.requestPositions = requestPositions;
+    public void setPositions(boolean positions) {
+        this.requestPositions = positions;
     }
 
     /**
      * Sets whether to request term payloads
      */
-    public void setPayloads(boolean requestPayloads) {
-        this.requestPayloads = requestPayloads;
+    public void setPayloads(boolean payloads) {
+        this.requestPayloads = payloads;
     }
 
     /**
      * Sets whether to request term offsets
      */
-    public void setOffsets(boolean requestOffsets) {
-        this.requestOffsets = requestOffsets;
+    public void setOffsets(boolean offsets) {
+        this.requestOffsets = offsets;
     }
 
     /**
      * Sets whether to request field statistics
      */
-    public void setFieldStatistics(boolean requestFieldStatistics) {
-        this.requestFieldStatistics = requestFieldStatistics;
+    public void setFieldStatistics(boolean fieldStatistics) {
+        this.requestFieldStatistics = fieldStatistics;
     }
 
     /**
      * Sets whether to request term statistics
      */
-    public void setTermStatistics(boolean requestTermStatistics) {
-        this.requestTermStatistics = requestTermStatistics;
+    public void setTermStatistics(boolean termStatistics) {
+        this.requestTermStatistics = termStatistics;
     }
 
     /**
@@ -238,7 +238,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
         return realtime;
     }
 
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -265,8 +264,14 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
         if (filterSettings != null) {
             builder.startObject("filter");
-            String[] filterSettingNames =
-                {"max_num_terms", "min_term_freq", "max_term_freq", "min_doc_freq", "max_doc_freq", "min_word_length", "max_word_length"};
+            String[] filterSettingNames = {
+                "max_num_terms",
+                "min_term_freq",
+                "max_term_freq",
+                "min_doc_freq",
+                "max_doc_freq",
+                "min_word_length",
+                "max_word_length" };
             for (String settingName : filterSettingNames) {
                 if (filterSettings.containsKey(settingName)) builder.field(settingName, filterSettings.get(settingName));
             }

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[sql-index-patterns]]
 === Index patterns
 
@@ -7,7 +6,7 @@
 
 [[sql-index-patterns-multi]]
 [discrete]
-==== {es} multi-index
+==== {es} multi-target syntax
 
 The {es} notation for enumerating, including or excluding <<api-multi-index,multi-target syntax>>
 is supported _as long_ as it is quoted or escaped as a table identifier.
@@ -35,6 +34,19 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[fromTablePatternQuoted]
 
 NOTE: There is the restriction that all resolved concrete tables have the exact same mapping.
 
+experimental:[] To run a <<modules-cross-cluster-search,{ccs}>>, specify a
+cluster name using the `<remote_cluster>:<target>` syntax, where
+`<remote_cluster>` maps to a SQL catalog (cluster) and `<target>` to a table
+(index or data stream). The `<remote_cluster>` supports wildcards (`*`)
+and `<target>` can be an index pattern.
+
+For example:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/multi-cluster-with-security/multi-cluster-docs.csv-spec[fromQualifiedTableQuoted]
+----
+
 [[sql-index-patterns-like]]
 [discrete]
 ==== SQL `LIKE` notation
@@ -49,7 +61,7 @@ Using `SHOW TABLES` command again:
 include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesLikeWildcard]
 ----
 
-The pattern matches all tables that start with `emp`. 
+The pattern matches all tables that start with `emp`.
 
 This command supports _escaping_ as well, for example:
 
@@ -88,7 +100,7 @@ requires the keyword `LIKE` for SQL `LIKE` pattern.
 [[sql-index-frozen]]
 === Frozen Indices
 
-By default, {es-sql} doesn't search <<freeze-index-api,frozen indices>>. To
+By default, {es-sql} doesn't search <<unfreeze-index-api,frozen indices>>. To
 search frozen indices, use one of the following features:
 
 dedicated configuration parameter::

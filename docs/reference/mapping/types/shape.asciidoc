@@ -1,6 +1,5 @@
 [[shape]]
 [role="xpack"]
-[testenv="basic"]
 === Shape field type
 ++++
 <titleabbrev>Shape</titleabbrev>

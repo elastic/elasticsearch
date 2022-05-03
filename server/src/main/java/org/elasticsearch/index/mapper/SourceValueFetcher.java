@@ -51,7 +51,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) {
+    public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
         List<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
             Object sourceValue = lookup.extractValue(path, nullValue);
@@ -76,8 +76,11 @@ public abstract class SourceValueFetcher implements ValueFetcher {
                         Object parsedValue = parseSourceValue(value);
                         if (parsedValue != null) {
                             values.add(parsedValue);
+                        } else {
+                            ignoredValues.add(value);
                         }
                     } catch (Exception e) {
+                        ignoredValues.add(value);
                         // if we get a parsing exception here, that means that the
                         // value in _source would have also caused a parsing
                         // exception at index time and the value ignored.

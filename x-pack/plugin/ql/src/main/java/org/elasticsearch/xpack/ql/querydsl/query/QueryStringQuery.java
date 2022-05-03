@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -28,29 +28,30 @@ public class QueryStringQuery extends LeafQuery {
 
     // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
     private static final Map<String, BiConsumer<QueryStringQueryBuilder, String>> BUILDER_APPLIERS = Map.ofEntries(
-            entry("allow_leading_wildcard", (qb, s) -> qb.allowLeadingWildcard(Booleans.parseBoolean(s))),
-            entry("analyze_wildcard", (qb, s) -> qb.analyzeWildcard(Booleans.parseBoolean(s))),
-            entry("analyzer", QueryStringQueryBuilder::analyzer),
-            entry("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s))),
-            entry("default_field", QueryStringQueryBuilder::defaultField),
-            entry("default_operator", (qb, s) -> qb.defaultOperator(Operator.fromString(s))),
-            entry("enable_position_increments", (qb, s) -> qb.enablePositionIncrements(Booleans.parseBoolean(s))),
-            entry("escape", (qb, s) -> qb.escape(Booleans.parseBoolean(s))),
-            entry("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
-            entry("fuzzy_max_expansions", (qb, s) -> qb.fuzzyMaxExpansions(Integer.valueOf(s))),
-            entry("fuzzy_prefix_length", (qb, s) -> qb.fuzzyPrefixLength(Integer.valueOf(s))),
-            entry("fuzzy_rewrite", QueryStringQueryBuilder::fuzzyRewrite),
-            entry("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s))),
-            entry("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s))),
-            entry("max_determinized_states", (qb, s) -> qb.maxDeterminizedStates(Integer.valueOf(s))),
-            entry("minimum_should_match", QueryStringQueryBuilder::minimumShouldMatch),
-            entry("phrase_slop", (qb, s) -> qb.phraseSlop(Integer.valueOf(s))),
-            entry("rewrite", QueryStringQueryBuilder::rewrite),
-            entry("quote_analyzer", QueryStringQueryBuilder::quoteAnalyzer),
-            entry("quote_field_suffix", QueryStringQueryBuilder::quoteFieldSuffix),
-            entry("tie_breaker", (qb, s) -> qb.tieBreaker(Float.valueOf(s))),
-            entry("time_zone", QueryStringQueryBuilder::timeZone),
-            entry("type", (qb, s) -> qb.type(MultiMatchQueryBuilder.Type.parse(s, LoggingDeprecationHandler.INSTANCE))));
+        entry("allow_leading_wildcard", (qb, s) -> qb.allowLeadingWildcard(Booleans.parseBoolean(s))),
+        entry("analyze_wildcard", (qb, s) -> qb.analyzeWildcard(Booleans.parseBoolean(s))),
+        entry("analyzer", QueryStringQueryBuilder::analyzer),
+        entry("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s))),
+        entry("default_field", QueryStringQueryBuilder::defaultField),
+        entry("default_operator", (qb, s) -> qb.defaultOperator(Operator.fromString(s))),
+        entry("enable_position_increments", (qb, s) -> qb.enablePositionIncrements(Booleans.parseBoolean(s))),
+        entry("escape", (qb, s) -> qb.escape(Booleans.parseBoolean(s))),
+        entry("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
+        entry("fuzzy_max_expansions", (qb, s) -> qb.fuzzyMaxExpansions(Integer.valueOf(s))),
+        entry("fuzzy_prefix_length", (qb, s) -> qb.fuzzyPrefixLength(Integer.valueOf(s))),
+        entry("fuzzy_rewrite", QueryStringQueryBuilder::fuzzyRewrite),
+        entry("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s))),
+        entry("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s))),
+        entry("max_determinized_states", (qb, s) -> qb.maxDeterminizedStates(Integer.valueOf(s))),
+        entry("minimum_should_match", QueryStringQueryBuilder::minimumShouldMatch),
+        entry("phrase_slop", (qb, s) -> qb.phraseSlop(Integer.valueOf(s))),
+        entry("rewrite", QueryStringQueryBuilder::rewrite),
+        entry("quote_analyzer", QueryStringQueryBuilder::quoteAnalyzer),
+        entry("quote_field_suffix", QueryStringQueryBuilder::quoteFieldSuffix),
+        entry("tie_breaker", (qb, s) -> qb.tieBreaker(Float.valueOf(s))),
+        entry("time_zone", QueryStringQueryBuilder::timeZone),
+        entry("type", (qb, s) -> qb.type(MultiMatchQueryBuilder.Type.parse(s, LoggingDeprecationHandler.INSTANCE)))
+    );
 
     private final String query;
     private final Map<String, Float> fields;
@@ -108,9 +109,7 @@ public class QueryStringQuery extends LeafQuery {
         }
 
         QueryStringQuery other = (QueryStringQuery) obj;
-        return Objects.equals(query, other.query)
-                && Objects.equals(fields, other.fields)
-                && Objects.equals(predicate, other.predicate);
+        return Objects.equals(query, other.query) && Objects.equals(fields, other.fields) && Objects.equals(predicate, other.predicate);
     }
 
     @Override

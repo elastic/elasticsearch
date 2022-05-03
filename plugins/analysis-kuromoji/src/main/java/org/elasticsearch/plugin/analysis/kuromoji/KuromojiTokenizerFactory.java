@@ -54,8 +54,9 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
 
     public static UserDictionary getUserDictionary(Environment env, Settings settings) {
         if (settings.get(USER_DICT_PATH_OPTION) != null && settings.get(USER_DICT_RULES_OPTION) != null) {
-            throw new IllegalArgumentException("It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" +
-                " with [" + USER_DICT_RULES_OPTION + "]");
+            throw new IllegalArgumentException(
+                "It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" + " with [" + USER_DICT_RULES_OPTION + "]"
+            );
         }
         try {
             List<String> ruleList = Analysis.getWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION, false);
@@ -69,11 +70,12 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
                 if (line.startsWith("#") == false) {
                     String[] values = CSVUtil.parse(line);
                     if (dup.add(values[0]) == false) {
-                        throw new IllegalArgumentException("Found duplicate term [" + values[0] + "] in user dictionary " +
-                            "at line [" + lineNum + "]");
+                        throw new IllegalArgumentException(
+                            "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + lineNum + "]"
+                        );
                     }
                 }
-                ++ lineNum;
+                ++lineNum;
             }
             StringBuilder sb = new StringBuilder();
             for (String line : ruleList) {
@@ -103,11 +105,11 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
     @Override
     public Tokenizer create() {
         JapaneseTokenizer t = new JapaneseTokenizer(userDictionary, discardPunctuation, discardCompoundToken, mode);
-        int nBestCost = this.nBestCost;
+        int nBestCostValue = this.nBestCost;
         if (nBestExamples != null) {
-            nBestCost = Math.max(nBestCost, t.calcNBestCost(nBestExamples));
+            nBestCostValue = Math.max(nBestCostValue, t.calcNBestCost(nBestExamples));
         }
-        t.setNBestCost(nBestCost);
+        t.setNBestCost(nBestCostValue);
         return t;
     }
 

@@ -14,14 +14,15 @@ import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
@@ -35,7 +36,6 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
@@ -51,7 +51,6 @@ public final class DocumentPermissions implements CacheKey {
     private final SortedSet<BytesReference> limitedByQueries;
     private List<String> evaluatedQueries;
     private List<String> evaluatedLimitedByQueries;
-
 
     private static DocumentPermissions ALLOW_ALL = new DocumentPermissions();
 
@@ -118,8 +117,12 @@ public final class DocumentPermissions implements CacheKey {
      * @return {@link BooleanQuery} for the filter
      * @throws IOException thrown if there is an exception during parsing
      */
-    public BooleanQuery filter(User user, ScriptService scriptService, ShardId shardId,
-                               Function<ShardId, SearchExecutionContext> searchExecutionContextProvider) throws IOException {
+    public BooleanQuery filter(
+        User user,
+        ScriptService scriptService,
+        ShardId shardId,
+        Function<ShardId, SearchExecutionContext> searchExecutionContextProvider
+    ) throws IOException {
         if (hasDocumentLevelPermissions()) {
             evaluateQueries(SecurityQueryTemplateEvaluator.wrap(user, scriptService));
             BooleanQuery.Builder filter;
@@ -147,33 +150,34 @@ public final class DocumentPermissions implements CacheKey {
 
     private void evaluateQueries(DlsQueryEvaluationContext context) {
         if (queries != null && evaluatedQueries == null) {
-            evaluatedQueries = queries.stream().map(context::evaluate).collect(Collectors.toUnmodifiableList());
+            evaluatedQueries = queries.stream().map(context::evaluate).toList();
         }
         if (limitedByQueries != null && evaluatedLimitedByQueries == null) {
-            evaluatedLimitedByQueries = limitedByQueries.stream().map(context::evaluate).collect(Collectors.toUnmodifiableList());
+            evaluatedLimitedByQueries = limitedByQueries.stream().map(context::evaluate).toList();
         }
     }
 
-    private static void buildRoleQuery(ShardId shardId,
-                                       Function<ShardId, SearchExecutionContext> searchExecutionContextProvider,
-                                       List<String> queries,
-                                       BooleanQuery.Builder filter) throws IOException {
+    private static void buildRoleQuery(
+        ShardId shardId,
+        Function<ShardId, SearchExecutionContext> searchExecutionContextProvider,
+        List<String> queries,
+        BooleanQuery.Builder filter
+    ) throws IOException {
         for (String query : queries) {
             SearchExecutionContext context = searchExecutionContextProvider.apply(shardId);
-            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(query, context.getXContentRegistry());
+            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(query, context.getParserConfig().registry());
             if (queryBuilder != null) {
                 failIfQueryUsesClient(queryBuilder, context);
                 Query roleQuery = context.toQuery(queryBuilder).query();
                 filter.add(roleQuery, SHOULD);
-                if (context.hasNested()) {
-                    NestedHelper nestedHelper = new NestedHelper(context::getObjectMapper, context::isFieldMapped);
+                NestedLookup nestedLookup = context.nestedLookup();
+                if (nestedLookup != NestedLookup.EMPTY) {
+                    NestedHelper nestedHelper = new NestedHelper(nestedLookup, context::isFieldMapped);
                     if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
-                        roleQuery = new BooleanQuery.Builder().add(roleQuery, FILTER)
-                            .add(Queries.newNonNestedFilter(), FILTER).build();
+                        roleQuery = new BooleanQuery.Builder().add(roleQuery, FILTER).add(Queries.newNonNestedFilter(), FILTER).build();
                     }
                     // If access is allowed on root doc then also access is allowed on all nested docs of that root document:
-                    BitSetProducer rootDocs = context
-                        .bitsetFilter(Queries.newNonNestedFilter());
+                    BitSetProducer rootDocs = context.bitsetFilter(Queries.newNonNestedFilter());
                     ToChildBlockJoinQuery includeNestedDocs = new ToChildBlockJoinQuery(roleQuery, rootDocs);
                     filter.add(includeNestedDocs, SHOULD);
                 }
@@ -191,10 +195,13 @@ public final class DocumentPermissions implements CacheKey {
      * the DLS query until the get thread pool has been exhausted:
      * https://github.com/elastic/x-plugins/issues/3145
      */
-    static void failIfQueryUsesClient(QueryBuilder queryBuilder, QueryRewriteContext original)
-            throws IOException {
+    static void failIfQueryUsesClient(QueryBuilder queryBuilder, QueryRewriteContext original) throws IOException {
         QueryRewriteContext copy = new QueryRewriteContext(
-                original.getXContentRegistry(), original.getWriteableRegistry(), null, original::nowInMillis);
+            original.getParserConfig(),
+            original.getWriteableRegistry(),
+            null,
+            original::nowInMillis
+        );
         Rewriteable.rewrite(queryBuilder, copy);
         if (copy.hasAsyncActions()) {
             throw new IllegalStateException("role queries are not allowed to execute additional requests");
@@ -230,15 +237,14 @@ public final class DocumentPermissions implements CacheKey {
      * @param limitedByDocumentPermissions {@link DocumentPermissions} used to limit the document level access
      * @return instance of {@link DocumentPermissions}
      */
-    public DocumentPermissions limitDocumentPermissions(
-            DocumentPermissions limitedByDocumentPermissions) {
-        assert limitedByQueries == null
-                && limitedByDocumentPermissions.limitedByQueries == null : "nested scoping for document permissions is not permitted";
+    public DocumentPermissions limitDocumentPermissions(DocumentPermissions limitedByDocumentPermissions) {
+        assert limitedByQueries == null && limitedByDocumentPermissions.limitedByQueries == null
+            : "nested scoping for document permissions is not permitted";
         if (queries == null && limitedByDocumentPermissions.queries == null) {
             return DocumentPermissions.allowAll();
         }
         // TODO: should we apply the same logic here as FieldPermissions#limitFieldPermissions,
-        //       i.e. treat limited-by as queries if original queries is null?
+        // i.e. treat limited-by as queries if original queries is null?
         return new DocumentPermissions(queries, limitedByDocumentPermissions.queries);
     }
 
@@ -267,10 +273,8 @@ public final class DocumentPermissions implements CacheKey {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         DocumentPermissions that = (DocumentPermissions) o;
         return Objects.equals(queries, that.queries) && Objects.equals(limitedByQueries, that.limitedByQueries);
     }

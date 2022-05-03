@@ -39,7 +39,7 @@ public class NestedValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) throws IOException {
+    public List<Object> fetchValues(SourceLookup lookup, List<Object> includedValues) throws IOException {
         List<Object> nestedEntriesToReturn = new ArrayList<>();
         Map<String, Object> filteredSource = new HashMap<>();
         Map<String, Object> stub = createSourceMapStub(filteredSource);

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -24,6 +24,11 @@ public class RestDeleteShutdownNodeAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(new Route(RestRequest.Method.DELETE, "/_nodes/{nodeId}/shutdown"));
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 
     @Override

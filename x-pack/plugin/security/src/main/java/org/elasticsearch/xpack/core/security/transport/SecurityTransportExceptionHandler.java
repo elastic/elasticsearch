@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper;
 
 import java.util.function.BiConsumer;
 

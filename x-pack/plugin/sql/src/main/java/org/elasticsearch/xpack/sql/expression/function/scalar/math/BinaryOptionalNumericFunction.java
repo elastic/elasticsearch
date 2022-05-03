@@ -56,18 +56,20 @@ public abstract class BinaryOptionalNumericFunction extends ScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new BinaryOptionalMathPipe(source(), this,
+        return new BinaryOptionalMathPipe(
+            source(),
+            this,
             Expressions.pipe(left),
             right == null ? null : Expressions.pipe(right),
-            operation());
+            operation()
+        );
     }
 
     protected abstract BinaryOptionalMathOperation operation();
 
     @Override
     public boolean foldable() {
-        return left.foldable()
-                && (right == null || right.foldable());
+        return left.foldable() && (right == null || right.foldable());
     }
 
     @Override
@@ -91,13 +93,17 @@ public abstract class BinaryOptionalNumericFunction extends ScalarFunction {
     }
 
     private ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s)"),
+        return new ScriptTemplate(
+            format(
+                Locale.ROOT,
+                formatTemplate("{sql}.%s(%s,%s)"),
                 operation().name().toLowerCase(Locale.ROOT),
                 leftScript.template(),
-                rightScript.template()),
-                paramsBuilder()
-                    .script(leftScript.params()).script(rightScript.params())
-                    .build(), dataType());
+                rightScript.template()
+            ),
+            paramsBuilder().script(leftScript.params()).script(rightScript.params()).build(),
+            dataType()
+        );
     }
 
     @Override

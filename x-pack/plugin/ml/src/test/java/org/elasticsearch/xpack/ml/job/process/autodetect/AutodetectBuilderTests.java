@@ -50,7 +50,7 @@ public class AutodetectBuilderTests extends ESTestCase {
     public void setUpTests() {
         logger = mock(Logger.class);
         filesToDelete = new ArrayList<>();
-        commandCaptor = ArgumentCaptor.forClass((Class)List.class);
+        commandCaptor = ArgumentCaptor.forClass((Class) List.class);
         settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         env = TestEnvironment.newEnvironment(settings);
         nativeController = mock(NativeController.class);
@@ -76,7 +76,8 @@ public class AutodetectBuilderTests extends ESTestCase {
             acBuilder.setCategorizationFieldName("bar");
         }
         acBuilder.setPerPartitionCategorizationConfig(
-            new PerPartitionCategorizationConfig(isPerPartitionCategorization, isPerPartitionCategorization));
+            new PerPartitionCategorizationConfig(isPerPartitionCategorization, isPerPartitionCategorization)
+        );
 
         job.setAnalysisConfig(acBuilder);
 

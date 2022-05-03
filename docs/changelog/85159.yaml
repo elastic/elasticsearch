@@ -1,0 +1,5 @@
+pr: 85159
+summary: Speed up Reading `RetentionLeases` from the Wire
+area: CRUD
+type: enhancement
+issues: []

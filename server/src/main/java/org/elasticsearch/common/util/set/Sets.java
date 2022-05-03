@@ -27,8 +27,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 public final class Sets {
-    private Sets() {
-    }
+    private Sets() {}
 
     public static <T> HashSet<T> newHashSet(Iterator<T> iterator) {
         Objects.requireNonNull(iterator);
@@ -168,8 +167,7 @@ public final class Sets {
             return Function.identity();
         }
 
-        static final Set<Characteristics> CHARACTERISTICS =
-            Collections.unmodifiableSet(EnumSet.of(Characteristics.IDENTITY_FINISH));
+        static final Set<Characteristics> CHARACTERISTICS = Collections.unmodifiableSet(EnumSet.of(Characteristics.IDENTITY_FINISH));
 
         @Override
         public Set<Characteristics> characteristics() {

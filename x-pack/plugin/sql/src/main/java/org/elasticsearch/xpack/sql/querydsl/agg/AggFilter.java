@@ -58,8 +58,7 @@ public class AggFilter extends PipelineAgg {
         }
 
         AggFilter other = (AggFilter) obj;
-        return Objects.equals(name(), other.name())
-                && Objects.equals(scriptTemplate(), other.scriptTemplate());
+        return Objects.equals(name(), other.name()) && Objects.equals(scriptTemplate(), other.scriptTemplate());
     }
 
     @Override

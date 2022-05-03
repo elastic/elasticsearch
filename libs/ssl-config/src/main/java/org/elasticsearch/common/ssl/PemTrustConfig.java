@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -23,7 +21,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
+
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * A {@link org.elasticsearch.common.ssl.SslTrustConfig} that reads a list of PEM encoded trusted certificates (CAs) from the file
@@ -81,13 +81,12 @@ public final class PemTrustConfig implements SslTrustConfig {
             final KeyStore store = KeyStoreUtil.buildTrustStore(certificates);
             return KeyStoreUtil.createTrustManager(store, TrustManagerFactory.getDefaultAlgorithm());
         } catch (GeneralSecurityException e) {
-            throw new SslConfigException(
-                "cannot create trust using PEM certificates [" + SslFileUtil.pathsToString(paths) + "]", e);
+            throw new SslConfigException("cannot create trust using PEM certificates [" + SslFileUtil.pathsToString(paths) + "]", e);
         }
     }
 
     private List<Path> resolveFiles() {
-        return this.certificateAuthorities.stream().map(this::resolveFile).collect(Collectors.toUnmodifiableList());
+        return this.certificateAuthorities.stream().map(this::resolveFile).toList();
     }
 
     private Path resolveFile(String other) {

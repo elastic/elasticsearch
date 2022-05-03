@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[vector-functions]]
 ===== Functions for vector fields
 

@@ -34,14 +34,12 @@ public class PasswordToolsTests extends PackagingTestCase {
 
     @Before
     public void filterDistros() {
-        assumeFalse("no docker", distribution.isDocker());
+        assumeFalse("only archives", distribution.isDocker() || distribution().isPackage());
     }
 
     public void test010Install() throws Exception {
         install();
-        // Enable security for this test only where it is necessary, until we can enable it for all
-        ServerUtils.enableSecurityFeatures(installation);
-        // Disable auto-configuration so that we can run setup-passwords
+        // Disable auto-configuration for archives so that we can run setup-passwords
         ServerUtils.disableSecurityAutoConfiguration(installation);
     }
 
@@ -49,7 +47,7 @@ public class PasswordToolsTests extends PackagingTestCase {
         assertWhileRunning(() -> {
             ServerUtils.waitForElasticsearch(installation);
             Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
-            Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
+            Map<String, String> userpasses = parseUsersAndPasswords(result.stdout());
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
                 String response = ServerUtils.makeRequest(
                     Request.Get("http://localhost:9200"),
@@ -117,7 +115,7 @@ public class PasswordToolsTests extends PackagingTestCase {
         assertWhileRunning(() -> {
 
             Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
-            Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
+            Map<String, String> userpasses = parseUsersAndPasswords(result.stdout());
             assertThat(userpasses, hasKey("elastic"));
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
                 String response = ServerUtils.makeRequest(

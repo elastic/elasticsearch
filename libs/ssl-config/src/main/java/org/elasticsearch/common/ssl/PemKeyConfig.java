@@ -28,7 +28,6 @@ import java.util.Objects;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 
-
 /**
  * A {@link SslKeyConfig} that reads from PEM formatted paths.
  */
@@ -75,8 +74,8 @@ public final class PemKeyConfig implements SslKeyConfig {
         final List<StoredCertificate> info = new ArrayList<>(certificates.size());
         boolean first = true;
         for (Certificate cert : certificates) {
-            if (cert instanceof X509Certificate) {
-                info.add(new StoredCertificate((X509Certificate) cert, this.certificate, "PEM", null, first));
+            if (cert instanceof X509Certificate x509Certificate) {
+                info.add(new StoredCertificate(x509Certificate, this.certificate, "PEM", null, first));
             }
             first = false;
         }
@@ -93,8 +92,7 @@ public final class PemKeyConfig implements SslKeyConfig {
             final KeyStore keyStore = KeyStoreUtil.buildKeyStore(certificates, privateKey, keyPassword);
             return KeyStoreUtil.createKeyManager(keyStore, keyPassword, KeyManagerFactory.getDefaultAlgorithm());
         } catch (GeneralSecurityException e) {
-            throw new SslConfigException(
-                "failed to load a KeyManager for certificate/key pair [" + certPath + "], [" + keyPath + "]", e);
+            throw new SslConfigException("failed to load a KeyManager for certificate/key pair [" + certPath + "], [" + keyPath + "]", e);
         }
     }
 
@@ -107,8 +105,8 @@ public final class PemKeyConfig implements SslKeyConfig {
             return List.of();
         }
         final Certificate leafCertificate = certificates.get(0);
-        if (leafCertificate instanceof X509Certificate) {
-            return List.of(Tuple.tuple(getPrivateKey(keyPath), (X509Certificate) leafCertificate));
+        if (leafCertificate instanceof X509Certificate x509Certificate) {
+            return List.of(Tuple.tuple(getPrivateKey(keyPath), x509Certificate));
         } else {
             return List.of();
         }
@@ -161,9 +159,9 @@ public final class PemKeyConfig implements SslKeyConfig {
             return false;
         }
         final PemKeyConfig that = (PemKeyConfig) o;
-        return Objects.equals(this.certificate, that.certificate) &&
-            Objects.equals(this.key, that.key) &&
-            Arrays.equals(this.keyPassword, that.keyPassword);
+        return Objects.equals(this.certificate, that.certificate)
+            && Objects.equals(this.key, that.key)
+            && Arrays.equals(this.keyPassword, that.keyPassword);
     }
 
     @Override

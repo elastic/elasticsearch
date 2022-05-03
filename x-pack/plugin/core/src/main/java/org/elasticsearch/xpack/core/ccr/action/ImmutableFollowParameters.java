@@ -11,9 +11,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -31,11 +31,18 @@ public class ImmutableFollowParameters implements Writeable {
     private final TimeValue maxRetryDelay;
     private final TimeValue readPollTimeout;
 
-    public ImmutableFollowParameters(Integer maxReadRequestOperationCount, Integer maxWriteRequestOperationCount,
-                                     Integer maxOutstandingReadRequests, Integer maxOutstandingWriteRequests,
-                                     ByteSizeValue maxReadRequestSize, ByteSizeValue maxWriteRequestSize,
-                                     Integer maxWriteBufferCount, ByteSizeValue maxWriteBufferSize,
-                                     TimeValue maxRetryDelay, TimeValue readPollTimeout) {
+    public ImmutableFollowParameters(
+        Integer maxReadRequestOperationCount,
+        Integer maxWriteRequestOperationCount,
+        Integer maxOutstandingReadRequests,
+        Integer maxOutstandingWriteRequests,
+        ByteSizeValue maxReadRequestSize,
+        ByteSizeValue maxWriteRequestSize,
+        Integer maxWriteBufferCount,
+        ByteSizeValue maxWriteBufferSize,
+        TimeValue maxRetryDelay,
+        TimeValue readPollTimeout
+    ) {
         this.maxReadRequestOperationCount = maxReadRequestOperationCount;
         this.maxWriteRequestOperationCount = maxWriteRequestOperationCount;
         this.maxOutstandingReadRequests = maxOutstandingReadRequests;
@@ -159,24 +166,33 @@ public class ImmutableFollowParameters implements Writeable {
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), FollowParameters.MAX_READ_REQUEST_SIZE.getPreferredName()),
             FollowParameters.MAX_READ_REQUEST_SIZE,
-            ObjectParser.ValueType.STRING);
+            ObjectParser.ValueType.STRING
+        );
         parser.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), FollowParameters.MAX_WRITE_REQUEST_SIZE.getPreferredName()),
             FollowParameters.MAX_WRITE_REQUEST_SIZE,
-            ObjectParser.ValueType.STRING);
+            ObjectParser.ValueType.STRING
+        );
         parser.declareInt(ConstructingObjectParser.optionalConstructorArg(), FollowParameters.MAX_WRITE_BUFFER_COUNT);
         parser.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), FollowParameters.MAX_WRITE_BUFFER_SIZE.getPreferredName()),
             FollowParameters.MAX_WRITE_BUFFER_SIZE,
-            ObjectParser.ValueType.STRING);
-        parser.declareField(ConstructingObjectParser.optionalConstructorArg(),
+            ObjectParser.ValueType.STRING
+        );
+        parser.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> TimeValue.parseTimeValue(p.text(), FollowParameters.MAX_RETRY_DELAY.getPreferredName()),
-            FollowParameters.MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
-        parser.declareField(ConstructingObjectParser.optionalConstructorArg(),
+            FollowParameters.MAX_RETRY_DELAY,
+            ObjectParser.ValueType.STRING
+        );
+        parser.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> TimeValue.parseTimeValue(p.text(), FollowParameters.READ_POLL_TIMEOUT.getPreferredName()),
-            FollowParameters.READ_POLL_TIMEOUT, ObjectParser.ValueType.STRING);
+            FollowParameters.READ_POLL_TIMEOUT,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     @Override
@@ -184,16 +200,16 @@ public class ImmutableFollowParameters implements Writeable {
         if (this == o) return true;
         if (o instanceof ImmutableFollowParameters == false) return false;
         ImmutableFollowParameters that = (ImmutableFollowParameters) o;
-        return Objects.equals(maxReadRequestOperationCount, that.maxReadRequestOperationCount) &&
-            Objects.equals(maxWriteRequestOperationCount, that.maxWriteRequestOperationCount) &&
-            Objects.equals(maxOutstandingReadRequests, that.maxOutstandingReadRequests) &&
-            Objects.equals(maxOutstandingWriteRequests, that.maxOutstandingWriteRequests) &&
-            Objects.equals(maxReadRequestSize, that.maxReadRequestSize) &&
-            Objects.equals(maxWriteRequestSize, that.maxWriteRequestSize) &&
-            Objects.equals(maxWriteBufferCount, that.maxWriteBufferCount) &&
-            Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize) &&
-            Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
-            Objects.equals(readPollTimeout, that.readPollTimeout);
+        return Objects.equals(maxReadRequestOperationCount, that.maxReadRequestOperationCount)
+            && Objects.equals(maxWriteRequestOperationCount, that.maxWriteRequestOperationCount)
+            && Objects.equals(maxOutstandingReadRequests, that.maxOutstandingReadRequests)
+            && Objects.equals(maxOutstandingWriteRequests, that.maxOutstandingWriteRequests)
+            && Objects.equals(maxReadRequestSize, that.maxReadRequestSize)
+            && Objects.equals(maxWriteRequestSize, that.maxWriteRequestSize)
+            && Objects.equals(maxWriteBufferCount, that.maxWriteBufferCount)
+            && Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize)
+            && Objects.equals(maxRetryDelay, that.maxRetryDelay)
+            && Objects.equals(readPollTimeout, that.readPollTimeout);
     }
 
     @Override

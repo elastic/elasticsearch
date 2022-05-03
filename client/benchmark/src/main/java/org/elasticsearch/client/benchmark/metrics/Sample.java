@@ -7,20 +7,7 @@
  */
 package org.elasticsearch.client.benchmark.metrics;
 
-public final class Sample {
-    private final String operation;
-    private final long expectedStartTimestamp;
-    private final long startTimestamp;
-    private final long stopTimestamp;
-    private final boolean success;
-
-    public Sample(String operation, long expectedStartTimestamp, long startTimestamp, long stopTimestamp, boolean success) {
-        this.operation = operation;
-        this.expectedStartTimestamp = expectedStartTimestamp;
-        this.startTimestamp = startTimestamp;
-        this.stopTimestamp = stopTimestamp;
-        this.success = success;
-    }
+public record Sample(String operation, long expectedStartTimestamp, long startTimestamp, long stopTimestamp, boolean success) {
 
     public String getOperation() {
         return operation;

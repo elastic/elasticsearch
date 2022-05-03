@@ -85,15 +85,13 @@ public class StringContainsFunctionProcessor implements Processor {
         }
 
         StringContainsFunctionProcessor other = (StringContainsFunctionProcessor) obj;
-        return Objects.equals(string(), other.string())
-                && Objects.equals(substring(), other.substring());
+        return Objects.equals(string(), other.string()) && Objects.equals(substring(), other.substring());
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(string(), substring());
     }
-
 
     @Override
     public String getWriteableName() {

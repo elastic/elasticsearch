@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.eql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.xpack.eql.expression.OptionalUnresolvedAttribute;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionResolution;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Match;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
@@ -48,7 +49,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -61,7 +61,6 @@ import static org.elasticsearch.xpack.eql.util.StringUtils.toLikePattern;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
-
 
 public class ExpressionBuilder extends IdentifierBuilder {
 
@@ -110,20 +109,14 @@ public class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         int type = ctx.operator.getType();
 
-        switch (type) {
-            case EqlBaseParser.ASTERISK:
-                return new Mul(source, left, right);
-            case EqlBaseParser.SLASH:
-                return new Div(source, left, right);
-            case EqlBaseParser.PERCENT:
-                return new Mod(source, left, right);
-            case EqlBaseParser.PLUS:
-                return new Add(source, left, right);
-            case EqlBaseParser.MINUS:
-                return new Sub(source, left, right);
-            default:
-                throw new ParsingException(source, "Unknown arithmetic {}", source.text());
-        }
+        return switch (type) {
+            case EqlBaseParser.ASTERISK -> new Mul(source, left, right);
+            case EqlBaseParser.SLASH -> new Div(source, left, right);
+            case EqlBaseParser.PERCENT -> new Mod(source, left, right);
+            case EqlBaseParser.PLUS -> new Add(source, left, right);
+            case EqlBaseParser.MINUS -> new Sub(source, left, right);
+            default -> throw new ParsingException(source, "Unknown arithmetic {}", source.text());
+        };
     }
 
     @Override
@@ -141,22 +134,15 @@ public class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         ZoneId zoneId = params.zoneId();
 
-        switch (op.getSymbol().getType()) {
-            case EqlBaseParser.EQ:
-                return new Equals(source, left, right, zoneId);
-            case EqlBaseParser.NEQ:
-                return new Not(source, new Equals(source, left, right, zoneId));
-            case EqlBaseParser.LT:
-                return new LessThan(source, left, right, zoneId);
-            case EqlBaseParser.LTE:
-                return new LessThanOrEqual(source, left, right, zoneId);
-            case EqlBaseParser.GT:
-                return new GreaterThan(source, left, right, zoneId);
-            case EqlBaseParser.GTE:
-                return new GreaterThanOrEqual(source, left, right, zoneId);
-            default:
-                throw new ParsingException(source, "Unknown operator {}", source.text());
-        }
+        return switch (op.getSymbol().getType()) {
+            case EqlBaseParser.EQ -> new Equals(source, left, right, zoneId);
+            case EqlBaseParser.NEQ -> new Not(source, new Equals(source, left, right, zoneId));
+            case EqlBaseParser.LT -> new LessThan(source, left, right, zoneId);
+            case EqlBaseParser.LTE -> new LessThanOrEqual(source, left, right, zoneId);
+            case EqlBaseParser.GT -> new GreaterThan(source, left, right, zoneId);
+            case EqlBaseParser.GTE -> new GreaterThanOrEqual(source, left, right, zoneId);
+            default -> throw new ParsingException(source, "Unknown operator {}", source.text());
+        };
     }
 
     @Override
@@ -176,8 +162,15 @@ public class ExpressionBuilder extends IdentifierBuilder {
                 return combineExpressions(predicate.constant(), c -> new InsensitiveWildcardEquals(source, expr, c, zoneId));
             case EqlBaseParser.LIKE:
             case EqlBaseParser.LIKE_INSENSITIVE:
-                return combineExpressions(predicate.constant(), e -> new Like(source, expr,
-                    toLikePattern(e.fold().toString()), predicate.kind.getType() == EqlBaseParser.LIKE_INSENSITIVE));
+                return combineExpressions(
+                    predicate.constant(),
+                    e -> new Like(
+                        source,
+                        expr,
+                        toLikePattern(e.fold().toString()),
+                        predicate.kind.getType() == EqlBaseParser.LIKE_INSENSITIVE
+                    )
+                );
             case EqlBaseParser.REGEX:
             case EqlBaseParser.REGEX_INSENSITIVE:
                 return new Match(
@@ -219,7 +212,10 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public UnresolvedAttribute visitDereference(DereferenceContext ctx) {
-        return new UnresolvedAttribute(source(ctx), visitQualifiedName(ctx.qualifiedName()));
+        Source source = source(ctx);
+        EqlBaseParser.QualifiedNameContext qContext = ctx.qualifiedName();
+        String name = visitQualifiedName(qContext);
+        return qContext.OPTIONAL() != null ? new OptionalUnresolvedAttribute(source, name) : new UnresolvedAttribute(source, name);
     }
 
     @Override
@@ -243,29 +239,17 @@ public class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         String text = ctx.getText();
 
-        long value;
-
         try {
-            value = Long.valueOf(StringUtils.parseLong(text));
+            Number value = StringUtils.parseIntegral(text);
+            return new Literal(source, value, DataTypes.fromJava(value));
         } catch (QlIllegalArgumentException siae) {
             // if it's too large, then quietly try to parse as a float instead
             try {
                 return new Literal(source, Double.valueOf(StringUtils.parseDouble(text)), DataTypes.DOUBLE);
-            } catch (QlIllegalArgumentException ignored) {
-            }
+            } catch (QlIllegalArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());
         }
-
-        Object val = Long.valueOf(value);
-        DataType type = DataTypes.LONG;
-
-        // try to downsize to int if possible (since that's the most common type)
-        if ((int) value == value) {
-            type = DataTypes.INTEGER;
-            val = Integer.valueOf((int) value);
-        }
-        return new Literal(source, val, type);
     }
 
     @Override

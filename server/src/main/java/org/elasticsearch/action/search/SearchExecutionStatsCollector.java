@@ -28,9 +28,7 @@ public final class SearchExecutionStatsCollector extends ActionListener.Delegati
     private final ResponseCollectorService collector;
     private final long startNanos;
 
-    SearchExecutionStatsCollector(ActionListener<SearchPhaseResult> listener,
-                                  ResponseCollectorService collector,
-                                  String nodeId) {
+    SearchExecutionStatsCollector(ActionListener<SearchPhaseResult> listener, ResponseCollectorService collector, String nodeId) {
         super(Objects.requireNonNull(listener, "listener cannot be null"));
         this.collector = Objects.requireNonNull(collector, "response collector cannot be null");
         this.startNanos = System.nanoTime();

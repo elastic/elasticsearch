@@ -15,7 +15,6 @@ import java.net.URL;
 import java.time.Duration;
 import java.util.Set;
 
-
 public class CloudServiceProvider implements SamlServiceProvider {
 
     private final String entityId;
@@ -30,9 +29,19 @@ public class CloudServiceProvider implements SamlServiceProvider {
     private final boolean signAuthnRequests;
     private final boolean signLogoutRequests;
 
-    public CloudServiceProvider(String entityId, String name, boolean enabled, URL assertionConsumerService, String allowedNameIdFormat,
-                                Duration authnExpiry, ServiceProviderPrivileges privileges, AttributeNames attributeNames,
-                                Set<X509Credential> spSigningCredentials, boolean signAuthnRequests, boolean signLogoutRequests) {
+    public CloudServiceProvider(
+        String entityId,
+        String name,
+        boolean enabled,
+        URL assertionConsumerService,
+        String allowedNameIdFormat,
+        Duration authnExpiry,
+        ServiceProviderPrivileges privileges,
+        AttributeNames attributeNames,
+        Set<X509Credential> spSigningCredentials,
+        boolean signAuthnRequests,
+        boolean signLogoutRequests
+    ) {
         if (Strings.isNullOrEmpty(entityId)) {
             throw new IllegalArgumentException("Service Provider Entity ID cannot be null or empty");
         }
@@ -108,10 +117,17 @@ public class CloudServiceProvider implements SamlServiceProvider {
     public String toString() {
         return getClass().getSimpleName()
             + "{"
-            + "entityId=[" + entityId + ']'
-            + " name=[" + name + ']'
-            + " enabled=" + enabled
-            + " acs=[" + assertionConsumerService + "]"
+            + "entityId=["
+            + entityId
+            + ']'
+            + " name=["
+            + name
+            + ']'
+            + " enabled="
+            + enabled
+            + " acs=["
+            + assertionConsumerService
+            + "]"
             + "}";
     }
 }

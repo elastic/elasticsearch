@@ -47,7 +47,7 @@ public class PemKeyConfigTests extends ESTestCase {
     private Path configBasePath;
 
     @Before
-    public void setupPath(){
+    public void setupPath() {
         configBasePath = getDataPath("/certs");
     }
 
@@ -102,50 +102,50 @@ public class PemKeyConfigTests extends ESTestCase {
         StoredCertificate c1 = iterator.next();
         StoredCertificate c2 = iterator.next();
 
-        assertThat(c1.getCertificate().getSubjectDN().toString(), equalTo("CN=cert1"));
+        assertThat(c1.certificate().getSubjectX500Principal().toString(), equalTo("CN=cert1"));
         assertThat(c1.hasPrivateKey(), equalTo(true));
-        assertThat(c1.getAlias(), nullValue());
-        assertThat(c1.getFormat(), equalTo("PEM"));
-        assertThat(c1.getPath(), equalTo(chain.toString()));
+        assertThat(c1.alias(), nullValue());
+        assertThat(c1.format(), equalTo("PEM"));
+        assertThat(c1.path(), equalTo(chain.toString()));
 
-        assertThat(c2.getCertificate().getSubjectDN().toString(), equalTo("CN=Test CA 1"));
+        assertThat(c2.certificate().getSubjectX500Principal().toString(), equalTo("CN=Test CA 1"));
         assertThat(c2.hasPrivateKey(), equalTo(false));
-        assertThat(c2.getAlias(), nullValue());
-        assertThat(c2.getFormat(), equalTo("PEM"));
-        assertThat(c2.getPath(), equalTo(chain.toString()));
+        assertThat(c2.alias(), nullValue());
+        assertThat(c2.format(), equalTo("PEM"));
+        assertThat(c2.path(), equalTo(chain.toString()));
 
         final List<Tuple<PrivateKey, X509Certificate>> keys = keyConfig.getKeys();
         assertThat(keys, iterableWithSize(1));
         assertThat(keys.get(0).v1(), notNullValue());
         assertThat(keys.get(0).v1().getAlgorithm(), equalTo("RSA"));
         assertThat(keys.get(0).v2(), notNullValue());
-        assertThat(keys.get(0).v2().getSubjectDN().toString(), equalTo("CN=cert1"));
+        assertThat(keys.get(0).v2().getSubjectX500Principal().toString(), equalTo("CN=cert1"));
     }
 
-   public void testInvertedCertificateChainFailsToCreateKeyManager() throws Exception {
-       final String ca = "ca1/ca.crt";
-       final String cert = "cert1/cert1.crt";
-       final String key = "cert1/cert1.key";
+    public void testInvertedCertificateChainFailsToCreateKeyManager() throws Exception {
+        final String ca = "ca1/ca.crt";
+        final String cert = "cert1/cert1.crt";
+        final String key = "cert1/cert1.key";
 
-       final Path chain = createTempFile("chain", ".crt");
-       // This is (intentionally) the wrong order. It should be cert + ca.
-       Files.write(chain, Files.readAllBytes(configBasePath.resolve(ca)), StandardOpenOption.APPEND);
-       Files.write(chain, Files.readAllBytes(configBasePath.resolve(cert)), StandardOpenOption.APPEND);
+        final Path chain = createTempFile("chain", ".crt");
+        // This is (intentionally) the wrong order. It should be cert + ca.
+        Files.write(chain, Files.readAllBytes(configBasePath.resolve(ca)), StandardOpenOption.APPEND);
+        Files.write(chain, Files.readAllBytes(configBasePath.resolve(cert)), StandardOpenOption.APPEND);
 
-       final PemKeyConfig keyConfig = new PemKeyConfig(chain.toString(), key, new char[0], configBasePath);
-       final SslConfigException exception = expectThrows(SslConfigException.class, keyConfig::createKeyManager);
+        final PemKeyConfig keyConfig = new PemKeyConfig(chain.toString(), key, new char[0], configBasePath);
+        final SslConfigException exception = expectThrows(SslConfigException.class, keyConfig::createKeyManager);
 
-       assertThat(exception.getMessage(), containsString("failed to load a KeyManager"));
-       final Throwable cause = exception.getCause();
-       assertThat(cause, notNullValue());
-       if (inFipsJvm()) {
-           // BC FKS first checks that the key & cert match (they don't because the key is for 'cert1' not 'ca')
-           assertThat(cause.getMessage(), containsString("RSA keys do not have the same modulus"));
-       } else {
-           // SUN PKCS#12 first checks that the chain is correctly structured (it's not, due to the order)
-           assertThat(cause.getMessage(), containsString("Certificate chain is not valid"));
-       }
-   }
+        assertThat(exception.getMessage(), containsString("failed to load a KeyManager"));
+        final Throwable cause = exception.getCause();
+        assertThat(cause, notNullValue());
+        if (inFipsJvm()) {
+            // BC FKS first checks that the key & cert match (they don't because the key is for 'cert1' not 'ca')
+            assertThat(cause.getMessage(), containsString("RSA keys do not have the same modulus"));
+        } else {
+            // SUN PKCS#12 first checks that the chain is correctly structured (it's not, due to the order)
+            assertThat(cause.getMessage(), containsString("Certificate chain is not valid"));
+        }
+    }
 
     public void testKeyManagerFailsWithIncorrectPassword() throws Exception {
         final Path cert = getDataPath("/certs/cert2/cert2.crt");
@@ -196,7 +196,7 @@ public class PemKeyConfigTests extends ESTestCase {
         assertFileNotFound(keyConfig, "certificate", cert);
     }
 
-    private Path[] resolve(String ... names) {
+    private Path[] resolve(String... names) {
         return Stream.of(names).map(configBasePath::resolve).toArray(Path[]::new);
     }
 
@@ -212,17 +212,17 @@ public class PemKeyConfigTests extends ESTestCase {
         assertThat(chain, notNullValue());
         assertThat(chain, arrayWithSize(1 + caDN.length));
         final X509Certificate certificate = chain[0];
-        assertThat(certificate.getIssuerDN().getName(), is("CN=Test CA 1"));
-        assertThat(certificate.getSubjectDN().getName(), is(certDN));
+        assertThat(certificate.getIssuerX500Principal().getName(), is("CN=Test CA 1"));
+        assertThat(certificate.getSubjectX500Principal().getName(), is(certDN));
         assertThat(certificate.getSubjectAlternativeNames(), iterableWithSize(2));
-        assertThat(certificate.getSubjectAlternativeNames(), containsInAnyOrder(
-            Arrays.asList(DNS_NAME, "localhost"),
-            Arrays.asList(IP_NAME, "127.0.0.1")
-        ));
+        assertThat(
+            certificate.getSubjectAlternativeNames(),
+            containsInAnyOrder(Arrays.asList(DNS_NAME, "localhost"), Arrays.asList(IP_NAME, "127.0.0.1"))
+        );
 
         for (int i = 0; i < caDN.length; i++) {
             final X509Certificate ca = chain[i + 1];
-            assertThat(ca.getSubjectDN().getName(), is(caDN[i]));
+            assertThat(ca.getSubjectX500Principal().getName(), is(caDN[i]));
         }
     }
 

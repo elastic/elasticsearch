@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
 import java.io.ByteArrayInputStream;
@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * The request object for {@code TransportDelegatePkiAuthenticationAction} containing the certificate chain for the target subject
@@ -41,14 +41,17 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
     private static final ParseField X509_CERTIFICATE_CHAIN_FIELD = new ParseField("x509_certificate_chain");
 
     public static final ConstructingObjectParser<DelegatePkiAuthenticationRequest, Void> PARSER = new ConstructingObjectParser<>(
-            "delegate_pki_request", false, a -> {
-                @SuppressWarnings("unchecked")
-                List<X509Certificate> certificates = (List<X509Certificate>) a[0];
-                return new DelegatePkiAuthenticationRequest(certificates);
-            });
+        "delegate_pki_request",
+        false,
+        a -> {
+            @SuppressWarnings("unchecked")
+            List<X509Certificate> certificates = (List<X509Certificate>) a[0];
+            return new DelegatePkiAuthenticationRequest(certificates);
+        }
+    );
 
     static {
-        PARSER.declareFieldArray(optionalConstructorArg(), (parser,c) -> {
+        PARSER.declareFieldArray(optionalConstructorArg(), (parser, c) -> {
             try (ByteArrayInputStream bis = new ByteArrayInputStream(Base64.getDecoder().decode(parser.text()))) {
                 return (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(bis);
             } catch (CertificateException | IOException e) {
@@ -128,12 +131,12 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
         builder.startObject().startArray(X509_CERTIFICATE_CHAIN_FIELD.getPreferredName());
         try {
             for (X509Certificate cert : certificateChain) {
-                 builder.value(Base64.getEncoder().encodeToString(cert.getEncoded()));
-             }
-         } catch (CertificateEncodingException e) {
-             throw new IOException(e);
-         }
-         return builder.endArray().endObject();
+                builder.value(Base64.getEncoder().encodeToString(cert.getEncoded()));
+            }
+        } catch (CertificateEncodingException e) {
+            throw new IOException(e);
+        }
+        return builder.endArray().endObject();
     }
 
 }

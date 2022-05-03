@@ -65,10 +65,7 @@ public class Replace extends ScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new ReplaceFunctionPipe(source(), this,
-                Expressions.pipe(input),
-                Expressions.pipe(pattern),
-                Expressions.pipe(replacement));
+        return new ReplaceFunctionPipe(source(), this, Expressions.pipe(input), Expressions.pipe(pattern), Expressions.pipe(replacement));
     }
 
     @Override
@@ -78,9 +75,7 @@ public class Replace extends ScalarFunction {
 
     @Override
     public boolean foldable() {
-        return input.foldable()
-                && pattern.foldable()
-                && replacement.foldable();
+        return input.foldable() && pattern.foldable() && replacement.foldable();
     }
 
     @Override
@@ -99,22 +94,27 @@ public class Replace extends ScalarFunction {
 
     private ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate patternScript, ScriptTemplate replacementScript) {
         // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2,...)
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s)"),
+        return new ScriptTemplate(
+            format(
+                Locale.ROOT,
+                formatTemplate("{sql}.%s(%s,%s,%s)"),
                 "replace",
                 inputScript.template(),
                 patternScript.template(),
-                replacementScript.template()),
-                paramsBuilder()
-                    .script(inputScript.params()).script(patternScript.params())
-                    .script(replacementScript.params())
-                    .build(), dataType());
+                replacementScript.template()
+            ),
+            paramsBuilder().script(inputScript.params()).script(patternScript.params()).script(replacementScript.params()).build(),
+            dataType()
+        );
     }
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
-                paramsBuilder().variable(field.exactAttribute().name()).build(),
-                dataType());
+        return new ScriptTemplate(
+            processScript(Scripts.DOC_VALUE),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
+            dataType()
+        );
     }
 
     @Override

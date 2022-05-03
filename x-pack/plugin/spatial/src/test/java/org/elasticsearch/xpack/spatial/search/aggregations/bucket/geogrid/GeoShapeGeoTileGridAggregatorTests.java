@@ -31,15 +31,18 @@ public class GeoShapeGeoTileGridAggregatorTests extends GeoShapeGeoGridTestCase<
 
     @Override
     protected Point randomPoint() {
-        return new Point(randomDoubleBetween(GeoUtils.MIN_LON, GeoUtils.MAX_LON, true),
-            randomDoubleBetween(-GeoTileUtils.LATITUDE_MASK, GeoTileUtils.LATITUDE_MASK, false));
+        return new Point(
+            randomDoubleBetween(GeoUtils.MIN_LON, GeoUtils.MAX_LON, true),
+            randomDoubleBetween(-GeoTileUtils.LATITUDE_MASK, GeoTileUtils.LATITUDE_MASK, false)
+        );
     }
 
     @Override
     protected GeoBoundingBox randomBBox() {
-        GeoBoundingBox bbox =  randomValueOtherThanMany(
+        GeoBoundingBox bbox = randomValueOtherThanMany(
             (b) -> b.top() > GeoTileUtils.LATITUDE_MASK || b.bottom() < -GeoTileUtils.LATITUDE_MASK,
-            GeoTestUtils::randomBBox);
+            GeoTestUtils::randomBBox
+        );
         // Avoid numerical errors for sub-atomic values
         double left = GeoTestUtils.encodeDecodeLon(bbox.left());
         double right = GeoTestUtils.encodeDecodeLon(bbox.right());

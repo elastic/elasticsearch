@@ -49,8 +49,6 @@ include::scripting.asciidoc[]
 
 include::data-management.asciidoc[]
 
-include::ilm/index.asciidoc[]
-
 include::autoscaling/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]

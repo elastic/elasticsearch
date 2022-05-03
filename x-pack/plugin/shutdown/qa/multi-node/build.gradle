@@ -7,7 +7,8 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 4
+  readinessEnabled = true
 }

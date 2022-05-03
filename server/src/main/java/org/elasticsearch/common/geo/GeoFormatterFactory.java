@@ -47,9 +47,10 @@ public class GeoFormatterFactory<T> {
     public GeoFormatterFactory(List<FormatterFactory<T>> factories) {
         Map<String, Function<String, Function<List<T>, List<Object>>>> factoriesBuilder = new HashMap<>();
         for (FormatterFactory<T> factory : factories) {
-            if(factoriesBuilder.put(factory.getName(), factory.getFormatterBuilder()) != null) {
-                throw new IllegalArgumentException("More then one formatter factory with the name [" + factory.getName() +
-                    "] was configured");
+            if (factoriesBuilder.put(factory.getName(), factory.getFormatterBuilder()) != null) {
+                throw new IllegalArgumentException(
+                    "More then one formatter factory with the name [" + factory.getName() + "] was configured"
+                );
             }
 
         }
@@ -65,7 +66,7 @@ public class GeoFormatterFactory<T> {
      */
     public Function<List<T>, List<Object>> getFormatter(String format, Function<T, Geometry> toGeometry) {
         final int start = format.indexOf('(');
-        if (start == -1)  {
+        if (start == -1) {
             return GeometryFormatterFactory.getFormatter(format, toGeometry);
         }
         final String formatName = format.substring(0, start);

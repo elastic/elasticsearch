@@ -12,9 +12,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -36,16 +36,18 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
     private final int failedShards;
     private final RestStatus completionStatus;
 
-    public AsyncStatusResponse(String id,
-            boolean isRunning,
-            boolean isPartial,
-            long startTimeMillis,
-            long expirationTimeMillis,
-            int totalShards,
-            int successfulShards,
-            int skippedShards,
-            int failedShards,
-            RestStatus completionStatus) {
+    public AsyncStatusResponse(
+        String id,
+        boolean isRunning,
+        boolean isPartial,
+        long startTimeMillis,
+        long expirationTimeMillis,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        int failedShards,
+        RestStatus completionStatus
+    ) {
         this.id = id;
         this.isRunning = isRunning;
         this.isPartial = isPartial;
@@ -65,8 +67,11 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
      * @param id – encoded async search id
      * @return status response
      */
-    public static AsyncStatusResponse getStatusFromStoredSearch(AsyncSearchResponse asyncSearchResponse,
-            long expirationTimeMillis, String id) {
+    public static AsyncStatusResponse getStatusFromStoredSearch(
+        AsyncSearchResponse asyncSearchResponse,
+        long expirationTimeMillis,
+        String id
+    ) {
         int totalShards = 0;
         int successfulShards = 0;
         int skippedShards = 0;
@@ -172,8 +177,18 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, isRunning, isPartial, startTimeMillis, expirationTimeMillis, totalShards,
-            successfulShards, skippedShards, failedShards, completionStatus);
+        return Objects.hash(
+            id,
+            isRunning,
+            isPartial,
+            startTimeMillis,
+            expirationTimeMillis,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            failedShards,
+            completionStatus
+        );
     }
 
     /**

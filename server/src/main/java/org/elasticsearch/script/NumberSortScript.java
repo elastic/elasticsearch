@@ -7,9 +7,10 @@
  */
 package org.elasticsearch.script;
 
+import org.elasticsearch.search.lookup.SearchLookup;
+
 import java.io.IOException;
 import java.util.Map;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 public abstract class NumberSortScript extends AbstractSortScript {
 
@@ -18,7 +19,7 @@ public abstract class NumberSortScript extends AbstractSortScript {
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("number_sort", Factory.class);
 
     public NumberSortScript(Map<String, Object> params, SearchLookup searchLookup, DocReader docReader) {
-        // searchLookup is used taken in for compatibility with expressions.  See ExpressionScriptEngine.newScoreScript and
+        // searchLookup is used taken in for compatibility with expressions. See ExpressionScriptEngine.newScoreScript and
         // ExpressionScriptEngine.getDocValueSource for where it's used.
         super(params, docReader);
     }
@@ -45,7 +46,7 @@ public abstract class NumberSortScript extends AbstractSortScript {
      * A factory to construct stateful {@link NumberSortScript} factories for a specific index.
      */
     public interface Factory extends ScriptFactory {
-        // searchLookup is needed for **expressions-only** to look up bindings.  Painless callers should use the DocReader
+        // searchLookup is needed for **expressions-only** to look up bindings. Painless callers should use the DocReader
         // in LeafFactory.newInstance to set fallbacks.
         LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
     }

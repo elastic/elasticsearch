@@ -38,14 +38,15 @@ public class ReindexSingleNodeTests extends ESSingleNodeTestCase {
 
         // Copy a subset of the docs sorted
         int subsetSize = randomIntBetween(1, max - 1);
-        ReindexRequestBuilder copy = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE)
-            .source("source").destination("dest").refresh(true);
+        ReindexRequestBuilder copy = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("source")
+            .destination("dest")
+            .refresh(true);
         copy.maxDocs(subsetSize);
         copy.request().addSortField("foo", SortOrder.DESC);
         assertThat(copy.get(), matcher().created(subsetSize));
 
         assertHitCount(client().prepareSearch("dest").setSize(0).get(), subsetSize);
-        assertHitCount(client().prepareSearch("dest").setQuery(new RangeQueryBuilder("foo").gte(0).lt(max-subsetSize)).get(), 0);
+        assertHitCount(client().prepareSearch("dest").setQuery(new RangeQueryBuilder("foo").gte(0).lt(max - subsetSize)).get(), 0);
         assertWarnings(ReindexValidator.SORT_DEPRECATED_MESSAGE);
     }
 }

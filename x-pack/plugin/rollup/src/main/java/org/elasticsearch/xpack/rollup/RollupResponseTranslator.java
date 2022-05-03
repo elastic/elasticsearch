@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -28,12 +29,11 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Min;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
@@ -67,15 +67,15 @@ public class RollupResponseTranslator {
 
     /**
      * Translates a rollup-only search response back into the expected convention.  Similar to
-     * {@link #combineResponses(MultiSearchResponse.Item[], InternalAggregation.ReduceContext)} except it only
+     * {@link #combineResponses} except it only
      * has to deal with the rollup response (no live response)
      *
-     * See {@link #combineResponses(MultiSearchResponse.Item[], InternalAggregation.ReduceContext)} for more details
+     * See {@link #combineResponses} for more details
      * on the translation conventions
      */
     public static SearchResponse translateResponse(
         MultiSearchResponse.Item[] rolledMsearch,
-        InternalAggregation.ReduceContext reduceContext
+        AggregationReduceContext.Builder reduceContextBuilder
     ) throws Exception {
 
         assert rolledMsearch.length > 0;
@@ -103,7 +103,7 @@ public class RollupResponseTranslator {
         }
 
         assert responses.size() > 0;
-        return doCombineResponse(null, responses, reduceContext);
+        return doCombineResponse(null, responses, reduceContextBuilder);
     }
 
     /**
@@ -204,7 +204,7 @@ public class RollupResponseTranslator {
      */
     public static SearchResponse combineResponses(
         MultiSearchResponse.Item[] msearchResponses,
-        InternalAggregation.ReduceContext reduceContext
+        AggregationReduceContext.Builder reduceContextBuilder
     ) throws Exception {
 
         assert msearchResponses.length >= 2;
@@ -248,13 +248,13 @@ public class RollupResponseTranslator {
             throw new ResourceNotFoundException("No indices (live or rollup) found during rollup search");
         }
 
-        return doCombineResponse(liveResponse, rolledResponses, reduceContext);
+        return doCombineResponse(liveResponse, rolledResponses, reduceContextBuilder);
     }
 
     private static SearchResponse doCombineResponse(
         SearchResponse liveResponse,
         List<SearchResponse> rolledResponses,
-        InternalAggregation.ReduceContext reduceContext
+        AggregationReduceContext.Builder reduceContextBuilder
     ) {
 
         final InternalAggregations liveAggs = liveResponse != null
@@ -283,12 +283,7 @@ public class RollupResponseTranslator {
         // which means we can use aggregation's reduce method to combine, just as if
         // it was a result from another shard
         InternalAggregations currentTree = InternalAggregations.EMPTY;
-        InternalAggregation.ReduceContext finalReduceContext = InternalAggregation.ReduceContext.forFinalReduction(
-            reduceContext.bigArrays(),
-            reduceContext.scriptService(),
-            b -> {},
-            PipelineTree.EMPTY
-        );
+        AggregationReduceContext finalReduceContext = reduceContextBuilder.forFinalReduction();
         for (SearchResponse rolledResponse : rolledResponses) {
             List<InternalAggregation> unrolledAggs = new ArrayList<>(rolledResponse.getAggregations().asList().size());
             for (Aggregation agg : rolledResponse.getAggregations()) {
@@ -347,7 +342,7 @@ public class RollupResponseTranslator {
         }
 
         InternalSearchResponse combinedInternal = new InternalSearchResponse(
-            SearchHits.empty(),
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
             aggs,
             null,
             null,
@@ -372,7 +367,6 @@ public class RollupResponseTranslator {
     /**
      * Takes an aggregation with rollup conventions and unrolls into a "normal" agg tree
      *
-
      * @param rolled   The rollup aggregation that we wish to unroll
      * @param original The unrolled, "live" aggregation (if it exists) that matches the current rolled aggregation
      *
@@ -603,9 +597,9 @@ public class RollupResponseTranslator {
         // render differently for the rolled up and non-rolled up results. At the moment
         // the formatter is not exposed on the internal agg objects but I think this is
         // something we can discuss exposing
-        if (metric instanceof InternalMax || metric instanceof InternalMin) {
+        if (metric instanceof Max || metric instanceof Min) {
             return metric;
-        } else if (metric instanceof InternalSum) {
+        } else if (metric instanceof Sum) {
             // If count is anything other than -1, this sum is actually an avg
             if (count != -1) {
                 // Note: Avgs have a slightly different name to prevent collision with empty bucket defaults
@@ -645,8 +639,8 @@ public class RollupResponseTranslator {
 
         if (countPath != null && aggMap.get(countPath) != null) {
             // we always set the count fields to Sum aggs, so this is safe
-            assert aggMap.get(countPath) instanceof InternalSum;
-            return (long) ((InternalSum) aggMap.get(countPath)).getValue();
+            assert aggMap.get(countPath) instanceof Sum;
+            return (long) ((Sum) aggMap.get(countPath)).value();
         }
 
         return -1;

@@ -14,9 +14,9 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackField;
@@ -40,8 +40,14 @@ public abstract class Collector {
     /**
      * List of indices names whose stats will be exported (default to all indices)
      */
-    public static final Setting<List<String>> INDICES =
-            listSetting(collectionSetting("indices"), emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
+    public static final Setting<List<String>> INDICES = listSetting(
+        collectionSetting("indices"),
+        emptyList(),
+        Function.identity(),
+        Property.Dynamic,
+        Property.NodeScope,
+        Setting.Property.DeprecatedWarning
+    );
 
     private final String name;
     private final Setting<TimeValue> collectionTimeoutSetting;
@@ -50,8 +56,12 @@ public abstract class Collector {
     protected final XPackLicenseState licenseState;
     protected final Logger logger;
 
-    public Collector(final String name, final ClusterService clusterService,
-                     final Setting<TimeValue> timeoutSetting, final XPackLicenseState licenseState) {
+    public Collector(
+        final String name,
+        final ClusterService clusterService,
+        final Setting<TimeValue> timeoutSetting,
+        final XPackLicenseState licenseState
+    ) {
         this.name = name;
         this.clusterService = clusterService;
         this.collectionTimeoutSetting = timeoutSetting;
@@ -92,9 +102,8 @@ public abstract class Collector {
         return null;
     }
 
-    protected abstract Collection<MonitoringDoc> doCollect(MonitoringDoc.Node node,
-                                                           long interval,
-                                                           ClusterState clusterState) throws Exception;
+    protected abstract Collection<MonitoringDoc> doCollect(MonitoringDoc.Node node, long interval, ClusterState clusterState)
+        throws Exception;
 
     /**
      * Returns a timestamp to use in {@link MonitoringDoc}
@@ -155,12 +164,14 @@ public abstract class Collector {
         if (node == null) {
             return null;
         }
-        return new MonitoringDoc.Node(node.getId(),
-                                      node.getHostName(),
-                                      node.getAddress().toString(),
-                                      node.getHostAddress(),
-                                      node.getName(),
-                                      timestamp);
+        return new MonitoringDoc.Node(
+            node.getId(),
+            node.getHostName(),
+            node.getAddress().toString(),
+            node.getHostAddress(),
+            node.getName(),
+            timestamp
+        );
     }
 
     protected static String collectionSetting(final String settingName) {
@@ -170,6 +181,6 @@ public abstract class Collector {
 
     protected static Setting<TimeValue> collectionTimeoutSetting(final String settingName) {
         String name = collectionSetting(settingName);
-        return timeSetting(name, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
+        return timeSetting(name, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning);
     }
 }

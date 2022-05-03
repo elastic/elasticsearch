@@ -10,12 +10,6 @@ package org.elasticsearch.search.sort;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -24,6 +18,12 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.mockito.Mockito;
@@ -73,10 +73,10 @@ public class NestedSortBuilderTests extends ESTestCase {
     }
 
     /**
-     * Create a {@link NestedSortBuilder} with random path and filter of the given depth.
+     * Create a {@link NestedSortBuilder} with random filter of the given depth.
      */
     public static NestedSortBuilder createRandomNestedSort(int depth) {
-        NestedSortBuilder nestedSort = new NestedSortBuilder(randomAlphaOfLengthBetween(3, 10));
+        NestedSortBuilder nestedSort = new NestedSortBuilder("path");
         if (randomBoolean()) {
             nestedSort.setFilter(AbstractSortTestCase.randomNestedFilter());
         }
@@ -107,18 +107,15 @@ public class NestedSortBuilderTests extends ESTestCase {
         NestedSortBuilder mutated = original.getNestedSort();
         int parameter = randomIntBetween(0, 2);
         switch (parameter) {
-        case 0:
-            mutated = new NestedSortBuilder(original.getPath()+"_suffix");
-            mutated.setFilter(original.getFilter());
-            mutated.setNestedSort(original.getNestedSort());
-            break;
-        case 1:
-            mutated.setFilter(randomValueOtherThan(original.getFilter(), AbstractSortTestCase::randomNestedFilter));
-            break;
-        case 2:
-        default:
-            mutated.setNestedSort(randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3)));
-            break;
+            case 0 -> {
+                mutated = new NestedSortBuilder(original.getPath() + "_suffix");
+                mutated.setFilter(original.getFilter());
+                mutated.setNestedSort(original.getNestedSort());
+            }
+            case 1 -> mutated.setFilter(randomValueOtherThan(original.getFilter(), AbstractSortTestCase::randomNestedFilter));
+            default -> mutated.setNestedSort(
+                randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3))
+            );
         }
         return mutated;
     }
@@ -128,8 +125,11 @@ public class NestedSortBuilderTests extends ESTestCase {
      */
     public void testEqualsAndHashcode() {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomNestedSort(3), NestedSortBuilderTests::copy,
-                    NestedSortBuilderTests::mutate);
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                createRandomNestedSort(3),
+                NestedSortBuilderTests::copy,
+                NestedSortBuilderTests::mutate
+            );
         }
     }
 
@@ -179,8 +179,7 @@ public class NestedSortBuilderTests extends ESTestCase {
         original = new NestedSortBuilder("firstLevel");
         ConstantScoreQueryBuilder constantScoreQueryBuilder = new ConstantScoreQueryBuilder(filterThatRewrites);
         original.setFilter(constantScoreQueryBuilder);
-        NestedSortBuilder nestedSortThatRewrites = new NestedSortBuilder("thirdLevel")
-                .setFilter(filterThatRewrites);
+        NestedSortBuilder nestedSortThatRewrites = new NestedSortBuilder("thirdLevel").setFilter(filterThatRewrites);
         original.setNestedSort(new NestedSortBuilder("secondLevel").setNestedSort(nestedSortThatRewrites));
         rewritten = original.rewrite(mockRewriteContext);
         assertNotSame(rewritten, original);

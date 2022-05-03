@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
+
 import java.time.Duration;
 import java.time.Period;
 import java.time.ZoneId;
@@ -39,125 +40,124 @@ public class DateTrunc extends BinaryDateTimeDatePartFunction {
     public enum Part implements DateTimeField {
 
         MILLENNIUM(dt -> {
-                int year = dt.getYear();
-                int firstYearOfMillennium = year - (year % 1000);
-                return dt
-                    .with(ChronoField.YEAR, firstYearOfMillennium)
-                    .with(ChronoField.MONTH_OF_YEAR, 1)
-                    .with(ChronoField.DAY_OF_MONTH, 1)
-                    .toLocalDate().atStartOfDay(dt.getZone());
-            },
-            idt -> new IntervalDayTime(Duration.ZERO, idt.dataType()),
-            iym -> {
-                Period period = iym.interval();
-                int year = period.getYears();
-                int firstYearOfMillennium = year - (year % 1000);
-                return new IntervalYearMonth(Period.ZERO.plusYears(firstYearOfMillennium), iym.dataType());
-            }, "millennia"),
+            int year = dt.getYear();
+            int firstYearOfMillennium = year - (year % 1000);
+            return dt.with(ChronoField.YEAR, firstYearOfMillennium)
+                .with(ChronoField.MONTH_OF_YEAR, 1)
+                .with(ChronoField.DAY_OF_MONTH, 1)
+                .toLocalDate()
+                .atStartOfDay(dt.getZone());
+        }, idt -> new IntervalDayTime(Duration.ZERO, idt.dataType()), iym -> {
+            Period period = iym.interval();
+            int year = period.getYears();
+            int firstYearOfMillennium = year - (year % 1000);
+            return new IntervalYearMonth(Period.ZERO.plusYears(firstYearOfMillennium), iym.dataType());
+        }, "millennia"),
         CENTURY(dt -> {
-                int year = dt.getYear();
-                int firstYearOfCentury = year - (year % 100);
-                return dt
-                    .with(ChronoField.YEAR, firstYearOfCentury)
-                    .with(ChronoField.MONTH_OF_YEAR, 1)
-                    .with(ChronoField.DAY_OF_MONTH, 1)
-                    .toLocalDate().atStartOfDay(dt.getZone());
-            },
-            idt -> new IntervalDayTime(Duration.ZERO, idt.dataType()),
-            iym -> {
-                Period period = iym.interval();
-                int year = period.getYears();
-                int firstYearOfCentury = year - (year % 100);
-                return new IntervalYearMonth(Period.ZERO.plusYears(firstYearOfCentury), iym.dataType());
-            }, "centuries"),
+            int year = dt.getYear();
+            int firstYearOfCentury = year - (year % 100);
+            return dt.with(ChronoField.YEAR, firstYearOfCentury)
+                .with(ChronoField.MONTH_OF_YEAR, 1)
+                .with(ChronoField.DAY_OF_MONTH, 1)
+                .toLocalDate()
+                .atStartOfDay(dt.getZone());
+        }, idt -> new IntervalDayTime(Duration.ZERO, idt.dataType()), iym -> {
+            Period period = iym.interval();
+            int year = period.getYears();
+            int firstYearOfCentury = year - (year % 100);
+            return new IntervalYearMonth(Period.ZERO.plusYears(firstYearOfCentury), iym.dataType());
+        }, "centuries"),
         DECADE(dt -> {
-                int year = dt.getYear();
-                int firstYearOfDecade = year - (year % 10);
-                return dt
-                    .with(ChronoField.YEAR, firstYearOfDecade)
-                    .with(ChronoField.MONTH_OF_YEAR, 1)
-                    .with(ChronoField.DAY_OF_MONTH, 1)
-                    .toLocalDate().atStartOfDay(dt.getZone());
-            },
-            idt -> new IntervalDayTime(Duration.ZERO, idt.dataType()),
-            iym -> {
-                Period period = iym.interval();
-                int year = period.getYears();
-                int firstYearOfDecade = year - (year % 10);
-                return new IntervalYearMonth(Period.ZERO.plusYears(firstYearOfDecade), iym.dataType());
-            }, "decades"),
-        YEAR(dt -> {
-                return dt.with(ChronoField.MONTH_OF_YEAR, 1)
-                    .with(ChronoField.DAY_OF_MONTH, 1)
-                    .toLocalDate().atStartOfDay(dt.getZone());
+            int year = dt.getYear();
+            int firstYearOfDecade = year - (year % 10);
+            return dt.with(ChronoField.YEAR, firstYearOfDecade)
+                .with(ChronoField.MONTH_OF_YEAR, 1)
+                .with(ChronoField.DAY_OF_MONTH, 1)
+                .toLocalDate()
+                .atStartOfDay(dt.getZone());
+        }, idt -> new IntervalDayTime(Duration.ZERO, idt.dataType()), iym -> {
+            Period period = iym.interval();
+            int year = period.getYears();
+            int firstYearOfDecade = year - (year % 10);
+            return new IntervalYearMonth(Period.ZERO.plusYears(firstYearOfDecade), iym.dataType());
+        }, "decades"),
+        YEAR(
+            dt -> {
+                return dt.with(ChronoField.MONTH_OF_YEAR, 1).with(ChronoField.DAY_OF_MONTH, 1).toLocalDate().atStartOfDay(dt.getZone());
             },
             idt -> new IntervalDayTime(Duration.ZERO, idt.dataType()),
             iym -> {
                 Period period = iym.interval();
                 int year = period.getYears();
                 return new IntervalYearMonth(Period.ZERO.plusYears(year), iym.dataType());
-            }, "years", "yy", "yyyy"),
+            },
+            "years",
+            "yy",
+            "yyyy"
+        ),
         QUARTER(dt -> {
-                int month = dt.getMonthValue();
-                int firstMonthOfQuarter = (((month - 1) / 3) * 3) + 1;
-                return dt
-                    .with(ChronoField.MONTH_OF_YEAR, firstMonthOfQuarter)
-                    .with(ChronoField.DAY_OF_MONTH, 1)
-                    .toLocalDate().atStartOfDay(dt.getZone());
-            },
-            idt -> new IntervalDayTime(Duration.ZERO, (idt.dataType())),
-            iym -> {
-                Period period = iym.interval();
-                int month = period.getMonths();
-                int year = period.getYears();
-                int firstMonthOfQuarter = (month / 3) * 3;
-                return new IntervalYearMonth(Period.ZERO.plusYears(year).plusMonths(firstMonthOfQuarter), iym.dataType());
-            }, "quarters", "qq", "q"),
-        MONTH(dt -> {
-                return dt.with(ChronoField.DAY_OF_MONTH, 1)
-                    .toLocalDate().atStartOfDay(dt.getZone());
-            },
+            int month = dt.getMonthValue();
+            int firstMonthOfQuarter = (((month - 1) / 3) * 3) + 1;
+            return dt.with(ChronoField.MONTH_OF_YEAR, firstMonthOfQuarter)
+                .with(ChronoField.DAY_OF_MONTH, 1)
+                .toLocalDate()
+                .atStartOfDay(dt.getZone());
+        }, idt -> new IntervalDayTime(Duration.ZERO, (idt.dataType())), iym -> {
+            Period period = iym.interval();
+            int month = period.getMonths();
+            int year = period.getYears();
+            int firstMonthOfQuarter = (month / 3) * 3;
+            return new IntervalYearMonth(Period.ZERO.plusYears(year).plusMonths(firstMonthOfQuarter), iym.dataType());
+        }, "quarters", "qq", "q"),
+        MONTH(
+            dt -> { return dt.with(ChronoField.DAY_OF_MONTH, 1).toLocalDate().atStartOfDay(dt.getZone()); },
             idt -> new IntervalDayTime(Duration.ZERO, idt.dataType()),
-            iym -> iym, "months", "mm", "m"),
-        WEEK(dt -> {
-                return dt.with(ChronoField.DAY_OF_WEEK, 1)
-                    .toLocalDate().atStartOfDay(dt.getZone());
-            },
+            iym -> iym,
+            "months",
+            "mm",
+            "m"
+        ),
+        WEEK(
+            dt -> { return dt.with(ChronoField.DAY_OF_WEEK, 1).toLocalDate().atStartOfDay(dt.getZone()); },
             idt -> new IntervalDayTime(Duration.ZERO, idt.dataType()),
-            iym -> iym, "weeks", "wk", "ww"),
-        DAY(dt -> dt.toLocalDate().atStartOfDay(dt.getZone()),
+            iym -> iym,
+            "weeks",
+            "wk",
+            "ww"
+        ),
+        DAY(
+            dt -> dt.toLocalDate().atStartOfDay(dt.getZone()),
             idt -> truncateIntervalSmallerThanWeek(idt, ChronoUnit.DAYS),
-            iym -> iym, "days", "dd", "d"),
+            iym -> iym,
+            "days",
+            "dd",
+            "d"
+        ),
         HOUR(dt -> {
-                int hour = dt.getHour();
-                return dt.toLocalDate().atStartOfDay(dt.getZone())
-                    .with(ChronoField.HOUR_OF_DAY, hour);
-            },
-            idt -> truncateIntervalSmallerThanWeek(idt, ChronoUnit.HOURS),
-            iym -> iym, "hours", "hh"),
+            int hour = dt.getHour();
+            return dt.toLocalDate().atStartOfDay(dt.getZone()).with(ChronoField.HOUR_OF_DAY, hour);
+        }, idt -> truncateIntervalSmallerThanWeek(idt, ChronoUnit.HOURS), iym -> iym, "hours", "hh"),
         MINUTE(dt -> {
-                int hour = dt.getHour();
-                int minute = dt.getMinute();
-                return dt.toLocalDate().atStartOfDay(dt.getZone())
-                    .with(ChronoField.HOUR_OF_DAY, hour)
-                    .with(ChronoField.MINUTE_OF_HOUR, minute);
-            },
-            idt -> truncateIntervalSmallerThanWeek(idt, ChronoUnit.MINUTES),
-            iym -> iym, "minutes", "mi", "n"),
-            SECOND(dt -> dt.with(ChronoField.NANO_OF_SECOND, 0),
+            int hour = dt.getHour();
+            int minute = dt.getMinute();
+            return dt.toLocalDate().atStartOfDay(dt.getZone()).with(ChronoField.HOUR_OF_DAY, hour).with(ChronoField.MINUTE_OF_HOUR, minute);
+        }, idt -> truncateIntervalSmallerThanWeek(idt, ChronoUnit.MINUTES), iym -> iym, "minutes", "mi", "n"),
+        SECOND(
+            dt -> dt.with(ChronoField.NANO_OF_SECOND, 0),
             idt -> truncateIntervalSmallerThanWeek(idt, ChronoUnit.SECONDS),
-            iym -> iym, "seconds", "ss", "s"),
+            iym -> iym,
+            "seconds",
+            "ss",
+            "s"
+        ),
         MILLISECOND(dt -> {
-                int micros = dt.get(ChronoField.MICRO_OF_SECOND);
-                return dt.with(ChronoField.MILLI_OF_SECOND, (micros / 1000));
-            },
-            idt -> truncateIntervalSmallerThanWeek(idt, ChronoUnit.MILLIS),
-            iym -> iym, "milliseconds", "ms"),
+            int micros = dt.get(ChronoField.MICRO_OF_SECOND);
+            return dt.with(ChronoField.MILLI_OF_SECOND, (micros / 1000));
+        }, idt -> truncateIntervalSmallerThanWeek(idt, ChronoUnit.MILLIS), iym -> iym, "milliseconds", "ms"),
         MICROSECOND(dt -> {
-                int nanos = dt.getNano();
-                return dt.with(ChronoField.MICRO_OF_SECOND, (nanos / 1000));
-            },
-            idt -> idt, iym -> iym, "microseconds", "mcs"),
+            int nanos = dt.getNano();
+            return dt.with(ChronoField.MICRO_OF_SECOND, (nanos / 1000));
+        }, idt -> idt, iym -> iym, "microseconds", "mcs"),
         NANOSECOND(dt -> dt, idt -> idt, iym -> iym, "nanoseconds", "ns");
 
         private static final Map<String, Part> NAME_TO_PART;
@@ -173,8 +173,12 @@ public class DateTrunc extends BinaryDateTimeDatePartFunction {
         private UnaryOperator<IntervalDayTime> truncateFunctionIntervalDayTime;
         private Set<String> aliases;
 
-        Part(UnaryOperator<ZonedDateTime> truncateFunctionZonedDateTime, UnaryOperator<IntervalDayTime> truncateFunctionIntervalDayTime,
-             UnaryOperator<IntervalYearMonth> truncateFunctionIntervalYearMonth, String... aliases) {
+        Part(
+            UnaryOperator<ZonedDateTime> truncateFunctionZonedDateTime,
+            UnaryOperator<IntervalDayTime> truncateFunctionIntervalDayTime,
+            UnaryOperator<IntervalYearMonth> truncateFunctionIntervalYearMonth,
+            String... aliases
+        ) {
             this.truncateFunctionIntervalYearMonth = truncateFunctionIntervalYearMonth;
             this.truncateFunctionZonedDateTime = truncateFunctionZonedDateTime;
             this.truncateFunctionIntervalDayTime = truncateFunctionIntervalDayTime;

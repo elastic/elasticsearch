@@ -32,7 +32,7 @@ public class StandardValidator implements GeometryValidator {
     private final boolean ignoreZValue;
 
     private StandardValidator(boolean ignoreZValue) {
-       this.ignoreZValue = ignoreZValue;
+        this.ignoreZValue = ignoreZValue;
     }
 
     public static GeometryValidator instance(boolean ignoreZValue) {
@@ -41,8 +41,9 @@ public class StandardValidator implements GeometryValidator {
 
     protected void checkZ(double zValue) {
         if (ignoreZValue == false && Double.isNaN(zValue) == false) {
-            throw new IllegalArgumentException("found Z value [" + zValue + "] but [ignore_z_value] "
-                + "parameter is [" + ignoreZValue + "]");
+            throw new IllegalArgumentException(
+                "found Z value [" + zValue + "] but [ignore_z_value] " + "parameter is [" + ignoreZValue + "]"
+            );
         }
     }
 
@@ -121,4 +122,3 @@ public class StandardValidator implements GeometryValidator {
         }
     }
 }
-

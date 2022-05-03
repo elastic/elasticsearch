@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
@@ -50,6 +51,7 @@ public class MasterHistoryTests extends ESTestCase {
 
     public void testGetBasicUse() {
         var clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
@@ -71,6 +73,7 @@ public class MasterHistoryTests extends ESTestCase {
 
     public void testHasMasterGoneNull() {
         var clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
         long oneHourAgo = System.currentTimeMillis() - (60 * 60 * 1000);
@@ -98,6 +101,7 @@ public class MasterHistoryTests extends ESTestCase {
 
     public void testTime() {
         var clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
         long oneHourAgo = System.currentTimeMillis() - (60 * 60 * 1000);
@@ -114,6 +118,7 @@ public class MasterHistoryTests extends ESTestCase {
 
     public void testGetNumberOfMasterChanges() {
         var clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
         assertThat(MasterHistory.getNumberOfMasterIdentityChanges(masterHistory.getNodes()), equalTo(0));
@@ -140,6 +145,7 @@ public class MasterHistoryTests extends ESTestCase {
 
     public void testMaxSize() {
         var clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
         for (int i = 0; i < MasterHistory.MAX_HISTORY_SIZE; i++) {

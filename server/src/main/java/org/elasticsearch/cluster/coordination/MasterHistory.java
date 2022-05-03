@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -30,22 +31,37 @@ import java.util.stream.Collectors;
  * if and when the cluster state changes with a new master node.
  */
 public class MasterHistory implements ClusterStateListener {
-    private volatile List<TimeAndMaster> masterHistory;
-    private final LongSupplier currentTimeMillisSupplier;
-    /**
-     * This is the maximum number of master nodes kept in history. We don't get additional any value in keeping more than this.
-     */
-    public static final int MAX_HISTORY_SIZE = 20;
-
     /**
      * The maximum amount of time that the master history covers.
      */
-    public static final TimeValue MAX_HISTORY_AGE = new TimeValue(30, TimeUnit.MINUTES);
+    private final TimeValue maxHistoryAge;
+    private volatile List<TimeAndMaster> masterHistory;
+    private final LongSupplier currentTimeMillisSupplier;
+    /**
+     * This is the maximum number of master nodes kept in history so that the list doesn't grow extremely large and impact performance if
+     * things become really unstable. We don't get additional any value in keeping more than this.
+     */
+    public static final int MAX_HISTORY_SIZE = 50;
+
+    private static final TimeValue DEFAULT_MAX_HISTORY_AGE = new TimeValue(30, TimeUnit.MINUTES);
+    private static final TimeValue SMALLEST_ALLOWED_MAX_HISTORY_AGE = new TimeValue(1, TimeUnit.MINUTES);
+
+    public static final Setting<TimeValue> MAX_HISTORY_AGE_SETTING = Setting.timeSetting(
+        "master_history.max_age",
+        DEFAULT_MAX_HISTORY_AGE,
+        SMALLEST_ALLOWED_MAX_HISTORY_AGE,
+        Setting.Property.NodeScope
+    );
 
     public MasterHistory(ThreadPool threadPool, ClusterService clusterService) {
         this.masterHistory = new ArrayList<>();
         this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
+        this.maxHistoryAge = MAX_HISTORY_AGE_SETTING.get(clusterService.getSettings());
         clusterService.addListener(this);
+    }
+
+    public TimeValue getMaxHistoryAge() {
+        return this.maxHistoryAge;
     }
 
     @Override
@@ -54,7 +70,7 @@ public class MasterHistory implements ClusterStateListener {
         DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
         if (currentMaster == null || currentMaster.equals(previousMaster) == false || masterHistory.isEmpty()) {
             long now = currentTimeMillisSupplier.getAsLong();
-            long oldestRelevantHistoryTime = now - MAX_HISTORY_AGE.getMillis();
+            long oldestRelevantHistoryTime = now - maxHistoryAge.getMillis();
             List<TimeAndMaster> newMasterHistory = new ArrayList<>();
             int sizeAfterAddingNewMaster = masterHistory.size() + 1;
             int startIndex = Math.max(0, sizeAfterAddingNewMaster - MAX_HISTORY_SIZE);
@@ -174,15 +190,15 @@ public class MasterHistory implements ClusterStateListener {
     }
 
     /*
-     * This method creates a copy of masterHistory that only has entries from more than MAX_HISTORY_AGE before now (but leaves the newest
-     * entry in even if it is more than MAX_HISTORY_AGE).
+     * This method creates a copy of masterHistory that only has entries from more than maxHistoryAge before now (but leaves the newest
+     * entry in even if it is more than maxHistoryAge).
      */
     private List<TimeAndMaster> getRecentMasterHistory(List<TimeAndMaster> history) {
         if (history.size() < 2) {
             return history;
         }
         long now = currentTimeMillisSupplier.getAsLong();
-        long oldestRelevantHistoryTime = now - MAX_HISTORY_AGE.getMillis();
+        long oldestRelevantHistoryTime = now - maxHistoryAge.getMillis();
         TimeAndMaster mostRecent = history.isEmpty() ? null : history.get(history.size() - 1);
         List<TimeAndMaster> filteredHistory = history.stream()
             .filter(timeAndMaster -> timeAndMaster.time > oldestRelevantHistoryTime)

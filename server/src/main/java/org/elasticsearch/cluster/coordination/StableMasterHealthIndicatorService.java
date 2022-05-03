@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -55,30 +56,64 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     private final ClusterService clusterService;
     private final MasterHistoryService masterHistoryService;
-    private static final Logger logger = LogManager.getLogger(StableMasterHealthIndicatorService.class);
     /**
      * This is the amount of time we use to make the initial decision -- have we seen a master node in the very recent past?
      */
-    private static final TimeValue VERY_RECENT_PAST = new TimeValue(30, TimeUnit.SECONDS);
-
+    private final TimeValue veryRecentPast;
     /**
      * This is the number of times that it is OK for the master history to show a transition from a non-null master to a null master before
      * it starts impacting the health status.
      */
-    private static final int ACCEPTABLE_NULL_TRANSITIONS = 3;
+    private final int acceptableNullTransitions;
     /**
      * This is the number of times that it is OK for the master history to show a transition one non-null master to a different non-null
      * master before it starts impacting the health status.
      */
-    private static final int ACCEPTABLE_IDENTITY_CHANGES = 3;
+    private final int acceptableIdentityChanges;
+
+    private static final Logger logger = LogManager.getLogger(StableMasterHealthIndicatorService.class);
+
+    private static final TimeValue DEFAULT_VERY_RECENT_PAST = new TimeValue(30, TimeUnit.SECONDS);
+    private static final TimeValue SMALLEST_ALLOWED_VERY_RECENT_PAST = new TimeValue(1, TimeUnit.SECONDS);
+
+    private static final int DEFAULT_ACCEPTABLE_NULL_TRANSITIONS = 3;
+    private static final int SMALLEST_ALLOWED_ACCEPTABLE_NULL_TRANSITIONS = 0;
+
+    private static final int DEFAULT_ACCEPTABLE_IDENTITY_CHANGES = 3;
+    private static final int SMALLEST_ALLOWED_ACCEPTABLE_IDENTITY_CHANGES = 0;
+
     /**
      * The severity to use for a low-severity impact in this indicator
      */
     private static final int LOW_IMPACT_SEVERITY = 3;
 
+    public static final Setting<TimeValue> VERY_RECENT_PAST_SETTING = Setting.timeSetting(
+        "health.master_history.very_recent_past",
+        DEFAULT_VERY_RECENT_PAST,
+        SMALLEST_ALLOWED_VERY_RECENT_PAST,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> ACCEPTABLE_NULL_TRANSITIONS_SETTING = Setting.intSetting(
+        "health.master_history.acceptable_null_transitions",
+        DEFAULT_ACCEPTABLE_NULL_TRANSITIONS,
+        SMALLEST_ALLOWED_ACCEPTABLE_NULL_TRANSITIONS,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> ACCEPTABLE_IDENTITY_CHANGES_SETTING = Setting.intSetting(
+        "health.master_history.acceptable_identity_changes",
+        DEFAULT_ACCEPTABLE_IDENTITY_CHANGES,
+        SMALLEST_ALLOWED_ACCEPTABLE_IDENTITY_CHANGES,
+        Setting.Property.NodeScope
+    );
+
     public StableMasterHealthIndicatorService(ClusterService clusterService, MasterHistoryService masterHistoryService) {
         this.clusterService = clusterService;
         this.masterHistoryService = masterHistoryService;
+        this.veryRecentPast = VERY_RECENT_PAST_SETTING.get(clusterService.getSettings());
+        this.acceptableNullTransitions = ACCEPTABLE_NULL_TRANSITIONS_SETTING.get(clusterService.getSettings());
+        this.acceptableIdentityChanges = ACCEPTABLE_IDENTITY_CHANGES_SETTING.get(clusterService.getSettings());
         clusterService.addListener(this);
     }
 
@@ -110,11 +145,11 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      */
     private HealthIndicatorResult calculateWhenHaveSeenMasterRecently(MasterHistory localMasterHistory, boolean includeDetails) {
         int masterChanges = MasterHistory.getNumberOfMasterIdentityChanges(localMasterHistory.getNodes());
-        logger.trace("Have seen a master in the last {}): {}", VERY_RECENT_PAST, localMasterHistory.getMostRecentNonNullMaster());
+        logger.trace("Have seen a master in the last {}): {}", veryRecentPast, localMasterHistory.getMostRecentNonNullMaster());
         final HealthIndicatorResult result;
-        if (masterChanges > ACCEPTABLE_IDENTITY_CHANGES) {
+        if (masterChanges > acceptableIdentityChanges) {
             result = calculateWhenMasterHasChangedIdentity(localMasterHistory, masterChanges, includeDetails);
-        } else if (localMasterHistory.hasMasterGoneNullAtLeastNTimes(ACCEPTABLE_NULL_TRANSITIONS + 1)) {
+        } else if (localMasterHistory.hasMasterGoneNullAtLeastNTimes(acceptableNullTransitions + 1)) {
             result = calculateWhenMasterHasFlappedNull(localMasterHistory, includeDetails);
         } else {
             result = getMasterIsStableResult();
@@ -135,13 +170,13 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         int masterChanges,
         boolean includeDetails
     ) {
-        logger.trace("Have seen {} master changes in the last {}}", masterChanges, MasterHistory.MAX_HISTORY_AGE);
+        logger.trace("Have seen {} master changes in the last {}}", masterChanges, localMasterHistory.getMaxHistoryAge());
         HealthStatus stableMasterStatus = HealthStatus.YELLOW;
         String summary = String.format(
             Locale.ROOT,
             "The master has changed %d times in the last %s",
             masterChanges,
-            MasterHistory.MAX_HISTORY_AGE
+            localMasterHistory.getMaxHistoryAge()
         );
         Map<String, Object> details = new HashMap<>();
         Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
@@ -182,7 +217,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
         List<UserAction> userActions = new ArrayList<>();
         DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
-        logger.trace("One master has gone null {} or more times recently: {}", ACCEPTABLE_NULL_TRANSITIONS + 1, master);
+        logger.trace("One master has gone null {} or more times recently: {}", acceptableNullTransitions + 1, master);
         boolean localNodeIsMaster = clusterService.localNode().equals(master);
         final List<DiscoveryNode> remoteHistory;
         if (localNodeIsMaster) {
@@ -192,8 +227,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         }
         if (localNodeIsMaster
             || remoteHistory == null
-            || MasterHistory.hasMasterGoneNullAtLeastNTimes(remoteHistory, ACCEPTABLE_NULL_TRANSITIONS + 1)
-            || MasterHistory.getNumberOfMasterIdentityChanges(remoteHistory) > ACCEPTABLE_IDENTITY_CHANGES) {
+            || MasterHistory.hasMasterGoneNullAtLeastNTimes(remoteHistory, acceptableNullTransitions + 1)
+            || MasterHistory.getNumberOfMasterIdentityChanges(remoteHistory) > acceptableIdentityChanges) {
             if (localNodeIsMaster == false && remoteHistory == null) {
                 logger.trace("Unable to get master history from {}}", master);
             } else {
@@ -204,7 +239,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 Locale.ROOT,
                 "The cluster's master has alternated between %s and no master multiple times in the last %s",
                 master,
-                MasterHistory.MAX_HISTORY_AGE
+                localMasterHistory.getMaxHistoryAge()
             );
             impacts.add(
                 new HealthIndicatorImpact(
@@ -269,7 +304,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         if (clusterService.state().nodes().getMasterNode() != null) {
             return true;
         }
-        return masterHistoryService.getLocalMasterHistory().hasSeenMasterInLastNSeconds((int) VERY_RECENT_PAST.seconds());
+        return masterHistoryService.getLocalMasterHistory().hasSeenMasterInLastNSeconds((int) veryRecentPast.seconds());
     }
 
     /*
@@ -281,7 +316,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
         DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
         if (currentMaster == null && previousMaster != null) {
-            if (masterHistoryService.getLocalMasterHistory().hasMasterGoneNullAtLeastNTimes(ACCEPTABLE_NULL_TRANSITIONS + 1)) {
+            if (masterHistoryService.getLocalMasterHistory().hasMasterGoneNullAtLeastNTimes(acceptableNullTransitions + 1)) {
                 DiscoveryNode master = masterHistoryService.getLocalMasterHistory().getMostRecentNonNullMaster();
                 if (master != null && clusterService.localNode().equals(master) == false) {
                     masterHistoryService.requestRemoteMasterHistory(master);

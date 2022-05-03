@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
@@ -313,6 +314,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
      */
     private static MasterHistoryService createMasterHistoryService() {
         var clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
         MasterHistory localMasterHistory = new MasterHistory(threadPool, clusterService);
@@ -328,6 +330,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         MasterHistoryService masterHistoryService
     ) {
         var clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.state()).thenReturn(clusterState);
         DiscoveryNode localNode = mock(DiscoveryNode.class);
         when(clusterService.localNode()).thenReturn(localNode);

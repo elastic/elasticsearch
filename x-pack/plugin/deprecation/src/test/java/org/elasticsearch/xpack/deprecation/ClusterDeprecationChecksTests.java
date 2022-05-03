@@ -75,8 +75,9 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "The cluster has too many shards to be able to upgrade",
-            "https://ela.st/es-deprecation-7-shard-limit",
-            "Delete indices to clear up space",
+            "https://ela.st/es-deprecation-8-shard-limit",
+            "Upgrading requires adding a small number of new shards. There is not enough room for 10 more shards. Increase the cluster"
+                + ".max_shards_per_node setting, or remove indices to clear up resources.",
             false,
             null
         );

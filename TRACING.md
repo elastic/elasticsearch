@@ -38,9 +38,9 @@ sampling rate:
 
 The APM agent pulls configuration from [multiple sources][agent-config], with a
 hierarchy that means, for example, that options set in the config file cannot be
-overridden via system properties. This is a little unfortunate, since it means
-that Elasticsearch cannot ship with sensible defaults for dynamic settings in
-the config file, and override them via system properties.
+overridden via system properties. This means that Elasticsearch cannot ship with
+sensible defaults for dynamic settings in the config file and override them via
+system properties.
 
 Instead, static or sensitive config values are put in the config file, and
 dynamic settings are left entirely to the system properties. The Elasticsearch
@@ -91,7 +91,7 @@ First work out if you can turn it into a task. No, really.
 If you can't do that, you'll need to ensure that your class can get access to a
 `Tracer` instance (this is available to inject, or you'll need to pass it when
 your class is created). Then you need to call the appropriate methods on the
-tracers when a span should start and end.
+tracer when a span should start and end.
 
 ## What additional attributes should I set?
 
@@ -113,6 +113,9 @@ tracing context. Using scope allows the APM agent to do the following:
 * Allows the sampling profiler to be used as it allows samples to be linked to
   the active span (if any), so the agent can automatically get extra spans
   without manual instrumentation.
+
+However, a scope must be closed in the same thread in which it was opened, which
+cannot be guaranteed when using tasks.
 
 In the OpenTelemetry documentation, spans, scope and context are fairly
 straightforward to use, since `Scope` is an `AutoCloseable` and so can be

@@ -270,15 +270,15 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertFalse("role should not exist after being deleted", resp2.hasRoles());
     }
 
-    public void testAddUserAndRoleThenAuth() throws Exception {
+    public void testAddUserAndRoleThenAuth() {
         testAddUserAndRoleThenAuth("joe");
     }
 
-    public void testAddUserWithInternalUsernameAndRoleThenAuth() throws Exception {
+    public void testAddUserWithInternalUsernameAndRoleThenAuth() {
         testAddUserAndRoleThenAuth(randomInternalUsername());
     }
 
-    public void testAddUserAndRoleThenAuth(String username) throws Exception {
+    public void testAddUserAndRoleThenAuth(String username) {
         logger.error("--> creating role");
         preparePutRole("test_role").cluster("all")
             .addIndices(

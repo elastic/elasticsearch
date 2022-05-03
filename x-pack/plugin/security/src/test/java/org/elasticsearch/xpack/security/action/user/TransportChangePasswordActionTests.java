@@ -99,7 +99,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         assertThat(throwableRef.get().getMessage(), containsString("is anonymous and cannot be modified"));
         verifyNoMoreInteractions(usersStore);
     }
-    
+
     public void testValidUser() {
         final Hasher hasher = getFastStoredHashAlgoForTests();
         final User user = randomFrom(

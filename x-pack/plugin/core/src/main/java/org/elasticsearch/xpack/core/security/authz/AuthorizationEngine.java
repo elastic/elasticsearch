@@ -276,13 +276,13 @@ public interface AuthorizationEngine {
 
         public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
             if (cluster == null) {
-                validationException = addValidationError("cluster privileges must not be null", validationException);
+                validationException = addValidationError("clusterPrivileges must not be null", validationException);
             }
             if (index == null) {
-                validationException = addValidationError("index privileges must not be null", validationException);
+                validationException = addValidationError("indexPrivileges must not be null", validationException);
             }
             if (application == null) {
-                validationException = addValidationError("application privileges must not be null", validationException);
+                validationException = addValidationError("applicationPrivileges must not be null", validationException);
             } else {
                 for (RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege : application) {
                     try {

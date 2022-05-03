@@ -83,6 +83,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -105,6 +106,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ProfileServiceTests extends ESTestCase {
@@ -234,6 +237,7 @@ public class ProfileServiceTests extends ESTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
     public void testGetProfileSubjectsNoIndex() throws Exception {
         when(profileIndex.indexExists()).thenReturn(false);
         PlainActionFuture<ProfileService.MultiProfileSubjectResponse> future = new PlainActionFuture<>();
@@ -254,6 +258,7 @@ public class ProfileServiceTests extends ESTestCase {
         multiProfileSubjectResponse = future3.get();
         assertThat(multiProfileSubjectResponse.profileUidToSubject().size(), is(0));
         assertThat(multiProfileSubjectResponse.failureProfileUids().size(), is(0));
+        verify(profileIndex, never()).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
     }
 
     @SuppressWarnings("unchecked")
@@ -303,6 +308,7 @@ public class ProfileServiceTests extends ESTestCase {
         profileService.getProfileSubjects(allProfileUids, future);
 
         ProfileService.MultiProfileSubjectResponse multiProfileSubjectResponse = future.get();
+        verify(profileIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         assertThat(multiProfileSubjectResponse.failureProfileUids().isEmpty(), is(true));
         assertThat(multiProfileSubjectResponse.profileUidToSubject().size(), is(allProfileUids.size() - missingProfileUids.size()));
         for (Map.Entry<String, Subject> profileIdAndSubject : multiProfileSubjectResponse.profileUidToSubject().entrySet()) {

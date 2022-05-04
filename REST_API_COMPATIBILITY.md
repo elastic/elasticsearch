@@ -136,7 +136,7 @@ For example:
 ```java
    Route.builder(GET, "_mypath/{foo}/{bar}").deprecated(MY_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
 ```
-
+Note: you can safely backport this route declaration to 7.x branch.
 The above declares that `GET _mypath/foo/bar` is deprecated in version 7. When this path is called in a version 7 server, it will emit the deprecation warning. When this path is called in a version 8 server, it will throw a 404 error unless REST API compatibility is requested. Only then will the path be honored and will also emit a warning message.
 
 

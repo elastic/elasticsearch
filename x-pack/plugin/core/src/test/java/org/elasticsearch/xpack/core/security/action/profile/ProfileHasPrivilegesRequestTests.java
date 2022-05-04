@@ -107,18 +107,26 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
     }
 
     public static PrivilegesToCheck randomValidPrivilegesToCheckRequest() {
-        String[] clusterPrivileges = randomClusterPrivileges();
-        RoleDescriptor.IndicesPrivileges[] indicesPrivileges = randomIndicesPrivileges();
-        RoleDescriptor.ApplicationResourcePrivileges[] appPrivileges = randomApplicationResourcePrivileges();
-        return new PrivilegesToCheck(clusterPrivileges, indicesPrivileges, appPrivileges);
+        String[] clusterPrivileges = randomClusterPrivileges(true);
+        RoleDescriptor.IndicesPrivileges[] indicesPrivileges = randomIndicesPrivileges(true);
+        RoleDescriptor.ApplicationResourcePrivileges[] appPrivileges = randomApplicationResourcePrivileges(true);
+        if (clusterPrivileges.length == 0 && indicesPrivileges.length == 0 && appPrivileges.length == 0) {
+            // try again
+            return randomValidPrivilegesToCheckRequest();
+        } else {
+            return new PrivilegesToCheck(clusterPrivileges, indicesPrivileges, appPrivileges);
+        }
     }
 
-    private static String[] randomClusterPrivileges() {
-        return randomSubsetOf(randomIntBetween(1, 5), ClusterPrivilegeResolver.names()).toArray(new String[0]);
+    private static String[] randomClusterPrivileges(boolean allowEmpty) {
+        return randomSubsetOf(randomIntBetween(allowEmpty ? 0 : 1, 5), ClusterPrivilegeResolver.names()).toArray(new String[0]);
     }
 
-    private static RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges() {
-        RoleDescriptor.IndicesPrivileges[] indicesPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(1, 5)];
+    private static RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges(boolean allowEmpty) {
+        RoleDescriptor.IndicesPrivileges[] indicesPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(
+            allowEmpty ? 0 : 1,
+            5
+        )];
         for (int i = 0; i < indicesPrivileges.length; i++) {
             indicesPrivileges[i] = RoleDescriptor.IndicesPrivileges.builder()
                 .privileges(randomSubsetOf(randomIntBetween(1, 5), IndexPrivilege.names()))
@@ -128,9 +136,9 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
         return indicesPrivileges;
     }
 
-    private static RoleDescriptor.ApplicationResourcePrivileges[] randomApplicationResourcePrivileges() {
+    private static RoleDescriptor.ApplicationResourcePrivileges[] randomApplicationResourcePrivileges(boolean allowEmpty) {
         RoleDescriptor.ApplicationResourcePrivileges[] appPrivileges = new RoleDescriptor.ApplicationResourcePrivileges[randomIntBetween(
-            1,
+            allowEmpty ? 0 : 1,
             5
         )];
         for (int i = 0; i < appPrivileges.length; i++) {
@@ -145,16 +153,13 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
 
     private PrivilegesToCheck randomInvalidPrivilegesToCheckRequest() {
         return randomFrom(
-            new PrivilegesToCheck(randomBoolean() ? null : new String[0], randomIndicesPrivileges(), randomApplicationResourcePrivileges()),
+            new PrivilegesToCheck(null, randomIndicesPrivileges(true), randomApplicationResourcePrivileges(true)),
+            new PrivilegesToCheck(randomClusterPrivileges(true), null, randomApplicationResourcePrivileges(true)),
+            new PrivilegesToCheck(randomClusterPrivileges(true), randomIndicesPrivileges(true), null),
             new PrivilegesToCheck(
-                randomClusterPrivileges(),
-                randomBoolean() ? null : new RoleDescriptor.IndicesPrivileges[0],
-                randomApplicationResourcePrivileges()
-            ),
-            new PrivilegesToCheck(
-                randomClusterPrivileges(),
-                randomIndicesPrivileges(),
-                randomBoolean() ? null : new RoleDescriptor.ApplicationResourcePrivileges[0]
+                new String[0],
+                new RoleDescriptor.IndicesPrivileges[0],
+                new RoleDescriptor.ApplicationResourcePrivileges[0]
             )
         );
     }
@@ -164,7 +169,7 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
         switch (choice) {
             case 1 -> {
                 if (toMutate.cluster() == null || toMutate.cluster().length == 0) {
-                    return new PrivilegesToCheck(randomClusterPrivileges(), toMutate.index(), toMutate.application());
+                    return new PrivilegesToCheck(randomClusterPrivileges(false), toMutate.index(), toMutate.application());
                 } else {
                     return new PrivilegesToCheck(
                         randomSubsetOf(randomIntBetween(0, toMutate.cluster().length - 1), toMutate.cluster()).toArray(new String[0]),
@@ -175,7 +180,7 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
             }
             case 2 -> {
                 if (toMutate.index() == null || toMutate.index().length == 0) {
-                    return new PrivilegesToCheck(toMutate.cluster(), randomIndicesPrivileges(), toMutate.application());
+                    return new PrivilegesToCheck(toMutate.cluster(), randomIndicesPrivileges(false), toMutate.application());
                 } else {
                     return new PrivilegesToCheck(
                         toMutate.cluster(),
@@ -188,7 +193,7 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
             }
             default -> {
                 if (toMutate.application() == null || toMutate.application().length == 0) {
-                    return new PrivilegesToCheck(toMutate.cluster(), toMutate.index(), randomApplicationResourcePrivileges());
+                    return new PrivilegesToCheck(toMutate.cluster(), toMutate.index(), randomApplicationResourcePrivileges(false));
                 } else {
                     return new PrivilegesToCheck(
                         toMutate.cluster(),

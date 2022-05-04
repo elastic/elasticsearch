@@ -290,8 +290,9 @@ documents if your {transform} contains a `group_by` based on `date_histogram`.
 destination indices and other saved objects in {kib} and to see only the objects 
 that belong to your space. However, a {transform} is a long running task which 
 is managed on cluster level and therefore not limited in scope to certain 
-spaces. Space awareness can be implemented by the creation of the {data-source} 
-which allows privileges to the {transform} destination index.
+spaces. Space awareness can be implemented for a {data-source} under 
+**Stack Management > Kibana** which allows privileges to the {transform} 
+destination index.
 
 [discrete]
 [[transform-kibana-limitations]]

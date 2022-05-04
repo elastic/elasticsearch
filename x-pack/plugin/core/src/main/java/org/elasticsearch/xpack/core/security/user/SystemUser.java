@@ -6,10 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authz.privilege.SystemPrivilege;
 
-import java.io.IOException;
 import java.util.function.Predicate;
 
 /**
@@ -21,7 +19,7 @@ public class SystemUser extends User {
 
     public static final User INSTANCE = new SystemUser();
 
-    private static final String NAME = UsernamesField.SYSTEM_NAME;
+    public static final String NAME = UsernamesField.SYSTEM_NAME;
     private static final Predicate<String> PREDICATE = SystemPrivilege.INSTANCE.predicate();
 
     private SystemUser() {
@@ -44,15 +42,6 @@ public class SystemUser extends User {
 
     public static boolean is(User user) {
         return INSTANCE.equals(user);
-    }
-
-    public static boolean deserializesFrom(String principal) {
-        return NAME.equals(principal);
-    }
-
-    public static void write(StreamOutput output) throws IOException {
-        output.writeBoolean(true);
-        output.writeString(NAME);
     }
 
     public static boolean isAuthorized(String action) {

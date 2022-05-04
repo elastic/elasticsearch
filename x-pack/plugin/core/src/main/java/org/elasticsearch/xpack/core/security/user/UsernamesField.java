@@ -12,7 +12,7 @@ public final class UsernamesField {
     public static final String DEPRECATED_KIBANA_NAME = "kibana";
     public static final String KIBANA_NAME = "kibana_system";
     public static final String KIBANA_ROLE = "kibana_system";
-    static final String SYSTEM_NAME = "_system";
+    public static final String SYSTEM_NAME = "_system";
     public static final String SYSTEM_ROLE = "_system";
     public static final String XPACK_SECURITY_NAME = "_xpack_security";
     public static final String XPACK_SECURITY_ROLE = "_xpack_security";

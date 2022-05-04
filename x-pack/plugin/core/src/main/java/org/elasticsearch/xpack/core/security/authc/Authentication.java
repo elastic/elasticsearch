@@ -957,15 +957,15 @@ public class Authentication implements ToXContentObject {
             final boolean isInternalUser = input.readBoolean();
             final String username = input.readString();
             if (isInternalUser) {
-                if (SystemUser.deserializesFrom(username)) {
+                if (SystemUser.NAME.equals(username)) {
                     return SystemUser.INSTANCE;
-                } else if (XPackUser.is(username)) {
+                } else if (XPackUser.NAME.equals(username)) {
                     return XPackUser.INSTANCE;
-                } else if (XPackSecurityUser.is(username)) {
+                } else if (XPackSecurityUser.NAME.equals(username)) {
                     return XPackSecurityUser.INSTANCE;
-                } else if (SecurityProfileUser.is(username)) {
+                } else if (SecurityProfileUser.NAME.equals(username)) {
                     return SecurityProfileUser.INSTANCE;
-                } else if (AsyncSearchUser.is(username)) {
+                } else if (AsyncSearchUser.NAME.equals(username)) {
                     return AsyncSearchUser.INSTANCE;
                 }
                 throw new IllegalStateException("username [" + username + "] does not match any internal user");
@@ -975,7 +975,8 @@ public class Authentication implements ToXContentObject {
 
         public static void writeUserTo(User user, StreamOutput output) throws IOException {
             if (SystemUser.is(user)) {
-                SystemUser.write(output);
+                output.writeBoolean(true);
+                output.writeString(SystemUser.NAME);
             } else if (XPackUser.is(user)) {
                 output.writeBoolean(true);
                 output.writeString(XPackUser.NAME);

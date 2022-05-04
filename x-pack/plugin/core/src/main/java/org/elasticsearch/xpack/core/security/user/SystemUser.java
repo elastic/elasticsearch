@@ -17,6 +17,7 @@ import java.util.function.Predicate;
  */
 public class SystemUser extends User {
 
+    private static final String NAME = UsernamesField.SYSTEM_NAME;
     public static final String ROLE_NAME = UsernamesField.SYSTEM_ROLE;
 
     public static final User INSTANCE = new SystemUser();
@@ -24,7 +25,7 @@ public class SystemUser extends User {
     private static final Predicate<String> PREDICATE = SystemPrivilege.INSTANCE.predicate();
 
     private SystemUser() {
-        super(UsernamesField.SYSTEM_NAME, ROLE_NAME);
+        super(NAME, ROLE_NAME);
         // the following traits, and especially the run-as one, go with all the internal users
         // TODO abstract in a base `InternalUser` class
         assert enabled();
@@ -46,12 +47,12 @@ public class SystemUser extends User {
     }
 
     public static boolean deserializesFrom(String principal) {
-        return INSTANCE.principal().equals(principal);
+        return NAME.equals(principal);
     }
 
     public static void write(StreamOutput output) throws IOException {
         output.writeBoolean(true);
-        output.writeString(INSTANCE.principal());
+        output.writeString(NAME);
     }
 
     public static boolean isAuthorized(String action) {

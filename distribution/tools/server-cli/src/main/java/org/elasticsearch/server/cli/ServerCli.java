@@ -112,6 +112,7 @@ class ServerCli extends EnvironmentAwareCommand {
 
         // if we are daemonized and we got the all-clear signal, we can exit cleanly
         if (errorPump.ready && options.has(daemonizeOption)) {
+            logger.info("Subprocess is ready and we are daemonized, exiting...");
             this.process = null; // clear the process handle, we don't want to shut it down now that we are started
             closeStreams(process);
             return;
@@ -120,6 +121,7 @@ class ServerCli extends EnvironmentAwareCommand {
         // We pass any ES error code through UserException. If the message was set,
         // then it is a real UserException, otherwise it is just the error code and a null message.
         int code = process.waitFor();
+        logger.info("Subprocess exited [" + code + "]");
         if (code != ExitCodes.OK) {
             throw new UserException(code, errorPump.userExceptionMsg);
         }
@@ -145,10 +147,8 @@ class ServerCli extends EnvironmentAwareCommand {
     private SecureString getKeystorePassword(Path configDir, Terminal terminal) throws IOException {
         try (KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir)) {
             if (keystore != null && keystore.hasPassword()) {
-                logger.info("keystore has password");
                 return new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
             } else {
-                logger.info("keystore does not have password");
                 return new SecureString(new char[0]);
             }
         }
@@ -165,7 +165,6 @@ class ServerCli extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
         }
 
-        logger.info("Running auto config");
         String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
         Command cmd = loadTool("auto-configure-node", autoConfigLibs);
         assert cmd instanceof EnvironmentAwareCommand;
@@ -183,7 +182,6 @@ class ServerCli extends EnvironmentAwareCommand {
         try (var autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword.clone())) {
             autoConfigNode.execute(autoConfigTerminal, autoConfigOptions, env, processInfo);
         } catch (UserException e) {
-            logger.error("GOT USER EXCEPTION from auto config", e);
             boolean okCode = switch (e.exitCode) {
                 // these exit codes cover the cases where auto-conf cannot run but the node should NOT be prevented from starting as usual
                 // eg the node is restarted, is already configured in an incompatible way, or the file system permissions do not allow it

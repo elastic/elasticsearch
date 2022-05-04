@@ -1,0 +1,5 @@
+pr: 86331
+summary: Copy the expected shard size for STARTED shards
+area: Snapshot/Restore
+type: bug
+issues: []

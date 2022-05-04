@@ -556,7 +556,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         assertThat(profile2.uid(), equalTo(profile1.uid()));
         assertThat(profile2.enabled(), is(false));
 
-        // And can also check privileges
+        // but not check privileges
         ProfileHasPrivilegesResponse profileHasPrivilegesResponse = client().execute(
             ProfileHasPrivilegesAction.INSTANCE,
             new ProfileHasPrivilegesRequest(
@@ -568,7 +568,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
                 )
             )
         ).actionGet();
-        assertThat(profileHasPrivilegesResponse.hasPrivilegeUids(), contains(equalTo(profile1.uid())));
+        assertThat(profileHasPrivilegesResponse.hasPrivilegeUids(), emptyIterable());
         assertThat(profileHasPrivilegesResponse.errorUids(), emptyIterable());
 
         // Enable again for search

@@ -132,6 +132,7 @@ public class ProfileService {
                     ? new MultiProfileSubjectResponse(
                         docsAndException.v1()
                             .stream()
+                            .filter(doc -> doc.enabled())
                             .collect(Collectors.toMap(profileDoc -> profileDoc.uid(), profileDoc -> profileDoc.user().toSubject())),
                         docsAndException.v2()
                     )

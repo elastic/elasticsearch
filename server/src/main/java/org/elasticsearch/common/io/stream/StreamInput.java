@@ -1150,6 +1150,27 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an list of objects. The list is expected to have been written using {@link StreamOutput#writeList(List)}.
+     * The returned list is immutable.
+     *
+     * @return the list of objects
+     * @throws IOException if an I/O exception occurs reading the list
+     */
+    public <T> List<T> readImmutableList(final Writeable.Reader<T> reader) throws IOException {
+        int count = readArraySize();
+        if (count == 0) {
+            return List.of();
+        }
+        Object[] entries = new Object[count];
+        for (int i = 0; i < count; i++) {
+            entries[i] = reader.read(this);
+        }
+        @SuppressWarnings("unchecked")
+        T[] typedEntries = (T[]) entries;
+        return List.of(typedEntries);
+    }
+
+    /**
      * Reads a list of strings. The list is expected to have been written using {@link StreamOutput#writeStringCollection(Collection)}.
      * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
      *

@@ -635,11 +635,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     public void testCanMatchFilteringOnCoordinatorThatCanBeSkippedTsdb() throws Exception {
         Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
-        DataStream dataStream = DataStreamTestHelper.newInstance(
-            "mydata",
-            new DataStream.TimestampField("@timestamp"),
-            List.of(dataStreamIndex1, dataStreamIndex2)
-        );
+        DataStream dataStream = DataStreamTestHelper.newInstance("mydata", List.of(dataStreamIndex1, dataStreamIndex2));
 
         List<Index> regularIndices = randomList(0, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
 

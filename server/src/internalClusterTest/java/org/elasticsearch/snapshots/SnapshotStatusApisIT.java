@@ -661,6 +661,16 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             create.get(10, TimeUnit.SECONDS);
         }
 
+        // run enough parallel status requests to max out the SNAPSHOT_META threadpool
+        final var metaThreadPoolSize = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class)
+            .info(ThreadPool.Names.SNAPSHOT_META)
+            .getMax();
+        for (int i = 0; i < metaThreadPoolSize * 2; i++) {
+            statuses.add(dataNodeClient.admin().cluster().prepareSnapshotStatus(repoName).setSnapshots(snapshotNames).execute());
+            gets.add(dataNodeClient.admin().cluster().prepareGetSnapshots(repoName).setSnapshots(snapshotNames).execute());
+        }
+
+        // ... and then some more status requests until all snapshots are done
         var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         assertBusy(() -> {
             final var stillRunning = masterClusterService.state()

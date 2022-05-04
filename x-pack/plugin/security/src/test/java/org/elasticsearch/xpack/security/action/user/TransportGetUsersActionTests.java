@@ -403,7 +403,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
     }
 
     private List<User> randomUsersWithInternalUsernames() {
-        return randomSubsetOf(
+        return randomNonEmptySubsetOf(
             List.of(
                 SystemUser.INSTANCE.principal(),
                 XPackUser.INSTANCE.principal(),

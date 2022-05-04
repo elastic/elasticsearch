@@ -55,8 +55,8 @@ class WindowsServiceCli extends MultiCommand {
             addArg(args, "--Jvm", getJvmDll(getJavaHome(pinfo.sysprops())).toString());
             addArg(args, "--StartMode", "jvm");
             addArg(args, "--StartPath", pinfo.workingDir().toString());
-            addArg(args, "++Environment", "CLI_TOOL=server");
-            addArg(args, "++Environment", "CLI_LIBS=lib/tools/server-cli");
+            addArg(args, "++JvmOptions", "-Dcli.name=server");
+            addArg(args, "++JvmOptions", "-Dcli.libs=lib/tools/server-cli");
 
             String serviceUsername = pinfo.envVars().get("SERVICE_USERNAME");
             if (serviceUsername != null) {

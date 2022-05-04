@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import static org.elasticsearch.bootstrap.BootstrapInfo.SERVER_READY_MARKER;
 import static org.elasticsearch.bootstrap.BootstrapInfo.USER_EXCEPTION_MARKER;
@@ -277,7 +278,6 @@ class ServerCli extends EnvironmentAwareCommand {
                         ready = true;
                         return;
                     } else {
-                        logger.error("Got error line: " + line);
                         writer.println(line);
                     }
                 }
@@ -292,6 +292,7 @@ class ServerCli extends EnvironmentAwareCommand {
     @Override
     public void close() {
         if (process != null) {
+            logger.info("Terminating subprocess");
             process.destroy();
 
             // TODO: we should wait adn then forcibly kill, but after how long? this is configurable in eg systemd,
@@ -300,6 +301,8 @@ class ServerCli extends EnvironmentAwareCommand {
             // exiting after it the process is terminated
             while (true) {
                 try {
+                    logger.info("Waiting for subprocess");
+                    // TODO: check the exit code!!
                     process.waitFor();
                     break;
                 } catch (InterruptedException ignore) {

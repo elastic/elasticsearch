@@ -2740,10 +2740,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         if (needsWrite) {
                             filesToSnapshot.add(snapshotFileInfo);
                         } else {
+                            assert assertFileContentsMatchHash(snapshotStatus, snapshotFileInfo, store);
                             filesInShardMetadataCount += 1;
                             filesInShardMetadataSize += md.length();
                         }
-                        assert needsWrite || assertFileContentsMatchHash(snapshotStatus, snapshotFileInfo, store);
                     } else {
                         indexCommitPointFiles.add(existingFileInfo);
                     }

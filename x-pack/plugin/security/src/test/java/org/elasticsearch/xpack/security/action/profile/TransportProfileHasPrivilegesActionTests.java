@@ -38,10 +38,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.action.profile.ProfileHasPrivilegesRequestTests.randomValidPrivilegesToCheckRequest;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
@@ -52,27 +52,24 @@ import static org.mockito.Mockito.mock;
 public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
 
     private ThreadPool threadPool;
+    private TransportService transportService;
+    private ActionFilters actionFilters;
+    private AuthorizationService authorizationService;
+    private NativePrivilegeStore nativePrivilegeStore;
+    private ProfileService profileService;
+    private SecurityContext securityContext;
+    private TransportProfileHasPrivilegesAction transportProfileHasPrivilegesAction;
 
     @Before
     public void setup() {
         threadPool = new TestThreadPool(TransportProfileHasPrivilegesActionTests.class.getSimpleName());
-    }
-
-    @After
-    public void cleanup() {
-        threadPool.shutdownNow();
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testMultipleConcurrentCheckPrivileges() throws ExecutionException, InterruptedException {
-        TransportService transportService = mock(TransportService.class);
-        ActionFilters actionFilters = mock(ActionFilters.class);
-        AuthorizationService authorizationService = mock(AuthorizationService.class);
-        NativePrivilegeStore nativePrivilegeStore = mock(NativePrivilegeStore.class);
-        ProfileService profileService = mock(ProfileService.class);
-        SecurityContext securityContext = mock(SecurityContext.class);
-
-        final TransportProfileHasPrivilegesAction transportProfileHasPrivilegesAction = new TransportProfileHasPrivilegesAction(
+        transportService = mock(TransportService.class);
+        actionFilters = mock(ActionFilters.class);
+        authorizationService = mock(AuthorizationService.class);
+        nativePrivilegeStore = mock(NativePrivilegeStore.class);
+        profileService = mock(ProfileService.class);
+        securityContext = mock(SecurityContext.class);
+        transportProfileHasPrivilegesAction = new TransportProfileHasPrivilegesAction(
             transportService,
             actionFilters,
             authorizationService,
@@ -81,6 +78,15 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
             securityContext,
             threadPool
         );
+    }
+
+    @After
+    public void cleanup() {
+        threadPool.shutdownNow();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMultipleConcurrentCheckPrivileges() throws Exception {
 
         final Set<String> allProfileUids = new HashSet<>(randomList(1, 100, () -> randomAlphaOfLengthBetween(4, 10)));
         final Set<String> errorProfileUids = new HashSet<>(randomSubsetOf(allProfileUids));
@@ -100,7 +106,7 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
             }
             final ActionListener<MultiProfileSubjectResponse> listener = (ActionListener<MultiProfileSubjectResponse>) invocation
                 .getArguments()[1];
-            listener.onResponse(new MultiProfileSubjectResponse(profileUidToSubject, List.of()));
+            listener.onResponse(new MultiProfileSubjectResponse(profileUidToSubject, Set.of()));
             return null;
         }).when(profileService).getProfileSubjects(anyCollection(), anyActionListener());
 
@@ -113,10 +119,10 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
 
         doAnswer(invocation -> {
             Subject subject = (Subject) invocation.getArguments()[0];
+            ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener = (ActionListener<
+                AuthorizationEngine.PrivilegesCheckResult>) invocation.getArguments()[3];
             // run this asynchronously to test concurrency
             threadPool.generic().submit(() -> {
-                ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener = (ActionListener<
-                    AuthorizationEngine.PrivilegesCheckResult>) invocation.getArguments()[3];
                 if (errorProfileUids.contains(subject.getUser().principal().substring("user_for_profile_".length()))) {
                     listener.onFailure(new ElasticsearchException("failed to verify privileges for " + subject));
                 } else if (noPrivilegesProfileUids.contains(subject.getUser().principal().substring("user_for_profile_".length()))) {
@@ -138,5 +144,44 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
         hasPrivilegeUids.removeAll(errorProfileUids);
         hasPrivilegeUids.removeAll(noPrivilegesProfileUids);
         assertThat(response.hasPrivilegeUids(), is(hasPrivilegeUids));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testNoProfileSubjectsFound() throws Exception {
+        final Set<String> allProfileUids = new HashSet<>(randomList(0, 10, () -> randomAlphaOfLengthBetween(4, 10)));
+        final Set<String> errorProfileUids = new HashSet<>(randomSubsetOf(allProfileUids));
+
+        final ProfileHasPrivilegesRequest request = new ProfileHasPrivilegesRequest(
+            new ArrayList<>(allProfileUids),
+            randomValidPrivilegesToCheckRequest()
+        );
+
+        doAnswer(invocation -> {
+            final ActionListener<MultiProfileSubjectResponse> listener = (ActionListener<MultiProfileSubjectResponse>) invocation
+                .getArguments()[1];
+            listener.onResponse(new MultiProfileSubjectResponse(Map.of(), errorProfileUids));
+            return null;
+        }).when(profileService).getProfileSubjects(anyCollection(), anyActionListener());
+
+        doAnswer(invocation -> {
+            final ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener = (ActionListener<
+                Collection<ApplicationPrivilegeDescriptor>>) invocation.getArguments()[2];
+            listener.onFailure(new ElasticsearchException("App privileges should not be resolved when there are no subjects found"));
+            return null;
+        }).when(nativePrivilegeStore).getPrivileges(any(), any(), any());
+
+        doAnswer(invocation -> {
+            ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener = (ActionListener<
+                AuthorizationEngine.PrivilegesCheckResult>) invocation.getArguments()[3];
+            listener.onFailure(new ElasticsearchException("Privileges should not be checked when there are no subjects found"));
+            return null;
+        }).when(authorizationService).checkPrivileges(any(), any(), any(), any());
+
+        final PlainActionFuture<ProfileHasPrivilegesResponse> listener = new PlainActionFuture<>();
+        transportProfileHasPrivilegesAction.doExecute(mock(Task.class), request, listener);
+
+        ProfileHasPrivilegesResponse response = listener.get();
+        assertThat(response.hasPrivilegeUids(), emptyIterable());
+        assertThat(response.errorUids(), is(errorProfileUids));
     }
 }

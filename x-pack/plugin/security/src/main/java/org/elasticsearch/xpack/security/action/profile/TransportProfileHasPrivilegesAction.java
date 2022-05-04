@@ -69,7 +69,7 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
     protected void doExecute(Task task, ProfileHasPrivilegesRequest request, ActionListener<ProfileHasPrivilegesResponse> listener) {
         profileService.getProfileSubjects(request.profileUids(), ActionListener.wrap(profileSubjectsAndFailures -> {
             if (profileSubjectsAndFailures.profileUidToSubject().isEmpty()) {
-                listener.onResponse(new ProfileHasPrivilegesResponse(Set.of(), Set.of()));
+                listener.onResponse(new ProfileHasPrivilegesResponse(Set.of(), profileSubjectsAndFailures.failureProfileUids()));
                 return;
             }
             final Set<String> hasPrivilegeProfiles = Collections.synchronizedSet(new HashSet<>());

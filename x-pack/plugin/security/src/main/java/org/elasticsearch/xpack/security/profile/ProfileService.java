@@ -71,6 +71,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -134,7 +135,7 @@ public class ProfileService {
                             .collect(Collectors.toMap(profileDoc -> profileDoc.uid(), profileDoc -> profileDoc.user().toSubject())),
                         docsAndException.v2()
                     )
-                    : new MultiProfileSubjectResponse(Map.of(), List.of())
+                    : new MultiProfileSubjectResponse(Map.of(), Set.of())
             )
         );
     }
@@ -331,9 +332,9 @@ public class ProfileService {
         });
     }
 
-    private void getVersionedDocuments(Collection<String> uids, ActionListener<Tuple<List<ProfileDocument>, List<String>>> listener) {
+    private void getVersionedDocuments(Collection<String> uids, ActionListener<Tuple<List<ProfileDocument>, Set<String>>> listener) {
         if (uids.isEmpty()) {
-            listener.onResponse(new Tuple<>(List.of(), List.of()));
+            listener.onResponse(new Tuple<>(List.of(), Set.of()));
             return;
         }
         tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
@@ -343,7 +344,7 @@ public class ProfileService {
                     .addIds(frozenProfileIndex.aliasName(), uids.stream().map(ProfileService::uidToDocId).toArray(String[]::new))
                     .execute(ActionListener.wrap(multiGetResponse -> {
                         List<ProfileDocument> retrievedDocs = new ArrayList<>(multiGetResponse.getResponses().length);
-                        List<String> failures = new ArrayList<>(0);
+                        Set<String> failures = new HashSet<>(0);
                         Exception loggedException = null;
                         for (MultiGetItemResponse itemResponse : multiGetResponse.getResponses()) {
                             if (itemResponse.isFailed() && itemResponse.getFailure() != null) {
@@ -757,5 +758,5 @@ public class ProfileService {
         }
     }
 
-    public record MultiProfileSubjectResponse(Map<String, Subject> profileUidToSubject, List<String> failureProfileUids) {}
+    public record MultiProfileSubjectResponse(Map<String, Subject> profileUidToSubject, Set<String> failureProfileUids) {}
 }

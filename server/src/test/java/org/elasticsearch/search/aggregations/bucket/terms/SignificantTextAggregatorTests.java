@@ -338,6 +338,6 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected FieldMapper buildMockFieldMapper(MappedFieldType ft) {
-        return new MockFieldMapper(ft, Map.of(ft.name(), ft.getTextSearchInfo().getSearchAnalyzer()));
+        return new MockFieldMapper(ft, Map.of(ft.name(), ft.getTextSearchInfo().searchAnalyzer()));
     }
 }

@@ -14,7 +14,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
@@ -69,7 +68,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final AtomicLong requestSeqNoGenerator = new AtomicLong(0);
 
     private final Consumer<Long> onSourceThrottle;
-    private final boolean retriesSupported;
     private volatile boolean isCancelled = false;
 
     public RemoteRecoveryTargetHandler(
@@ -96,7 +94,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             TransportRequestOptions.Type.RECOVERY
         );
         this.standardTimeoutRequestOptions = TransportRequestOptions.timeout(recoverySettings.internalActionTimeout());
-        this.retriesSupported = targetNode.getVersion().onOrAfter(Version.V_7_9_0);
     }
 
     public DiscoveryNode targetNode() {
@@ -363,7 +360,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
             @Override
             public boolean shouldRetry(Exception e) {
-                return retriesSupported && retryableException(e);
+                return retryableException(e);
             }
         };
         onGoingRetryableActions.put(key, retryableAction);

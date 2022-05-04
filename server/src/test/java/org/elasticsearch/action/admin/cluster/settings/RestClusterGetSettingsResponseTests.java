@@ -15,11 +15,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-public class ClusterGetSettingsResponseTests extends AbstractXContentTestCase<ClusterGetSettingsResponse> {
+public class RestClusterGetSettingsResponseTests extends AbstractXContentTestCase<RestClusterGetSettingsResponse> {
 
     @Override
-    protected ClusterGetSettingsResponse doParseInstance(XContentParser parser) throws IOException {
-        return ClusterGetSettingsResponse.fromXContent(parser);
+    protected RestClusterGetSettingsResponse doParseInstance(XContentParser parser) throws IOException {
+        return RestClusterGetSettingsResponse.fromXContent(parser);
     }
 
     @Override
@@ -28,17 +28,17 @@ public class ClusterGetSettingsResponseTests extends AbstractXContentTestCase<Cl
     }
 
     @Override
-    protected ClusterGetSettingsResponse createTestInstance() {
+    protected RestClusterGetSettingsResponse createTestInstance() {
         Settings persistentSettings = ClusterUpdateSettingsResponseTests.randomClusterSettings(0, 2);
         Settings transientSettings = ClusterUpdateSettingsResponseTests.randomClusterSettings(0, 2);
         Settings defaultSettings = randomBoolean() ? ClusterUpdateSettingsResponseTests.randomClusterSettings(0, 2) : Settings.EMPTY;
-        return new ClusterGetSettingsResponse(persistentSettings, transientSettings, defaultSettings);
+        return new RestClusterGetSettingsResponse(persistentSettings, transientSettings, defaultSettings);
     }
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return p -> p.startsWith(ClusterGetSettingsResponse.TRANSIENT_FIELD)
-            || p.startsWith(ClusterGetSettingsResponse.PERSISTENT_FIELD)
-            || p.startsWith(ClusterGetSettingsResponse.DEFAULTS_FIELD);
+        return p -> p.startsWith(RestClusterGetSettingsResponse.TRANSIENT_FIELD)
+            || p.startsWith(RestClusterGetSettingsResponse.PERSISTENT_FIELD)
+            || p.startsWith(RestClusterGetSettingsResponse.DEFAULTS_FIELD);
     }
 }

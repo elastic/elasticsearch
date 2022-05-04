@@ -9,7 +9,9 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.gateway.GatewayService;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -35,19 +37,39 @@ public class HealthService {
     // Visible for testing
     static final String UNKNOWN_RESULT_SUMMARY = "Could not determine indicator state";
 
+    /**
+     * Detail map key that contains the reasons a result was marked as UNKNOWN
+     */
+    private static final String REASON = "reasons";
+
+    private static final String CLUSTER_STATE_RECOVERED = "cluster_state_recovered";
+    private static final SimpleHealthIndicatorDetails DETAILS_UNKNOWN_STATE_NOT_RECOVERED = new SimpleHealthIndicatorDetails(
+        Map.of(REASON, Map.of(CLUSTER_STATE_RECOVERED, false))
+    );
+
     private final List<HealthIndicatorService> preflightHealthIndicatorServices;
     private final List<HealthIndicatorService> healthIndicatorServices;
+    private final ClusterService clusterService;
 
     /**
-     * @param preflightHealthIndicatorServices indicators that are run first and block health calculation until GREEN.
-     * @param healthIndicatorServices indicators that are run if the cluster-stable indicators return GREEN results.
+     * Creates a new HealthService.
+     *
+     * Accepts a list of regular indicator services and a list of preflight indicator services. Preflight indicators are run first and
+     * represent serious cascading health problems. If any of these preflight indicators are not GREEN status, all remaining indicators are
+     * likely to be degraded in some way or will not be able to calculate their state correctly. The remaining health indicators will return
+     * UNKNOWN statuses in this case.
+     *
+     * @param preflightHealthIndicatorServices indicators that are run first and represent a serious cascading health problem.
+     * @param healthIndicatorServices indicators that are run if the preflight indicators return GREEN results.
      */
     public HealthService(
         List<HealthIndicatorService> preflightHealthIndicatorServices,
-        List<HealthIndicatorService> healthIndicatorServices
+        List<HealthIndicatorService> healthIndicatorServices,
+        ClusterService clusterService
     ) {
         this.preflightHealthIndicatorServices = preflightHealthIndicatorServices;
         this.healthIndicatorServices = healthIndicatorServices;
+        this.clusterService = clusterService;
     }
 
     /**
@@ -65,10 +87,20 @@ public class HealthService {
         final boolean shouldDrillDownToIndicatorLevel = indicatorName != null;
         final boolean showRolledUpComponentStatus = shouldDrillDownToIndicatorLevel == false;
 
-        // Determine if cluster is stable enough to calculate health before running other indicators
-        List<HealthIndicatorResult> preflightResults = preflightHealthIndicatorServices.stream()
-            .map(service -> service.calculate(computeDetails))
-            .toList();
+        // Is the cluster state recovered? If not, ALL indicators should return UNKNOWN
+        boolean clusterStateRecovered = clusterService.state()
+            .getBlocks()
+            .hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false;
+
+        List<HealthIndicatorResult> preflightResults;
+        if (clusterStateRecovered) {
+            // Determine if cluster is stable enough to calculate health before running other indicators
+            preflightResults = preflightHealthIndicatorServices.stream().map(service -> service.calculate(computeDetails)).toList();
+        } else {
+            // Mark preflight indicators as UNKNOWN
+            HealthIndicatorDetails details = computeDetails ? DETAILS_UNKNOWN_STATE_NOT_RECOVERED : HealthIndicatorDetails.EMPTY;
+            preflightResults = preflightHealthIndicatorServices.stream().map(service -> generateUnknownResult(service, details)).toList();
+        }
 
         // If any of these are not GREEN, then we cannot obtain health from other indicators
         boolean clusterHealthIsObtainable = preflightResults.isEmpty()
@@ -80,21 +112,13 @@ public class HealthService {
             .filter(service -> indicatorName == null || service.name().equals(indicatorName));
 
         Stream<HealthIndicatorResult> filteredIndicatorResults;
-        if (clusterHealthIsObtainable) {
+        if (clusterStateRecovered && clusterHealthIsObtainable) {
             // Calculate remaining indicators
-            filteredIndicatorResults = filteredIndicators.map(indicatorService -> indicatorService.calculate(computeDetails));
+            filteredIndicatorResults = filteredIndicators.map(service -> service.calculate(computeDetails));
         } else {
             // Mark remaining indicators as UNKNOWN
-            HealthIndicatorDetails unknownDetails = determineHealthUnknownReason(preflightResults, computeDetails);
-            filteredIndicatorResults = filteredIndicators.map(
-                indicatorService -> indicatorService.createIndicator(
-                    HealthStatus.UNKNOWN,
-                    UNKNOWN_RESULT_SUMMARY,
-                    unknownDetails,
-                    Collections.emptyList(),
-                    Collections.emptyList()
-                )
-            );
+            HealthIndicatorDetails unknownDetails = healthUnknownReason(preflightResults, clusterStateRecovered, computeDetails);
+            filteredIndicatorResults = filteredIndicators.map(service -> generateUnknownResult(service, unknownDetails));
         }
 
         // Filter the cluster indicator results by component name and indicator name if present
@@ -135,20 +159,45 @@ public class HealthService {
      * @param computeDetails If details should be calculated on which indicators are causing the UNKNOWN state.
      * @return Details explaining why results are UNKNOWN, or an empty detail set if computeDetails is false.
      */
-    private HealthIndicatorDetails determineHealthUnknownReason(List<HealthIndicatorResult> preflightResults, boolean computeDetails) {
-        assert preflightResults.isEmpty() == false : "Requires at least one non-GREEN preflight result";
+    private HealthIndicatorDetails healthUnknownReason(
+        List<HealthIndicatorResult> preflightResults,
+        boolean clusterStateRecovered,
+        boolean computeDetails
+    ) {
+        assert clusterStateRecovered == false || preflightResults.isEmpty() == false
+            : "Requires at least one non-GREEN preflight result or cluster state not recovered";
         HealthIndicatorDetails unknownDetails;
         if (computeDetails) {
-            // Determine why the cluster is not stable enough for running remaining indicators
-            Map<String, String> clusterUnstableReasons = preflightResults.stream()
-                .filter(result -> HealthStatus.GREEN.equals(result.status()) == false)
-                .collect(toMap(HealthIndicatorResult::name, result -> result.status().xContentValue()));
-            assert clusterUnstableReasons.isEmpty() == false : "Requires at least one non-GREEN preflight result";
-            unknownDetails = new SimpleHealthIndicatorDetails(Map.of("reasons", clusterUnstableReasons));
+            if (clusterStateRecovered) {
+                // Determine why the cluster is not stable enough for running remaining indicators
+                Map<String, String> clusterUnstableReasons = preflightResults.stream()
+                    .filter(result -> HealthStatus.GREEN.equals(result.status()) == false)
+                    .collect(toMap(HealthIndicatorResult::name, result -> result.status().xContentValue()));
+                assert clusterUnstableReasons.isEmpty() == false : "Requires at least one non-GREEN preflight result";
+                unknownDetails = new SimpleHealthIndicatorDetails(Map.of(REASON, clusterUnstableReasons));
+            } else {
+                unknownDetails = DETAILS_UNKNOWN_STATE_NOT_RECOVERED;
+            }
         } else {
             unknownDetails = HealthIndicatorDetails.EMPTY;
         }
         return unknownDetails;
+    }
+
+    /**
+     * Generates an UNKNOWN result for an indicator
+     * @param indicatorService the indicator to generate a result for
+     * @param details the details to include on the result
+     * @return A result with the UNKNOWN status
+     */
+    private HealthIndicatorResult generateUnknownResult(HealthIndicatorService indicatorService, HealthIndicatorDetails details) {
+        return indicatorService.createIndicator(
+            HealthStatus.UNKNOWN,
+            UNKNOWN_RESULT_SUMMARY,
+            details,
+            Collections.emptyList(),
+            Collections.emptyList()
+        );
     }
 
     // Non-private for testing purposes

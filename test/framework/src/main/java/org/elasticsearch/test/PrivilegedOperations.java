@@ -8,6 +8,8 @@
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import javax.tools.JavaCompiler;
 import java.io.FilePermission;
 import java.io.IOException;
@@ -52,8 +54,13 @@ public final class PrivilegedOperations {
             new RuntimePermission("createClassLoader"),
             new RuntimePermission("closeClassLoader"),
             new RuntimePermission("accessSystemModules"),
-            new FilePermission("<<ALL FILES>>", "read")
+            newAllFilesReadPermission();
         );
+    }
+
+    @SuppressForbidden(reason = "need to create file permission")
+    private static FilePermission newAllFilesReadPermission() {
+        return new FilePermission("<<ALL FILES>>", "read");
     }
 
     // -- security manager related stuff, to facilitate asserting permissions for test operations.

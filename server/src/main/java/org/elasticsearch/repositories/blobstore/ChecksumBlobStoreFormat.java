@@ -349,7 +349,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
             OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
                 "ChecksumBlobStoreFormat.serialize(blob=\"" + blobName + "\")",
                 blobName,
-                org.elasticsearch.common.io.Streams.noCloseStream(outputStream),
+                org.elasticsearch.core.Streams.noCloseStream(outputStream),
                 BUFFER_SIZE
             )
         ) {

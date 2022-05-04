@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -22,10 +23,12 @@ import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -131,6 +134,7 @@ public class AuthenticationTestHelper {
             OpenIdConnectRealmSettings.TYPE,
             SamlRealmSettings.TYPE,
             KerberosRealmSettings.TYPE,
+            PkiRealmSettings.TYPE,
             ESTestCase.randomAlphaOfLengthBetween(3, 8)
         );
         if (includeInternal) {
@@ -149,6 +153,14 @@ public class AuthenticationTestHelper {
         );
     }
 
+    private static User stripRoles(User user) {
+        if (user.roles() != null || user.roles().length == 0) {
+            return new User(user.principal(), Strings.EMPTY_ARRAY, user.fullName(), user.email(), user.metadata(), user.enabled());
+        } else {
+            return user;
+        }
+    }
+
     public static class AuthenticationTestBuilder {
         private Version version;
         private Authentication authenticatingAuthentication;
@@ -162,7 +174,7 @@ public class AuthenticationTestHelper {
         private AuthenticationTestBuilder() {}
 
         private AuthenticationTestBuilder(Authentication authentication) {
-            assert false == authentication.getUser().isRunAs() : "authenticating authentication cannot itself be run-as";
+            assert false == authentication.isRunAs() : "authenticating authentication cannot itself be run-as";
             this.authenticatingAuthentication = authentication;
             this.version = authentication.getVersion();
         }
@@ -227,7 +239,13 @@ public class AuthenticationTestHelper {
 
         public AuthenticationTestBuilder internal() {
             return internal(
-                ESTestCase.randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE)
+                ESTestCase.randomFrom(
+                    SystemUser.INSTANCE,
+                    XPackUser.INSTANCE,
+                    XPackSecurityUser.INSTANCE,
+                    SecurityProfileUser.INSTANCE,
+                    AsyncSearchUser.INSTANCE
+                )
             );
         }
 
@@ -331,6 +349,8 @@ public class AuthenticationTestHelper {
                         if (user == null) {
                             user = randomUser();
                         }
+                        // User associated to API key authentication has empty roles
+                        user = stripRoles(user);
                         prepareApiKeyMetadata();
                         authentication = Authentication.newApiKeyAuthentication(
                             AuthenticationResult.success(user, metadata),
@@ -338,7 +358,7 @@ public class AuthenticationTestHelper {
                         );
                     }
                     case TOKEN -> {
-                        if (isServiceAccount) {
+                        if (isServiceAccount != null && isServiceAccount) {
                             // service account
                             assert user != null && user.principal().contains("/") : "invalid service account principal";
                             assert realmRef == null : "cannot specify realm type for service account authentication";
@@ -352,6 +372,7 @@ public class AuthenticationTestHelper {
                             final int tokenVariant = ESTestCase.randomIntBetween(0, 9);
                             if (tokenVariant == 0 && user == null && realmRef == null) {
                                 // service account
+                                prepareServiceAccountMetadata();
                                 authentication = Authentication.newServiceAccountAuthentication(
                                     new User(
                                         ESTestCase.randomAlphaOfLengthBetween(3, 8) + "/" + ESTestCase.randomAlphaOfLengthBetween(3, 8)
@@ -364,6 +385,8 @@ public class AuthenticationTestHelper {
                                 if (user == null) {
                                     user = randomUser();
                                 }
+                                // User associated to API key authentication has empty roles
+                                user = stripRoles(user);
                                 prepareApiKeyMetadata();
                                 authentication = Authentication.newApiKeyAuthentication(
                                     AuthenticationResult.success(user, metadata),
@@ -404,6 +427,7 @@ public class AuthenticationTestHelper {
                                 SystemUser.INSTANCE,
                                 XPackUser.INSTANCE,
                                 XPackSecurityUser.INSTANCE,
+                                SecurityProfileUser.INSTANCE,
                                 AsyncSearchUser.INSTANCE
                             );
                         }

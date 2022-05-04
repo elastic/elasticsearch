@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.security.rest.action.profile;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
@@ -20,8 +22,10 @@ import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -29,6 +33,7 @@ import static org.mockito.Mockito.mock;
 public class RestSuggestProfilesActionTests extends RestActionTestCase {
     private Settings settings;
     private XPackLicenseState licenseState;
+    private RestSuggestProfilesAction restSuggestProfilesAction;
     private AtomicReference<SuggestProfilesRequest> requestHolder;
 
     @Before
@@ -36,7 +41,8 @@ public class RestSuggestProfilesActionTests extends RestActionTestCase {
         settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
         licenseState = mock(XPackLicenseState.class);
         requestHolder = new AtomicReference<>();
-        controller().registerHandler(new RestSuggestProfilesAction(settings, licenseState));
+        restSuggestProfilesAction = new RestSuggestProfilesAction(settings, licenseState);
+        controller().registerHandler(restSuggestProfilesAction);
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
             assertThat(actionRequest, instanceOf(SuggestProfilesRequest.class));
             requestHolder.set((SuggestProfilesRequest) actionRequest);
@@ -57,5 +63,42 @@ public class RestSuggestProfilesActionTests extends RestActionTestCase {
 
         final SuggestProfilesRequest suggestProfilesRequest = requestHolder.get();
         assertThat(suggestProfilesRequest.getName(), equalTo(expectedName));
+    }
+
+    public void testParsingDataParameter() {
+        final FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
+            randomFrom(RestRequest.Method.GET, RestRequest.Method.POST)
+        ).withPath("/_security/profile/_suggest");
+
+        if (randomBoolean()) {
+            builder.withParams(new HashMap<>(Map.of("data", "app1,app2,other*,app5")));
+        } else {
+            builder.withContent(new BytesArray("{\"data\": \"app1,app2,other*,app5\"}"), XContentType.JSON);
+        }
+        final FakeRestRequest restRequest = builder.build();
+
+        dispatchRequest(restRequest);
+
+        final SuggestProfilesRequest suggestProfilesRequest = requestHolder.get();
+        assertThat(suggestProfilesRequest.getDataKeys(), equalTo(Set.of("app1", "app2", "other*", "app5")));
+    }
+
+    public void testWillNotAllowDataInBothQueryParameterAndRequestBody() {
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
+            randomFrom(RestRequest.Method.GET, RestRequest.Method.POST)
+        )
+            .withPath("/_security/profile/_suggest")
+            .withParams(new HashMap<>(Map.of("data", randomAlphaOfLengthBetween(3, 8))))
+            .withContent(new BytesArray("{\"data\": \"%s\"}".formatted(randomAlphaOfLengthBetween(3, 8))), XContentType.JSON)
+            .build();
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> restSuggestProfilesAction.innerPrepareRequest(restRequest, verifyingClient)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("The [data] parameter must be specified in either request body or as query parameter, but not both")
+        );
     }
 }

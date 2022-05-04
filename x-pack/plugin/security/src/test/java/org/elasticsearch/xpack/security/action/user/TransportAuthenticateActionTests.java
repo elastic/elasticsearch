@@ -33,6 +33,7 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -142,12 +143,15 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         assertThat(responseRef.get(), notNullValue());
         if (anonymousUser.enabled() && false == authentication.isApiKey()) {
             final Authentication auth = responseRef.get().authentication();
-            final User authUser = auth.getUser();
+            final User userInResponse = auth.getUser();
             assertThat(
-                authUser.roles(),
+                userInResponse.roles(),
                 arrayContainingInAnyOrder(ArrayUtils.concat(authentication.getUser().roles(), anonymousUser.roles()))
             );
-            assertThat(authUser.authenticatedUser(), sameInstance(effectiveUser.authenticatedUser()));
+            assertThat(auth.isRunAs(), is(authentication.isRunAs()));
+            if (auth.isRunAs()) {
+                assertThat(auth.getAuthenticatingSubject().getUser(), sameInstance(authentication.getAuthenticatingSubject().getUser()));
+            }
             assertThat(auth.getAuthenticatedBy(), sameInstance(auth.getAuthenticatedBy()));
             assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));
             assertThat(auth.getVersion(), sameInstance(auth.getVersion()));
@@ -192,7 +196,6 @@ public class TransportAuthenticateActionTests extends ESTestCase {
             final Authentication auth = responseRef.get().authentication();
             final User authUser = auth.getUser();
             assertThat(authUser.roles(), emptyArray());
-            assertThat(authUser.authenticatedUser(), sameInstance(user.authenticatedUser()));
             assertThat(auth.getAuthenticatedBy(), sameInstance(auth.getAuthenticatedBy()));
             assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));
             assertThat(auth.getVersion(), sameInstance(auth.getVersion()));

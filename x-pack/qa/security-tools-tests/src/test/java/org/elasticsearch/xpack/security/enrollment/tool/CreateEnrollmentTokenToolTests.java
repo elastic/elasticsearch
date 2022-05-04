@@ -15,6 +15,7 @@ import com.google.common.jimfs.Jimfs;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
@@ -74,7 +75,7 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
             environment -> externalEnrollmentTokenGenerator
         ) {
             @Override
-            protected Environment createEnv(OptionSet options) {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) {
                 return new Environment(CreateEnrollmentTokenToolTests.this.settings, confDir);
             }
         };

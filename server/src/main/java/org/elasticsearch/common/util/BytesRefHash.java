@@ -84,6 +84,8 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
             bytesRefs.get(i, spare);
             reset(rehash(spare.hashCode()), i);
         }
+
+        size = bytesRefs.size();
     }
 
     private BytesRefHash(BytesRefArray byteRefs, long capacity, float maxLoadFactor, BigArrays bigArrays) {

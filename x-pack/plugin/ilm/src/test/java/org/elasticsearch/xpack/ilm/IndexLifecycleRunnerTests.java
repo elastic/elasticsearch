@@ -1260,7 +1260,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private final List<ILMHistoryItem> items = new CopyOnWriteArrayList<>();
 
         NoOpHistoryStore(Client noopClient) {
-            super(Settings.EMPTY, noopClient, null, null);
+            super(noopClient, null, null);
         }
 
         public List<ILMHistoryItem> getItems() {

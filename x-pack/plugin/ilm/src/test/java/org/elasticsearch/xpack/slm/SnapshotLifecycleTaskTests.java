@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -329,7 +328,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         private final Consumer<SnapshotHistoryItem> verifier;
 
         public VerifyingHistoryStore(Client client, Consumer<SnapshotHistoryItem> verifier) {
-            super(Settings.EMPTY, client, null);
+            super(client, null);
             this.verifier = verifier;
         }
 

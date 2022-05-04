@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.idp.saml.test;
 
-import io.netty.util.ThreadDeathWatcher;
-import io.netty.util.concurrent.GlobalEventExecutor;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.RequestOptions;
@@ -30,8 +27,6 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.idp.LocalStateIdentityProviderPlugin;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,7 +42,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
@@ -101,35 +95,6 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
     public static void setup() {
         PARENT_DIR = createTempDir();
     }
-
-    /**
-     * A JUnit class level rule that runs after the AfterClass method in {@link ESIntegTestCase},
-     * which stops the cluster. After the cluster is stopped, there are a few netty threads that
-     * can linger, so we wait for them to finish otherwise these lingering threads can intermittently
-     * trigger the thread leak detector
-     */
-    @ClassRule
-    public static final ExternalResource STOP_NETTY_RESOURCE = new ExternalResource() {
-        @Override
-        protected void after() {
-            try {
-                GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (IllegalStateException e) {
-                if (e.getMessage().equals("thread was not started") == false) {
-                    throw e;
-                }
-                // ignore since the thread was never started
-            }
-
-            try {
-                ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-    };
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

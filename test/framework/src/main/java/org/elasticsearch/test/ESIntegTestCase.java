@@ -8,6 +8,9 @@
 
 package org.elasticsearch.test;
 
+import io.netty.util.ThreadDeathWatcher;
+import io.netty.util.concurrent.GlobalEventExecutor;
+
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
@@ -2248,6 +2251,30 @@ public abstract class ESIntegTestCase extends ESTestCase {
             SUITE_SEED = null;
             currentCluster = null;
             INSTANCE = null;
+        }
+        awaitGlobalNettyThreadsFinish();
+    }
+
+    /**
+     *  After the cluster is stopped, there are a few netty threads that can linger, so we wait for them to finish otherwise these
+     *  lingering threads can intermittently trigger the thread leak detector.
+     */
+    static void awaitGlobalNettyThreadsFinish() {
+        try {
+            GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (IllegalStateException e) {
+            if (e.getMessage().equals("thread was not started") == false) {
+                throw e;
+            }
+            // ignore since the thread was never started
+        }
+
+        try {
+            ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

@@ -1,5 +1,5 @@
 pr: 85941
-summary: Feature/health api master check
+summary: New service to keep track of the master history as seen from each node
 area: Health
 type: feature
 issues: []

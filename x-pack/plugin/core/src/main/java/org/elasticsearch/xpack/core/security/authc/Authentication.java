@@ -968,7 +968,7 @@ public class Authentication implements ToXContentObject {
                 } else if (AsyncSearchUser.is(username)) {
                     return AsyncSearchUser.INSTANCE;
                 }
-                throw new IllegalStateException("user name [" + username + "] does not match internal user");
+                throw new IllegalStateException("username [" + username + "] does not match any internal user");
             }
             return partialReadUserFrom(username, input);
         }

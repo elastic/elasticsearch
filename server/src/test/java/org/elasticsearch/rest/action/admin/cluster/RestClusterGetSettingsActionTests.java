@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -54,9 +55,11 @@ public class RestClusterGetSettingsActionTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
         final ClusterState clusterState = builder.build();
         final RestClusterGetSettingsResponse response = RestClusterGetSettingsAction.response(
-            clusterState.metadata().persistentSettings(),
-            clusterState.metadata().transientSettings(),
-            clusterState.metadata().settings(),
+            new ClusterGetSettingsAction.Response(
+                clusterState.metadata().persistentSettings(),
+                clusterState.metadata().transientSettings(),
+                clusterState.metadata().settings()
+            ),
             randomBoolean(),
             filter,
             clusterSettings,

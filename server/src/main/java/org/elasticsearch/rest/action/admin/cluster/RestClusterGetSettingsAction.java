@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsRes
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -76,15 +75,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
             ClusterGetSettingsAction.INSTANCE,
             clusterSettingsRequest,
             new RestToXContentListener<RestClusterGetSettingsResponse>(channel).map(
-                response -> response(
-                    response.persistentSettings(),
-                    response.transientSettings(),
-                    response.settings(),
-                    renderDefaults,
-                    settingsFilter,
-                    clusterSettings,
-                    settings
-                )
+                r -> response(r, renderDefaults, settingsFilter, clusterSettings, settings)
             )
         );
     }
@@ -95,18 +86,22 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         return channel -> client.admin()
             .cluster()
-            .state(clusterStateRequest, new RestToXContentListener<RestClusterGetSettingsResponse>(channel).map(response -> {
-                ClusterState state = response.getState();
-                return response(
-                    state.metadata().persistentSettings(),
-                    state.metadata().transientSettings(),
-                    state.metadata().settings(),
-                    renderDefaults,
-                    settingsFilter,
-                    clusterSettings,
-                    settings
-                );
-            }));
+            .state(
+                clusterStateRequest,
+                new RestToXContentListener<RestClusterGetSettingsResponse>(channel).map(
+                    r -> response(
+                        new ClusterGetSettingsAction.Response(
+                            r.getState().metadata().persistentSettings(),
+                            r.getState().metadata().transientSettings(),
+                            r.getState().metadata().settings()
+                        ),
+                        renderDefaults,
+                        settingsFilter,
+                        clusterSettings,
+                        settings
+                    )
+                )
+            );
     }
 
     @Override
@@ -120,18 +115,16 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     }
 
     static RestClusterGetSettingsResponse response(
-        final Settings persistentSettings,
-        final Settings transientSettings,
-        final Settings allSettings,
+        final ClusterGetSettingsAction.Response response,
         final boolean renderDefaults,
         final SettingsFilter settingsFilter,
         final ClusterSettings clusterSettings,
         final Settings settings
     ) {
         return new RestClusterGetSettingsResponse(
-            settingsFilter.filter(persistentSettings),
-            settingsFilter.filter(transientSettings),
-            renderDefaults ? settingsFilter.filter(clusterSettings.diff(allSettings, settings)) : Settings.EMPTY
+            settingsFilter.filter(response.persistentSettings()),
+            settingsFilter.filter(response.transientSettings()),
+            renderDefaults ? settingsFilter.filter(clusterSettings.diff(response.settings(), settings)) : Settings.EMPTY
         );
     }
 

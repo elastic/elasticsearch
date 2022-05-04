@@ -55,7 +55,9 @@ public class TransportClusterGetSettingsAction extends TransportMasterNodeReadAc
         ActionListener<ClusterGetSettingsAction.Response> listener
     ) throws Exception {
         Metadata metadata = state.metadata();
-        listener.onResponse(new ClusterGetSettingsAction.Response(metadata.persistentSettings(), metadata.transientSettings()));
+        listener.onResponse(
+            new ClusterGetSettingsAction.Response(metadata.persistentSettings(), metadata.transientSettings(), metadata.settings())
+        );
     }
 
     @Override

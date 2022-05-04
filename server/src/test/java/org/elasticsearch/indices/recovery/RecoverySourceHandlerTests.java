@@ -1081,7 +1081,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         long localCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
         long maxSeqNo = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
         assertTrue(
-            handler.canSkipPhase1(
+            handler.hasSameLegacySyncId(
                 newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
                 newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs)
             )
@@ -1096,7 +1096,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 maxSeqNo,
                 () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE)
             );
-            handler.canSkipPhase1(
+            handler.hasSameLegacySyncId(
                 newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
                 newMetadataSnapshot(syncId, Long.toString(localCheckpointOnTarget), Long.toString(maxSeqNoOnTarget), numDocs)
             );

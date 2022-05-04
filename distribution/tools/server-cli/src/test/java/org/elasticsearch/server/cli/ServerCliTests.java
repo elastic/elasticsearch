@@ -49,7 +49,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
@@ -213,8 +212,11 @@ public class ServerCliTests extends CommandTestCase {
             t.errorPrintln("error message");
             t.errorPrintln(Verbosity.VERBOSE, "verbose error");
         };
-        assertOkWithOutput(containsString("message from auto config"),
-            allOf(containsString("error message"), containsString("verbose error")), "-v");
+        assertOkWithOutput(
+            containsString("message from auto config"),
+            allOf(containsString("error message"), containsString("verbose error")),
+            "-v"
+        );
     }
 
     public void assertAutoConfigError(int autoConfigExitCode, int expectedMainExitCode, String... args) throws Exception {

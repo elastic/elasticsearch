@@ -85,7 +85,6 @@ public class WindowsServiceTests extends PackagingTestCase {
                 throw new UncheckedIOException(e);
             }
 
-
             /*Result logs = sh.run(
                 "$files = Get-ChildItem \""
                     + installation.logs

@@ -35,7 +35,10 @@ import static java.util.stream.Collectors.toMap;
 public class HealthService {
 
     // Visible for testing
-    static final String UNKNOWN_RESULT_SUMMARY = "Could not determine indicator state";
+    static final String UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED = "Could not determine indicator state. Cluster state is not stable. Check "
+        + "details for critical issues keeping this indicator from running.";
+    static final String UNKNOWN_RESULT_SUMMARY_NOT_RECOVERED = "Could not determine indicator state. Cluster state is not recovered. Try "
+        + "again once cluster has been joined and state has been recovered.";
 
     /**
      * Detail map key that contains the reasons a result was marked as UNKNOWN
@@ -99,7 +102,9 @@ public class HealthService {
         } else {
             // Mark preflight indicators as UNKNOWN
             HealthIndicatorDetails details = computeDetails ? DETAILS_UNKNOWN_STATE_NOT_RECOVERED : HealthIndicatorDetails.EMPTY;
-            preflightResults = preflightHealthIndicatorServices.stream().map(service -> generateUnknownResult(service, details)).toList();
+            preflightResults = preflightHealthIndicatorServices.stream()
+                .map(service -> generateUnknownResult(service, UNKNOWN_RESULT_SUMMARY_NOT_RECOVERED, details))
+                .toList();
         }
 
         // If any of these are not GREEN, then we cannot obtain health from other indicators
@@ -117,8 +122,9 @@ public class HealthService {
             filteredIndicatorResults = filteredIndicators.map(service -> service.calculate(computeDetails));
         } else {
             // Mark remaining indicators as UNKNOWN
+            String unknownSummary = clusterStateRecovered ? UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED : UNKNOWN_RESULT_SUMMARY_NOT_RECOVERED;
             HealthIndicatorDetails unknownDetails = healthUnknownReason(preflightResults, clusterStateRecovered, computeDetails);
-            filteredIndicatorResults = filteredIndicators.map(service -> generateUnknownResult(service, unknownDetails));
+            filteredIndicatorResults = filteredIndicators.map(service -> generateUnknownResult(service, unknownSummary, unknownDetails));
         }
 
         // Filter the cluster indicator results by component name and indicator name if present
@@ -187,17 +193,16 @@ public class HealthService {
     /**
      * Generates an UNKNOWN result for an indicator
      * @param indicatorService the indicator to generate a result for
+     * @param summary the summary to include for the UNKNOWN result
      * @param details the details to include on the result
      * @return A result with the UNKNOWN status
      */
-    private HealthIndicatorResult generateUnknownResult(HealthIndicatorService indicatorService, HealthIndicatorDetails details) {
-        return indicatorService.createIndicator(
-            HealthStatus.UNKNOWN,
-            UNKNOWN_RESULT_SUMMARY,
-            details,
-            Collections.emptyList(),
-            Collections.emptyList()
-        );
+    private HealthIndicatorResult generateUnknownResult(
+        HealthIndicatorService indicatorService,
+        String summary,
+        HealthIndicatorDetails details
+    ) {
+        return indicatorService.createIndicator(HealthStatus.UNKNOWN, summary, details, Collections.emptyList(), Collections.emptyList());
     }
 
     // Non-private for testing purposes

@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -193,7 +194,10 @@ public class HealthServiceTests extends ESTestCase {
 
     private void assertIndicatorIsUnknownStatus(HealthIndicatorResult result) {
         assertThat(result.status(), is(equalTo(UNKNOWN)));
-        assertThat(result.summary(), is(equalTo(HealthService.UNKNOWN_RESULT_SUMMARY)));
+        assertThat(
+            result.summary(),
+            is(oneOf(HealthService.UNKNOWN_RESULT_SUMMARY_NOT_RECOVERED, HealthService.UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED))
+        );
     }
 
     public void testPreflightIndicatorFailureTriggersUnknownResults() {

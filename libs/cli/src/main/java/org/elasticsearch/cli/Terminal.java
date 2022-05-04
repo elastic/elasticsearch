@@ -79,6 +79,10 @@ public abstract class Terminal {
         this.currentVerbosity = verbosity;
     }
 
+    public Verbosity getVerbosity() {
+        return currentVerbosity;
+    }
+
     private char[] read(String prompt) {
         errWriter.print(prompt); // prompts should go to standard error to avoid mixing with list output
         final char[] line = readLineToCharArray(reader);
@@ -297,7 +301,7 @@ public abstract class Terminal {
                 // at the end of each character based read, so that switching to using getInputStream() returns binary data
                 // right after the last character based input (newline)
                 new InputStreamReader(System.in, Charset.defaultCharset()),
-                new PrintWriter(System.out),
+                new PrintWriter(System.out, true),
                 ERROR_WRITER
             );
         }

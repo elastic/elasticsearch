@@ -18,6 +18,7 @@ import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -48,6 +49,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
@@ -205,9 +207,14 @@ public class ServerCliTests extends CommandTestCase {
         assertOk("--enrollment-token", "mydummytoken");
     }
 
-    public void testAutoConfig() throws Exception {
-        autoConfigCallback = (t, options, env, processInfo) -> { t.println("message from auto config"); };
-        assertOkWithOutput(containsString("message from auto config"), emptyString());
+    public void testAutoConfigLogging() throws Exception {
+        autoConfigCallback = (t, options, env, processInfo) -> {
+            t.println("message from auto config");
+            t.errorPrintln("error message");
+            t.errorPrintln(Verbosity.VERBOSE, "verbose error");
+        };
+        assertOkWithOutput(containsString("message from auto config"),
+            allOf(containsString("error message"), containsString("verbose error")), "-v");
     }
 
     public void assertAutoConfigError(int autoConfigExitCode, int expectedMainExitCode, String... args) throws Exception {

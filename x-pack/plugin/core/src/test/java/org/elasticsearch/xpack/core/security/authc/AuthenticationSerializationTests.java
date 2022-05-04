@@ -4,13 +4,12 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.security.user;
+package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
-import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -19,86 +18,80 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationSerializationHelper;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class UserSerializationTests extends ESTestCase {
+public class AuthenticationSerializationTests extends ESTestCase {
 
     public void testWriteToAndReadFrom() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false));
         BytesStreamOutput output = new BytesStreamOutput();
 
-        User.writeTo(user, output);
-        User readFrom = User.readFrom(output.bytes().streamInput());
+        AuthenticationSerializationHelper.writeUserTo(user, output);
+        User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
         assertThat(readFrom, not(sameInstance(user)));
         assertThat(readFrom.principal(), is(user.principal()));
         assertThat(Arrays.equals(readFrom.roles(), user.roles()), is(true));
-        assertThat(readFrom.authenticatedUser(), is(user));
+        assertThat(readFrom, not(instanceOf(Authentication.RunAsUser.class)));
     }
 
     public void testWriteToAndReadFromWithRunAs() throws Exception {
         User authUser = new User(randomAlphaOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false));
-        User user = new User(
-            randomAlphaOfLengthBetween(4, 30),
-            randomBoolean() ? generateRandomStringArray(20, 30, false) : null,
+        User user = new Authentication.RunAsUser(
+            new User(randomAlphaOfLengthBetween(4, 30), randomBoolean() ? generateRandomStringArray(20, 30, false) : null),
             authUser
         );
 
         BytesStreamOutput output = new BytesStreamOutput();
 
-        User.writeTo(user, output);
-        User readFrom = User.readFrom(output.bytes().streamInput());
+        AuthenticationSerializationHelper.writeUserTo(user, output);
+        User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
         assertThat(readFrom, not(sameInstance(user)));
         assertThat(readFrom.principal(), is(user.principal()));
         assertThat(Arrays.equals(readFrom.roles(), user.roles()), is(true));
-        User readFromAuthUser = readFrom.authenticatedUser();
+
+        assertThat(readFrom, instanceOf(Authentication.RunAsUser.class));
+        User readFromAuthUser = ((Authentication.RunAsUser) readFrom).authenticatingUser;
         assertThat(authUser, is(notNullValue()));
         assertThat(readFromAuthUser.principal(), is(authUser.principal()));
         assertThat(Arrays.equals(readFromAuthUser.roles(), authUser.roles()), is(true));
-        assertThat(readFromAuthUser.authenticatedUser(), is(authUser));
+        assertThat(readFromAuthUser, not(instanceOf(Authentication.RunAsUser.class)));
     }
 
     public void testSystemUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        InternalUserSerializationHelper.writeTo(SystemUser.INSTANCE, output);
-        User readFrom = InternalUserSerializationHelper.readFrom(output.bytes().streamInput());
+        AuthenticationSerializationHelper.writeUserTo(SystemUser.INSTANCE, output);
+        User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
         assertThat(readFrom, is(sameInstance(SystemUser.INSTANCE)));
-        assertThat(readFrom.authenticatedUser(), is(SystemUser.INSTANCE));
-    }
-
-    public void testSystemUserFailsRead() throws Exception {
-        BytesStreamOutput output = new BytesStreamOutput();
-
-        InternalUserSerializationHelper.writeTo(SystemUser.INSTANCE, output);
-        AssertionError e = expectThrows(AssertionError.class, () -> User.readFrom(output.bytes().streamInput()));
-
-        assertThat(e.getMessage(), is("should always return false. Internal users should use the InternalUserSerializationHelper"));
+        assertThat(readFrom, not(instanceOf(Authentication.RunAsUser.class)));
     }
 
     public void testXPackUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        InternalUserSerializationHelper.writeTo(XPackUser.INSTANCE, output);
-        User readFrom = InternalUserSerializationHelper.readFrom(output.bytes().streamInput());
+        AuthenticationSerializationHelper.writeUserTo(XPackUser.INSTANCE, output);
+        User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
         assertThat(readFrom, is(sameInstance(XPackUser.INSTANCE)));
-        assertThat(readFrom.authenticatedUser(), is(XPackUser.INSTANCE));
+        assertThat(readFrom, not(instanceOf(Authentication.RunAsUser.class)));
     }
 
     public void testAsyncSearchUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
-        InternalUserSerializationHelper.writeTo(AsyncSearchUser.INSTANCE, output);
-        User readFrom = InternalUserSerializationHelper.readFrom(output.bytes().streamInput());
+        AuthenticationSerializationHelper.writeUserTo(AsyncSearchUser.INSTANCE, output);
+        User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
         assertThat(readFrom, is(sameInstance(AsyncSearchUser.INSTANCE)));
-        assertThat(readFrom.authenticatedUser(), is(AsyncSearchUser.INSTANCE));
+        assertThat(readFrom, not(instanceOf(Authentication.RunAsUser.class)));
     }
 
     public void testFakeInternalUserSerialization() throws Exception {
@@ -106,7 +99,7 @@ public class UserSerializationTests extends ESTestCase {
         output.writeBoolean(true);
         output.writeString(randomAlphaOfLengthBetween(4, 30));
         try {
-            InternalUserSerializationHelper.readFrom(output.bytes().streamInput());
+            AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
             fail("system user had wrong name");
         } catch (IllegalStateException e) {
             // expected
@@ -116,22 +109,22 @@ public class UserSerializationTests extends ESTestCase {
     public void testReservedUserSerialization() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
         final ElasticUser elasticUser = new ElasticUser(true);
-        User.writeTo(elasticUser, output);
-        User readFrom = User.readFrom(output.bytes().streamInput());
+        AuthenticationSerializationHelper.writeUserTo(elasticUser, output);
+        User readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
         assertEquals(elasticUser, readFrom);
 
         final KibanaUser kibanaUser = new KibanaUser(true);
         output = new BytesStreamOutput();
-        User.writeTo(kibanaUser, output);
-        readFrom = User.readFrom(output.bytes().streamInput());
+        AuthenticationSerializationHelper.writeUserTo(kibanaUser, output);
+        readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
         assertEquals(kibanaUser, readFrom);
 
         final KibanaSystemUser kibanaSystemUser = new KibanaSystemUser(true);
         output = new BytesStreamOutput();
-        User.writeTo(kibanaSystemUser, output);
-        readFrom = User.readFrom(output.bytes().streamInput());
+        AuthenticationSerializationHelper.writeUserTo(kibanaSystemUser, output);
+        readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
         assertEquals(kibanaSystemUser, readFrom);
     }

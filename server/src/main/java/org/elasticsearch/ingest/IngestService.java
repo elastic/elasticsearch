@@ -497,6 +497,64 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }, listener::onFailure));
     }
 
+    /**
+     * Returns the pipeline by the specified id
+     */
+    public Pipeline getPipeline(String id) {
+        PipelineHolder holder = pipelines.get(id);
+        if (holder != null) {
+            return holder.pipeline;
+        } else {
+            return null;
+        }
+    }
+
+    public Map<String, Processor.Factory> getProcessorFactories() {
+        return processorFactories;
+    }
+
+    @Override
+    public IngestInfo info() {
+        Map<String, Processor.Factory> processorFactories = getProcessorFactories();
+        List<ProcessorInfo> processorInfoList = new ArrayList<>(processorFactories.size());
+        for (Map.Entry<String, Processor.Factory> entry : processorFactories.entrySet()) {
+            processorInfoList.add(new ProcessorInfo(entry.getKey()));
+        }
+        return new IngestInfo(processorInfoList);
+    }
+
+    Map<String, PipelineHolder> pipelines() {
+        return pipelines;
+    }
+
+    /**
+     * Recursive method to obtain all of the non-failure processors for given compoundProcessor. Since conditionals are implemented as
+     * wrappers to the actual processor, always prefer the actual processor's metric over the conditional processor's metric.
+     * @param compoundProcessor The compound processor to start walking the non-failure processors
+     * @param processorMetrics The list of {@link Processor} {@link IngestMetric} tuples.
+     * @return the processorMetrics for all non-failure processor that belong to the original compoundProcessor
+     */
+    private static List<Tuple<Processor, IngestMetric>> getProcessorMetrics(
+        CompoundProcessor compoundProcessor,
+        List<Tuple<Processor, IngestMetric>> processorMetrics
+    ) {
+        // only surface the top level non-failure processors, on-failure processor times will be included in the top level non-failure
+        for (Tuple<Processor, IngestMetric> processorWithMetric : compoundProcessor.getProcessorsWithMetrics()) {
+            Processor processor = processorWithMetric.v1();
+            IngestMetric metric = processorWithMetric.v2();
+            if (processor instanceof CompoundProcessor cp) {
+                getProcessorMetrics(cp, processorMetrics);
+            } else {
+                // Prefer the conditional's metric since it only includes metrics when the conditional evaluated to true.
+                if (processor instanceof ConditionalProcessor cp) {
+                    metric = (cp.getMetric());
+                }
+                processorMetrics.add(new Tuple<>(processor, metric));
+            }
+        }
+        return processorMetrics;
+    }
+
     static class PutPipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
         private final PutPipelineRequest request;
 
@@ -570,66 +628,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return new IngestMetadata(pipelines);
         }
     }
-
-    /**
-     * Returns the pipeline by the specified id
-     */
-    public Pipeline getPipeline(String id) {
-        PipelineHolder holder = pipelines.get(id);
-        if (holder != null) {
-            return holder.pipeline;
-        } else {
-            return null;
-        }
-    }
-
-    public Map<String, Processor.Factory> getProcessorFactories() {
-        return processorFactories;
-    }
-
-    @Override
-    public IngestInfo info() {
-        Map<String, Processor.Factory> processorFactories = getProcessorFactories();
-        List<ProcessorInfo> processorInfoList = new ArrayList<>(processorFactories.size());
-        for (Map.Entry<String, Processor.Factory> entry : processorFactories.entrySet()) {
-            processorInfoList.add(new ProcessorInfo(entry.getKey()));
-        }
-        return new IngestInfo(processorInfoList);
-    }
-
-    Map<String, PipelineHolder> pipelines() {
-        return pipelines;
-    }
-
-    /**
-     * Recursive method to obtain all of the non-failure processors for given compoundProcessor. Since conditionals are implemented as
-     * wrappers to the actual processor, always prefer the actual processor's metric over the conditional processor's metric.
-     * @param compoundProcessor The compound processor to start walking the non-failure processors
-     * @param processorMetrics The list of {@link Processor} {@link IngestMetric} tuples.
-     * @return the processorMetrics for all non-failure processor that belong to the original compoundProcessor
-     */
-    private static List<Tuple<Processor, IngestMetric>> getProcessorMetrics(
-        CompoundProcessor compoundProcessor,
-        List<Tuple<Processor, IngestMetric>> processorMetrics
-    ) {
-        // only surface the top level non-failure processors, on-failure processor times will be included in the top level non-failure
-        for (Tuple<Processor, IngestMetric> processorWithMetric : compoundProcessor.getProcessorsWithMetrics()) {
-            Processor processor = processorWithMetric.v1();
-            IngestMetric metric = processorWithMetric.v2();
-            if (processor instanceof CompoundProcessor cp) {
-                getProcessorMetrics(cp, processorMetrics);
-            } else {
-                // Prefer the conditional's metric since it only includes metrics when the conditional evaluated to true.
-                if (processor instanceof ConditionalProcessor cp) {
-                    metric = (cp.getMetric());
-                }
-                processorMetrics.add(new Tuple<>(processor, metric));
-            }
-        }
-        return processorMetrics;
-    }
-
-    // visible for testing
 
     void validatePipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, String pipelineId, Map<String, Object> pipelineConfig)
         throws Exception {

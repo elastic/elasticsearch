@@ -213,10 +213,10 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         try {
             EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(parent, "res");
             URL url = loader.findResource("p/res.txt");
-            assertThat(url.toString(), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/p/res.txt"));
+            assertThat(url.toString(), endsWith("impl2.jar!/IMPL-JARS/res/res-impl.jar/p/res.txt"));
 
             var resources = loader.findResources("p/res.txt");
-            assertThat(Collections.list(resources), contains(hasToString(endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/p/res.txt"))));
+            assertThat(Collections.list(resources), contains(hasToString(endsWith("impl2.jar!/IMPL-JARS/res/res-impl.jar/p/res.txt"))));
         } finally {
             PrivilegedOperations.closeURLClassLoader(parent);
         }
@@ -331,7 +331,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
             URL url1 = urlcLoader.getResource("p/res.txt");
             assertThat(url1.toString(), endsWith("!/" + expectedURLSuffix));
             URL url2 = embedLoader.getResource("p/res.txt");
-            assertThat(url2.toString(), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/" + expectedURLSuffix));
+            assertThat(url2.toString(), endsWith("impl3.jar!/IMPL-JARS/res/res-impl.jar/" + expectedURLSuffix));
             assertThat(suffix(url2), endsWith(suffix(url1)));
 
             // getResources
@@ -339,7 +339,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
             var urls2 = Collections.list(embedLoader.getResources("p/res.txt")).stream().map(URL::toString).toList();
             assertThat("urls1=%s, urls2=%s".formatted(urls1, urls2), urls2, hasSize(1));
             assertThat(urls1.get(0), endsWith("!/" + expectedURLSuffix));
-            assertThat(urls2.get(0), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/" + expectedURLSuffix));
+            assertThat(urls2.get(0), endsWith("impl3.jar!/IMPL-JARS/res/res-impl.jar/" + expectedURLSuffix));
 
             // getResourceAsStream
             try (var is = embedLoader.getResourceAsStream("p/res.txt")) {

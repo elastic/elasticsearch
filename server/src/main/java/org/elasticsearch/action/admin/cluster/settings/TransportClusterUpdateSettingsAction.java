@@ -14,6 +14,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -192,11 +194,17 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                     return;
                 }
 
+                final var responseListener = new ListenableActionFuture<ClusterUpdateSettingsResponse>();
+                final var contextPreservingListener = ContextPreservingActionListener.wrapPreservingContext(
+                    listener,
+                    clusterService.getClusterApplierService().threadPool().getThreadContext()
+                );
+
                 // The reason the reroute needs to be send as separate update task, is that all the *cluster* settings are encapsulate
                 // in the components (e.g. FilterAllocationDecider), so the changes made by the first call aren't visible
                 // to the components until the ClusterStateListener instances have been invoked, but are visible after
                 // the first update task has been completed.
-                submitUnbatchedTask(REROUTE_TASK_SOURCE, new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
+                submitUnbatchedTask(REROUTE_TASK_SOURCE, new AckedClusterStateUpdateTask(Priority.URGENT, request, responseListener) {
 
                     @Override
                     public boolean mustAck(DiscoveryNode discoveryNode) {
@@ -237,7 +245,11 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                     @Override
                     public ClusterState execute(final ClusterState currentState) {
                         // now, reroute in case things that require it changed (e.g. number of replicas)
-                        return allocationService.reroute(currentState, "reroute after cluster update settings");
+                        return allocationService.reroute(
+                            currentState,
+                            "reroute after cluster update settings",
+                            contextPreservingListener.delegateFailure((delegate, ignored) -> responseListener.addListener(delegate))
+                        );
                     }
                 });
             }

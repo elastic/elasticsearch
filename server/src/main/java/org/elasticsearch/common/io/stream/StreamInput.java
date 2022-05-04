@@ -680,6 +680,13 @@ public abstract class StreamInput extends InputStream {
         return (Map<String, Object>) readGenericValue();
     }
 
+    /**
+     * Read a {@link Map} using the given key and value readers. The return Map is immutable.
+     *
+     * @param keyReader Method to read a key. Must not return null.
+     * @param valueReader Method to read a value. Must not return null.
+     * @return The immutable map
+     */
     public <K, V> Map<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
         final int size = readVInt();
         if (size == 0) {

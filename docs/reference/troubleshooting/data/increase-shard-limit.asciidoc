@@ -1,5 +1,5 @@
 [[increase-shard-limit]]
-== An index's maximum number of shards that can be stored on one node has been reached
+== The configured maximum number of shards that can be allocated to a single node has been reached
 
 Elasticsearch tries to take advantage of all the available resources by 
 distributing data (index shards) amongst the cluster nodes.
@@ -12,7 +12,7 @@ satisfy the index configuration.
 
 In order to fix this follow the next steps:
 
-include::{es-repo-dir}/tab-widgets/shards-allocation/total-shards-per-node-widget.asciidoc[]
+include::{es-repo-dir}/tab-widgets/troubleshooting/data/total-shards-per-node-widget.asciidoc[]
 
 
 

@@ -31,4 +31,3 @@ include::how-to/size-your-shards.asciidoc[]
 
 include::how-to/use-elasticsearch-for-time-series-data.asciidoc[]
 
-include::how-to/shard-allocation/increase-shard-limit.asciidoc[]

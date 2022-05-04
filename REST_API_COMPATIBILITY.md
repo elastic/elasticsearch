@@ -50,7 +50,7 @@ The remainder of this guide is intended to help Elasticsearch developers underst
 
 ### When to apply
 
-Any changes that touch the URL path,  URL parameters ,HTTP verbs, the shape or response code for the non-error response, the shape of the request should account for REST API compatibility.  REST API compatibility is first introduced with version 8 with compatibility back to version 7.  The 7.x branch of code has some minimal support to allow for easy back porting and to allow for the reading of the header on a version 7 cluster. There are no plans to provide compatibility back to version 6.
+Any changes that touch the URL path,  URL parameters, HTTP verbs, the shape or response code for the non-error response, the shape of the request should account for REST API compatibility.  REST API compatibility is first introduced with version 8 with compatibility back to version 7.  The 7.x branch of code has some minimal support to allow for easy back porting and to allow for the reading of the header on a version 7 cluster. There are no plans to provide compatibility back to version 6.
 
 REST API compatibility is not the same as a fully version-ed API. It is a best attempt find a compatible way to honor the prior major version REST API contract. There will be cases where it is not possible to apply a compatibility. In those cases a meaningful error message should be emitted.
 

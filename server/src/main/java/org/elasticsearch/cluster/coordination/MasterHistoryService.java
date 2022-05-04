@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
@@ -90,29 +91,40 @@ public class MasterHistoryService {
             new ActionListener<>() {
                 @Override
                 public void onResponse(Transport.Connection connection) {
-                    logger.trace("Opened connection to {}, making master history request", node);
-                    transportService.sendRequest(
-                        node,
-                        MasterHistoryAction.NAME,
-                        new MasterHistoryAction.Request(),
-                        new ActionListenerResponseHandler<>(new ActionListener<>() {
+                    Version minSupportedVersion = Version.V_8_3_0;
+                    if (connection.getVersion().onOrAfter(minSupportedVersion)) { // This was introduced in 8.3.0
+                        logger.trace("Opened connection to {}, making master history request", node);
+                        transportService.sendRequest(
+                            node,
+                            MasterHistoryAction.NAME,
+                            new MasterHistoryAction.Request(),
+                            new ActionListenerResponseHandler<>(new ActionListener<>() {
 
-                            @Override
-                            public void onResponse(MasterHistoryAction.Response response) {
-                                connection.close();
-                                long endTime = System.nanoTime();
-                                logger.trace("Received history from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
-                                remoteHistoryOrException = new RemoteHistoryOrException(response.getMasterHistory());
-                            }
+                                @Override
+                                public void onResponse(MasterHistoryAction.Response response) {
+                                    connection.close();
+                                    long endTime = System.nanoTime();
+                                    logger.trace("Received history from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
+                                    remoteHistoryOrException = new RemoteHistoryOrException(response.getMasterHistory());
+                                }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                connection.close();
-                                logger.warn("Exception in master history request to master node", e);
-                                remoteHistoryOrException = new RemoteHistoryOrException(e);
-                            }
-                        }, MasterHistoryAction.Response::new)
-                    );
+                                @Override
+                                public void onFailure(Exception e) {
+                                    connection.close();
+                                    logger.warn("Exception in master history request to master node", e);
+                                    remoteHistoryOrException = new RemoteHistoryOrException(e);
+                                }
+                            }, MasterHistoryAction.Response::new)
+                        );
+                    } else {
+                        connection.close();
+                        logger.trace(
+                            "Cannot get master history for {} because it is at version {} and {} is required",
+                            node,
+                            connection.getVersion(),
+                            minSupportedVersion
+                        );
+                    }
                 }
 
                 @Override

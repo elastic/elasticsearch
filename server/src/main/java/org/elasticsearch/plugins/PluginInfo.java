@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -445,34 +446,29 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     public String toString(String prefix) {
-        final StringBuilder information = new StringBuilder();
+        final List<String> lines = new ArrayList<>();
 
-        addln(information, prefix, "- Plugin information:", "");
-        addln(information, prefix, "Name: ", name);
-        addln(information, prefix, "Description: ", description);
-        addln(information, prefix, "Version: ", version);
-        addln(information, prefix, "Elasticsearch Version: ", elasticsearchVersion);
-        addln(information, prefix, "Java Version: ", javaVersion);
-        addln(information, prefix, "Native Controller: ", hasNativeController);
-        addln(information, prefix, "Licensed: ", isLicensed);
-        addln(information, prefix, "Type: ", type);
+        appendLine(lines, prefix, "- Plugin information:", "");
+        appendLine(lines, prefix, "Name: ", name);
+        appendLine(lines, prefix, "Description: ", description);
+        appendLine(lines, prefix, "Version: ", version);
+        appendLine(lines, prefix, "Elasticsearch Version: ", elasticsearchVersion);
+        appendLine(lines, prefix, "Java Version: ", javaVersion);
+        appendLine(lines, prefix, "Native Controller: ", hasNativeController);
+        appendLine(lines, prefix, "Licensed: ", isLicensed);
+        appendLine(lines, prefix, "Type: ", type);
 
         if (type == PluginType.BOOTSTRAP) {
-            addln(information, prefix, "Java Opts: ", javaOpts);
+            appendLine(lines, prefix, "Java Opts: ", javaOpts);
         }
 
-        addln(information, prefix, "Extended Plugins: ", extendedPlugins);
-        add(information, prefix, " * Classname: ", classname);
+        appendLine(lines, prefix, "Extended Plugins: ", extendedPlugins.toString());
+        appendLine(lines, prefix, " * Classname: ", classname);
 
-        return information.toString();
+        return String.join(System.lineSeparator(), lines);
     }
 
-    private static void add(StringBuilder builder, String prefix, String field, Object value) {
-        builder.append(prefix).append(field).append(value);
-    }
-
-    private static void addln(StringBuilder builder, String prefix, String field, Object value) {
-        add(builder, prefix, field, value);
-        builder.append(System.lineSeparator());
+    private static void appendLine(List<String> builder, String prefix, String field, Object value) {
+        builder.add(prefix + field + value);
     }
 }

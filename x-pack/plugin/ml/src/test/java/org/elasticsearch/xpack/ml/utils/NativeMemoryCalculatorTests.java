@@ -29,12 +29,10 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
 
 import java.net.InetAddress;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -74,7 +72,7 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
         for (int i = 0; i < NUM_TEST_RUNS; i++) {
             long nodeSize = randomLongBetween(ByteSizeValue.ofMb(500).getBytes(), ByteSizeValue.ofGb(64).getBytes());
             int percent = randomIntBetween(5, 200);
-            DiscoveryNode node = newNode(randomBoolean() ? null : randomNonNegativeLong(), nodeSize);
+            DiscoveryNode node = newNode(randomLongBetween(1, nodeSize / 2), nodeSize);
             Settings settings = newSettings(percent, false, ByteSizeValue.ofMb(randomIntBetween(0, 5000)));
             ClusterSettings clusterSettings = newClusterSettings(percent, false, ByteSizeValue.ofMb(randomIntBetween(0, 5000)));
 
@@ -87,11 +85,11 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
     }
 
     public void testConsistencyInAutoCalculation() {
-        for (List<Tuple<Long, Long>> autoNodeTiers : Arrays.asList(AUTO_NODE_TIERS_NO_MONITORING, AUTO_NODE_TIERS_WITH_MONITORING)) {
+        for (List<Tuple<Long, Long>> autoNodeTiers : List.of(AUTO_NODE_TIERS_NO_MONITORING, AUTO_NODE_TIERS_WITH_MONITORING)) {
             for (Tuple<Long, Long> nodeAndJvmSize : autoNodeTiers) {
                 final long trueJvmSize = nodeAndJvmSize.v2();
                 final long trueNodeSize = nodeAndJvmSize.v1();
-                List<Long> nodeSizes = Arrays.asList(
+                List<Long> nodeSizes = List.of(
                     trueNodeSize + ByteSizeValue.ofMb(10).getBytes(),
                     trueNodeSize - ByteSizeValue.ofMb(10).getBytes(),
                     trueNodeSize
@@ -142,17 +140,6 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
         }
     }
 
-    public void testAllowedBytesForMlWhenBothJVMAndNodeSizeAreUnknown() {
-        int percent = randomIntBetween(5, 200);
-        DiscoveryNode node = newNode(null, null);
-        Settings settings = newSettings(percent, randomBoolean(), ByteSizeValue.ofMb(randomIntBetween(0, 5000)));
-        ClusterSettings clusterSettings = newClusterSettings(percent, randomBoolean(), ByteSizeValue.ofMb(randomIntBetween(0, 5000)));
-
-        assertThat(NativeMemoryCalculator.allowedBytesForMl(node, settings), equalTo(OptionalLong.empty()));
-        assertThat(NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings), equalTo(OptionalLong.empty()));
-        assertThat(NativeMemoryCalculator.allowedBytesForMl(node, percent, randomBoolean()), equalTo(OptionalLong.empty()));
-    }
-
     public void testTinyNode() {
         for (int i = 0; i < NUM_TEST_RUNS; i++) {
             long nodeSize = randomLongBetween(0, ByteSizeValue.ofMb(200).getBytes());
@@ -190,11 +177,11 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
         final BiConsumer<Long, Integer> consistentManualAssertions = (nativeMemory, memoryPercentage) -> {
             assertThat(
                 NativeMemoryCalculator.calculateApproxNecessaryNodeSize(nativeMemory, null, memoryPercentage, false),
-                equalTo((long) ((100.0 / memoryPercentage) * nativeMemory))
+                equalTo((long) Math.ceil((100.0 / memoryPercentage) * nativeMemory))
             );
             assertThat(
                 NativeMemoryCalculator.calculateApproxNecessaryNodeSize(nativeMemory, randomNonNegativeLong(), memoryPercentage, false),
-                equalTo((long) ((100.0 / memoryPercentage) * nativeMemory))
+                equalTo((long) Math.ceil((100.0 / memoryPercentage) * nativeMemory))
             );
         };
 
@@ -462,7 +449,12 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
                         nodeName,
                         nodeId,
                         ta,
-                        Collections.singletonMap(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(mlMachineMemory)),
+                        Map.of(
+                            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                            String.valueOf(mlMachineMemory),
+                            MAX_JVM_SIZE_NODE_ATTR,
+                            String.valueOf(mlMachineMemory / 20)
+                        ),
                         Set.of(DiscoveryNodeRole.ML_ROLE),
                         Version.CURRENT
                     )
@@ -497,16 +489,13 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
         return new ClusterSettings(newSettings(maxMemoryPercent, useAuto, maxModelMemoryLimit), ML_MEMORY_RELATED_SETTINGS);
     }
 
-    private static DiscoveryNode newNode(Long jvmSizeLong, Long mlNodeSizeLong) {
-        String jvmSize = jvmSizeLong != null ? jvmSizeLong.toString() : null;
+    private static DiscoveryNode newNode(long jvmSizeLong, Long mlNodeSizeLong) {
         String mlNodeSize = mlNodeSizeLong != null ? mlNodeSizeLong.toString() : null;
         Map<String, String> attrs = new HashMap<>();
-        if (jvmSize != null) {
-            attrs.put(MAX_JVM_SIZE_NODE_ATTR, jvmSize);
-        }
         Set<DiscoveryNodeRole> roles;
         if (mlNodeSize != null) {
             attrs.put(MACHINE_MEMORY_NODE_ATTR, mlNodeSize);
+            attrs.put(MAX_JVM_SIZE_NODE_ATTR, Long.toString(jvmSizeLong));
             roles = Set.of(DiscoveryNodeRole.ML_ROLE);
         } else {
             roles = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);

@@ -59,7 +59,12 @@ public class NodeLoadDetectorTests extends ESTestCase {
     public void testNodeLoadDetection() {
         // MachineLearning.MACHINE_MEMORY_NODE_ATTR negative, so this won't allocate any jobs that aren't already allocated
         // (in the past it would have fallen back to allocating by count, but we don't do that any more)
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "-1");
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            "-1",
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "10000000"
+        );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(

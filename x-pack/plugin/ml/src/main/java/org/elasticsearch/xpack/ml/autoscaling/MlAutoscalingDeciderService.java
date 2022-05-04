@@ -140,6 +140,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         try {
             value = OptionalLong.of(Long.parseLong(valueStr));
         } catch (NumberFormatException e) {
+            assert e == null : "ml.max_jvm_size should parse because we set it internally: invalid value was " + valueStr;
             logger.debug(
                 "could not parse stored string value [{}] in node attribute [{}]",
                 valueStr,

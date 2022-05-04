@@ -943,12 +943,12 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
     }
 
     /**
-     * This calculates the the following the potential future free capacity
-     * Since jobs with lookback only datafeeds, and data frame analytics jobs all have some potential future end date
+     * This calculates the potential future free capacity.
+     * Since jobs with lookback-only datafeeds, and data frame analytics jobs all have some potential future end date
      * we can assume (without user intervention) that these will eventually stop and free their currently occupied resources.
      *
      * The capacity is as follows:
-     * - tier: The sum total of the resources that will be eventually be available
+     * - tier: The sum total of the resources that will eventually be available.
      * - node: The largest block of memory that will be free on a given node.
      * - If > 1 "batch" ml tasks are running on the same node, we sum their resources.
      */

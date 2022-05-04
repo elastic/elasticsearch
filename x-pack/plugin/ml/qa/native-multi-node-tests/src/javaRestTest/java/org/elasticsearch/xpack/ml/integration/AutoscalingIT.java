@@ -55,8 +55,8 @@ import static org.hamcrest.Matchers.hasKey;
 
 public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
 
-    private static final long PER_JOB_OVERHEAD = 10;
-    private static final long PER_NODE_OVERHEAD = 30;
+    private static final long PER_JOB_OVERHEAD_MB = 10;
+    private static final long PER_NODE_OVERHEAD_MB = 30;
 
     @Before
     public void putSettings() {
@@ -110,9 +110,11 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         openJob("job1");
         openJob("job2");
         long expectedTierBytes = (long) Math.ceil(
-            ByteSizeValue.ofMb(100 + PER_JOB_OVERHEAD + 200 + PER_JOB_OVERHEAD + PER_NODE_OVERHEAD).getBytes() * 100 / 30.0
+            ByteSizeValue.ofMb(100 + PER_JOB_OVERHEAD_MB + 200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0
         );
-        long expectedNodeBytes = (long) Math.ceil(ByteSizeValue.ofMb(200 + PER_JOB_OVERHEAD + PER_NODE_OVERHEAD).getBytes() * 100 / 30.0);
+        long expectedNodeBytes = (long) Math.ceil(
+            ByteSizeValue.ofMb(200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0
+        );
 
         assertMlCapacity(
             client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
@@ -136,10 +138,10 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             .toList();
         NativeMemoryCapacity currentScale = MlAutoscalingDeciderService.currentScale(mlNodes, 30, false);
         expectedTierBytes = (long) Math.ceil(
-            (ByteSizeValue.ofMb(50_000 + PER_JOB_OVERHEAD + 60_000 + PER_JOB_OVERHEAD + PER_NODE_OVERHEAD).getBytes() + currentScale
-                .getTierMlNativeMemoryRequirementExcludingOverhead()) * 100 / 30.0
+            (ByteSizeValue.ofMb(50_000 + PER_JOB_OVERHEAD_MB + 60_000 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes()
+                + currentScale.getTierMlNativeMemoryRequirementExcludingOverhead()) * 100 / 30.0
         );
-        expectedNodeBytes = (long) (ByteSizeValue.ofMb(60_000 + PER_JOB_OVERHEAD + PER_NODE_OVERHEAD).getBytes() * 100 / 30.0);
+        expectedNodeBytes = (long) (ByteSizeValue.ofMb(60_000 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0);
 
         assertMlCapacity(
             client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
@@ -149,9 +151,9 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         );
 
         expectedTierBytes = (long) Math.ceil(
-            ByteSizeValue.ofMb(100 + PER_JOB_OVERHEAD + 200 + PER_JOB_OVERHEAD + PER_NODE_OVERHEAD).getBytes() * 100 / 30.0
+            ByteSizeValue.ofMb(100 + PER_JOB_OVERHEAD_MB + 200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0
         );
-        expectedNodeBytes = (long) Math.ceil(ByteSizeValue.ofMb(200 + PER_JOB_OVERHEAD + PER_NODE_OVERHEAD).getBytes() * 100 / 30.0);
+        expectedNodeBytes = (long) Math.ceil(ByteSizeValue.ofMb(200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0);
         closeJob("bigjob1");
         closeJob("bigjob2");
 
@@ -189,9 +191,11 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         putAndStartModelDeployment("smaller1", ByteSizeValue.ofMb(100).getBytes(), AllocationStatus.State.STARTED);
         putAndStartModelDeployment("smaller2", ByteSizeValue.ofMb(100).getBytes(), AllocationStatus.State.STARTED);
         long expectedTierBytes = (long) Math.ceil(
-            ByteSizeValue.ofMb(100 + PER_JOB_OVERHEAD + 200 + PER_JOB_OVERHEAD + PER_NODE_OVERHEAD).getBytes() * 100 / 30.0
+            ByteSizeValue.ofMb(100 + PER_JOB_OVERHEAD_MB + 200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0
         );
-        long expectedNodeBytes = (long) Math.ceil(ByteSizeValue.ofMb(200 + PER_JOB_OVERHEAD + PER_NODE_OVERHEAD).getBytes() * 100 / 30.0);
+        long expectedNodeBytes = (long) Math.ceil(
+            ByteSizeValue.ofMb(200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0
+        );
 
         assertMlCapacity(
             client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
@@ -214,10 +218,10 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             .collect(Collectors.toList());
         NativeMemoryCapacity currentScale = MlAutoscalingDeciderService.currentScale(mlNodes, 30, false);
         expectedTierBytes = (long) Math.ceil(
-            (ByteSizeValue.ofMb(50_000 + PER_JOB_OVERHEAD).getBytes() + currentScale.getTierMlNativeMemoryRequirementExcludingOverhead())
+            (ByteSizeValue.ofMb(50_000 + PER_JOB_OVERHEAD_MB).getBytes() + currentScale.getTierMlNativeMemoryRequirementExcludingOverhead())
                 * 100 / 30.0
         );
-        expectedNodeBytes = (long) (ByteSizeValue.ofMb(50_000 + PER_JOB_OVERHEAD + PER_NODE_OVERHEAD).getBytes() * 100 / 30.0);
+        expectedNodeBytes = (long) (ByteSizeValue.ofMb(50_000 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0);
 
         assertMlCapacity(
             client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),

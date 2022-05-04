@@ -215,7 +215,6 @@ public class CompositeRolesStore {
             );
         }
         if (XPackUser.is(user)) {
-            assert XPackUser.INSTANCE.roles().length == 1;
             return xpackUserRole;
         }
         if (XPackSecurityUser.is(user)) {

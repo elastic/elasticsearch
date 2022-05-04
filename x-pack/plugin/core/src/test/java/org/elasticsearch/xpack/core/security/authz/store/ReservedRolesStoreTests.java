@@ -251,7 +251,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("watcher_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("watcher_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("beats_admin"), is(true));
-        assertThat(ReservedRolesStore.isReserved(XPackUser.ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(AsyncSearchUser.ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(LogstashSystemUser.ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(BeatsSystemUser.ROLE_NAME), is(true));

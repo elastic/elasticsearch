@@ -19,7 +19,7 @@ public final class UsernamesField {
     public static final String SECURITY_PROFILE_NAME = "_security_profile";
     public static final String SECURITY_PROFILE_ROLE = "_security_profile";
     public static final String XPACK_NAME = "_xpack";
-    public static final String XPACK_ROLE = "_xpack";
+    static final String XPACK_ROLE = "_xpack";
     public static final String LOGSTASH_NAME = "logstash_system";
     public static final String LOGSTASH_ROLE = "logstash_system";
     public static final String BEATS_NAME = "beats_system";

@@ -43,7 +43,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -402,10 +402,10 @@ public class MockRepository extends FsRepository {
             private int hashCode(String path) {
                 try {
                     MessageDigest digest = MessageDigest.getInstance("MD5");
-                    byte[] bytes = digest.digest(path.getBytes("UTF-8"));
+                    byte[] bytes = digest.digest(path.getBytes(StandardCharsets.UTF_8));
                     int i = 0;
                     return ((bytes[i++] & 0xFF) << 24) | ((bytes[i++] & 0xFF) << 16) | ((bytes[i++] & 0xFF) << 8) | (bytes[i++] & 0xFF);
-                } catch (NoSuchAlgorithmException | UnsupportedEncodingException ex) {
+                } catch (NoSuchAlgorithmException ex) {
                     throw new ElasticsearchException("cannot calculate hashcode", ex);
                 }
             }

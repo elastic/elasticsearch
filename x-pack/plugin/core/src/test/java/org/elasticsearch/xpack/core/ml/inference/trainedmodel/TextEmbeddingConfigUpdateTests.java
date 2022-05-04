@@ -26,6 +26,24 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<TextEmbeddingConfigUpdate> {
 
+    public static TextEmbeddingConfigUpdate randomUpdate() {
+        TextEmbeddingConfigUpdate.Builder builder = new TextEmbeddingConfigUpdate.Builder();
+        if (randomBoolean()) {
+            builder.setResultsField(randomAlphaOfLength(8));
+        }
+        if (randomBoolean()) {
+            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
+        }
+        return builder.build();
+    }
+
+    public static TextEmbeddingConfigUpdate mutateForVersion(TextEmbeddingConfigUpdate instance, Version version) {
+        if (version.before(Version.V_8_1_0)) {
+            return new TextEmbeddingConfigUpdate(instance.getResultsField(), null);
+        }
+        return instance;
+    }
+
     @Override
     Tuple<Map<String, Object>, TextEmbeddingConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
         TextEmbeddingConfigUpdate expected = new TextEmbeddingConfigUpdate("ml-results", expectedTokenization);
@@ -76,22 +94,12 @@ public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestC
 
     @Override
     protected TextEmbeddingConfigUpdate createTestInstance() {
-        TextEmbeddingConfigUpdate.Builder builder = new TextEmbeddingConfigUpdate.Builder();
-        if (randomBoolean()) {
-            builder.setResultsField(randomAlphaOfLength(8));
-        }
-        if (randomBoolean()) {
-            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
-        }
-        return builder.build();
+        return randomUpdate();
     }
 
     @Override
     protected TextEmbeddingConfigUpdate mutateInstanceForVersion(TextEmbeddingConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
-            return new TextEmbeddingConfigUpdate(instance.getResultsField(), null);
-        }
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     @Override

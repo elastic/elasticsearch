@@ -9,6 +9,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStage;
@@ -17,6 +18,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -654,12 +657,18 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final Client dataNodeClient = dataNodeClient();
 
         final var snapshotNames = IntStream.range(0, snapshots).mapToObj(i -> "test-snap-" + i).toArray(String[]::new);
-        final var creates = Arrays.stream(snapshotNames)
-            .map(snapshotName -> clusterAdmin().prepareCreateSnapshot(repoName, snapshotName).execute())
-            .toList();
-        for (final var create : creates) {
-            create.get(10, TimeUnit.SECONDS);
+        final var waitForCompletion = randomBoolean();
+        final var createsListener = new PlainActionFuture<Void>();
+        final var createsGroupedListener = new GroupedActionListener<CreateSnapshotResponse>(
+            createsListener.map(ignored -> null),
+            snapshotNames.length
+        );
+        for (final var snapshotName : snapshotNames) {
+            clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)
+                .setWaitForCompletion(waitForCompletion)
+                .execute(ActionListener.notifyOnce(createsGroupedListener));
         }
+        createsListener.get(60, TimeUnit.SECONDS);
 
         // run enough parallel status requests to max out the SNAPSHOT_META threadpool
         final var metaThreadPoolSize = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class)

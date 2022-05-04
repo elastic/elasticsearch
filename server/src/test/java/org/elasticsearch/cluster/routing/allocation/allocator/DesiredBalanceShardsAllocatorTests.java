@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -240,7 +241,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var reroutesCalled = new AtomicInteger(0);
 
         RerouteService rerouteService = (r, p, l) -> {
-            logger.info("reroute");
             reroutesCalled.incrementAndGet();
             l.onResponse(null);
         };
@@ -262,8 +262,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                     unassignedIterator.next();
                     unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
                 }
-
-                logger.info("allocate");
             }
 
             @Override
@@ -277,7 +275,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var index2 = createIndex(UUIDs.randomBase64UUID());
 
         var listener = ActionListener.<Void>wrap(() -> {
-            logger.info("listener");
             assertThat("Should execute listeners only after both reroutes are completed", reroutesCalled.get(), equalTo(2));
             listenersCalled.incrementAndGet();
         });
@@ -296,6 +293,44 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
         terminate(threadPool);
         assertThat(listenersCalled.get(), equalTo(2));
+    }
+
+    public void testFailListenersOnNoLongerMasterException() {
+
+        var threadPool = new TestThreadPool(getTestName());
+
+        var listenersCalled = new AtomicInteger(0);
+
+        RerouteService rerouteService = (r, p, l) -> { l.onFailure(new NotMasterException("no longer master")); };
+
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(new ShardsAllocator() {
+            @Override
+            public void allocate(RoutingAllocation allocation) {
+                final var dataNodeId = allocation.nodes().getDataNodes().values().iterator().next().getId();
+                final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
+                while (unassignedIterator.hasNext()) {
+                    unassignedIterator.next();
+                    unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
+                }
+            }
+
+            @Override
+            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                throw new AssertionError("only used for allocation explain");
+            }
+        }, threadPool, () -> rerouteService);
+
+        var discoveryNode = createDiscoveryNode();
+        var index = createIndex(UUIDs.randomBase64UUID());
+
+        var listener = ActionListener.<Void>wrap(
+            response -> { throw new AssertionError("Should not complete in test"); },
+            failure -> listenersCalled.incrementAndGet()
+        );
+        desiredBalanceShardsAllocator.allocate(createAllocationFrom(createClusterState(discoveryNode, index)), listener);
+
+        terminate(threadPool);
+        assertThat(listenersCalled.get(), equalTo(1));
     }
 
     private static RoutingAllocation createAllocationFrom(ClusterState clusterState) {

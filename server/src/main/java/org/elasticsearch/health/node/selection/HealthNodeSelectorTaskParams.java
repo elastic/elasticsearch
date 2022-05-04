@@ -18,12 +18,12 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.health.node.selection.HealthNodeSelector.HEALTH_NODE_SELECTOR_TASK_NAME;
+import static org.elasticsearch.health.node.selection.HealthNodeSelector.TASK_NAME;
 
 class HealthNodeSelectorTaskParams implements PersistentTaskParams {
 
     public static final ObjectParser<HealthNodeSelectorTaskParams, Void> PARSER = new ObjectParser<>(
-        HEALTH_NODE_SELECTOR_TASK_NAME,
+        TASK_NAME,
         true,
         HealthNodeSelectorTaskParams::new
     );
@@ -41,7 +41,7 @@ class HealthNodeSelectorTaskParams implements PersistentTaskParams {
 
     @Override
     public String getWriteableName() {
-        return HEALTH_NODE_SELECTOR_TASK_NAME;
+        return TASK_NAME;
     }
 
     @Override

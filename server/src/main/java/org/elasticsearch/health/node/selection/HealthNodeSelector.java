@@ -18,7 +18,7 @@ import java.util.Map;
  */
 public class HealthNodeSelector extends AllocatedPersistentTask {
 
-    public static final String HEALTH_NODE_SELECTOR_TASK_NAME = "health-node-selector";
+    public static final String TASK_NAME = "health-node-selector";
 
     HealthNodeSelector(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
         super(id, type, action, description, parentTask, headers);

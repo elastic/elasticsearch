@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.health.node.selection.HealthNodeSelector.HEALTH_NODE_SELECTOR_TASK_NAME;
+import static org.elasticsearch.health.node.selection.HealthNodeSelector.TASK_NAME;
 
 /**
  * Persistent task executor that is managing the {@link HealthNodeSelector}.
@@ -48,7 +48,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
     private final AtomicReference<HealthNodeSelector> currentTask = new AtomicReference<>();
 
     public HealthNodeSelectorTaskExecutor(Client client, ClusterService clusterService, ThreadPool threadPool) {
-        super(HEALTH_NODE_SELECTOR_TASK_NAME, ThreadPool.Names.MANAGEMENT);
+        super(TASK_NAME, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
     }
@@ -92,8 +92,8 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
 
     void createTask() {
         persistentTasksService.sendStartRequest(
-            HEALTH_NODE_SELECTOR_TASK_NAME,
-            HEALTH_NODE_SELECTOR_TASK_NAME,
+            TASK_NAME,
+            TASK_NAME,
             new HealthNodeSelectorTaskParams(),
             ActionListener.wrap(r -> logger.info("Created the health node selector task"), e -> {
                 Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
@@ -117,7 +117,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
         return List.of(
             new NamedXContentRegistry.Entry(
                 PersistentTaskParams.class,
-                new ParseField(HEALTH_NODE_SELECTOR_TASK_NAME),
+                new ParseField(TASK_NAME),
                 HealthNodeSelectorTaskParams::fromXContent
             )
         );
@@ -125,7 +125,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, HEALTH_NODE_SELECTOR_TASK_NAME, HealthNodeSelectorTaskParams::new)
+            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TASK_NAME, HealthNodeSelectorTaskParams::new)
         );
     }
 }

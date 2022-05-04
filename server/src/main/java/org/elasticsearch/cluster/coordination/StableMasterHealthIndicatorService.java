@@ -38,6 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
 
@@ -248,7 +249,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             summary = String.format(
                 Locale.ROOT,
                 "The cluster's master has alternated between %s and no master multiple times in the last %s",
-                master,
+                localMasterHistory.getNodes().stream().filter(Objects::nonNull).collect(Collectors.toSet()),
                 localMasterHistory.getMaxHistoryAge()
             );
             impacts.add(

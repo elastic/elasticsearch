@@ -30,18 +30,18 @@ import static org.junit.Assert.fail;
 
 public class JvmErgonomicsTests extends LaunchersTestCase {
 
-    public void testExtractValidHeapSizeUsingXmx() throws InterruptedException, IOException {
+    public void testExtractValidHeapSizeUsingXmx() throws Exception {
         assertThat(JvmOption.extractMaxHeapSize(JvmOption.findFinalOptions(Collections.singletonList("-Xmx2g"))), equalTo(2L << 30));
     }
 
-    public void testExtractValidHeapSizeUsingMaxHeapSize() throws InterruptedException, IOException {
+    public void testExtractValidHeapSizeUsingMaxHeapSize() throws Exception {
         assertThat(
             JvmOption.extractMaxHeapSize(JvmOption.findFinalOptions(Collections.singletonList("-XX:MaxHeapSize=2g"))),
             equalTo(2L << 30)
         );
     }
 
-    public void testExtractValidHeapSizeNoOptionPresent() throws InterruptedException, IOException {
+    public void testExtractValidHeapSizeNoOptionPresent() throws Exception {
         assertThat(JvmOption.extractMaxHeapSize(JvmOption.findFinalOptions(Collections.emptyList())), greaterThan(0L));
     }
 
@@ -55,7 +55,7 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         }
     }
 
-    public void testHeapSizeTooSmall() throws InterruptedException, IOException {
+    public void testHeapSizeTooSmall() throws Exception {
         try {
             JvmOption.extractMaxHeapSize(JvmOption.findFinalOptions(Collections.singletonList("-Xmx1024")));
             fail("expected starting java to fail");
@@ -65,7 +65,7 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         }
     }
 
-    public void testHeapSizeWithSpace() throws InterruptedException, IOException {
+    public void testHeapSizeWithSpace() throws Exception {
         try {
             JvmOption.extractMaxHeapSize(JvmOption.findFinalOptions(Collections.singletonList("-Xmx 1024")));
             fail("expected starting java to fail");
@@ -75,11 +75,11 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         }
     }
 
-    public void testMaxDirectMemorySizeUnset() throws InterruptedException, IOException {
+    public void testMaxDirectMemorySizeUnset() throws Exception {
         assertThat(JvmOption.extractMaxDirectMemorySize(JvmOption.findFinalOptions(Collections.singletonList("-Xmx1g"))), equalTo(0L));
     }
 
-    public void testMaxDirectMemorySizeSet() throws InterruptedException, IOException {
+    public void testMaxDirectMemorySizeSet() throws Exception {
         assertThat(
             JvmOption.extractMaxDirectMemorySize(JvmOption.findFinalOptions(Arrays.asList("-Xmx1g", "-XX:MaxDirectMemorySize=512m"))),
             equalTo(512L << 20)
@@ -98,14 +98,14 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         assertEquals(expectedSystemProperties, parsedSystemProperties);
     }
 
-    public void testG1GOptionsForSmallHeap() throws InterruptedException, IOException {
+    public void testG1GOptionsForSmallHeap() throws Exception {
         List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC"));
         assertThat(jvmErgonomics, hasItem("-XX:G1HeapRegionSize=4m"));
         assertThat(jvmErgonomics, hasItem("-XX:InitiatingHeapOccupancyPercent=30"));
         assertThat(jvmErgonomics, hasItem("-XX:G1ReservePercent=15"));
     }
 
-    public void testG1GOptionsForSmallHeapWhenTuningSet() throws InterruptedException, IOException {
+    public void testG1GOptionsForSmallHeapWhenTuningSet() throws Exception {
         List<String> jvmErgonomics = JvmErgonomics.choose(
             Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-XX:G1HeapRegionSize=4m", "-XX:InitiatingHeapOccupancyPercent=45")
         );
@@ -114,21 +114,21 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         assertThat(jvmErgonomics, hasItem("-XX:G1ReservePercent=15"));
     }
 
-    public void testG1GOptionsForLargeHeap() throws InterruptedException, IOException {
+    public void testG1GOptionsForLargeHeap() throws Exception {
         List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms8g", "-Xmx8g", "-XX:+UseG1GC"));
         assertThat(jvmErgonomics, hasItem("-XX:InitiatingHeapOccupancyPercent=30"));
         assertThat(jvmErgonomics, hasItem("-XX:G1ReservePercent=25"));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
     }
 
-    public void testG1GOptionsForSmallHeapWhenOtherGCSet() throws InterruptedException, IOException {
+    public void testG1GOptionsForSmallHeapWhenOtherGCSet() throws Exception {
         List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseParallelGC"));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1ReservePercent="))));
     }
 
-    public void testG1GOptionsForLargeHeapWhenTuningSet() throws InterruptedException, IOException {
+    public void testG1GOptionsForLargeHeapWhenTuningSet() throws Exception {
         List<String> jvmErgonomics = JvmErgonomics.choose(
             Arrays.asList("-Xms8g", "-Xmx8g", "-XX:+UseG1GC", "-XX:InitiatingHeapOccupancyPercent=60", "-XX:G1ReservePercent=10")
         );
@@ -142,7 +142,7 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         assertTrue(parsedSystemProperties.isEmpty());
     }
 
-    public void testMaxDirectMemorySizeChoice() throws InterruptedException, IOException {
+    public void testMaxDirectMemorySizeChoice() throws Exception {
         final Map<String, String> heapMaxDirectMemorySize = Map.of(
             "64M",
             Long.toString((64L << 20) / 2),
@@ -166,7 +166,7 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         );
     }
 
-    public void testMaxDirectMemorySizeChoiceWhenSet() throws InterruptedException, IOException {
+    public void testMaxDirectMemorySizeChoiceWhenSet() throws Exception {
         assertThat(
             JvmErgonomics.choose(Arrays.asList("-Xms1g", "-Xmx1g", "-XX:MaxDirectMemorySize=1g")),
             everyItem(not(startsWith("-XX:MaxDirectMemorySize=")))

@@ -113,8 +113,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     "current capacity not available",
                     -1,
                     -1,
-                    unassignedBytesUnassignedShards.unassignedShards(),
-                    assignedBytesUnmovableShards.unmovableShards()
+                    List.of(),
+                    List.of()
                 )
             );
         }

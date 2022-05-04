@@ -723,7 +723,6 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         createFullSnapshot("test-repo", "test-snap");
     }
 
-    @AwaitsFix(bugUrl = "TODO")
     public void testSnapshotWithMissingShardLevelIndexFile() throws Exception {
         disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks");
 

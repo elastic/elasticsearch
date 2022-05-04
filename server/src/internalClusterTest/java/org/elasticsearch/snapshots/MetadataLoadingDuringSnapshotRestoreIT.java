@@ -53,7 +53,6 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         return Collections.singletonList(CountingMockRepositoryPlugin.class);
     }
 
-    @AwaitsFix(bugUrl = "TODO")
     public void testWhenMetadataAreLoaded() throws Exception {
         createIndex("docs");
         indexRandom(

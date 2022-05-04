@@ -32,7 +32,6 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
 
     private static final int RELOCATION_COUNT = 15;
 
-    @AwaitsFix(bugUrl = "TODO")
     public void testPrimaryRelocationWhileIndexing() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
         client().admin()

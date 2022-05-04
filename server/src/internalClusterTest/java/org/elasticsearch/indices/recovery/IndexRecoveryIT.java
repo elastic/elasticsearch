@@ -356,7 +356,6 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), numOfDocs);
     }
 
-    @AwaitsFix(bugUrl = "TODO")
     public void testCancelNewShardRecoveryAndUsesExistingShardCopy() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
@@ -455,7 +454,6 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "TODO")
     public void testRerouteRecovery() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
@@ -888,7 +886,6 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat(recoveryState.getTranslog().recoveredOperations(), greaterThan(0));
     }
 
-    @AwaitsFix(bugUrl = "TODO")
     public void testDoNotInfinitelyWaitForMapping() {
         internalCluster().ensureAtLeastNumDataNodes(3);
         createIndex(

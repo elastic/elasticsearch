@@ -21,7 +21,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,13 +58,16 @@ public class ILMHistoryStore implements Closeable {
         ).getBytes()
     );
 
-    private boolean ilmHistoryEnabled;
+    private boolean ilmHistoryEnabled = true;
     private final BulkProcessor processor;
     private final ThreadPool threadPool;
 
-    public ILMHistoryStore(Settings nodeSettings, Client client, ClusterService clusterService, ThreadPool threadPool) {
-        this.setIlmHistoryEnabled(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING, this::setIlmHistoryEnabled);
+    public ILMHistoryStore(Client client, ClusterService clusterService, ThreadPool threadPool) {
+        if (clusterService != null) {
+            this.setIlmHistoryEnabled(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(clusterService.getSettings()));
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING, this::setIlmHistoryEnabled);
+        }
 
         this.threadPool = threadPool;
 

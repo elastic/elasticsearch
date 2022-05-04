@@ -166,7 +166,11 @@ public class PackageTests extends PackagingTestCase {
         remove(distribution());
 
         // removing must stop the service
-        assertThat(sh.run("ps aux").stdout(), not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
+        String psOutput = sh.run("ps aux").stdout();
+        if (psOutput.contains("org.elasticsearch.bootstrap.Elasticsearch")) {
+            dumpDebug();
+        }
+        assertThat(psOutput, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
 
         if (isSystemd()) {
 

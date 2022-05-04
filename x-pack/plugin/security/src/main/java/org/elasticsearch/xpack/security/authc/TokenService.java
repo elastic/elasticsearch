@@ -42,7 +42,6 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -62,10 +61,10 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
@@ -2351,10 +2350,7 @@ public final class TokenService {
                 if (keyCache.cache.containsKey(keyAndCache.getKeyHash())) {
                     continue; // collision -- generate a new key
                 }
-                return newTokenMetadata(
-                    keyCache.currentTokenKeyHash,
-                    Iterables.concat(keyCache.cache.values(), Collections.singletonList(keyAndCache))
-                );
+                return newTokenMetadata(keyCache.currentTokenKeyHash, CollectionUtils.appendToCopy(keyCache.cache.values(), keyAndCache));
             }
         }
         return newTokenMetadata(keyCache.currentTokenKeyHash, keyCache.cache.values());
@@ -2461,28 +2457,23 @@ public final class TokenService {
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     void rotateKeysOnMaster(ActionListener<AcknowledgedResponse> listener) {
         logger.info("rotate keys on master");
         TokenMetadata tokenMetadata = generateSpareKey();
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "publish next key to prepare key rotation",
             new TokenMetadataPublishAction(tokenMetadata, ActionListener.wrap((res) -> {
                 if (res.isAcknowledged()) {
                     TokenMetadata metadata = rotateToSpareKey();
-                    clusterService.submitStateUpdateTask(
-                        "publish next key to prepare key rotation",
-                        new TokenMetadataPublishAction(metadata, listener),
-                        newExecutor()
-                    );
+                    submitUnbatchedTask("publish next key to prepare key rotation", new TokenMetadataPublishAction(metadata, listener));
                 } else {
                     listener.onFailure(new IllegalStateException("not acked"));
                 }
-            }, listener::onFailure)),
-            newExecutor()
+            }, listener::onFailure))
         );
     }
 
@@ -2553,7 +2544,7 @@ public final class TokenService {
     private void installTokenMetadata(ClusterState state) {
         if (state.custom(TokenMetadata.TYPE) == null) {
             if (installTokenMetadataInProgress.compareAndSet(false, true)) {
-                clusterService.submitStateUpdateTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
+                submitUnbatchedTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
@@ -2575,7 +2566,7 @@ public final class TokenService {
                     public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         installTokenMetadataInProgress.set(false);
                     }
-                }, newExecutor());
+                });
             }
         }
     }

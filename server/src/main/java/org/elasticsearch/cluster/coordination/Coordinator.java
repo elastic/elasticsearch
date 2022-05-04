@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -127,6 +126,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final MasterService masterService;
     private final AllocationService allocationService;
     private final JoinHelper joinHelper;
+    private final JoinValidationService joinValidationService;
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
     private final NoMasterBlockService noMasterBlockService;
@@ -195,18 +195,21 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.electionStrategy = electionStrategy;
         this.joinReasonService = new JoinReasonService(transportService.getThreadPool()::relativeTimeInMillis);
         this.joinHelper = new JoinHelper(
-            settings,
             allocationService,
             masterService,
             transportService,
             this::getCurrentTerm,
-            this::getStateForMasterService,
             this::handleJoinRequest,
             this::joinLeaderInTerm,
-            this.onJoinValidators,
             rerouteService,
             nodeHealthService,
             joinReasonService
+        );
+        this.joinValidationService = new JoinValidationService(
+            settings,
+            transportService,
+            this::getStateForMasterService,
+            this.onJoinValidators
         );
         this.persistedStateSupplier = persistedStateSupplier;
         this.noMasterBlockService = new NoMasterBlockService(settings, clusterSettings);
@@ -623,7 +626,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         // Before letting the node join the cluster, ensure:
         // - it's a new enough version to pass the version barrier
         // - we have a healthy STATE channel to the node
-        // - if we're already master that it can make sense of a the current cluster state.
+        // - if we're already master that it can make sense of the current cluster state.
         // - we have a healthy PING channel to the node
 
         final ListenableActionFuture<Empty> validateStateListener = new ListenableActionFuture<>();
@@ -638,7 +641,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     stateForJoinValidation.getNodes().getMinNodeVersion()
                 );
             }
-            sendJoinValidate(joinRequest.getSourceNode(), stateForJoinValidation, validateStateListener);
+            sendJoinValidate(joinRequest.getSourceNode(), validateStateListener);
         } else {
             sendJoinPing(joinRequest.getSourceNode(), TransportRequestOptions.Type.STATE, validateStateListener);
         }
@@ -669,27 +672,21 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         });
     }
 
-    private void sendJoinValidate(DiscoveryNode discoveryNode, ClusterState clusterState, ActionListener<Empty> listener) {
-        transportService.sendRequest(
-            discoveryNode,
-            JoinHelper.JOIN_VALIDATE_ACTION_NAME,
-            new ValidateJoinRequest(clusterState),
-            TransportRequestOptions.of(null, TransportRequestOptions.Type.STATE),
-            new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
-                logger.warn(() -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", discoveryNode), e);
-                listener.onFailure(
-                    new IllegalStateException(
-                        String.format(
-                            Locale.ROOT,
-                            "failure when sending a join validation request from [%s] to [%s]",
-                            getLocalNode().descriptionWithoutAttributes(),
-                            discoveryNode.descriptionWithoutAttributes()
-                        ),
-                        e
-                    )
-                );
-            }), i -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
-        );
+    private void sendJoinValidate(DiscoveryNode discoveryNode, ActionListener<Empty> listener) {
+        joinValidationService.validateJoin(discoveryNode, listener.delegateResponse((delegate, e) -> {
+            logger.warn(new ParameterizedMessage("failed to validate incoming join request from node [{}]", discoveryNode), e);
+            delegate.onFailure(
+                new IllegalStateException(
+                    String.format(
+                        Locale.ROOT,
+                        "failure when sending a join validation request from [%s] to [%s]",
+                        getLocalNode().descriptionWithoutAttributes(),
+                        discoveryNode.descriptionWithoutAttributes()
+                    ),
+                    e
+                )
+            );
+        }));
     }
 
     private void sendJoinPing(DiscoveryNode discoveryNode, TransportRequestOptions.Type channelType, ActionListener<Empty> listener) {
@@ -732,7 +729,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinListener);
 
                 if (prevElectionWon == false && coordState.electionWon()) {
-                    becomeLeader("handleJoinRequest");
+                    becomeLeader();
                 }
             }
         } catch (Exception e) {
@@ -780,14 +777,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         preVoteCollector.update(getPreVoteResponse(), null);
     }
 
-    void becomeLeader(String method) {
+    private void becomeLeader() {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
         assert getLocalNode().isMasterNode() : getLocalNode() + " became a leader but is not master-eligible";
 
         logger.debug(
-            "{}: coordinator becoming LEADER in term {} (was {}, lastKnownLeader was [{}])",
-            method,
+            "handleJoinRequest: coordinator becoming LEADER in term {} (was {}, lastKnownLeader was [{}])",
             getCurrentTerm(),
             mode,
             lastKnownLeader
@@ -959,6 +955,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     @Override
     protected void doStop() {
         configuredHostsResolver.stop();
+        joinValidationService.stop();
     }
 
     @Override
@@ -1207,7 +1204,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         return true;
     }
 
-    private AtomicBoolean reconfigurationTaskScheduled = new AtomicBoolean();
+    private final AtomicBoolean reconfigurationTaskScheduled = new AtomicBoolean();
 
     private void scheduleReconfigurationIfNeeded() {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
@@ -1217,7 +1214,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         final ClusterState state = getLastAcceptedState();
         if (improveConfiguration(state) != state && reconfigurationTaskScheduled.compareAndSet(false, true)) {
             logger.trace("scheduling reconfiguration");
-            masterService.submitStateUpdateTask("reconfigure", new ClusterStateUpdateTask(Priority.URGENT) {
+            submitUnbatchedTask("reconfigure", new ClusterStateUpdateTask(Priority.URGENT) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     reconfigurationTaskScheduled.set(false);
@@ -1231,13 +1228,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     reconfigurationTaskScheduled.set(false);
                     logger.debug("reconfiguration failed", e);
                 }
-            }, newExecutor());
+            });
         }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(String source, ClusterStateUpdateTask task) {
+        masterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     // exposed for tests
@@ -1455,6 +1452,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         return onJoinValidators;
     }
 
+    // for tests
+    boolean hasIdleJoinValidationService() {
+        return joinValidationService.isIdle();
+    }
+
     public enum Mode {
         CANDIDATE,
         LEADER,
@@ -1473,7 +1475,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 settings,
                 transportService,
                 transportAddressConnector,
-                singleNodeDiscovery ? hostsResolver -> Collections.emptyList() : configuredHostsResolver
+                singleNodeDiscovery ? hostsResolver -> {} : configuredHostsResolver
             );
         }
 
@@ -1495,10 +1497,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         @Override
         protected void onFoundPeersUpdated() {
             synchronized (mutex) {
-                final Iterable<DiscoveryNode> foundPeers = getFoundPeers();
                 if (mode == Mode.CANDIDATE) {
                     final VoteCollection expectedVotes = new VoteCollection();
-                    foundPeers.forEach(expectedVotes::addVote);
+                    getFoundPeers().forEach(expectedVotes::addVote);
                     expectedVotes.addVote(Coordinator.this.getLocalNode());
                     final boolean foundQuorum = coordinationState.get().isElectionQuorum(expectedVotes);
 

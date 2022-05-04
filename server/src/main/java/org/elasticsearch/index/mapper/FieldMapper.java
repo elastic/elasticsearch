@@ -1191,7 +1191,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        private void merge(FieldMapper in, Conflicts conflicts) {
+        protected void merge(FieldMapper in, Conflicts conflicts) {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
@@ -1238,7 +1238,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * Writes the current builder parameter values as XContent
          */
         @Override
-        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
@@ -1304,6 +1304,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     parameter = paramsMap.get(propName);
                 }
                 if (parameter == null) {
+                    if (parserContext.indexVersionCreated().isLegacyIndexVersion()) {
+                        // ignore unknown parameters on legacy indices
+                        handleUnknownParamOnLegacyIndex(propName, propNode);
+                        iterator.remove();
+                        continue;
+                    }
                     if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
                         deprecationLogger.warn(
                             DeprecationCategory.API,
@@ -1352,6 +1358,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             validate();
         }
 
+        protected void handleUnknownParamOnLegacyIndex(String propName, Object propNode) {
+            // ignore
+        }
+
         protected static ContentPath parentPath(String name) {
             int endPos = name.lastIndexOf(".");
             if (endPos == -1) {
@@ -1388,21 +1398,39 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         private final BiFunction<String, MappingParserContext, Builder> builderFunction;
         private final BiConsumer<String, MappingParserContext> contextValidator;
+        private final Version minimumCompatibilityVersion; // see Mapper.TypeParser#supportsVersion()
 
         /**
          * Creates a new TypeParser
          * @param builderFunction a function that produces a Builder from a name and parsercontext
          */
         public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction) {
-            this(builderFunction, (n, c) -> {});
+            this(builderFunction, (n, c) -> {}, Version.CURRENT.minimumIndexCompatibilityVersion());
+        }
+
+        /**
+         * Variant of {@link #TypeParser(BiFunction)} that allows to defining a minimumCompatibilityVersion to
+         * allow parsing mapping definitions of legacy indices (see {@link Mapper.TypeParser#supportsVersion(Version)}).
+         */
+        public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, Version minimumCompatibilityVersion) {
+            this(builderFunction, (n, c) -> {}, minimumCompatibilityVersion);
         }
 
         public TypeParser(
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             BiConsumer<String, MappingParserContext> contextValidator
         ) {
+            this(builderFunction, contextValidator, Version.CURRENT.minimumIndexCompatibilityVersion());
+        }
+
+        private TypeParser(
+            BiFunction<String, MappingParserContext, Builder> builderFunction,
+            BiConsumer<String, MappingParserContext> contextValidator,
+            Version minimumCompatibilityVersion
+        ) {
             this.builderFunction = builderFunction;
             this.contextValidator = contextValidator;
+            this.minimumCompatibilityVersion = minimumCompatibilityVersion;
         }
 
         @Override
@@ -1411,6 +1439,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Builder builder = builderFunction.apply(name, parserContext);
             builder.parse(name, parserContext, node);
             return builder;
+        }
+
+        @Override
+        public boolean supportsVersion(Version indexCreatedVersion) {
+            return indexCreatedVersion.onOrAfter(minimumCompatibilityVersion);
         }
     }
 

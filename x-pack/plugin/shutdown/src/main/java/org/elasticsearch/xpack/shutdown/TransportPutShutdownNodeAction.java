@@ -155,6 +155,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
     ) {
         super(
             PutShutdownNodeAction.NAME,
+            false,
             transportService,
             clusterService,
             threadPool,

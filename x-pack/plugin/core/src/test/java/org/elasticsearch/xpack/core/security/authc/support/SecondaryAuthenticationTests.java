@@ -16,6 +16,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
@@ -28,7 +29,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Mockito.mock;
 
 public class SecondaryAuthenticationTests extends ESTestCase {
 
@@ -55,7 +55,13 @@ public class SecondaryAuthenticationTests extends ESTestCase {
         setUser(user1, () -> {
             assertThat(securityContext.getUser().principal(), equalTo("u1"));
 
-            final Authentication authentication2 = new Authentication(new User("u2", "role2"), realm(), realm());
+            final Authentication authentication2 = AuthenticationTestHelper.builder()
+                .user(new User("not-u2", "not-role2"))
+                .realmRef(realm())
+                .runAs()
+                .user(new User("u2", "role2"))
+                .realmRef(realm())
+                .build();
             final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2);
 
             assertThat(securityContext.getUser().principal(), equalTo("u1"));
@@ -74,7 +80,13 @@ public class SecondaryAuthenticationTests extends ESTestCase {
         setUser(user1, () -> {
             assertThat(securityContext.getUser().principal(), equalTo("u1"));
 
-            final Authentication authentication2 = new Authentication(new User("u2", "role2"), realm(), realm());
+            final Authentication authentication2 = AuthenticationTestHelper.builder()
+                .user(new User("not-u2", "not-role2"))
+                .realmRef(realm())
+                .runAs()
+                .user(new User("u2", "role2"))
+                .realmRef(realm())
+                .build();
             final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2);
 
             assertThat(securityContext.getUser().principal(), equalTo("u1"));
@@ -93,12 +105,18 @@ public class SecondaryAuthenticationTests extends ESTestCase {
         });
     }
 
-    public void testWrapRunnable() throws Exception {
+    public void testWrapRunnable() {
         final User user1 = new User("u1", "role1");
         setUser(user1, () -> {
             assertThat(securityContext.getUser().principal(), equalTo("u1"));
 
-            final Authentication authentication2 = new Authentication(new User("u2", "role2"), realm(), realm());
+            final Authentication authentication2 = AuthenticationTestHelper.builder()
+                .user(new User("not-u2", "not-role2"))
+                .realmRef(realm())
+                .runAs()
+                .user(new User("u2", "role2"))
+                .realmRef(realm())
+                .build();
             final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2);
 
             assertThat(securityContext.getUser().principal(), equalTo("u1"));
@@ -135,7 +153,13 @@ public class SecondaryAuthenticationTests extends ESTestCase {
         setUser(user1, () -> {
             assertThat(securityContext.getUser().principal(), equalTo("u1"));
 
-            final Authentication authentication2 = new Authentication(new User("u2", "role2"), realm(), realm());
+            final Authentication authentication2 = AuthenticationTestHelper.builder()
+                .user(new User("not-u2", "not-role2"))
+                .realmRef(realm())
+                .runAs()
+                .user(new User("u2", "role2"))
+                .realmRef(realm())
+                .build();
             final SecondaryAuthentication secondaryAuth = new SecondaryAuthentication(securityContext, authentication2);
 
             assertThat(securityContext.getUser().principal(), equalTo("u1"));
@@ -174,11 +198,7 @@ public class SecondaryAuthenticationTests extends ESTestCase {
     }
 
     private void setUser(User user, Runnable runnable) {
-        final Authentication authentication = new Authentication(
-            user,
-            mock(Authentication.RealmRef.class),
-            mock(Authentication.RealmRef.class)
-        );
+        final Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         securityContext.executeWithAuthentication(authentication, ignored -> {
             runnable.run();
             return null;

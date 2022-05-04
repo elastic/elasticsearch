@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
@@ -99,7 +98,7 @@ public class MetadataMigrateToDataStreamService {
                 finalListener.onResponse(AcknowledgedResponse.FALSE);
             }
         }, finalListener::onFailure);
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "migrate-to-data-stream [" + request.aliasName + "]",
             new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
 
@@ -115,14 +114,13 @@ public class MetadataMigrateToDataStreamService {
                     writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
                     return clusterState;
                 }
-            },
-            newExecutor()
+            }
         );
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static ClusterState migrateToDataStream(

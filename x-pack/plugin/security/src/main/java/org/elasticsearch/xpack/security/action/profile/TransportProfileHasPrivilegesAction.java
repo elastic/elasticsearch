@@ -74,7 +74,6 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
             }
             final Set<String> hasPrivilegeProfiles = Collections.synchronizedSet(new HashSet<>());
             final Set<String> errorProfiles = Collections.synchronizedSet(new HashSet<>(profileSubjectsAndFailures.failureProfileUids()));
-            final Runnable allDone = () -> listener.onResponse(new ProfileHasPrivilegesResponse(hasPrivilegeProfiles, errorProfiles));
             final Collection<Map.Entry<String, Subject>> profileUidAndSubjects = profileSubjectsAndFailures.profileUidToSubject()
                 .entrySet();
             final AtomicInteger counter = new AtomicInteger(profileUidAndSubjects.size());
@@ -89,12 +88,9 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
                             subject,
                             request.privilegesToCheck(),
                             applicationPrivilegeDescriptors,
-                            ActionListener.wrap(privilegesCheckResult -> {
+                            ActionListener.runAfter(ActionListener.wrap(privilegesCheckResult -> {
                                 if (privilegesCheckResult.allMatch()) {
                                     hasPrivilegeProfiles.add(profileUid);
-                                }
-                                if (counter.decrementAndGet() == 0) {
-                                    allDone.run();
                                 }
                             }, checkPrivilegesException -> {
                                 logger.debug(
@@ -102,8 +98,9 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
                                     checkPrivilegesException
                                 );
                                 errorProfiles.add(profileUid);
+                            }), () -> {
                                 if (counter.decrementAndGet() == 0) {
-                                    allDone.run();
+                                    listener.onResponse(new ProfileHasPrivilegesResponse(hasPrivilegeProfiles, errorProfiles));
                                 }
                             })
                         );

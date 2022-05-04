@@ -27,8 +27,8 @@ public class SetupPasswordToolIT extends AbstractPasswordToolTestCase {
         SetupPasswordTool tool = new SetupPasswordTool();
         final int status;
         if (randomBoolean()) {
-            mockTerminal.addTextInput("y"); // answer yes to continue prompt
             possiblyDecryptKeystore(mockTerminal);
+            mockTerminal.addTextInput("y"); // answer yes to continue prompt
             status = tool.main(new String[] { "auto" }, mockTerminal, getToolProcessInfo());
         } else {
             possiblyDecryptKeystore(mockTerminal);

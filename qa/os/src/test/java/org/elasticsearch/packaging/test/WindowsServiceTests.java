@@ -115,7 +115,7 @@ public class WindowsServiceTests extends PackagingTestCase {
         try {
             mv(installation.bundledJdk, relocatedJdk);
             Result result = sh.run(serviceScript + " install");
-            assertThat(result.stdout(), containsString("The service 'elasticsearch-service-x64' has been installed."));
+            assertThat(result.stdout(), containsString("The service 'elasticsearch-service-x64' has been installed"));
         } finally {
             sh.runIgnoreExitCode(serviceScript + " remove");
             mv(relocatedJdk, installation.bundledJdk);

@@ -170,7 +170,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         stream(versions).forEach(v -> jarEntries.put(prefix + "META-INF/versions/" + v + "/p/FooBar.class", classBytesForVersion(v)));
 
         Path topLevelDir = createTempDir();
-        Path outerJar = topLevelDir.resolve("impl.jar");
+        Path outerJar = topLevelDir.resolve("impl1.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
         URL[] urls = new URL[] { outerJar.toUri().toURL() };
         URLClassLoader parent = URLClassLoader.newInstance(urls, EmbeddedImplClassLoaderTests.class.getClassLoader());
@@ -206,7 +206,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         jarEntries.put("IMPL-JARS/res/LISTING.TXT", "res-impl.jar");
         jarEntries.put("IMPL-JARS/res/res-impl.jar/p/res.txt", "Hello World");
 
-        Path outerJar = topLevelDir.resolve("impl.jar");
+        Path outerJar = topLevelDir.resolve("impl2.jar");
         JarUtils.createJarWithEntriesUTF(outerJar, jarEntries);
         URL[] urls = new URL[] { outerJar.toUri().toURL() };
         URLClassLoader parent = URLClassLoader.newInstance(urls, EmbeddedImplClassLoaderTests.class.getClassLoader());
@@ -310,7 +310,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
                     jarEntries.put(prefix + "META-INF/MANIFEST.MF", "Multi-Release: true\n");
                 }
                 stream(versions).forEach(v -> jarEntries.put(prefix + "META-INF/versions/" + v + "/p/res.txt", ("Hello World" + v)));
-                Path outerJar = topLevelDir.resolve("impl.jar");
+                Path outerJar = topLevelDir.resolve("impl3.jar");
                 JarUtils.createJarWithEntriesUTF(outerJar, jarEntries);
                 URLClassLoader parent = URLClassLoader.newInstance(
                     new URL[] { outerJar.toUri().toURL() },
@@ -373,7 +373,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         Map<String, String> jarEntries = new HashMap<>();
         jarEntries.put("IMPL-JARS/res/LISTING.TXT", "res-impl.jar");
         jarEntries.put("IMPL-JARS/res/res-impl.jar/p/res.txt", "Hello World0");
-        Path outerJar = topLevelDir.resolve("impl.jar");
+        Path outerJar = topLevelDir.resolve("impl4.jar");
         JarUtils.createJarWithEntriesUTF(outerJar, jarEntries);
         URL[] urls = new URL[] { outerJar.toUri().toURL() };
         URLClassLoader parent = URLClassLoader.newInstance(urls, EmbeddedImplClassLoaderTests.class.getClassLoader());
@@ -421,7 +421,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         jarEntries.put("IMPL-JARS/blah/baz.jar/META-INF/versions/11/r/Baz.class", classToBytes.get("r.Baz"));
 
         Path topLevelDir = createTempDir();
-        Path outerJar = topLevelDir.resolve("impl.jar");
+        Path outerJar = topLevelDir.resolve("impl5.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
         URL[] urls = new URL[] { outerJar.toUri().toURL() };
 
@@ -452,7 +452,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         jarEntries.put("IMPL-JARS/blah/baz.jar/META-INF/MANIFEST.MF", "Multi-Release: trUE\n");
         jarEntries.put("IMPL-JARS/blah/baz.jar/META-INF/versions/11/res.txt", "bazRes");
 
-        Path outerJar = topLevelDir.resolve("impl.jar");
+        Path outerJar = topLevelDir.resolve("impl6.jar");
         JarUtils.createJarWithEntriesUTF(outerJar, jarEntries);
         URL[] urls = new URL[] { outerJar.toUri().toURL() };
         URLClassLoader parent = URLClassLoader.newInstance(urls, EmbeddedImplClassLoaderTests.class.getClassLoader());

@@ -44,8 +44,6 @@ import org.elasticsearch.xpack.slm.history.SnapshotHistoryItem;
 import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 
 import java.io.IOException;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -106,11 +104,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 return null;
             })
         ) {
-            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(
-                null,
-                ZoneOffset.UTC,
-                item -> fail("should not have tried to store an item")
-            );
+            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, item -> fail("should not have tried to store an item"));
 
             SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService, historyStore);
 
@@ -194,7 +188,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             })
         ) {
             final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);
-            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, ZoneOffset.UTC, item -> {
+            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, item -> {
                 assertFalse(historyStoreCalled.getAndSet(true));
                 final SnapshotLifecyclePolicy policy = slpm.getPolicy();
                 assertEquals(policy.getId(), item.getPolicyId());
@@ -273,7 +267,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             })
         ) {
             final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);
-            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, ZoneOffset.UTC, item -> {
+            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, item -> {
                 assertFalse(historyStoreCalled.getAndSet(true));
                 final SnapshotLifecyclePolicy policy = slpm.getPolicy();
                 assertEquals(policy.getId(), item.getPolicyId());
@@ -332,9 +326,9 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
 
     public static class VerifyingHistoryStore extends SnapshotHistoryStore {
 
-        Consumer<SnapshotHistoryItem> verifier;
+        private final Consumer<SnapshotHistoryItem> verifier;
 
-        public VerifyingHistoryStore(Client client, ZoneId timeZone, Consumer<SnapshotHistoryItem> verifier) {
+        public VerifyingHistoryStore(Client client, Consumer<SnapshotHistoryItem> verifier) {
             super(Settings.EMPTY, client, null);
             this.verifier = verifier;
         }

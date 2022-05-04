@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -254,7 +253,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             MockSnapshotRetentionTask retentionTask = new MockSnapshotRetentionTask(
                 noOpClient,
                 clusterService,
-                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC, (historyItem) -> {
+                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, (historyItem) -> {
                     assertEquals(deletionSuccess, historyItem.isSuccess());
                     if (historyItem.isSuccess() == false) {
                         assertThat(historyItem.getErrorDetails(), containsString("deletion_failed"));
@@ -345,11 +344,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 noOpClient,
                 clusterService,
                 System::nanoTime,
-                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(
-                    noOpClient,
-                    ZoneOffset.UTC,
-                    (historyItem) -> fail("should never write history")
-                )
+                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, (historyItem) -> fail("should never write history"))
             );
 
             AtomicReference<Exception> errHandlerCalled = new AtomicReference<>(null);
@@ -414,11 +409,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 noOpClient,
                 clusterService,
                 System::nanoTime,
-                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(
-                    noOpClient,
-                    ZoneOffset.UTC,
-                    (historyItem) -> fail("should never write history")
-                )
+                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, (historyItem) -> fail("should never write history"))
             );
 
             AtomicBoolean onFailureCalled = new AtomicBoolean(false);
@@ -479,11 +470,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             SnapshotRetentionTask task = new MockSnapshotRetentionTask(
                 noOpClient,
                 clusterService,
-                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(
-                    noOpClient,
-                    ZoneOffset.UTC,
-                    (historyItem) -> fail("should never write history")
-                ),
+                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, (historyItem) -> fail("should never write history")),
                 () -> {
                     fail("should not retrieve snapshots");
                     return null;
@@ -532,7 +519,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             MockSnapshotRetentionTask task = new MockSnapshotRetentionTask(
                 noOpClient,
                 clusterService,
-                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC, (historyItem) -> {}),
+                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, (historyItem) -> {}),
                 () -> {
                     retentionWasRun.set(true);
                     return Collections.emptyMap();

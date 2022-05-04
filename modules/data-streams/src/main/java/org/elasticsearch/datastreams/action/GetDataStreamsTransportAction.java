@@ -135,6 +135,18 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                     } else if (current.v2().compareTo(start) < 0) {
                         ranges.add(current);
                         current = new Tuple<>(start, end);
+                    } else {
+                        String message = "previous backing index ["
+                            + current.v1()
+                            + "/"
+                            + current.v2()
+                            + "] range is colliding with current backing index range ["
+                            + start
+                            + "/"
+                            + end
+                            + "]";
+                        assert current.v2().compareTo(start) < 0 : message;
+                        LOGGER.warn(message);
                     }
                 }
                 if (current != null) {

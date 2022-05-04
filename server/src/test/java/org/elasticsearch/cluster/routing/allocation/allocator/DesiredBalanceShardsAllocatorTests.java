@@ -235,10 +235,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var threadPool = new TestThreadPool(getTestName());
 
         var secondInputSubmitted = new CountDownLatch(1);
+        var computationStarted = new CountDownLatch(1);
         var listenersCalled = new AtomicInteger(0);
         var reroutesCalled = new AtomicInteger(0);
 
         RerouteService rerouteService = (r, p, l) -> {
+            logger.info("reroute");
             reroutesCalled.incrementAndGet();
             l.onResponse(null);
         };
@@ -248,6 +250,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             public void allocate(RoutingAllocation allocation) {
 
                 try {
+                    computationStarted.countDown();
                     assertTrue("Should have submitted the second input in time", secondInputSubmitted.await(10, TimeUnit.SECONDS));
                 } catch (InterruptedException e) {
                     throw new AssertionError("Should have submitted the second input");
@@ -259,6 +262,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                     unassignedIterator.next();
                     unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
                 }
+
+                logger.info("allocate");
             }
 
             @Override
@@ -272,11 +277,19 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var index2 = createIndex(UUIDs.randomBase64UUID());
 
         var listener = ActionListener.<Void>wrap(() -> {
+            logger.info("listener");
             assertThat("Should execute listeners only after both reroutes are completed", reroutesCalled.get(), equalTo(2));
             listenersCalled.incrementAndGet();
         });
 
         desiredBalanceShardsAllocator.allocate(createAllocationFrom(createClusterState(discoveryNode, index1)), listener);
+
+        try {
+            assertTrue("Should submit second computation when first one has started", computationStarted.await(10, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            throw new AssertionError("Should have submitted the second input");
+        }
+
         desiredBalanceShardsAllocator.allocate(createAllocationFrom(createClusterState(discoveryNode, index2)), listener);
 
         secondInputSubmitted.countDown();

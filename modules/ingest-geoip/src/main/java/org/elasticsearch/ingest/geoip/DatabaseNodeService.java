@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -24,6 +25,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -191,9 +193,16 @@ public final class DatabaseNodeService implements Closeable {
             return;
         }
 
-        IndexRoutingTable databasesIndexRT = state.getRoutingTable().index(GeoIpDownloader.DATABASES_INDEX);
-        if (databasesIndexRT == null || databasesIndexRT.allPrimaryShardsActive() == false) {
+        IndexAbstraction databasesAbstraction = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
+        if (databasesAbstraction == null) {
             return;
+        } else {
+            // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
+            Index databasesIndex = databasesAbstraction.getWriteIndex();
+            IndexRoutingTable databasesIndexRT = state.getRoutingTable().index(databasesIndex);
+            if (databasesIndexRT == null || databasesIndexRT.allPrimaryShardsActive() == false) {
+                return;
+            }
         }
 
         PersistentTasksCustomMetadata.PersistentTask<?> task = PersistentTasksCustomMetadata.getTaskWithId(

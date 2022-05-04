@@ -143,8 +143,6 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
             .setPersistentSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), false))
             .get();
 
-        awaitDesiredBalanceShardsAllocator();
-
         clusterState = client().admin().cluster().prepareState().get().getState();
         assertTrue(
             "all shards should be assigned",

@@ -281,7 +281,8 @@ public class MetadataRolloverService {
             silent,
             (builder, indexMetadata) -> builder.put(
                 ds.rollover(indexMetadata.getIndex(), newGeneration, metadata.isTimeSeriesTemplate(templateV2))
-            )
+            ),
+            DesiredBalanceShardsAllocator.REMOVE_ME
         );
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());

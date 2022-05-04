@@ -290,7 +290,7 @@ public class MetadataCreateIndexService {
 
         var future = new ListenableFuture<AcknowledgedResponse>();
 
-        submitStateUpdateTask(
+        submitUnbatchedTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
             new AckedClusterStateUpdateTask(Priority.URGENT, request, future) {
 

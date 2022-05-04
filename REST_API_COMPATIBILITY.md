@@ -88,30 +88,45 @@ In places where `ToXContent#toXContent` is not used for serialization, then the 
 
 Accepting a payload from a prior version's REST request is a bit more difficult than sending a compatible response. There are a couple different approaches for de-serialization, however, in general all of them use a request specific parser.  `XContentParser` has a `getRestApiVersion()` method that could be used in manner that is near identical to serialization. However, in practice most parsers are invoked via a `ConstructingObjectParser` or an `ObjectParser` and quite often they are daisy chained together via the `NamedXContentRegistry`.
 
-Both `ConstructingObjectParser` and `ObjectParser` use `ParseField`'s to statically declare the relationship between a named key and value pairing. A `ParseField` can be made version aware, meaning that it will match on the incoming payload if the requested compatibility is the correct version.
+Both `ConstructingObjectParser` and `ObjectParser` use `ParseField`'s to statically declare the relationship between a named key and value pairing. A parser via it's `ParseField` can be made version aware, meaning that the parser will match on the incoming payload if the requested compatibility is the correct version.
 
 For example:
 
 ```java
-PARSER.declareInt(MyPojo::setMax,
-       new ParseField("maximum", "limit").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)));
-PARSER.declareInt(MyPojo::setMax,
-       new ParseField("maximum").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8)));
+PARSER.declareInt(MyPojo::setMax, new ParseField("maximum", "limit").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)));
+PARSER.declareInt(MyPojo::setMax, new ParseField("maximum").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8)));
 ```
 
 The above example is for code that live in the version 8 branch of code. In this example, `limit` has been deprecated in version 7 and removed in version 8.  The above code reads use the `maximum` value from the request for both version 7 and version 8. However, if compatibility is requested it will also allow `limit` in the payload.  If `limit` is used a warning will be emitted.
 
 The version in `forRestApiVersion` is reference to when the declaration is valid. Assuming version 8 is the master branch and all changes start in the master branch then get back ported. The above text is what would be applicable for the v8 branch of code. The first line of code is essentially ignored except for when compatibility with version 7 is requested. When back-porting this change to the 7.x branch, the first line would be identical, and the second line would be omitted.
 
-The above strategy works well for single fields, but could get overly complex very fast for large multiple field changes. For more complex de-serialization changes there is also support to construct a `NamedXContentRegistry` with some "normal" entries as well some entries that are only applied when compatibility with the prior version is requested.
+The above strategy works well for single fields, but could get overly complex very fast for large multiple field changes. For more complex de-serialization changes there is also support to construct a `NamedXContentRegistry` with some "normal" entries as well some entries that are only applied when compatibility with the prior version is requested. The syntax is very similar where can express the desired version from the required `ParseField` when adding an entry to the `NamedXContentRegistry`.
 
-TODO: example of NamedXContentRegistry
+Additionally, there is a pseudo standard method `fromXContent` which also generally has access to the `XContentParser` for that request which can be used to conditionally change how to parse the input.
 
+```java
+private static final ParseField limitField = new ParseField("maximum", "limit").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
 
-Additionally, there is a pseudo standard method `fromXContent` which also has access to the `XContentParser` for that request which can be used to conditionally change how to parse the input.
+//call to fromXContent
+MyExample.fromXContent(XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE).withRestApiVersion(request.getRestApiVersion()), " { \"limit\" : 99 }"));
 
-TODO: example of `fromXContent`
-
+//contents of a fromXContent
+while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+    if (token == XContentParser.Token.FIELD_NAME) {
+        currentFieldName = parser.currentName();
+    } else if (token.isValue()) {
+        if (limitField.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
+            if (parser.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_8))
+                && "maximum".equals(currentFieldName) == false) {
+                throw new IllegalArgumentException("invalid parameter [limit], use [maximum] instead");
+            } else {
+                value = parser.intValue();
+            }
+        }
+    }
+}
+```
 ### URL
 
 Paths are declared via a Route. Routes are composed of the HTTP verb and the relative path. Optionally they can declare a deprecated verb/path combination and the REST API version in which they were deprecated.

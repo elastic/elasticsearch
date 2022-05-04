@@ -140,7 +140,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws UserException {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws UserException {
         if (options.nonOptionArguments().isEmpty() == false) {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }

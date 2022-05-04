@@ -79,7 +79,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     }
 
     @Override
-    protected final void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
+    public final void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         validate(terminal, options, env);
         ensureFileRealmEnabled(env.settings());
         KeyStoreWrapper keyStoreWrapper = keyStoreFunction.apply(env);

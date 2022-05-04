@@ -63,7 +63,7 @@ class FileTokensTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             final ServiceAccountTokenId accountTokenId = parsePrincipalAndTokenName(arguments.values(options), env.settings());
             final Hasher hasher = Hasher.resolve(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(env.settings()));
             final Path serviceTokensFile = FileServiceAccountTokenStore.resolveFile(env);
@@ -95,7 +95,7 @@ class FileTokensTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             final ServiceAccountTokenId accountTokenId = parsePrincipalAndTokenName(arguments.values(options), env.settings());
             final String qualifiedName = accountTokenId.getQualifiedName();
             final Path serviceTokensFile = FileServiceAccountTokenStore.resolveFile(env);
@@ -122,7 +122,7 @@ class FileTokensTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             final List<String> args = arguments.values(options);
             if (args.size() > 1) {
                 throw new UserException(

@@ -156,7 +156,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         final boolean inEnrollmentMode = options.has(enrollmentTokenParam);
 
         // skipping security auto-configuration because node considered as restarting.

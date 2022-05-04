@@ -1,0 +1,5 @@
+pr: 86416
+summary: Adjust memory overhead for `PyTorch` models
+area: Machine Learning
+type: bug
+issues: []

@@ -274,10 +274,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var index1 = createIndex(UUIDs.randomBase64UUID());
         var index2 = createIndex(UUIDs.randomBase64UUID());
 
-        var listener = ActionListener.<Void>wrap(() -> {
+        var listener = ActionListener.<Void>wrap(response -> {
             assertThat("Should execute listeners only after both reroutes are completed", reroutesCalled.get(), equalTo(2));
             listenersCalled.incrementAndGet();
-        });
+        }, exception -> { throw new AssertionError("Should not fail in test"); });
 
         desiredBalanceShardsAllocator.allocate(createAllocationFrom(createClusterState(discoveryNode, index1)), listener);
 
@@ -301,7 +301,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
         var listenersCalled = new AtomicInteger(0);
 
-        RerouteService rerouteService = (r, p, l) -> { l.onFailure(new NotMasterException("no longer master")); };
+        RerouteService rerouteService = (r, p, l) -> l.onFailure(new NotMasterException("no longer master"));
 
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(new ShardsAllocator() {
             @Override

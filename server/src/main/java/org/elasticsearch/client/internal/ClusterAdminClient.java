@@ -54,7 +54,6 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
@@ -757,26 +756,5 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Delete specified dangling indices.
      */
     ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request);
-
-    /**
-     * The cluster settings.
-     *
-     * @param request The cluster settings request
-     * @return The result future
-     */
-    ActionFuture<ClusterGetSettingsAction.Response> clusterSettings(ClusterGetSettingsAction.Request request);
-
-    /**
-     * The health of the cluster.
-     *
-     * @param request  The cluster state request
-     * @param listener A listener to be notified with a result
-     */
-    void clusterSettings(ClusterGetSettingsAction.Request request, ActionListener<ClusterGetSettingsAction.Response> listener);
-
-    /**
-     * The health of the cluster.
-     */
-    ClusterGetSettingsAction.RequestBuilder prepareClusterSettings();
 
 }

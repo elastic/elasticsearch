@@ -389,32 +389,34 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 equalTo(expectedDifference)
             );
             assertThat(resultReason.summary(), equalTo(reason));
+            assertThat(
+                resultReason.unassignedShardIds(),
+                equalTo(
+                    decider.allocationState(context)
+                        .storagePreventsAllocation0()
+                        .unassignedShards()
+                        .stream()
+                        .map(ShardRouting::shardId)
+                        .collect(Collectors.toSet())
+                )
+            );
+            assertThat(
+                resultReason.assignedShardIds(),
+                equalTo(
+                    decider.allocationState(context)
+                        .storagePreventsRemainOrMove0()
+                        .unmovableShards()
+                        .stream()
+                        .map(ShardRouting::shardId)
+                        .collect(Collectors.toSet())
+                )
+            );
         } else {
             assertThat(result.requiredCapacity(), is(nullValue()));
             assertThat(resultReason.summary(), equalTo("current capacity not available"));
+            assertThat(resultReason.unassignedShardIds(), equalTo(Set.of()));
+            assertThat(resultReason.assignedShardIds(), equalTo(Set.of()));
         }
-        assertThat(
-            resultReason.unassignedShardIds(),
-            equalTo(
-                decider.allocationState(context)
-                    .storagePreventsAllocation0()
-                    .unassignedShards()
-                    .stream()
-                    .map(ShardRouting::shardId)
-                    .collect(Collectors.toSet())
-            )
-        );
-        assertThat(
-            resultReason.assignedShardIds(),
-            equalTo(
-                decider.allocationState(context)
-                    .storagePreventsRemainOrMove0()
-                    .unmovableShards()
-                    .stream()
-                    .map(ShardRouting::shardId)
-                    .collect(Collectors.toSet())
-            )
-        );
     }
 
     private long numAllocatableSubjectShards() {

@@ -17,11 +17,11 @@ import java.util.function.Predicate;
  */
 public class SystemUser extends User {
 
-    private static final String NAME = UsernamesField.SYSTEM_NAME;
     public static final String ROLE_NAME = UsernamesField.SYSTEM_ROLE;
 
     public static final User INSTANCE = new SystemUser();
 
+    private static final String NAME = UsernamesField.SYSTEM_NAME;
     private static final Predicate<String> PREDICATE = SystemPrivilege.INSTANCE.predicate();
 
     private SystemUser() {

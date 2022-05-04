@@ -18,11 +18,8 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Privilege
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -45,21 +42,21 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
         );
     }
 
-    private final Set<String> uids;
+    private final List<String> uids;
     private final PrivilegesToCheck privilegesToCheck;
 
-    public ProfileHasPrivilegesRequest(Collection<String> uids, PrivilegesToCheck privilegesToCheck) {
-        this.uids = uids != null ? new LinkedHashSet<>(uids) : null;
-        this.privilegesToCheck = privilegesToCheck;
+    public ProfileHasPrivilegesRequest(List<String> uids, PrivilegesToCheck privilegesToCheck) {
+        this.uids = Objects.requireNonNull(uids);
+        this.privilegesToCheck = Objects.requireNonNull(privilegesToCheck);
     }
 
     public ProfileHasPrivilegesRequest(StreamInput in) throws IOException {
         super(in);
-        this.uids = in.readSet(StreamInput::readString);
+        this.uids = in.readStringList();
         this.privilegesToCheck = PrivilegesToCheck.readFrom(in);
     }
 
-    public Set<String> profileUids() {
+    public List<String> profileUids() {
         return uids;
     }
 
@@ -70,16 +67,10 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (uids == null) {
-            validationException = addValidationError("profile uids must not be null", validationException);
-        } else if (uids.isEmpty()) {
+        if (uids.isEmpty()) {
             validationException = addValidationError("profile uids list must not be empty", validationException);
         }
-        if (privilegesToCheck == null) {
-            return addValidationError("privileges to check must not be null", validationException);
-        } else {
-            return privilegesToCheck.validate(validationException);
-        }
+        return privilegesToCheck.validate(validationException);
     }
 
     @Override
@@ -93,8 +84,8 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ProfileHasPrivilegesRequest that = (ProfileHasPrivilegesRequest) o;
-        return Objects.equals(uids, that.uids) && Objects.equals(privilegesToCheck, that.privilegesToCheck);
+        ProfileHasPrivilegesRequest request = (ProfileHasPrivilegesRequest) o;
+        return uids.equals(request.uids) && privilegesToCheck.equals(request.privilegesToCheck);
     }
 
     @Override

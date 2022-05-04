@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.security.profile.ProfileService.MultiProfileSubje
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -86,7 +87,10 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
         final Set<String> noPrivilegesProfileUids = new HashSet<>(randomSubsetOf(allProfileUids));
         noPrivilegesProfileUids.removeAll(errorProfileUids);
 
-        final ProfileHasPrivilegesRequest request = new ProfileHasPrivilegesRequest(allProfileUids, randomValidPrivilegesToCheckRequest());
+        final ProfileHasPrivilegesRequest request = new ProfileHasPrivilegesRequest(
+            new ArrayList<>(allProfileUids),
+            randomValidPrivilegesToCheckRequest()
+        );
 
         doAnswer(invocation -> {
             Collection<String> uidsArg = (Collection<String>) invocation.getArguments()[0];

@@ -68,19 +68,11 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
         assertThat(exception.validationErrors(), hasItem("clusterPrivileges must not be null"));
         assertThat(exception.validationErrors(), hasItem("indexPrivileges must not be null"));
         assertThat(exception.validationErrors(), hasItem("applicationPrivileges must not be null"));
-        request = new ProfileHasPrivilegesRequest(randomList(1, 3, () -> randomAlphaOfLengthBetween(0, 5)), null);
-        exception = request.validate();
-        assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), hasItem("privileges to check must not be null"));
     }
 
-    public void testValidateNullOrEmptyProfileUids() {
-        ProfileHasPrivilegesRequest request = new ProfileHasPrivilegesRequest(null, randomValidPrivilegesToCheckRequest());
+    public void testValidateEmptyProfileUids() {
+        ProfileHasPrivilegesRequest request = new ProfileHasPrivilegesRequest(List.of(), randomValidPrivilegesToCheckRequest());
         ActionRequestValidationException exception = request.validate();
-        assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), contains("profile uids must not be null"));
-        request = new ProfileHasPrivilegesRequest(List.of(), randomValidPrivilegesToCheckRequest());
-        exception = request.validate();
         assertThat(exception, notNullValue());
         assertThat(exception.validationErrors(), contains("profile uids list must not be empty"));
     }

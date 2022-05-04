@@ -46,6 +46,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -118,6 +119,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1120,6 +1122,17 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             writer.commit();
             writer.close();
             when(shard.state()).thenReturn(IndexShardState.STARTED);
+            final var indexMetadata = IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE)
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                        .build()
+                )
+                .build();
+            IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+            when(shard.indexSettings()).thenReturn(indexSettings);
 
             TestRecoveryTargetHandler recoveryTarget = new Phase1RecoveryTargetHandler();
             AtomicReference<ShardRecoveryPlan> computedRecoveryPlanRef = new AtomicReference<>();

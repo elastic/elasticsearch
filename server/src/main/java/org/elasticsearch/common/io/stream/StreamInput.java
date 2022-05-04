@@ -1158,8 +1158,13 @@ public abstract class StreamInput extends InputStream {
      */
     public <T> List<T> readImmutableList(final Writeable.Reader<T> reader) throws IOException {
         int count = readArraySize();
+        // special cases small arrays, just like in java.util.List.of(...)
         if (count == 0) {
             return List.of();
+        } else if (count == 1) {
+            return List.of(reader.read(this));
+        } else if (count == 2) {
+            return List.of(reader.read(this), reader.read(this));
         }
         Object[] entries = new Object[count];
         for (int i = 0; i < count; i++) {

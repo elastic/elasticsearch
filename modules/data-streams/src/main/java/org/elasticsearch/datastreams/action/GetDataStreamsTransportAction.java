@@ -77,6 +77,15 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         ClusterState state,
         ActionListener<GetDataStreamAction.Response> listener
     ) throws Exception {
+        listener.onResponse(innerOperation(state, request, indexNameExpressionResolver, systemIndices));
+    }
+
+    static GetDataStreamAction.Response innerOperation(
+        ClusterState state,
+        GetDataStreamAction.Request request,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SystemIndices systemIndices
+    ) {
         List<DataStream> dataStreams = getDataStreams(state, indexNameExpressionResolver, request);
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
         for (DataStream dataStream : dataStreams) {
@@ -144,7 +153,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                 )
             );
         }
-        listener.onResponse(new GetDataStreamAction.Response(dataStreamInfos));
+        return new GetDataStreamAction.Response(dataStreamInfos);
     }
 
     static List<DataStream> getDataStreams(

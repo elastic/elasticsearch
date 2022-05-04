@@ -259,9 +259,9 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 double[] x = Arrays.copyOfRange(timeWindow, 0, i);
                 double[] y = Arrays.copyOfRange(timeWindow, i, timeWindow.length);
                 double statistic = KOLMOGOROV_SMIRNOV_TEST.kolmogorovSmirnovStatistic(x, y);
-                double ksTestPValue = x.length > 10_000 ?
-                    KOLMOGOROV_SMIRNOV_TEST.approximateP(statistic, x.length, y.length) :
-                    KOLMOGOROV_SMIRNOV_TEST.exactP(statistic, x.length, y.length, false);
+                double ksTestPValue = x.length > 10_000
+                    ? KOLMOGOROV_SMIRNOV_TEST.approximateP(statistic, x.length, y.length)
+                    : KOLMOGOROV_SMIRNOV_TEST.exactP(statistic, x.length, y.length, false);
                 if (ksTestPValue < pValue) {
                     changePoint = i;
                     pValue = ksTestPValue;

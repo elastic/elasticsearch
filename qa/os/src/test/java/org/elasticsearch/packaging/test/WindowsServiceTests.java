@@ -104,7 +104,7 @@ public class WindowsServiceTests extends PackagingTestCase {
 
     public void test15RemoveNotInstalled() {
         Result result = assertFailure(serviceScript + " remove", 1);
-        assertThat(result.stdout(), containsString("Failed removing '" + DEFAULT_ID + "' service"));
+        assertThat(result.stderr(), containsString("Failed removing '" + DEFAULT_ID + "' service"));
     }
 
     public void test16InstallSpecialCharactersInJdkPath() throws IOException {
@@ -182,8 +182,8 @@ public class WindowsServiceTests extends PackagingTestCase {
 
     public void test31StartNotInstalled() throws IOException {
         Result result = sh.runIgnoreExitCode(serviceScript + " start");
-        assertThat(result.stdout(), result.exitCode(), equalTo(1));
-        assertThat(result.stdout(), containsString("Failed starting '" + DEFAULT_ID + "' service"));
+        assertThat(result.stderr(), result.exitCode(), equalTo(1));
+        assertThat(result.stderr(), containsString("Failed starting '" + DEFAULT_ID + "' service"));
     }
 
     public void test32StopNotStarted() throws IOException {
@@ -221,7 +221,7 @@ public class WindowsServiceTests extends PackagingTestCase {
         Files.write(fakeServiceMgr, Arrays.asList("echo \"Fake Service Manager GUI Failure\"", "exit 1"));
         result = sh.runIgnoreExitCode(serviceScript + " manager");
         TestCase.assertEquals(1, result.exitCode());
-        TestCase.assertTrue(result.stdout(), result.stdout().contains("Fake Service Manager GUI Failure"));
+        assertThat(result.stderr(), containsString("Fake Service Manager GUI Failure"));
         Files.move(tmpServiceMgr, serviceMgr);
     }
 

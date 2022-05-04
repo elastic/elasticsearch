@@ -35,11 +35,33 @@ image::images/kibana-console.png[{kib} Console,align="center"]
 for the index with unassigned shards:
 +
 
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "settings": {
+    "index.routing.allocation.total_shards_per_node": "1"
+  }
+}
+
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE my-index-000001
+--------------------------------------------------
+// TEARDOWN
+
+//////////////////////////
+
+
 [source,console]
 ----
 GET /my-index-000001/_settings/index.routing.allocation.total_shards_per_node?flat_settings
 ----
-// TEST[setup:my_index]
 
 +
 The response will look like this:
@@ -72,7 +94,7 @@ PUT /my-index-000001/_settings
   }
 }
 ----
-// TEST[setup:my_index]
+// TEST[continued]
 
 +
 <1> The new value for the `total_shards_per_node` configuration for the `my-index-000001` index
@@ -97,7 +119,7 @@ setting:
 ----
 GET /my-index-000001/_settings/index.routing.allocation.include._tier_preference?flat_settings
 ----
-// TEST[setup:my_index]
+// TEST[continued]
 
 
 The reponse will look like this:
@@ -135,7 +157,6 @@ for the index with unassigned shards:
 ----
 GET /my-index-000001/_settings/index.routing.allocation.total_shards_per_node?flat_settings
 ----
-// TEST[setup:my_index]
 
 +
 The response will look like this:
@@ -168,7 +189,7 @@ PUT /my-index-000001/_settings
   }
 }
 ----
-// TEST[setup:my_index]
+// TEST[continued]
 
 // end::self-managed[]
 

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -60,8 +59,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *         necessary to authorize the given user. It is important to note that the {@link RequestInfo}
  *         may contain an {@link Authentication} object that actually has two users when the
  *         <i>run as</i> feature is used and this method should resolve the information for both.
- *         To check for the presence of run as, use the {@link User#isRunAs()} method on the user
- *         retrieved using the {@link Authentication#getUser()} method.</li>
+ *         To check for the presence of run as, use the {@link Authentication#isRunAs()} method.</li>
  *     <li>{@link #authorizeRunAs(RequestInfo, AuthorizationInfo, ActionListener)} if the request
  *         is making use of the run as feature. This method is used to ensure the authenticated user
  *         can actually impersonate the user running the request.</li>

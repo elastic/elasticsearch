@@ -537,7 +537,12 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 )
             );
         }
-        if (load.getFreeMemory() < params.estimateMemoryUsageBytes()) {
+        // If any ML processes are running on a node we require some space to load the shared libraries.
+        // So if none are currently running then this per-node overhead must be added to the requirement.
+        long requiredMemory = params.estimateMemoryUsageBytes() + ((load.getNumAssignedJobs() == 0)
+            ? MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes()
+            : 0);
+        if (load.getFreeMemory() < requiredMemory) {
             return Optional.of(
                 ParameterizedMessage.format(
                     "This node has insufficient available memory. Available memory for ML [{} ({})], "
@@ -548,8 +553,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                         ByteSizeValue.ofBytes(load.getMaxMlMemory()).toString(),
                         load.getAssignedJobMemory(),
                         ByteSizeValue.ofBytes(load.getAssignedJobMemory()).toString(),
-                        params.estimateMemoryUsageBytes(),
-                        ByteSizeValue.ofBytes(params.estimateMemoryUsageBytes()).toString() }
+                        requiredMemory,
+                        ByteSizeValue.ofBytes(requiredMemory).toString() }
                 )
             );
         }

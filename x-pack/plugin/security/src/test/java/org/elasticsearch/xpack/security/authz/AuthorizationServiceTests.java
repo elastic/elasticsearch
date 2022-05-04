@@ -97,6 +97,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -1056,8 +1057,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             null
         );
         roleMap.put(role.getName(), role);
-        final User user = new User("test search user", role.getName());
-        final Authentication authentication = createAuthentication(user);
+        final Authentication authentication = createAuthentication(new User("test search user", role.getName()));
 
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         final String indexName = "index-" + randomAlphaOfLengthBetween(1, 5);
@@ -1653,8 +1653,8 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testRunAsRequestWithNoRolesUser() {
         final TransportRequest request = mock(TransportRequest.class);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        final Authentication authentication = createAuthentication(new User("run as me", null, new User("test user", "admin")));
-        assertNotEquals(authentication.getUser().authenticatedUser(), authentication.getUser());
+        final Authentication authentication = createAuthentication(new User("run as me"), new User("test user", "admin"));
+        assertNotEquals(authentication.getAuthenticatingSubject().getUser(), authentication.getEffectiveSubject().getUser());
         assertThrowsAuthorizationExceptionRunAsDenied(
             () -> authorize(authentication, "indices:a", request),
             "indices:a",
@@ -1696,9 +1696,10 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testRunAsRequestRunningAsUnAllowedUser() {
         TransportRequest request = mock(TransportRequest.class);
-        User user = new User("run as me", new String[] { "doesn't exist" }, new User("test user", "can run as"));
-        assertNotEquals(user.authenticatedUser(), user);
-        final Authentication authentication = createAuthentication(user);
+        final Authentication authentication = createAuthentication(
+            new User("run as me", "doesn't exist"),
+            new User("test user", "can run as")
+        );
         final RoleDescriptor role = new RoleDescriptor(
             "can run as",
             null,
@@ -1727,9 +1728,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testRunAsRequestWithRunAsUserWithoutPermission() {
         TransportRequest request = new GetIndexRequest().indices("a");
         User authenticatedUser = new User("test user", "can run as");
-        User user = new User("run as me", new String[] { "b" }, authenticatedUser);
-        assertNotEquals(user.authenticatedUser(), user);
-        final Authentication authentication = createAuthentication(user);
+        final Authentication authentication = createAuthentication(new User("run as me", "b"), authenticatedUser);
         final RoleDescriptor runAsRole = new RoleDescriptor(
             "can run as",
             null,
@@ -1788,10 +1787,8 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testRunAsRequestWithValidPermissions() {
         TransportRequest request = new GetIndexRequest().indices("b");
-        User authenticatedUser = new User("test user", new String[] { "can run as" });
-        User user = new User("run as me", new String[] { "b" }, authenticatedUser);
-        assertNotEquals(user.authenticatedUser(), user);
-        final Authentication authentication = createAuthentication(user);
+        User authenticatedUser = new User("test user", "can run as");
+        final Authentication authentication = createAuthentication(new User("run as me", "b"), authenticatedUser);
         final RoleDescriptor runAsRole = new RoleDescriptor(
             "can run as",
             null,
@@ -2482,24 +2479,28 @@ public class AuthorizationServiceTests extends ESTestCase {
     private static class MockCompositeIndicesRequest extends TransportRequest implements CompositeIndicesRequest {}
 
     private Authentication createAuthentication(User user) {
+        return createAuthentication(user, null);
+    }
+
+    private Authentication createAuthentication(User user, @Nullable User authenticatingUser) {
         final Authentication authentication;
         if (User.isInternal(user)) {
+            assert authenticatingUser == null;
             authentication = AuthenticationTestHelper.builder().internal(user).build();
         } else if (user instanceof AnonymousUser) {
+            assert authenticatingUser == null;
             authentication = AuthenticationTestHelper.builder().anonymous(user).build(false);
         } else {
-            RealmRef lookedUpBy = user.authenticatedUser() == user ? null : new RealmRef("looked", "up", "by");
-
-            if (lookedUpBy == null) {
-                authentication = AuthenticationTestHelper.builder().user(user).realmRef(new RealmRef("test", "test", "foo")).build(false);
-            } else {
+            if (authenticatingUser != null) {
                 authentication = AuthenticationTestHelper.builder()
-                    .user(user.authenticatedUser())
+                    .user(authenticatingUser)
                     .realmRef(new RealmRef("test", "test", "foo"))
                     .runAs()
-                    .user(new User(user.principal(), user.roles(), user.fullName(), user.email(), user.metadata(), user.enabled()))
-                    .realmRef(lookedUpBy)
+                    .user(user)
+                    .realmRef(new RealmRef("looked", "up", "by"))
                     .build();
+            } else {
+                authentication = AuthenticationTestHelper.builder().user(user).realmRef(new RealmRef("test", "test", "foo")).build(false);
             }
         }
         try {
@@ -2852,7 +2853,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            authentication = createAuthentication(new User("runas", new String[] { "runas_role" }, new User("runner", "runner_role")));
+            authentication = createAuthentication(new User("runas", "runas_role"), new User("runner", "runner_role"));
             assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
             assertEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
             when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(false);
@@ -2862,7 +2863,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            authentication = createAuthentication(new User("runas", new String[] { "runas_role" }, new ElasticUser(true)));
+            authentication = createAuthentication(new User("runas", "runas_role"), new ElasticUser(true));
             assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
             assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
             assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
@@ -2873,7 +2874,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            authentication = createAuthentication(new User("elastic", new String[] { "superuser" }, new User("runner", "runner_role")));
+            authentication = createAuthentication(new User("elastic", "superuser"), new User("runner", "runner_role"));
             assertNotEquals(engine, authorizationService.getAuthorizationEngine(authentication));
             assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
             assertEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
@@ -2884,7 +2885,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            authentication = createAuthentication(new User("kibana", new String[] { "kibana_system" }, new ElasticUser(true)));
+            authentication = createAuthentication(new User("kibana", "kibana_system"), new ElasticUser(true));
             assertNotEquals(engine, authorizationService.getAuthorizationEngine(authentication));
             assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
             assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));

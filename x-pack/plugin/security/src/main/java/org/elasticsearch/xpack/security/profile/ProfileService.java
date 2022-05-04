@@ -339,7 +339,7 @@ public class ProfileService {
         tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
-                () -> new OriginSettingClient(client, SECURITY_PROFILE_ORIGIN).prepareMultiGet()
+                () -> new OriginSettingClient(client, getActionOrigin()).prepareMultiGet()
                     .addIds(frozenProfileIndex.aliasName(), uids.stream().map(ProfileService::uidToDocId).toArray(String[]::new))
                     .execute(ActionListener.wrap(multiGetResponse -> {
                         List<ProfileDocument> retrievedDocs = new ArrayList<>(multiGetResponse.getResponses().length);

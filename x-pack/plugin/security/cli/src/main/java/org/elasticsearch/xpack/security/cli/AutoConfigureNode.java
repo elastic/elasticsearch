@@ -17,6 +17,7 @@ import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
@@ -155,7 +156,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         final boolean inEnrollmentMode = options.has(enrollmentTokenParam);
 
         // skipping security auto-configuration because node considered as restarting.
@@ -206,7 +207,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             if (false == inEnrollmentMode) {
                 throw new UserException(ExitCodes.USAGE, "enrollment-token is a mandatory parameter when reconfiguring the node");
             }
-            env = possiblyReconfigureNode(env, terminal, options);
+            env = possiblyReconfigureNode(env, terminal, options, processInfo);
         }
 
         // only perform auto-configuration if the existing configuration is not conflicting (eg Security already enabled)
@@ -874,7 +875,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         return false;
     }
 
-    private Environment possiblyReconfigureNode(Environment env, Terminal terminal, OptionSet options) throws UserException {
+    private Environment possiblyReconfigureNode(Environment env, Terminal terminal, OptionSet options, ProcessInfo processInfo)
+        throws UserException {
         // We remove the existing auto-configuration stanza from elasticsearch.yml, the elastisearch.keystore and
         // the directory with the auto-configured TLS key material, and then proceed as if elasticsearch is started
         // with --enrolment-token token, in the first place.
@@ -917,7 +919,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 );
             }
             // rebuild the environment after removing the settings that were added in auto-configuration.
-            return createEnv(options);
+            return createEnv(options, processInfo);
         } else {
             throw new UserException(
                 ExitCodes.USAGE,

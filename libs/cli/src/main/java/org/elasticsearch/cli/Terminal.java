@@ -9,6 +9,7 @@
 package org.elasticsearch.cli;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.Console;
 import java.io.IOException;

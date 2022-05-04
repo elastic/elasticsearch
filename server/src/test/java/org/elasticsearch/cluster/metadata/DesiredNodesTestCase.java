@@ -63,10 +63,18 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static DesiredNode randomDesiredNode(Version version, Consumer<Settings.Builder> settingsProvider) {
-        return randomDesiredNode(version, randomIntBetween(1, 256), settingsProvider);
+        return randomDesiredNode(version, randomProcessor(), settingsProvider);
     }
 
     public static DesiredNode randomDesiredNode(Version version, int processors, Consumer<Settings.Builder> settingsProvider) {
+        return randomDesiredNode(version, new DesiredNode.Processors(processors), settingsProvider);
+    }
+
+    public static DesiredNode randomDesiredNode(
+        Version version,
+        DesiredNode.Processors processors,
+        Consumer<Settings.Builder> settingsProvider
+    ) {
         return new DesiredNode(
             randomSettings(settingsProvider),
             processors,
@@ -74,6 +82,10 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
             ByteSizeValue.ofTb(randomIntBetween(1, 40)),
             version
         );
+    }
+
+    private static DesiredNode.Processors randomProcessor() {
+        return new DesiredNode.Processors(randomFloat() + randomIntBetween(1, 16), randomFloat() + randomIntBetween(1, 16));
     }
 
     public static Settings randomSettings(Consumer<Settings.Builder> settingsProvider) {

@@ -48,7 +48,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         false,
         (args, name) -> new DesiredNode(
             (Settings) args[0],
-            (int) args[1],
+            (Processors) args[1],
             (ByteSizeValue) args[2],
             (ByteSizeValue) args[3],
             (Version) args[4]
@@ -57,7 +57,12 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS_FIELD);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), PROCESSORS_FIELD);
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> Processors.fromXContent(p),
+            PROCESSORS_FIELD,
+            ObjectParser.ValueType.OBJECT_OR_NUMBER
+        );
         PARSER.declareField(
             ConstructingObjectParser.constructorArg(),
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MEMORY_FIELD.getPreferredName()),
@@ -86,7 +91,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     }
 
     private final Settings settings;
-    private final int processors;
+    private final Processors processors;
     private final ByteSizeValue memory;
     private final ByteSizeValue storage;
     private final Version version;
@@ -94,13 +99,15 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private final Set<DiscoveryNodeRole> roles;
 
     public DesiredNode(Settings settings, int processors, ByteSizeValue memory, ByteSizeValue storage, Version version) {
+        this(settings, new Processors(processors), memory, storage, version);
+    }
+
+    public DesiredNode(Settings settings, Processors processors, ByteSizeValue memory, ByteSizeValue storage, Version version) {
         assert settings != null;
+        assert processors != null;
         assert memory != null;
         assert storage != null;
         assert version != null;
-        if (processors <= 0) {
-            throw new IllegalArgumentException("processors must be greater than 0, but got " + processors);
-        }
 
         if (NODE_EXTERNAL_ID_SETTING.get(settings).isBlank()) {
             throw new IllegalArgumentException(
@@ -118,13 +125,19 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     }
 
     public DesiredNode(StreamInput in) throws IOException {
-        this(Settings.readSettingsFromStream(in), in.readInt(), new ByteSizeValue(in), new ByteSizeValue(in), Version.readVersion(in));
+        this(
+            Settings.readSettingsFromStream(in),
+            Processors.readFrom(in),
+            new ByteSizeValue(in),
+            new ByteSizeValue(in),
+            Version.readVersion(in)
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Settings.writeSettingsToStream(settings, out);
-        out.writeInt(processors);
+        processors.writeTo(out);
         memory.writeTo(out);
         storage.writeTo(out);
         Version.writeVersion(version, out);
@@ -156,8 +169,12 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         return settings;
     }
 
-    public int processors() {
-        return processors;
+    public float processors() {
+        return processors.min();
+    }
+
+    public int minProcessors() {
+        return processors.minCeil();
     }
 
     public ByteSizeValue memory() {
@@ -190,7 +207,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         // so it can be confusing if we compare two DesiredNode instances that only differ
         // in the node.roles setting order, but that's the semantics provided by the Settings class.
         return Objects.equals(this.settings, that.settings)
-            && this.processors == that.processors
+            && Objects.equals(this.processors, that.processors)
             && Objects.equals(this.memory, that.memory)
             && Objects.equals(this.storage, that.storage)
             && Objects.equals(this.version, that.version);
@@ -226,4 +243,84 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             + ']';
     }
 
+    public record Processors(float min, float max) implements Writeable, ToXContentObject {
+
+        private static final Version MIN_MAX_PROCESSORS_VERSION = Version.V_8_3_0;
+
+        private static final ParseField MIN_FIELD = new ParseField("min");
+        private static final ParseField MAX_FIELD = new ParseField("max");
+
+        public static final ConstructingObjectParser<Processors, String> PROCESSORS_PARSER = new ConstructingObjectParser<>(
+            "processors",
+            false,
+            (args, name) -> new Processors((float) args[0], (float) args[1])
+        );
+
+        static {
+            PROCESSORS_PARSER.declareFloat(ConstructingObjectParser.constructorArg(), MIN_FIELD);
+            PROCESSORS_PARSER.declareFloat(ConstructingObjectParser.constructorArg(), MAX_FIELD);
+        }
+
+        public Processors(int processors) {
+            this((float) processors, (float) processors);
+        }
+
+        static Processors fromXContent(XContentParser parser) throws IOException {
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                return PROCESSORS_PARSER.parse(parser, null);
+            } else {
+                // For BWC with nodes pre 8.3
+                float processors = parser.floatValue();
+                return new Processors(processors, processors);
+            }
+        }
+
+        public Processors {
+            if (min > max) {
+                throw new IllegalArgumentException(
+                    "min processors must be less than or equal to max processors and it was: min: " + min + " max: " + max
+                );
+            }
+
+            if (min <= 0) {
+                throw new IllegalArgumentException("min processors must be greater than 0, but got " + min);
+            }
+
+            if (max <= 0) {
+                throw new IllegalArgumentException("min processors must be greater than 0, but got " + max);
+            }
+        }
+
+        private static Processors readFrom(StreamInput in) throws IOException {
+            if (in.getVersion().onOrAfter(MIN_MAX_PROCESSORS_VERSION)) {
+                return new Processors(in.readFloat(), in.readFloat());
+            } else {
+                int processors = in.readInt();
+                return new Processors((float) processors, (float) processors);
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getVersion().onOrAfter(MIN_MAX_PROCESSORS_VERSION)) {
+                out.writeFloat(min);
+                out.writeFloat(max);
+            } else {
+                out.writeInt(minCeil());
+            }
+        }
+
+        public int minCeil() {
+            return (int) Math.ceil(min);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(MIN_FIELD.getPreferredName(), min);
+            builder.field(MAX_FIELD.getPreferredName(), max);
+            builder.endObject();
+            return builder;
+        }
+    }
 }

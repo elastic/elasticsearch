@@ -42,9 +42,7 @@ public class CliToolLauncherTests extends ESTestCase {
     public void testShutdownHook() {
         MockTerminal terminal = MockTerminal.create();
         AtomicBoolean closeCalled = new AtomicBoolean();
-        Closeable toClose = () -> {
-            closeCalled.set(true);
-        };
+        Closeable toClose = () -> { closeCalled.set(true); };
         Thread hook = createShutdownHook(terminal, toClose);
         hook.run();
         assertThat(closeCalled.get(), is(true));
@@ -53,9 +51,7 @@ public class CliToolLauncherTests extends ESTestCase {
 
     public void testShutdownHookError() {
         MockTerminal terminal = MockTerminal.create();
-        Closeable toClose = () -> {
-            throw new IOException("something bad happened");
-        };
+        Closeable toClose = () -> { throw new IOException("something bad happened"); };
         Thread hook = createShutdownHook(terminal, toClose);
         hook.run();
         assertThat(terminal.getErrorOutput(), containsString("something bad happened"));

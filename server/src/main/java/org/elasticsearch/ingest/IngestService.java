@@ -339,6 +339,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
     }
 
+    // visible for testing
     static class DeletePipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
         private final DeletePipelineRequest request;
 
@@ -555,6 +556,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return processorMetrics;
     }
 
+    // visible for testing
     static class PutPipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
         private final PutPipelineRequest request;
 
@@ -1152,4 +1154,5 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             this.pipeline = Objects.requireNonNull(pipeline);
         }
     }
+
 }

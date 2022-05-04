@@ -140,11 +140,13 @@ public final class MachineDependentHeap {
          *     <li>The absolute maximum heap size is 31 gigabytes.</li>
          * </ul>
          *
+         * In all cases the result is rounded down to the next whole multiple of 4 megabytes.
+         *
          * If this formula is changed then corresponding changes must be made to the {@code NativeMemoryCalculator} and
          * {@code MlAutoscalingDeciderServiceTests} classes in the ML plugin code. Failure to keep the logic synchronized
          * could result in repeated autoscaling up and down.
          */
-        ML_ONLY(m -> mb(m <= (GB * 16) ? (long) (m * .4) : (long) min((GB * 16) * .4 + (m - GB * 16) * .1, MAX_HEAP_SIZE))),
+        ML_ONLY(m -> mb(m <= (GB * 16) ? (long) (m * .4) : (long) min((GB * 16) * .4 + (m - GB * 16) * .1, MAX_HEAP_SIZE), 4)),
 
         /**
          * Data node. Essentially any node that isn't a master or ML only node.
@@ -182,6 +184,10 @@ public final class MachineDependentHeap {
 
         private static int mb(long bytes) {
             return (int) (bytes / (1024 * 1024));
+        }
+
+        private static int mb(long bytes, int toNearestMultiple) {
+            return toNearestMultiple * (int) (bytes / (1024 * 1024 * toNearestMultiple));
         }
     }
 }

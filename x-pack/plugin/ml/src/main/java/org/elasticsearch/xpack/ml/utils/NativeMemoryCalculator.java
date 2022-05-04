@@ -39,7 +39,7 @@ public final class NativeMemoryCalculator {
     // Memory size beyond which the JVM is given 10% of memory instead of 40%.
     // Must match the value used in MachineDependentHeap.MachineNodeRole.ML_ONLY.
     public static final long JVM_SIZE_KNOT_POINT = ByteSizeValue.ofGb(16).getBytes();
-    private static final long BYTES_IN_MB = ByteSizeValue.ofMb(1).getBytes();
+    private static final long BYTES_IN_4MB = ByteSizeValue.ofMb(4).getBytes();
 
     private NativeMemoryCalculator() {}
 
@@ -155,12 +155,12 @@ public final class NativeMemoryCalculator {
 
     public static long dynamicallyCalculateJvmSizeFromNodeSize(long nodeSize) {
         // This must match the logic in MachineDependentHeap.MachineNodeRole.ML_ONLY,
-        // including rounding down to the next lower whole megabyte.
+        // including rounding down to the next lower multiple of 4 megabytes.
         if (nodeSize <= JVM_SIZE_KNOT_POINT) {
-            return ((long) (nodeSize * 0.4) / BYTES_IN_MB) * BYTES_IN_MB;
+            return ((long) (nodeSize * 0.4) / BYTES_IN_4MB) * BYTES_IN_4MB;
         }
         return Math.min(
-            ((long) (JVM_SIZE_KNOT_POINT * 0.4 + (nodeSize - JVM_SIZE_KNOT_POINT) * 0.1) / BYTES_IN_MB) * BYTES_IN_MB,
+            ((long) (JVM_SIZE_KNOT_POINT * 0.4 + (nodeSize - JVM_SIZE_KNOT_POINT) * 0.1) / BYTES_IN_4MB) * BYTES_IN_4MB,
             STATIC_JVM_UPPER_THRESHOLD
         );
     }
@@ -175,15 +175,15 @@ public final class NativeMemoryCalculator {
         // Also, nativeAndOverheadAbove16GB = nativeAndOverhead - nativeAndOverheadBelow16GB = nativeAndOverhead - 0.6 * 16GB
         // Consequently jvmSize = 0.4 * 16GB + (nativeAndOverheadAbove16GB / 0.9) * 0.1
         //
-        // In both cases JVM size is rounded down to the next lower whole megabyte to match
+        // In both cases JVM size is rounded down to the next lower multiple of 4 megabytes to match
         // MachineDependentHeap.MachineNodeRole.ML_ONLY.
         long nativeAndOverhead = nativeMachineMemory + OS_OVERHEAD;
         if (nativeAndOverhead <= (JVM_SIZE_KNOT_POINT * 0.6)) {
-            return (nativeAndOverhead * 2 / 3 / BYTES_IN_MB) * BYTES_IN_MB;
+            return (nativeAndOverhead * 2 / 3 / BYTES_IN_4MB) * BYTES_IN_4MB;
         }
         double nativeAndOverheadAbove16GB = nativeAndOverhead - JVM_SIZE_KNOT_POINT * 0.6;
         return Math.min(
-            ((long) (JVM_SIZE_KNOT_POINT * 0.4 + nativeAndOverheadAbove16GB / 0.9 * 0.1) / BYTES_IN_MB) * BYTES_IN_MB,
+            ((long) (JVM_SIZE_KNOT_POINT * 0.4 + nativeAndOverheadAbove16GB / 0.9 * 0.1) / BYTES_IN_4MB) * BYTES_IN_4MB,
             STATIC_JVM_UPPER_THRESHOLD
         );
     }

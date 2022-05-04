@@ -51,10 +51,10 @@ public class MachineDependentHeapTests extends LaunchersTestCase {
 
     public void testMlOnlyOptions() {
         List<String> options = calculateHeap(1, "ml");
-        assertThat(options, containsInAnyOrder("-Xmx409m", "-Xms409m"));
+        assertThat(options, containsInAnyOrder("-Xmx408m", "-Xms408m"));
 
         options = calculateHeap(4, "ml");
-        assertThat(options, containsInAnyOrder("-Xmx1638m", "-Xms1638m"));
+        assertThat(options, containsInAnyOrder("-Xmx1636m", "-Xms1636m"));
 
         options = calculateHeap(32, "ml");
         assertThat(options, containsInAnyOrder("-Xmx8192m", "-Xms8192m"));

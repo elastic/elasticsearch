@@ -100,17 +100,17 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         .map(m -> m - MONITORING_ALLOWANCE_BYTES)
         .toArray();
 
-    private static final long BYTES_IN_MB = ByteSizeValue.ofMb(1).getBytes();
+    private static final long BYTES_IN_4MB = ByteSizeValue.ofMb(4).getBytes();
 
     // Must match the logic used in MachineDependentHeap.MachineNodeRole.ML_ONLY
-    // (including rounding down to a whole number of megabytes before multiplying
+    // (including rounding down to a multiple of 4 megabytes before multiplying
     // back up).
     private static long mlOnlyNodeJvmBytes(long systemMemoryBytes) {
         // 40% of memory up to 16GB, plus 10% of memory above that, up to an absolute maximum of 31GB
         long unroundedBytes = (systemMemoryBytes <= JVM_SIZE_KNOT_POINT)
             ? (long) (systemMemoryBytes * 0.4)
             : (long) min(JVM_SIZE_KNOT_POINT * 0.4 + (systemMemoryBytes - JVM_SIZE_KNOT_POINT) * 0.1, STATIC_JVM_UPPER_THRESHOLD);
-        return (unroundedBytes / BYTES_IN_MB) * BYTES_IN_MB;
+        return (unroundedBytes / BYTES_IN_4MB) * BYTES_IN_4MB;
     }
 
     public static final List<Tuple<Long, Long>> AUTO_NODE_TIERS_NO_MONITORING = Arrays.stream(NODE_TIERS_NO_MONITORING)
@@ -167,8 +167,8 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
 
     public void testScalingEdgeCase() {
         // This scale up should push above 1gb, but under 2gb.
-        // The unassigned job barely doesn't fit within the current scale (by 1 megabyte - 609mb available and 610mb needed).
-        // The three assigned jobs have model memory limits 200mb, 10mb and 8mb.
+        // The unassigned job barely doesn't fit within the current scale (by 1 megabyte - 610mb available and 611mb needed).
+        // The three assigned jobs have model memory limits 200mb, 10mb and 9mb.
         // The unassigned job has model memory limit 128mb.
         // Then we have four times the process overhead of 10mb, plus the per-node overhead of 30mb, so total overhead on one node is 70mb.
         when(mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(any())).thenReturn(
@@ -185,7 +185,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 .setUseMemory(true)
                 .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                 .incAssignedAnomalyDetectorMemory(
-                    ByteSizeValue.ofMb(200).getBytes() + ByteSizeValue.ofMb(10).getBytes() + ByteSizeValue.ofMb(8).getBytes()
+                    ByteSizeValue.ofMb(200).getBytes() + ByteSizeValue.ofMb(10).getBytes() + ByteSizeValue.ofMb(9).getBytes()
                         + Job.PROCESS_MEMORY_OVERHEAD.getBytes() * 3
                 )
                 .incNumAssignedJobs()
@@ -233,7 +233,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 .setUseMemory(true)
                 .incAssignedNativeCodeOverheadMemory(PER_NODE_OVERHEAD)
                 .incAssignedAnomalyDetectorMemory(
-                    ByteSizeValue.ofMb(200).getBytes() + ByteSizeValue.ofMb(10).getBytes() + ByteSizeValue.ofMb(8).getBytes()
+                    ByteSizeValue.ofMb(200).getBytes() + ByteSizeValue.ofMb(10).getBytes() + ByteSizeValue.ofMb(9).getBytes()
                         + ByteSizeValue.ofMb(128).getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes() * 4
                 )
                 .incNumAssignedJobs()

@@ -414,6 +414,7 @@ public class DesiredBalanceServiceTests extends ESTestCase {
     ) {
         return desiredBalanceService.updateDesiredBalanceAndReroute(
             new DesiredBalanceInput(
+                0,
                 new RoutingAllocation(new AllocationDeciders(List.of()), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L),
                 ignoredShards
             ),

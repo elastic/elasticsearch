@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -33,11 +34,15 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -73,6 +78,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         public void reroute(String reason, Priority priority, ActionListener<ClusterState> listener) {
             assertTrue("unexpected reroute", expectReroute);
             expectReroute = false;
+            listener.onResponse(null);
         }
 
         public void setExpectReroute() {
@@ -82,6 +88,21 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
         public void assertNoPendingReroute() {
             assertFalse("no reroute occurred", expectReroute);
+        }
+    }
+
+    private static class TestActionListener implements ActionListener<Void> {
+
+        private volatile boolean wasCalled = false;
+
+        @Override
+        public void onResponse(Void unused) {
+            wasCalled = true;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            fail("should not be called in test");
         }
     }
 
@@ -142,46 +163,27 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
         }, desiredBalanceShardsAllocator, () -> ClusterInfo.EMPTY, () -> SnapshotShardSizeInfo.EMPTY);
 
-        final var transportAddress = buildNewFakeTransportAddress();
-        final var discoveryNode = new DiscoveryNode(
-            "node-0",
-            "node-0",
-            UUIDs.randomBase64UUID(random()),
-            transportAddress.address().getHostString(),
-            transportAddress.getAddress(),
-            transportAddress,
-            Map.of(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
-        final var indexMetadata = IndexMetadata.builder(TEST_INDEX)
-            .settings(
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-            )
-            .build();
-        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).masterNodeId(discoveryNode.getId()))
-            .metadata(Metadata.builder().put(indexMetadata, true))
-            .routingTable(RoutingTable.builder().addAsNew(indexMetadata))
-            .build();
+        final var discoveryNode = createDiscoveryNode();
+        final var indexMetadata = createIndex(TEST_INDEX);
+        var clusterState = createClusterState(discoveryNode, indexMetadata);
+
+        var listener = new TestActionListener();
 
         switch (gatewayAllocatorBehaviour) {
             case DO_NOTHING -> {
                 // first reroute does nothing synchronously but triggers a desired balance computation which leads to a further reroute
-                assertSame(clusterState, allocationService.reroute(clusterState, "test"));
+                assertSame(clusterState, allocationService.reroute(clusterState, "test", listener));
                 rerouteService.setExpectReroute();
                 deterministicTaskQueue.runAllTasks();
                 rerouteService.assertNoPendingReroute();
                 final var shardRouting = clusterState.routingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
                 assertFalse(shardRouting.assignedToNode());
                 assertThat(shardRouting.unassignedInfo().getLastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.NO_ATTEMPT));
+                assertTrue(listener.wasCalled);
             }
             case STILL_FETCHING -> {
                 // first reroute will allocate nothing if the gateway allocator is still in charge
-                clusterState = allocationService.reroute(clusterState, "test");
+                clusterState = allocationService.reroute(clusterState, "test", listener);
                 rerouteService.setExpectReroute();
                 assertTrue(deterministicTaskQueue.hasRunnableTasks());
                 deterministicTaskQueue.runAllTasks();
@@ -193,16 +195,18 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                     equalTo(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA)
                 );
                 fetchingShardData.set(false);
+                assertTrue(listener.wasCalled);
             }
             case ALLOCATE -> {
                 // first reroute will allocate according to the gateway allocator
-                clusterState = allocationService.reroute(clusterState, "test");
+                clusterState = allocationService.reroute(clusterState, "test", listener);
                 rerouteService.setExpectReroute();
                 assertTrue(deterministicTaskQueue.hasRunnableTasks());
                 deterministicTaskQueue.runAllTasks();
                 rerouteService.assertNoPendingReroute();
                 final var shardRouting = clusterState.routingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
                 assertTrue(shardRouting.assignedToNode());
+                assertTrue(listener.wasCalled);
             }
         }
 
@@ -225,5 +229,152 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         assertSame(clusterState, allocationService.reroute(clusterState, "test"));
         deterministicTaskQueue.runAllTasks();
         rerouteService.assertNoPendingReroute();
+    }
+
+    public void testCallListenersOnlyAfterProducingFreshInput() {
+
+        var threadPool = new TestThreadPool(getTestName());
+
+        var secondInputSubmitted = new CountDownLatch(1);
+        var computationStarted = new CountDownLatch(1);
+        var listenersCalled = new AtomicInteger(0);
+        var reroutesCalled = new AtomicInteger(0);
+
+        RerouteService rerouteService = (r, p, l) -> {
+            reroutesCalled.incrementAndGet();
+            l.onResponse(null);
+        };
+
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(new ShardsAllocator() {
+            @Override
+            public void allocate(RoutingAllocation allocation) {
+
+                try {
+                    computationStarted.countDown();
+                    assertTrue("Should have submitted the second input in time", secondInputSubmitted.await(10, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    throw new AssertionError("Should have submitted the second input");
+                }
+
+                final var dataNodeId = allocation.nodes().getDataNodes().values().iterator().next().getId();
+                final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
+                while (unassignedIterator.hasNext()) {
+                    unassignedIterator.next();
+                    unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
+                }
+            }
+
+            @Override
+            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                throw new AssertionError("only used for allocation explain");
+            }
+        }, threadPool, () -> rerouteService);
+
+        var discoveryNode = createDiscoveryNode();
+        var index1 = createIndex(UUIDs.randomBase64UUID());
+        var index2 = createIndex(UUIDs.randomBase64UUID());
+
+        var listener = ActionListener.<Void>wrap(response -> {
+            assertThat("Should execute listeners only after both reroutes are completed", reroutesCalled.get(), equalTo(2));
+            listenersCalled.incrementAndGet();
+        }, exception -> { throw new AssertionError("Should not fail in test"); });
+
+        desiredBalanceShardsAllocator.allocate(createAllocationFrom(createClusterState(discoveryNode, index1)), listener);
+
+        try {
+            assertTrue("Should submit second computation when first one has started", computationStarted.await(10, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            throw new AssertionError("Should have submitted the second input");
+        }
+
+        desiredBalanceShardsAllocator.allocate(createAllocationFrom(createClusterState(discoveryNode, index2)), listener);
+
+        secondInputSubmitted.countDown();
+
+        terminate(threadPool);
+        assertThat(listenersCalled.get(), equalTo(2));
+    }
+
+    public void testFailListenersOnNoLongerMasterException() {
+
+        var threadPool = new TestThreadPool(getTestName());
+
+        var listenersCalled = new AtomicInteger(0);
+
+        RerouteService rerouteService = (r, p, l) -> l.onFailure(new NotMasterException("no longer master"));
+
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(new ShardsAllocator() {
+            @Override
+            public void allocate(RoutingAllocation allocation) {
+                final var dataNodeId = allocation.nodes().getDataNodes().values().iterator().next().getId();
+                final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
+                while (unassignedIterator.hasNext()) {
+                    unassignedIterator.next();
+                    unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
+                }
+            }
+
+            @Override
+            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                throw new AssertionError("only used for allocation explain");
+            }
+        }, threadPool, () -> rerouteService);
+
+        var discoveryNode = createDiscoveryNode();
+        var index = createIndex(UUIDs.randomBase64UUID());
+
+        var listener = ActionListener.<Void>wrap(
+            response -> { throw new AssertionError("Should not complete in test"); },
+            failure -> listenersCalled.incrementAndGet()
+        );
+        desiredBalanceShardsAllocator.allocate(createAllocationFrom(createClusterState(discoveryNode, index)), listener);
+
+        terminate(threadPool);
+        assertThat(listenersCalled.get(), equalTo(1));
+    }
+
+    private static RoutingAllocation createAllocationFrom(ClusterState clusterState) {
+        return new RoutingAllocation(
+            new AllocationDeciders(List.of()),
+            clusterState.mutableRoutingNodes(),
+            clusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+    }
+
+    private static ClusterState createClusterState(DiscoveryNode discoveryNode, IndexMetadata indexMetadata) {
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).masterNodeId(discoveryNode.getId()))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder().addAsNew(indexMetadata))
+            .build();
+    }
+
+    private static DiscoveryNode createDiscoveryNode() {
+        var transportAddress = buildNewFakeTransportAddress();
+        return new DiscoveryNode(
+            "node-0",
+            "node-0",
+            UUIDs.randomBase64UUID(random()),
+            transportAddress.address().getHostString(),
+            transportAddress.getAddress(),
+            transportAddress,
+            Map.of(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT
+        );
+    }
+
+    private static IndexMetadata createIndex(String name) {
+        return IndexMetadata.builder(name)
+            .settings(
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            )
+            .build();
     }
 }

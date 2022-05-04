@@ -54,10 +54,10 @@ public class MachineDependentHeapTests extends LaunchersTestCase {
     // See: https://github.com/elastic/elasticsearch/issues/86431
     public void testOddUserPassedHeapArgs() throws Exception {
         MachineDependentHeap heap = new MachineDependentHeap(systemMemoryInGigabytes(8));
-        List<String> options = heap.determineHeapSettings(configPath(), List.of("-Xmx409m"));
+        List<String> options = heap.determineHeapSettings(configPath(), org.elasticsearch.core.List.of("-Xmx409m"));
         assertThat(options, empty());
 
-        options = heap.determineHeapSettings(configPath(), List.of("-Xms409m"));
+        options = heap.determineHeapSettings(configPath(), org.elasticsearch.core.List.of("-Xms409m"));
         assertThat(options, empty());
     }
 

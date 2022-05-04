@@ -35,7 +35,6 @@ public class XPackSecurityUser extends User {
         super(NAME, ROLE_NAME);
         // the following traits, and especially the run-as one, go with all the internal users
         // TODO abstract in a base `InternalUser` class
-        assert false == isRunAs() : "cannot run-as the system user";
         assert enabled();
         assert roles() != null && roles().length == 1;
     }

@@ -42,8 +42,8 @@ public class ClusterGetSettingsAction extends ActionType<ClusterGetSettingsActio
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             assert out.getVersion().onOrAfter(Version.V_8_3_0);
+            super.writeTo(out);
         }
 
         @Override

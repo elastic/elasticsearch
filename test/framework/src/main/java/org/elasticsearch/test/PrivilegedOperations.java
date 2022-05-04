@@ -54,7 +54,7 @@ public final class PrivilegedOperations {
             new RuntimePermission("createClassLoader"),
             new RuntimePermission("closeClassLoader"),
             new RuntimePermission("accessSystemModules"),
-            newAllFilesReadPermission();
+            newAllFilesReadPermission()
         );
     }
 

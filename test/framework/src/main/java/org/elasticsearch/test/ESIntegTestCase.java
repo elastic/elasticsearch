@@ -2259,7 +2259,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *  After the cluster is stopped, there are a few netty threads that can linger, so we wait for them to finish otherwise these
      *  lingering threads can intermittently trigger the thread leak detector.
      */
-    private static void awaitGlobalNettyThreadsFinish() {
+    static void awaitGlobalNettyThreadsFinish() {
         try {
             GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {

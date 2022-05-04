@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
@@ -194,7 +195,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         if (includeDetails) {
             List<DiscoveryNode> recentMasters = localMasterHistory.getNodes();
             details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
-            details.put("recent_masters", recentMasters.stream().map(DiscoveryNodeXContentObject::new).toList());
+            // Having the nulls in the recent masters xcontent list is not helpful, so we filter them out:
+            details.put("recent_masters", recentMasters.stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList());
         }
         return createIndicator(
             stableMasterStatus,

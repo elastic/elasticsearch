@@ -130,7 +130,8 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         assertThat(ImpactArea.INGEST, equalTo(impact.impactAreas().get(0)));
         SimpleHealthIndicatorDetails details = (SimpleHealthIndicatorDetails) result.details();
         assertThat(2, equalTo(details.details().size()));
-        assertThat(10, equalTo(((Collection<DiscoveryNode>) details.details().get("recent_masters")).size()));
+        // We don't show nulls in the recent_masters list:
+        assertThat(6, equalTo(((Collection<DiscoveryNode>) details.details().get("recent_masters")).size()));
     }
 
     public void testMasterGoesNull() throws Exception {

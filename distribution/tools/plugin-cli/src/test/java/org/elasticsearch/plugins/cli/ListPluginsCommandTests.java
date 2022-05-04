@@ -44,7 +44,7 @@ public class ListPluginsCommandTests extends CommandTestCase {
     }
 
     private static String buildMultiline(String... args) {
-        return Arrays.stream(args).collect(Collectors.joining("\n", "", "\n"));
+        return Arrays.stream(args).collect(Collectors.joining(System.lineSeparator(), "", System.lineSeparator()));
     }
 
     private static void buildFakePlugin(final Environment env, final String description, final String name, final String classname)

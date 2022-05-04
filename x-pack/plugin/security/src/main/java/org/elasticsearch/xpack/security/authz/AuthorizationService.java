@@ -339,7 +339,7 @@ public class AuthorizationService {
         final Authentication authentication = requestInfo.getAuthentication();
         final TransportRequest request = requestInfo.getRequest();
         final String action = requestInfo.getAction();
-        final boolean isRunAs = authentication.getUser().isRunAs();
+        final boolean isRunAs = authentication.isRunAs();
         final AuditTrail auditTrail = auditTrailService.get();
         if (isRunAs) {
             ActionListener<AuthorizationResult> runAsListener = wrapPreservingContext(ActionListener.wrap(result -> {
@@ -578,7 +578,7 @@ public class AuthorizationService {
 
     // pkg-private for testing
     AuthorizationEngine getRunAsAuthorizationEngine(final Authentication authentication) {
-        return getAuthorizationEngineForUser(authentication.getUser().authenticatedUser());
+        return getAuthorizationEngineForUser(authentication.getAuthenticatingSubject().getUser());
     }
 
     // pkg-private for testing
@@ -889,7 +889,7 @@ public class AuthorizationService {
     ) {
         // Special case for anonymous user
         if (isAnonymousEnabled
-            && anonymousUser.equals(authentication.getUser().authenticatedUser())
+            && anonymousUser.equals(authentication.getAuthenticatingSubject().getUser())
             && anonymousAuthzExceptionEnabled == false) {
             return authcFailureHandler.authenticationRequired(action, threadContext);
         }

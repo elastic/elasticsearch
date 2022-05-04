@@ -92,9 +92,10 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
         } else {
             updatedLicensesMetadata = currentLicensesMetadata;
         }
-        final var responseStatus = currentLicense != null && License.LicenseType.isBasic(currentLicense.type())
-            ? PostStartBasicResponse.Status.ALREADY_USING_BASIC
-            : PostStartBasicResponse.Status.GENERATED_BASIC;
+        final var newLicenseGenerated = updatedLicensesMetadata != currentLicensesMetadata;
+        final var responseStatus = newLicenseGenerated
+            ? PostStartBasicResponse.Status.GENERATED_BASIC
+            : PostStartBasicResponse.Status.ALREADY_USING_BASIC;
         taskContext.success(listener.delegateFailure((l, s) -> l.onResponse(new PostStartBasicResponse(responseStatus))));
         return updatedLicensesMetadata;
     }

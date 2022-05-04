@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -59,7 +60,6 @@ import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 
-import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -211,8 +211,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Currently for EQL we don't set limit for a stored async response
      * TODO: add limit for stored async response in EQL, and instead of this method use createResponse
      */
-    public void createResponseForEQL(String docId, Map<String, String> headers, R response, ActionListener<IndexResponse> listener)
-        throws IOException {
+    public void createResponseForEQL(String docId, Map<String, String> headers, R response, ActionListener<IndexResponse> listener) {
         try {
             final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
             final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
@@ -568,12 +567,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     private void writeResponse(R response, OutputStream os) throws IOException {
-        os = new FilterOutputStream(os) {
-            @Override
-            public void close() {
-                // do not close the output
-            }
-        };
+        // do not close the output
+        os = Streams.noCloseStream(os);
         final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
         Version.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
         if (minNodeVersion.onOrAfter(Version.V_7_15_0)) {

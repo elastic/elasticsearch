@@ -23,8 +23,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * This service provides access to this node's view of the master history, as well as access to other nodes' view of master stability.
@@ -33,12 +31,11 @@ public class MasterHistoryService {
     private final TransportService transportService;
     private final MasterHistory localMasterHistory;
     private final ClusterService clusterService;
-
     /*
-     * This is a map of a node to the view of master history it has. This is populated asynchronously and is not guaranteed to have an
-     * entry for every node.
+     * This is a view of the master history one a remote node, or the exception that fetching it resulted in. This is populated
+     * asynchronously.
      */
-    private final Map<DiscoveryNode, List<DiscoveryNode>> nodeToHistoryMap = new ConcurrentHashMap<>();
+    volatile RemoteHistoryOrException remoteHistoryOrException = new RemoteHistoryOrException(null, null); // non-private for testing
     private static final Logger logger = LogManager.getLogger(MasterHistoryService.class);
 
     public MasterHistoryService(TransportService transportService, ThreadPool threadPool, ClusterService clusterService) {
@@ -57,16 +54,22 @@ public class MasterHistoryService {
     }
 
     /**
-     * This method returns a static view of the MasterHistory on the node given. This MasterHistory is static in that it will not be
+     * This method returns a static view of the MasterHistory on a remote node. This MasterHistory is static in that it will not be
      * updated even if the ClusterState is updated on this node or the remote node. The history is retrieved asynchronously, and only if
-     * requestRemoteMasterHistory has been called for this node. If anything has gone wrong fetching it, or if it has not been fetched in
-     * time for the current request, the returned value will be null.
-     * @param node The node whose MasterHistory we want
-     * @return The MasterHistory from the remote node's point of view. This MasterHistory object will not be updated with future changes
+     * requestRemoteMasterHistory has been called for this node. If anything has gone wrong fetching it, the exception returned by the
+     * remote machine will be thrown here. If the remote history has not been fetched or if something went wrong and there was no exception,
+     * the returned value will be null.
+     * @return The MasterHistory from a remote node's point of view. This MasterHistory object will not be updated with future changes
+     * @throws Exception the exception (if any) returned by the remote machine when fetching the history
      */
     @Nullable
-    public List<DiscoveryNode> getRemoteMasterHistory(DiscoveryNode node) {
-        return nodeToHistoryMap.get(node);
+    public List<DiscoveryNode> getRemoteMasterHistory() throws Exception {
+        // Grabbing a reference to the object in case it is replaced in another thread during this method:
+        RemoteHistoryOrException remoteHistoryOrExceptionCopy = remoteHistoryOrException;
+        if (remoteHistoryOrExceptionCopy.exception != null) {
+            throw remoteHistoryOrExceptionCopy.exception;
+        }
+        return remoteHistoryOrExceptionCopy.remoteHistory;
     }
 
     /**
@@ -99,13 +102,14 @@ public class MasterHistoryService {
                                 connection.close();
                                 long endTime = System.nanoTime();
                                 logger.trace("Received history from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
-                                nodeToHistoryMap.put(node, response.getMasterHistory());
+                                remoteHistoryOrException = new RemoteHistoryOrException(response.getMasterHistory());
                             }
 
                             @Override
                             public void onFailure(Exception e) {
                                 connection.close();
                                 logger.warn("Exception in master history request to master node", e);
+                                remoteHistoryOrException = new RemoteHistoryOrException(e);
                             }
                         }, MasterHistoryAction.Response::new)
                     );
@@ -114,8 +118,26 @@ public class MasterHistoryService {
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn("Exception connecting to master node", e);
+                    remoteHistoryOrException = new RemoteHistoryOrException(e);
                 }
             }
         );
+    }
+
+    record RemoteHistoryOrException(List<DiscoveryNode> remoteHistory, Exception exception) { // non-private for testing
+
+        public RemoteHistoryOrException {
+            if (remoteHistory != null && exception != null) {
+                throw new IllegalArgumentException("Remote history and exception cannot both be non-null");
+            }
+        }
+
+        public RemoteHistoryOrException(List<DiscoveryNode> remoteHistory) {
+            this(remoteHistory, null);
+        }
+
+        public RemoteHistoryOrException(Exception exception) {
+            this(null, exception);
+        }
     }
 }

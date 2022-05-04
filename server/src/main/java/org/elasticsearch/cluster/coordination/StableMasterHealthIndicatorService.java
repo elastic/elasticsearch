@@ -28,6 +28,8 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -219,11 +221,17 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
         logger.trace("One master has gone null {} or more times recently: {}", acceptableNullTransitions + 1, master);
         boolean localNodeIsMaster = clusterService.localNode().equals(master);
-        final List<DiscoveryNode> remoteHistory;
+        List<DiscoveryNode> remoteHistory;
+        Exception remoteHistoryException = null;
         if (localNodeIsMaster) {
             remoteHistory = null; // We don't need to fetch the remote master's history if we are that remote master
         } else {
-            remoteHistory = masterHistoryService.getRemoteMasterHistory(master);
+            try {
+                remoteHistory = masterHistoryService.getRemoteMasterHistory();
+            } catch (Exception e) {
+                remoteHistory = null;
+                remoteHistoryException = e;
+            }
         }
         if (localNodeIsMaster
             || remoteHistory == null
@@ -250,6 +258,13 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             );
             if (includeDetails) {
                 details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
+                if (remoteHistoryException != null) {
+                    details.put("exception_fetching_history", remoteHistoryException.getMessage());
+                    StringWriter stringWriter = new StringWriter();
+                    remoteHistoryException.printStackTrace(new PrintWriter(stringWriter));
+                    String remoteHistoryExceptionStackTrace = stringWriter.toString();
+                    details.put("exception_fetching_history_stack_trace", remoteHistoryExceptionStackTrace);
+                }
             }
         } else {
             logger.trace("This node thinks the master is unstable, but the master node {} thinks it is stable", master);
@@ -334,11 +349,13 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            if (master != null) {
+            if (master == null) {
+                builder.nullValue();
+            } else {
+                builder.startObject();
                 master.toXContent(builder, params);
+                builder.endObject();
             }
-            builder.endObject();
             return builder;
         }
     }

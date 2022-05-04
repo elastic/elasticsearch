@@ -35,6 +35,7 @@ public class TransportClusterGetSettingsAction extends TransportMasterNodeReadAc
     ) {
         super(
             ClusterGetSettingsAction.NAME,
+            false,
             transportService,
             clusterService,
             threadPool,

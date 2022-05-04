@@ -114,6 +114,7 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.NodeMocksPlugin;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -1048,6 +1049,24 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Retrieves the persistent tasks with the requested task name from the given cluster state.
+     */
+    public static List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, String taskName) {
+        return findTasks(clusterState, Set.of(taskName));
+    }
+
+    /**
+     * Retrieves the persistent tasks with the requested task names from the given cluster state.
+     */
+    public static List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, Set<String> taskNames) {
+        PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        if (tasks == null) {
+            return List.of();
+        }
+        return tasks.tasks().stream().filter(t -> taskNames.contains(t.getTaskName())).toList();
     }
 
     /**

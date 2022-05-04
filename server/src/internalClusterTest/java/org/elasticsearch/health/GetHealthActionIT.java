@@ -156,6 +156,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                 status,
                 "Health is set to [" + status + "] by test plugin",
                 new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
+                Collections.emptyList(),
                 Collections.emptyList()
             );
         }
@@ -221,6 +222,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                                     ilmIndicatorStatus,
                                     "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", false)),
+                                    Collections.emptyList(),
                                     Collections.emptyList()
                                 ),
                                 new HealthIndicatorResult(
@@ -229,6 +231,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                                     slmIndicatorStatus,
                                     "Health is set to [" + slmIndicatorStatus + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", false)),
+                                    Collections.emptyList(),
                                     Collections.emptyList()
                                 )
                             )
@@ -248,6 +251,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                                     clusterCoordinationIndicatorStatus,
                                     "Health is set to [" + clusterCoordinationIndicatorStatus + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", false)),
+                                    Collections.emptyList(),
                                     Collections.emptyList()
                                 )
                             )
@@ -277,6 +281,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                                     ilmIndicatorStatus,
                                     "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", true)),
+                                    Collections.emptyList(),
                                     Collections.emptyList()
                                 )
                             )
@@ -304,6 +309,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                                     ilmIndicatorStatus,
                                     "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", true)),
+                                    Collections.emptyList(),
                                     Collections.emptyList()
                                 ),
                                 new HealthIndicatorResult(
@@ -312,6 +318,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                                     slmIndicatorStatus,
                                     "Health is set to [" + slmIndicatorStatus + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", true)),
+                                    Collections.emptyList(),
                                     Collections.emptyList()
                                 )
                             )

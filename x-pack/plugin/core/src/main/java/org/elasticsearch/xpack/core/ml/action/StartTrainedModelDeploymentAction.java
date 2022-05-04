@@ -47,10 +47,14 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
     /**
      * This has been found to be approximately 300MB on linux by manual testing.
-     * We also subtract 30MB that we always add as overhead (see MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD).
+     * 30MB of this is accounted for via the space set aside to load the code into memory
+     * that we always add as overhead (see MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD).
+     * That would result in 270MB here, although the problem with this is that it would
+     * mean few models would fit on a 2GB ML node in Cloud with logging and metrics enabled.
+     * Therefore we push the boundary a bit and require a 240MB per-model overhead.
      * TODO Check if it is substantially different in other platforms.
      */
-    private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(270);
+    private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(240);
 
     public StartTrainedModelDeploymentAction() {
         super(NAME, CreateTrainedModelAssignmentAction.Response::new);

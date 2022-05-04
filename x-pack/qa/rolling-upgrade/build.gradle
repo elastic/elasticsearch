@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
@@ -86,6 +87,8 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
     keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
     setting 'xpack.watcher.encrypt_sensitive_data', 'true'
+
+    requiresFeature 'es.user_profile_feature_flag_enabled', Version.fromString("8.1.0")
 
     // Old versions of the code contain an invalid assertion that trips
     // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing

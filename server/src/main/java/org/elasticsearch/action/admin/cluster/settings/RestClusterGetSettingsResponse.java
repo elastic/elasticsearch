@@ -8,9 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -28,22 +26,22 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * This response is specific to the REST client. {@link org.elasticsearch.action.admin.cluster.state.ClusterStateResponse}
  * is used on the transport layer.
  */
-public class ClusterGetSettingsResponse extends ActionResponse implements ToXContentObject {
+public class RestClusterGetSettingsResponse implements ToXContentObject {
 
-    private Settings persistentSettings = Settings.EMPTY;
-    private Settings transientSettings = Settings.EMPTY;
-    private Settings defaultSettings = Settings.EMPTY;
+    private final Settings persistentSettings;
+    private final Settings transientSettings;
+    private final Settings defaultSettings;
 
     static final String PERSISTENT_FIELD = "persistent";
     static final String TRANSIENT_FIELD = "transient";
     static final String DEFAULTS_FIELD = "defaults";
 
-    private static final ConstructingObjectParser<ClusterGetSettingsResponse, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<RestClusterGetSettingsResponse, Void> PARSER = new ConstructingObjectParser<>(
         "cluster_get_settings_response",
         true,
         a -> {
             Settings defaultSettings = a[2] == null ? Settings.EMPTY : (Settings) a[2];
-            return new ClusterGetSettingsResponse((Settings) a[0], (Settings) a[1], defaultSettings);
+            return new RestClusterGetSettingsResponse((Settings) a[0], (Settings) a[1], defaultSettings);
         }
     );
     static {
@@ -52,16 +50,10 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), new ParseField(DEFAULTS_FIELD));
     }
 
-    public ClusterGetSettingsResponse(Settings persistentSettings, Settings transientSettings, Settings defaultSettings) {
-        if (persistentSettings != null) {
-            this.persistentSettings = persistentSettings;
-        }
-        if (transientSettings != null) {
-            this.transientSettings = transientSettings;
-        }
-        if (defaultSettings != null) {
-            this.defaultSettings = defaultSettings;
-        }
+    public RestClusterGetSettingsResponse(Settings persistentSettings, Settings transientSettings, Settings defaultSettings) {
+        this.persistentSettings = Objects.requireNonNullElse(persistentSettings, Settings.EMPTY);
+        this.transientSettings = Objects.requireNonNullElse(transientSettings, Settings.EMPTY);
+        this.defaultSettings = Objects.requireNonNullElse(defaultSettings, Settings.EMPTY);
     }
 
     /**
@@ -127,7 +119,7 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
         return builder;
     }
 
-    public static ClusterGetSettingsResponse fromXContent(XContentParser parser) {
+    public static RestClusterGetSettingsResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -135,7 +127,7 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ClusterGetSettingsResponse that = (ClusterGetSettingsResponse) o;
+        RestClusterGetSettingsResponse that = (RestClusterGetSettingsResponse) o;
         return Objects.equals(transientSettings, that.transientSettings)
             && Objects.equals(persistentSettings, that.persistentSettings)
             && Objects.equals(defaultSettings, that.defaultSettings);
@@ -150,7 +142,4 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
     public String toString() {
         return Strings.toString(this);
     }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {}
 }

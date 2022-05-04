@@ -246,7 +246,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         super(in);
         storeStatuses = in.readImmutableMap(
             StreamInput::readString,
-            i -> i.readImmutableMap(StreamInput::readInt, j -> j.readList(StoreStatus::new))
+            i -> i.readImmutableMap(StreamInput::readInt, j -> j.readImmutableList(StoreStatus::new))
         );
         failures = Collections.unmodifiableList(in.readList(Failure::readFailure));
     }

@@ -27,7 +27,15 @@ dependencies {
   api "org.apache.tika:tika-core:${versions.tika}"
   api "org.apache.tika:tika-langdetect:${versions.tika}"
   api "org.apache.tika:tika-langdetect-tika:${versions.tika}"
-  api "org.apache.tika:tika-parsers-standard-package:${versions.tika}"
+  api "org.apache.tika:tika-parser-html-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-microsoft-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-pdf-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-xml-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-text-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-miscoffice-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-apple-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-xmp-commons:${versions.tika}"
+  api "org.apache.tika:tika-parser-zip-commons:${versions.tika}"
   api 'org.tukaani:xz:1.8'
   api 'commons-io:commons-io:2.11.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"

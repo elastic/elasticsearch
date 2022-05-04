@@ -102,7 +102,6 @@ public class ListPluginsCommandTests extends CommandTestCase {
         assertEquals(buildMultiline("fake1", "fake2"), terminal.getOutput());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86352")
     public void testPluginWithVerbose() throws Exception {
         buildFakePlugin(env, "fake desc", "fake_plugin", "org.fake");
         execute("-v");
@@ -126,7 +125,6 @@ public class ListPluginsCommandTests extends CommandTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86352")
     public void testPluginWithNativeController() throws Exception {
         buildFakePlugin(env, "fake desc 1", "fake_plugin1", "org.fake", true);
         execute("-v");
@@ -150,7 +148,6 @@ public class ListPluginsCommandTests extends CommandTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86352")
     public void testPluginWithVerboseMultiplePlugins() throws Exception {
         buildFakePlugin(env, "fake desc 1", "fake_plugin1", "org.fake");
         buildFakePlugin(env, "fake desc 2", "fake_plugin2", "org.fake2");
@@ -209,7 +206,6 @@ public class ListPluginsCommandTests extends CommandTestCase {
         assertEquals("property [name] is missing in [" + descriptorPath.toString() + "]", e.getMessage());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86352")
     public void testExistingIncompatiblePlugin() throws Exception {
         PluginTestUtil.writePluginProperties(
             env.pluginsFile().resolve("fake_plugin1"),

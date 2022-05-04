@@ -656,25 +656,45 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping().getRoot());
                 String syntheticSource = loader.leaf(getOnlyLeafReader(reader)).source(null, 0).utf8ToString();
-                try (Directory roundTripDirectory = newDirectory()) {
-                    RandomIndexWriter roundTripIw = new RandomIndexWriter(random(), roundTripDirectory);
-                    roundTripIw.addDocument(
-                        mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON, null, Map.of())).rootDoc()
-                    );
-                    roundTripIw.close();
-                    try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {
-                        String roundTripSyntheticSource = loader.leaf(getOnlyLeafReader(reader)).source(null, 0).utf8ToString();
-                        assertThat(roundTripSyntheticSource, equalTo(syntheticSource));
-                        assertReaderEquals(
-                            "round trip " + syntheticSource,
-                            new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, reader),
-                            new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, roundTripReader)
-                        );
-                    }
-                }
+                roundTripSyntheticSource(mapper, syntheticSource, reader);
                 return syntheticSource;
             }
         }
+    }
+
+    /*
+     * Use the synthetic source to build a *second* index and verify
+     * that the synthetic source it produces is the same. And *then*
+     * verify that the index's contents are exactly the same. Except
+     * for _recovery_source - that won't be the same because it's a
+     * precise copy of the bits in _source. And we *know* that frequently
+     * the synthetic source won't be the same as the original source.
+     * That's the point, really. It'll just be "close enough" for
+     * round tripping.
+     */
+    private void roundTripSyntheticSource(DocumentMapper mapper, String syntheticSource, DirectoryReader reader) throws IOException {
+        try (Directory roundTripDirectory = newDirectory()) {
+            RandomIndexWriter roundTripIw = new RandomIndexWriter(random(), roundTripDirectory);
+            roundTripIw.addDocument(
+                mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON, null, Map.of())).rootDoc()
+            );
+            roundTripIw.close();
+            try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {
+                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping().getRoot());
+                String roundTripSyntheticSource = loader.leaf(getOnlyLeafReader(roundTripReader)).source(null, 0).utf8ToString();
+                assertThat(roundTripSyntheticSource, equalTo(syntheticSource));
+                validateRoundTripReader(syntheticSource, reader, roundTripReader);
+            }
+        }
+    }
+
+    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
+        throws IOException {
+        assertReaderEquals(
+            "round trip " + syntheticSource,
+            new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, reader),
+            new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, roundTripReader)
+        );
     }
 
     protected final XContentBuilder syntheticSourceMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {

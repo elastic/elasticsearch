@@ -350,6 +350,20 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public TimeSeriesParams.MetricType getMetricType() {
             return metricType;
         }
+
+        @Override
+        public String toString() {
+            StringBuilder b = new StringBuilder();
+            b.append("ScaledFloatFieldType[").append(scalingFactor);
+            if (nullValue != null) {
+                b.append(", nullValue=").append(nullValue);
+                ;
+            }
+            if (metricType != null) {
+                b.append(", metricType=").append(metricType);
+            }
+            return b.append("]").toString();
+        }
     }
 
     private final Explicit<Boolean> ignoreMalformed;
@@ -451,6 +465,15 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             }
         }
         long scaledValue = Math.round(doubleValue * scalingFactor);
+        System.err.println(
+            "scaled value "
+                + scaledValue
+                + "   original value: "
+                + doubleValue
+                + "   round tripped: "
+                + (scaledValue * (1d / scalingFactor))
+        );
+        System.err.println("largest " + (Long.MAX_VALUE * (1d / scalingFactor)));
 
         List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, hasDocValues, stored);
         context.doc().addAll(fields);

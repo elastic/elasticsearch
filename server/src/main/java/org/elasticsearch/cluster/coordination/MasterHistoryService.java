@@ -144,11 +144,11 @@ public class MasterHistoryService {
             }
         }
 
-        public RemoteHistoryOrException(List<DiscoveryNode> remoteHistory) {
+        RemoteHistoryOrException(List<DiscoveryNode> remoteHistory) {
             this(remoteHistory, null);
         }
 
-        public RemoteHistoryOrException(Exception exception) {
+        RemoteHistoryOrException(Exception exception) {
             this(null, exception);
         }
     }

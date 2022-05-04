@@ -214,16 +214,26 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         Iterator<Long> assignmentIter = jobSizes.iterator();
         while (jobSizes.size() > maxNumInQueue && assignmentIter.hasNext()) {
             long requiredMemory = assignmentIter.next();
+            long requiredNativeCodeOverhead = 0;
             NodeLoad.Builder nodeLoad = mostFreeMemoryFirst.peek();
             assert nodeLoad != null : "unexpected null value while calculating assignable memory";
+            // Add per-node overhead if this is the first assignment
+            if (nodeLoad.getNumAssignedJobs() == 0) {
+                requiredNativeCodeOverhead = NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+            }
             // Since we have the least loaded node (by memory) first, if it can't fit here, it can't fit anywhere
-            if (nodeLoad.getFreeMemory() >= requiredMemory) {
+            if (nodeLoad.getFreeMemory() >= requiredMemory + requiredNativeCodeOverhead) {
                 assignmentIter.remove();
                 // Remove and add to the priority queue to make sure the biggest node with availability is first
-                mostFreeMemoryFirst.add(mostFreeMemoryFirst.poll().incNumAssignedJobs().incAssignedAnomalyDetectorMemory(requiredMemory));
+                mostFreeMemoryFirst.add(
+                    mostFreeMemoryFirst.poll()
+                        .incAssignedNativeCodeOverheadMemory(requiredNativeCodeOverhead)
+                        .incNumAssignedJobs()
+                        .incAssignedAnomalyDetectorMemory(requiredMemory)
+                );
             }
         }
-        List<NodeLoad> adjustedLoads = mostFreeMemoryFirst.stream().map(NodeLoad.Builder::build).collect(Collectors.toList());
+        List<NodeLoad> adjustedLoads = mostFreeMemoryFirst.stream().map(NodeLoad.Builder::build).toList();
 
         List<Long> unassignableMemory = new ArrayList<>();
         Iterator<Long> unassignableIter = jobSizes.iterator();

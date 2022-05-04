@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
+import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -569,6 +570,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 InferenceResults.class,
                 NlpClassificationInferenceResults.NAME,
                 NlpClassificationInferenceResults::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceResults.class,
+                QuestionAnsweringInferenceResults.NAME,
+                QuestionAnsweringInferenceResults::new
             )
         );
         // Inference Configs

@@ -85,7 +85,8 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     private static DesiredNode.Processors randomProcessor() {
-        return new DesiredNode.Processors(randomFloat() + randomIntBetween(1, 16), randomFloat() + randomIntBetween(1, 16));
+        float minProcessors = randomFloat() + randomIntBetween(1, 16);
+        return new DesiredNode.Processors(minProcessors, minProcessors + randomIntBetween(0, 10));
     }
 
     public static Settings randomSettings(Consumer<Settings.Builder> settingsProvider) {

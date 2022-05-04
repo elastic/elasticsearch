@@ -48,11 +48,10 @@ public class WindowsServiceTests extends PackagingTestCase {
         sh.runIgnoreExitCode(serviceScript + " remove");
     }
 
-    private void assertService(String id, String status, String displayName) {
+    private void assertService(String id, String status) {
         Result result = sh.run("Get-Service " + id + " | Format-List -Property Name, Status, DisplayName");
         assertThat(result.stdout(), containsString("Name        : " + id));
         assertThat(result.stdout(), containsString("Status      : " + status));
-        assertThat(result.stdout(), containsString("DisplayName : " + displayName));
     }
 
     // runs the service command, dumping all log files on failure
@@ -99,7 +98,7 @@ public class WindowsServiceTests extends PackagingTestCase {
 
     public void test12InstallService() {
         sh.run(serviceScript + " install");
-        assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);
+        assertService(DEFAULT_ID, "Stopped");
         sh.run(serviceScript + " remove");
     }
 
@@ -125,10 +124,9 @@ public class WindowsServiceTests extends PackagingTestCase {
 
     public void test20CustomizeServiceId() {
         String serviceId = "my-es-service";
-        String displayName = DEFAULT_DISPLAY_NAME.replace(DEFAULT_ID, serviceId);
         sh.getEnv().put("SERVICE_ID", serviceId);
         sh.run(serviceScript + " install");
-        assertService(serviceId, "Stopped", displayName);
+        assertService(serviceId, "Stopped");
         sh.run(serviceScript + " remove");
     }
 
@@ -136,7 +134,7 @@ public class WindowsServiceTests extends PackagingTestCase {
         String displayName = "my es service display name";
         sh.getEnv().put("SERVICE_DISPLAY_NAME", displayName);
         sh.run(serviceScript + " install");
-        assertService(DEFAULT_ID, "Stopped", displayName);
+        assertService(DEFAULT_ID, "Stopped");
         sh.run(serviceScript + " remove");
     }
 
@@ -146,7 +144,7 @@ public class WindowsServiceTests extends PackagingTestCase {
         runElasticsearchTests();
 
         assertCommand(serviceScript + " stop");
-        assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);
+        assertService(DEFAULT_ID, "Stopped");
         // the process is stopped async, and can become a zombie process, so we poll for the process actually being gone
         assertCommand(
             "$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;"

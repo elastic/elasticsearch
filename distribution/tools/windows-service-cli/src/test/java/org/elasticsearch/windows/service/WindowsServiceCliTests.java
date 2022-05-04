@@ -52,4 +52,6 @@ public class WindowsServiceCliTests extends CommandTestCase {
         var e = expectThrows(IllegalStateException.class, () -> executeMain("install"));
         assertThat(e.getMessage(), containsString("Missing procrun exe"));
     }
+
+    // TODO: add tests for display name (and custom display name)
 }

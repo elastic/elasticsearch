@@ -9,7 +9,6 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStage;
@@ -666,7 +665,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         for (final var snapshotName : snapshotNames) {
             clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)
                 .setWaitForCompletion(waitForCompletion)
-                .execute(ActionListener.notifyOnce(createsGroupedListener));
+                .execute(createsGroupedListener);
         }
         createsListener.get(60, TimeUnit.SECONDS);
 

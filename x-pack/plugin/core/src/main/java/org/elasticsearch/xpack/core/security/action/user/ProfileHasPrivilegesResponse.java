@@ -57,10 +57,11 @@ public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXC
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-            .stringListField("has_privilege_uids", hasPrivilegeUids)
-            .stringListField("error_uids", errorUids)
-            .endObject();
+        XContentBuilder xContentBuilder = builder.startObject().stringListField("has_privilege_uids", hasPrivilegeUids);
+        if (false == errorUids.isEmpty()) {
+            xContentBuilder.stringListField("error_uids", errorUids);
+        }
+        return xContentBuilder.endObject();
     }
 
     @Override

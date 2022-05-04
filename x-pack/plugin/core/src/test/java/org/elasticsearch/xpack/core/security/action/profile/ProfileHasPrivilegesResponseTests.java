@@ -55,17 +55,21 @@ public class ProfileHasPrivilegesResponseTests extends AbstractWireSerializingTe
         final Map<String, Object> responseMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType())
             .v2();
 
-        assertThat(
-            responseMap,
-            equalTo(
-                Map.of(
-                    "has_privilege_uids",
-                    new ArrayList<>(response.hasPrivilegeUids()),
-                    "error_uids",
-                    new ArrayList<>(response.errorUids())
+        if (response.errorUids().isEmpty()) {
+            assertThat(responseMap, equalTo(Map.of("has_privilege_uids", new ArrayList<>(response.hasPrivilegeUids()))));
+        } else {
+            assertThat(
+                responseMap,
+                equalTo(
+                    Map.of(
+                        "has_privilege_uids",
+                        new ArrayList<>(response.hasPrivilegeUids()),
+                        "error_uids",
+                        new ArrayList<>(response.errorUids())
+                    )
                 )
-            )
-        );
+            );
+        }
     }
 
     private Set<String> newMutatedSet(Set<String> in) {

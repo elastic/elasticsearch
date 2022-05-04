@@ -133,7 +133,7 @@ retrieve the data needed to complete the search in parallel with the ongoing
 recovery. On-disk data is preserved across restarts, such that the node does
 not need to re-download data that is already stored on the node after a restart.
 +
-Indices managed by {ilm-init} are prefixed with `recovered-` when fully mounted.
+Indices managed by {ilm-init} are prefixed with `restored-` when fully mounted.
 
 [[partially-mounted]]
 Partially mounted index::

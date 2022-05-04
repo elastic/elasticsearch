@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.vectortile.rest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Rectangle;
@@ -55,6 +56,7 @@ class VectorTileRequest {
     protected static final ParseField GRID_TYPE_FIELD = new ParseField("grid_type");
     protected static final ParseField GRID_PRECISION_FIELD = new ParseField("grid_precision");
     protected static final ParseField EXTENT_FIELD = new ParseField("extent");
+    protected static final ParseField BUFFER_FIELD = new ParseField("buffer");
     protected static final ParseField EXACT_BOUNDS_FIELD = new ParseField("exact_bounds");
 
     protected static class Defaults {
@@ -66,7 +68,8 @@ class VectorTileRequest {
         public static final GridAggregation GRID_AGG = GridAggregation.GEOTILE;
         public static final int GRID_PRECISION = 8;
         public static final GridType GRID_TYPE = GridType.GRID;
-        public static final int EXTENT = 4096;
+        public static final int EXTENT = SimpleVectorTileFormatter.DEFAULT_EXTENT;
+        public static final int BUFFER = SimpleVectorTileFormatter.DEFAULT_BUFFER_PIXELS;
         public static final boolean EXACT_BOUNDS = false;
         public static final int TRACK_TOTAL_HITS_UP_TO = DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     }
@@ -112,6 +115,7 @@ class VectorTileRequest {
         PARSER.declareInt(VectorTileRequest::setGridPrecision, GRID_PRECISION_FIELD);
         PARSER.declareString(VectorTileRequest::setGridType, GRID_TYPE_FIELD);
         PARSER.declareInt(VectorTileRequest::setExtent, EXTENT_FIELD);
+        PARSER.declareInt(VectorTileRequest::setBuffer, BUFFER_FIELD);
         PARSER.declareBoolean(VectorTileRequest::setExactBounds, EXACT_BOUNDS_FIELD);
         PARSER.declareField(VectorTileRequest::setTrackTotalHitsUpTo, (p) -> {
             XContentParser.Token token = p.currentToken();
@@ -147,6 +151,9 @@ class VectorTileRequest {
         }
         if (restRequest.hasParam(EXTENT_FIELD.getPreferredName())) {
             request.setExtent(restRequest.paramAsInt(EXTENT_FIELD.getPreferredName(), Defaults.EXTENT));
+        }
+        if (restRequest.hasParam(BUFFER_FIELD.getPreferredName())) {
+            request.setBuffer(restRequest.paramAsInt(BUFFER_FIELD.getPreferredName(), Defaults.BUFFER));
         }
         if (restRequest.hasParam(GRID_AGG_FIELD.getPreferredName())) {
             request.setGridAgg(restRequest.param(GRID_AGG_FIELD.getPreferredName(), Defaults.GRID_AGG.name()));
@@ -194,6 +201,7 @@ class VectorTileRequest {
     private GridType gridType = Defaults.GRID_TYPE;
     private int size = Defaults.SIZE;
     private int extent = Defaults.EXTENT;
+    private int buffer = Defaults.BUFFER;
     private List<MetricsAggregationBuilder<?, ?>> aggs = Defaults.AGGS;
     private List<FieldAndFormat> fields = Defaults.FETCH;
     private List<SortBuilder<?>> sortBuilders;
@@ -243,6 +251,17 @@ class VectorTileRequest {
             throw new IllegalArgumentException("[extent] parameter cannot be negative, found [" + extent + "]");
         }
         this.extent = extent;
+    }
+
+    public int getBuffer() {
+        return buffer;
+    }
+
+    private void setBuffer(int buffer) {
+        if (buffer < 0) {
+            throw new IllegalArgumentException("[buffer] parameter cannot be negative, found [" + buffer + "]");
+        }
+        this.buffer = buffer;
     }
 
     public boolean getExactBounds() {

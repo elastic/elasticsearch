@@ -603,7 +603,7 @@ public class JwtRestIT extends ESRestTestCase {
         return getSecurityClient(options -> {
             final String bearerHeader = "Bearer " + jwt.serialize();
             options.addHeader("Authorization", bearerHeader);
-            sharedSecret.ifPresent(secret -> options.addHeader("X-Client-Authentication", "SharedSecret " + secret));
+            sharedSecret.ifPresent(secret -> options.addHeader("ES-Client-Authentication", "SharedSecret " + secret));
         });
     }
 

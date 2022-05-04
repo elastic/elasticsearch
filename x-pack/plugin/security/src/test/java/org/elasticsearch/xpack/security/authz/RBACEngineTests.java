@@ -47,8 +47,8 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
@@ -80,7 +80,6 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
@@ -107,7 +106,6 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -140,50 +138,48 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertTrue(engine.checkSameUserPermissions(action, request, authentication));
+        assertTrue(RBACEngine.checkSameUserPermissions(action, request, authentication));
     }
 
     public void testSameUserPermissionDoesNotAllowNonMatchingUsername() {
-        final User authUser = new User("admin", new String[] { "bar" });
-        final User user = new User("joe", null, authUser);
+        final User authUser = new User("admin", "bar");
+        final User user = new User("joe");
         final boolean changePasswordRequest = randomBoolean();
         final String username = randomFrom("", "joe" + randomAlphaOfLengthBetween(1, 5), randomAlphaOfLengthBetween(3, 10));
         final TransportRequest request = changePasswordRequest
             ? new ChangePasswordRequestBuilder(mock(Client.class)).username(username).request()
             : new AuthenticateRequestBuilder(mock(Client.class)).username(username).request();
         final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
-        final Authentication authentication = mock(Authentication.class);
-        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        final String authenticationType = changePasswordRequest
-            ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE)
-            : randomAlphaOfLengthBetween(4, 12);
-        when(authenticatedBy.getType()).thenReturn(authenticationType);
-        when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.REALM);
+
+        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(4, 12),
+            randomAlphaOfLengthBetween(3, 8)
+        );
+
+        final Authentication.RealmRef lookedUpBy = new Authentication.RealmRef(
+            randomAlphaOfLengthBetween(3, 8),
+            changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) : randomAlphaOfLengthBetween(4, 12),
+            randomAlphaOfLengthBetween(3, 8)
+        );
+
+        final Authentication authentication = Authentication.newRealmAuthentication(authUser, authenticatedBy).runAs(user, lookedUpBy);
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
 
-        when(authentication.getUser()).thenReturn(user);
-        final Authentication.RealmRef lookedUpBy = mock(Authentication.RealmRef.class);
-        when(authentication.getLookedUpBy()).thenReturn(lookedUpBy);
-        when(lookedUpBy.getType()).thenReturn(
-            changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) : randomAlphaOfLengthBetween(4, 12)
-        );
         // this should still fail since the username is still different
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
 
         if (request instanceof ChangePasswordRequest) {
             ((ChangePasswordRequest) request).username("joe");
         } else {
             ((AuthenticateRequest) request).username("joe");
         }
-        assertTrue(engine.checkSameUserPermissions(action, request, authentication));
+        assertTrue(RBACEngine.checkSameUserPermissions(action, request, authentication));
     }
 
     public void testSameUserPermissionDoesNotAllowOtherActions() {
-        final User user = mock(User.class);
         final TransportRequest request = mock(TransportRequest.class);
         final String action = randomFrom(
             PutUserAction.NAME,
@@ -193,201 +189,134 @@ public class RBACEngineTests extends ESTestCase {
             ClusterStatsAction.NAME,
             GetLicenseAction.NAME
         );
-        final Authentication authentication = mock(Authentication.class);
-        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
-        final boolean runAs = randomBoolean();
-        when(authentication.getUser()).thenReturn(user);
-        when(user.authenticatedUser()).thenReturn(runAs ? new User("authUser") : user);
-        when(user.isRunAs()).thenReturn(runAs);
-        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authenticatedBy.getType()).thenReturn(randomAlphaOfLengthBetween(4, 12));
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
-        verifyNoMoreInteractions(user, request, authentication);
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
+        verifyNoMoreInteractions(request);
     }
 
     public void testSameUserPermissionRunAsChecksAuthenticatedBy() {
-        final User authUser = new User("admin", new String[] { "bar" });
+        final User authUser = new User("admin", "bar");
         final String username = "joe";
-        final User user = new User(username, null, authUser);
+        final User user = new User(username);
         final boolean changePasswordRequest = randomBoolean();
         final TransportRequest request = changePasswordRequest
             ? new ChangePasswordRequestBuilder(mock(Client.class)).username(username).request()
             : new AuthenticateRequestBuilder(mock(Client.class)).username(username).request();
         final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
-        final Authentication authentication = mock(Authentication.class);
-        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
-        final Authentication.RealmRef lookedUpBy = mock(Authentication.RealmRef.class);
-        when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.REALM);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authentication.getLookedUpBy()).thenReturn(lookedUpBy);
-        when(lookedUpBy.getType()).thenReturn(
-            changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) : randomAlphaOfLengthBetween(4, 12)
-        );
-        assertTrue(engine.checkSameUserPermissions(action, request, authentication));
 
-        when(authentication.getUser()).thenReturn(authUser);
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        final Authentication.RealmRef authenticatedBy = AuthenticationTestHelper.randomRealmRef(false);
+        final Authentication.RealmRef lookedUpBy = new Authentication.RealmRef(
+            randomAlphaOfLengthBetween(3, 8),
+            changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) : randomAlphaOfLengthBetween(4, 12),
+            randomAlphaOfLengthBetween(3, 8)
+        );
+
+        final Authentication authentication = Authentication.newRealmAuthentication(authUser, authenticatedBy).runAs(user, lookedUpBy);
+        assertTrue(RBACEngine.checkSameUserPermissions(action, request, authentication));
+
+        final Authentication authentication2 = Authentication.newRealmAuthentication(authUser, authenticatedBy);
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication2));
     }
 
     public void testSameUserPermissionDoesNotAllowChangePasswordForOtherRealms() {
-        final User user = new User("joe");
-        final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(user.principal()).request();
-        final String action = ChangePasswordAction.NAME;
-        final Authentication authentication = mock(Authentication.class);
-        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
-        when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.REALM);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authenticatedBy.getType()).thenReturn(
-            randomFrom(
-                LdapRealmSettings.LDAP_TYPE,
-                FileRealmSettings.TYPE,
-                LdapRealmSettings.AD_TYPE,
-                PkiRealmSettings.TYPE,
-                randomAlphaOfLengthBetween(4, 12)
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .realm()
+            .realmRef(
+                new Authentication.RealmRef(
+                    randomAlphaOfLengthBetween(3, 8),
+                    randomFrom(
+                        LdapRealmSettings.LDAP_TYPE,
+                        FileRealmSettings.TYPE,
+                        LdapRealmSettings.AD_TYPE,
+                        PkiRealmSettings.TYPE,
+                        randomAlphaOfLengthBetween(4, 12)
+                    ),
+                    randomAlphaOfLengthBetween(3, 8)
+                )
             )
-        );
+            .build(false);
+        final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(
+            authentication.getEffectiveSubject().getUser().principal()
+        ).request();
+        final String action = ChangePasswordAction.NAME;
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
-        verify(authenticatedBy).getType();
-        verify(authentication).getAuthenticatedBy();
-        verify(authentication, times(2)).getUser();
-        verify(authentication).getAuthenticationType();
-        verifyNoMoreInteractions(authenticatedBy, authentication);
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
     }
 
     public void testSameUserPermissionDoesNotAllowChangePasswordForApiKey() {
-        final User user = new User("joe");
-        final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(user.principal()).request();
+        final Authentication authentication = AuthenticationTestHelper.builder().apiKey().build(false);
+        final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(
+            authentication.getEffectiveSubject().getUser().principal()
+        ).request();
         final String action = ChangePasswordAction.NAME;
-        final Authentication authentication = mock(Authentication.class);
-        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.API_KEY);
-        when(authenticatedBy.getType()).thenReturn(AuthenticationField.API_KEY_REALM_TYPE);
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
-        verify(authenticatedBy).getType();
-        verify(authentication).getAuthenticatedBy();
-        verify(authentication, times(2)).getUser();
-        verify(authentication).getAuthenticationType();
-        verifyNoMoreInteractions(authenticatedBy, authentication);
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
     }
 
     public void testSameUserPermissionDoesNotAllowChangePasswordForAccessToken() {
-        final User user = new User("joe");
-        final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(user.principal()).request();
+        final Authentication authentication = AuthenticationTestHelper.builder().realm().build(false).token();
+        final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(
+            authentication.getEffectiveSubject().getUser().principal()
+        ).request();
         final String action = ChangePasswordAction.NAME;
-        final Authentication authentication = mock(Authentication.class);
-        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.TOKEN);
-        when(authenticatedBy.getType()).thenReturn(NativeRealmSettings.TYPE);
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
-        verify(authenticatedBy).getType();
-        verify(authentication).getAuthenticatedBy();
-        verify(authentication, times(2)).getUser();
-        verify(authentication).getAuthenticationType();
-        verifyNoMoreInteractions(authenticatedBy, authentication);
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
     }
 
     public void testSameUserPermissionDoesNotAllowChangePasswordForLookedUpByOtherRealms() {
-        final User authUser = new User("admin", new String[] { "bar" });
-        final User user = new User("joe", null, authUser);
-        final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(user.principal()).request();
-        final String action = ChangePasswordAction.NAME;
-        final Authentication authentication = mock(Authentication.class);
-        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
-        final Authentication.RealmRef lookedUpBy = mock(Authentication.RealmRef.class);
-        when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.REALM);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authentication.getLookedUpBy()).thenReturn(lookedUpBy);
-        when(lookedUpBy.getType()).thenReturn(
-            randomFrom(
-                LdapRealmSettings.LDAP_TYPE,
-                FileRealmSettings.TYPE,
-                LdapRealmSettings.AD_TYPE,
-                PkiRealmSettings.TYPE,
-                randomAlphaOfLengthBetween(4, 12)
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .realm()
+            .runAs()
+            .realmRef(
+                new Authentication.RealmRef(
+                    randomAlphaOfLengthBetween(3, 8),
+                    randomFrom(
+                        LdapRealmSettings.LDAP_TYPE,
+                        FileRealmSettings.TYPE,
+                        LdapRealmSettings.AD_TYPE,
+                        PkiRealmSettings.TYPE,
+                        randomAlphaOfLengthBetween(4, 12)
+                    ),
+                    randomAlphaOfLengthBetween(3, 8)
+                )
             )
-        );
+            .build();
+        final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(
+            authentication.getEffectiveSubject().getUser().principal()
+        ).request();
+        final String action = ChangePasswordAction.NAME;
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
-        verify(authentication).getLookedUpBy();
-        verify(authentication, times(2)).getUser();
-        verify(lookedUpBy).getType();
-        verify(authentication).getAuthenticationType();
-        verifyNoMoreInteractions(authentication, lookedUpBy, authenticatedBy);
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
     }
 
     public void testSameUserPermissionAllowsSelfApiKeyInfoRetrievalWhenAuthenticatedByApiKey() {
         final User user = new User("joe");
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
+        final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(user, apiKeyId);
         final TransportRequest request = GetApiKeyRequest.usingApiKeyId(apiKeyId, false);
-        final Authentication authentication = mock(Authentication.class);
-        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
-        when(authenticatedBy.getName()).thenReturn(AuthenticationField.API_KEY_REALM_NAME);
-        when(authenticatedBy.getType()).thenReturn(AuthenticationField.API_KEY_REALM_TYPE);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
-        when(authentication.getSourceRealm()).thenReturn(authenticatedBy);
-        when(authentication.getMetadata()).thenReturn(Map.of(AuthenticationField.API_KEY_ID_KEY, apiKeyId));
-        when(authentication.isAuthenticatedAsApiKey()).thenCallRealMethod();
-        when(authentication.isApiKey()).thenCallRealMethod();
-
-        assertTrue(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
+        assertTrue(RBACEngine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
 
     public void testSameUserPermissionDeniesApiKeyInfoRetrievalWhenAuthenticatedByADifferentApiKey() {
         final User user = new User("joe");
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
         final TransportRequest request = GetApiKeyRequest.usingApiKeyId(apiKeyId, false);
-        final Authentication authentication = mock(Authentication.class);
-        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authenticatedBy.getName()).thenReturn(AuthenticationField.API_KEY_REALM_NAME);
-        when(authenticatedBy.getType()).thenReturn(AuthenticationField.API_KEY_REALM_TYPE);
-        when(authentication.getSourceRealm()).thenReturn(authenticatedBy);
-        when(authentication.getMetadata()).thenReturn(Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
-        when(authentication.isAuthenticatedAsApiKey()).thenCallRealMethod();
-        when(authentication.isApiKey()).thenCallRealMethod();
-
-        assertFalse(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
+        final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(user, randomAlphaOfLength(8));
+        assertFalse(RBACEngine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
 
     public void testSameUserPermissionDeniesApiKeyInfoRetrievalWhenLookedupByIsPresent() {
         final User user = new User("joe");
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
         final TransportRequest request = GetApiKeyRequest.usingApiKeyId(apiKeyId, false);
-        final Authentication authentication = mock(Authentication.class);
-        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
-        final Authentication.RealmRef lookedupBy = mock(Authentication.RealmRef.class);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authenticatedBy.getName()).thenReturn(AuthenticationField.API_KEY_REALM_NAME);
-        when(authenticatedBy.getType()).thenReturn(AuthenticationField.API_KEY_REALM_TYPE);
-        when(authentication.getLookedUpBy()).thenReturn(lookedupBy);
-        when(lookedupBy.getName()).thenReturn("name");
-        when(lookedupBy.getType()).thenReturn("type");
-        when(authentication.getSourceRealm()).thenReturn(lookedupBy);
-        when(authentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
-        when(authentication.getMetadata()).thenReturn(Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
-        when(authentication.isAuthenticatedAsApiKey()).thenCallRealMethod();
-        when(authentication.isApiKey()).thenCallRealMethod();
-
-        assertFalse(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
+        final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(new User("not-joe"), apiKeyId)
+            .runAs(user, new Authentication.RealmRef("name", "type", randomAlphaOfLengthBetween(3, 8)));
+        assertFalse(RBACEngine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
 
     /**
@@ -1360,7 +1289,7 @@ public class RBACEngineTests extends ESTestCase {
             .runAs(new Privilege(Sets.newHashSet("user01", "user02"), "user01", "user02"))
             .build();
 
-        final GetUserPrivilegesResponse response = engine.buildUserPrivilegesResponseObject(role);
+        final GetUserPrivilegesResponse response = RBACEngine.buildUserPrivilegesResponseObject(role);
 
         assertThat(response.getClusterPrivileges(), containsInAnyOrder("monitor", "manage_watcher"));
         assertThat(response.getConditionalClusterPrivileges(), containsInAnyOrder(manageApplicationPrivileges));
@@ -1413,7 +1342,6 @@ public class RBACEngineTests extends ESTestCase {
         }
         DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
-            null,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
         IndexAbstraction.DataStream iads = new IndexAbstraction.DataStream(ds, List.of());
@@ -1456,7 +1384,6 @@ public class RBACEngineTests extends ESTestCase {
         }
         DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
-            null,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
         IndexAbstraction.DataStream iads = new IndexAbstraction.DataStream(ds, List.of());

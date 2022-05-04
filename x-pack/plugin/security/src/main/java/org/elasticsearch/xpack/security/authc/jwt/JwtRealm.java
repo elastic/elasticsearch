@@ -67,7 +67,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     }
 
     public static final String HEADER_END_USER_AUTHENTICATION = "Authorization";
-    public static final String HEADER_CLIENT_AUTHENTICATION = "X-Client-Authentication";
+    public static final String HEADER_CLIENT_AUTHENTICATION = "ES-Client-Authentication";
     public static final String HEADER_END_USER_AUTHENTICATION_SCHEME = "Bearer";
     public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
 

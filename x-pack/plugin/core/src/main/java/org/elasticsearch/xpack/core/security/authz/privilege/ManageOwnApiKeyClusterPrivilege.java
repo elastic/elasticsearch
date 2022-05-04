@@ -103,7 +103,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
             return permissionCheck instanceof ManageOwnClusterPermissionCheck;
         }
 
-        private boolean checkIfUserIsOwnerOfApiKeys(
+        private static boolean checkIfUserIsOwnerOfApiKeys(
             Authentication authentication,
             String apiKeyId,
             String username,
@@ -137,7 +137,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
             return false;
         }
 
-        private boolean isCurrentAuthenticationUsingSameApiKeyIdFromRequest(Authentication authentication, String apiKeyId) {
+        private static boolean isCurrentAuthenticationUsingSameApiKeyIdFromRequest(Authentication authentication, String apiKeyId) {
             if (authentication.isApiKey()) {
                 // API key id from authentication must match the id from request
                 final String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);

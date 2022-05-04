@@ -18,11 +18,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -172,18 +174,19 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                 }
             }
         );
-        persistentTasksService.sendRemoveRequest(
-            GEOIP_DOWNLOADER,
-            ActionListener.runAfter(
-                listener,
-                () -> client.admin().indices().prepareDelete(DATABASES_INDEX).execute(ActionListener.wrap(rr -> {}, e -> {
+        persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, ActionListener.runAfter(listener, () -> {
+            IndexAbstraction databasesAbstraction = clusterService.state().metadata().getIndicesLookup().get(DATABASES_INDEX);
+            if (databasesAbstraction != null) {
+                // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
+                Index databasesIndex = databasesAbstraction.getWriteIndex();
+                client.admin().indices().prepareDelete(databasesIndex.getName()).execute(ActionListener.wrap(rr -> {}, e -> {
                     Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
                     if (t instanceof ResourceNotFoundException == false) {
-                        logger.warn("failed to remove " + DATABASES_INDEX, e);
+                        logger.warn("failed to remove " + databasesIndex, e);
                     }
-                }))
-            )
-        );
+                }));
+            }
+        }));
     }
 
     public GeoIpDownloader getCurrentTask() {

@@ -174,7 +174,7 @@ public class AuthenticationTestHelper {
         private AuthenticationTestBuilder() {}
 
         private AuthenticationTestBuilder(Authentication authentication) {
-            assert false == authentication.getUser().isRunAs() : "authenticating authentication cannot itself be run-as";
+            assert false == authentication.isRunAs() : "authenticating authentication cannot itself be run-as";
             this.authenticatingAuthentication = authentication;
             this.version = authentication.getVersion();
         }

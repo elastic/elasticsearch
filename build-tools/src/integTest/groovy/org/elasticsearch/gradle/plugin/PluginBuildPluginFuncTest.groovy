@@ -8,8 +8,13 @@
 
 package org.elasticsearch.gradle.plugin
 
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.stream.Collectors
 
 class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
 
@@ -18,12 +23,12 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
         buildFile << """plugins {
                 id 'elasticsearch.esplugin'
             }
-            
-            esplugin { 
+
+            esplugin {
                 description = 'test plugin'
                 classname = 'com.acme.plugin.TestPlugin'
             }
-            
+
             // for testing purposes only
             configurations.compileOnly.dependencies.clear()
             """
@@ -47,13 +52,13 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
         buildFile << """plugins {
                 id 'elasticsearch.esplugin'
             }
-            
-            esplugin { 
+
+            esplugin {
                 name = 'sample-plugin'
                 description = 'test plugin'
                 classname = 'com.acme.plugin.TestPlugin'
             }
-            
+
             // for testing purposes only
             configurations.compileOnly.dependencies.clear()
             """
@@ -63,11 +68,11 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
             configurations {
                 consume
             }
-            
+
             dependencies {
                 consume project(path:':', configuration:'${PluginBuildPlugin.EXPLODED_BUNDLE_CONFIG}')
             }
-            
+
             tasks.register("resolveModule", Copy) {
                 from configurations.consume
                 into "build/resolved"
@@ -81,5 +86,78 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
         result.task(":explodedBundlePlugin").outcome == TaskOutcome.SUCCESS
         file("module-consumer/build/resolved/sample-plugin.jar").exists()
         file("module-consumer/build/resolved/plugin-descriptor.properties").exists()
+    }
+
+    def "can build plugin properties"() {
+        given:
+        buildFile << """plugins {
+                id 'elasticsearch.esplugin'
+            }
+
+            version = '1.2.3'
+
+            esplugin {
+                name = 'myplugin'
+                description = 'test plugin'
+                classname = 'com.acme.plugin.TestPlugin'
+            }
+            """
+
+
+        when:
+        def result = gradleRunner(":pluginProperties").build()
+        def props = getPluginProperties()
+
+        then:
+        result.task(":pluginProperties").outcome == TaskOutcome.SUCCESS
+        props.get("name") == "myplugin"
+        props.get("version") == "1.2.3"
+        props.get("description") == "test plugin"
+        props.get("classname") == "com.acme.plugin.TestPlugin"
+        props.get("modulename") == ""
+        props.get("type") == "isolated"
+        props.get("java.version") == Integer.toString(Runtime.version().feature())
+        props.get("elasticsearch.version") == VersionProperties.elasticsearchVersion.toString()
+        props.get("extended.plugins") == ""
+        props.get("has.native.controller") == "false"
+        props.size() == 10
+    }
+
+    def "module name is inferred by plugin properties"() {
+        given:
+        buildFile << """plugins {
+                id 'elasticsearch.esplugin'
+            }
+
+            esplugin {
+                name = 'myplugin'
+                description = 'test plugin'
+                classname = 'com.acme.plugin.TestPlugin'
+            }
+
+            // for testing purposes only
+            configurations.compileOnly.dependencies.clear()
+            """
+        file('src/main/java/module-info.java') << """
+            module org.test.plugin {
+            }
+        """
+
+        when:
+        def result = gradleRunner(":pluginProperties").build()
+        def props = getPluginProperties()
+
+        then:
+        result.task(":pluginProperties").outcome == TaskOutcome.SUCCESS
+        props.get("modulename") == "org.test.plugin"
+    }
+
+    Map<String, String> getPluginProperties() {
+        Path propsFile = file("build/generated-descriptor/plugin-descriptor.properties").toPath();
+        Properties rawProps = new Properties()
+        try (var inputStream = Files.newInputStream(propsFile)) {
+            rawProps.load(inputStream)
+        }
+        return rawProps.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(), e -> e.getValue().toString()))
     }
 }

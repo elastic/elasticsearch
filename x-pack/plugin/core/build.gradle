@@ -56,9 +56,6 @@ dependencies {
     transitive = false
   }
 
-  // Needed for usage API cancellation test. TODO: do this another way or at least isolate!
-  internalClusterTestImplementation project(path: ':plugins:transport-nio')
-
   yamlRestTestImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }

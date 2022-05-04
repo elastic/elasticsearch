@@ -115,10 +115,10 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
     }
 
     void setMainPid() {
-        final int rc = sd_notify(0, "MAINPID=" + getPid());
+        /*final int rc = sd_notify(0, "MAINPID=" + getPid());
         if (rc < 0) {
             logger.warn("setting main pid via sd_notify failed with [{}]", rc);
-        }
+        }*/
     }
 
     long getPid() {

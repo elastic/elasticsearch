@@ -19,7 +19,7 @@ def isImplAttr = Attribute.of("is.impl", Boolean)
 
 configurations {
   providerImpl {
-//    attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
     attributes.attribute(isImplAttr, true)
   }
 }

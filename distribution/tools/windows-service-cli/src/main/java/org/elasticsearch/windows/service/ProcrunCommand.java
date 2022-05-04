@@ -10,6 +10,8 @@ package org.elasticsearch.windows.service;
 
 import joptsimple.OptionSet;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
@@ -27,6 +29,8 @@ import java.util.Map;
  * Base command for interacting with Apache procrun executable.
  */
 abstract class ProcrunCommand extends Command {
+    private static final Logger logger = LogManager.getLogger(ProcrunCommand.class);
+
     private final String cmd;
 
     protected ProcrunCommand(String desc, String cmd) {
@@ -55,6 +59,7 @@ abstract class ProcrunCommand extends Command {
         procrunCmd.add(getAdditionalArgs(serviceId, processInfo));
 
         ProcessBuilder processBuilder = new ProcessBuilder("cmd.exe", "/C", String.join(" ", procrunCmd).trim());
+        logger.info("Running procrun: " + String.join(" ", processBuilder.command()));
         processBuilder.inheritIO();
         Process process = processBuilder.start();
         int ret = process.waitFor();

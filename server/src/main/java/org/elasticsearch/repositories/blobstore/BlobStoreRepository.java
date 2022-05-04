@@ -2304,7 +2304,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
             logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
             writeAtomic(blobContainer(), indexBlob, out -> {
-                try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder(Streams.noCloseStream(out))) {
+                try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder(org.elasticsearch.core.Streams.noCloseStream(out))) {
                     newRepositoryData.snapshotsToXContent(xContentBuilder, version);
                 }
             }, true);
@@ -2679,6 +2679,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             long indexIncrementalSize = 0;
             long indexTotalFileSize = 0;
             final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new LinkedBlockingQueue<>();
+            int filesInShardMetadataCount = 0;
+            long filesInShardMetadataSize = 0;
 
             if (store.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
                 indexCommitPointFiles = Collections.emptyList();
@@ -2737,8 +2739,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         indexCommitPointFiles.add(snapshotFileInfo);
                         if (needsWrite) {
                             filesToSnapshot.add(snapshotFileInfo);
+                        } else {
+                            assert assertFileContentsMatchHash(snapshotStatus, snapshotFileInfo, store);
+                            filesInShardMetadataCount += 1;
+                            filesInShardMetadataSize += md.length();
                         }
-                        assert needsWrite || assertFileContentsMatchHash(snapshotStatus, snapshotFileInfo, store);
                     } else {
                         indexCommitPointFiles.add(existingFileInfo);
                     }
@@ -2787,6 +2792,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         compress,
                         serializationParams
                     );
+                    snapshotStatus.addProcessedFiles(filesInShardMetadataCount, filesInShardMetadataSize);
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(
                         shardId,
@@ -2815,6 +2821,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         + indexGeneration
                         + "] when deleting index-N blobs "
                         + blobsToDelete;
+                final var finalFilesInShardMetadataCount = filesInShardMetadataCount;
+                final var finalFilesInShardMetadataSize = filesInShardMetadataSize;
+
                 afterWriteSnapBlob = () -> {
                     try {
                         final Map<String, String> serializationParams = Collections.singletonMap(
@@ -2833,6 +2842,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             e
                         );
                     }
+                    snapshotStatus.addProcessedFiles(finalFilesInShardMetadataCount, finalFilesInShardMetadataSize);
                     try {
                         deleteFromContainer(shardContainer, blobsToDelete.iterator());
                     } catch (IOException e) {

@@ -9,13 +9,11 @@
 package org.elasticsearch.gradle.internal.test.rerun.executer;
 
 import org.elasticsearch.gradle.internal.test.rerun.TestRerunTaskExtension;
-import org.gradle.api.GradleException;
 import org.gradle.api.internal.tasks.testing.JvmTestExecutionSpec;
 import org.gradle.api.internal.tasks.testing.TestDescriptorInternal;
 import org.gradle.api.internal.tasks.testing.TestExecuter;
 import org.gradle.api.internal.tasks.testing.TestResultProcessor;
 import org.gradle.internal.id.CompositeIdGenerator;
-import org.gradle.process.internal.ExecException;
 
 import java.util.Comparator;
 import java.util.List;
@@ -39,24 +37,24 @@ public final class RerunTestExecuter implements TestExecuter<JvmTestExecutionSpe
             return;
         }
 
-        RerunTestResultProcessor retryTestResultProcessor = new RerunTestResultProcessor(testResultProcessor);
-
-        int retryCount = 0;
-        JvmTestExecutionSpec testExecutionSpec = spec;
-        while (true) {
-            try {
-                delegate.execute(testExecutionSpec, retryTestResultProcessor);
-                break;
-            } catch (ExecException e) {
-                extension.getDidRerun().set(true);
-                report(retryCount + 1, retryTestResultProcessor.getActiveDescriptors());
-                if (retryCount++ == maxRetries) {
-                    throw new GradleException("Max retries(" + maxRetries + ") hit", e);
-                } else {
-                    retryTestResultProcessor.reset();
-                }
-            }
-        }
+        // RerunTestResultProcessor retryTestResultProcessor = new RerunTestResultProcessor(testResultProcessor);
+        //
+        // int retryCount = 0;
+        // JvmTestExecutionSpec testExecutionSpec = spec;
+        // while (true) {
+        // try {
+        // delegate.execute(testExecutionSpec, retryTestResultProcessor);
+        // break;
+        // } catch (ExecException e) {
+        // extension.getDidRerun().set(true);
+        // report(retryCount + 1, retryTestResultProcessor.getActiveDescriptors());
+        // if (retryCount++ == maxRetries) {
+        // throw new GradleException("Max retries(" + maxRetries + ") hit", e);
+        // } else {
+        // retryTestResultProcessor.reset();
+        // }
+        // }
+        // }
     }
 
     @Override

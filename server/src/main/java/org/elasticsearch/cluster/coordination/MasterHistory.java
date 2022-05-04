@@ -150,6 +150,7 @@ public class MasterHistory implements ClusterStateListener {
 
     /**
      * An identity change is when we get notified of a change to a non-null master that is different from the previous non-null master.
+     * Note that a master changes to null on (virtually) every identity change.
      * So for example:
      * node1 -> node2 is 1 identity change
      * node1 -> node2 -> node1 is 2 identity changes

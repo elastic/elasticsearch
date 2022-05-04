@@ -210,7 +210,11 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     /**
      * Returns the health result when we have detected locally that the master has changed to null repeatedly (more than 3 times in the last
-     * 30 minutes)
+     * 30 minutes). This method attemtps to use the master history from a remote node to confirm what we are seeing locally. If the
+     * information from the remote node confirms that the master history has been unstable, a YELLOW status is returned. If the
+     * information from the remote node shows that the master history has been stable, then we assume that the problem is with this node
+     * and a GREEN status is returned (the problems with this node will be covered in a different health indicator). If there had been
+     * problems fetching the remote master history, the exception seen will be included in the details of the result.
      * @param localMasterHistory The master history as seen from the local machine
      * @param includeDetails Whether to calculate and include the details in the result
      * @return The HealthIndicatorResult for the given localMasterHistory

@@ -70,7 +70,7 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
-import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
+import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
@@ -135,7 +135,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
     );
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
     private final ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-    private final RecoveryPlannerService recoveryPlannerService = SourceOnlyRecoveryPlannerService.INSTANCE;
+    private final RecoveryPlannerService recoveryPlannerService = PeerOnlyRecoveryPlannerService.INSTANCE;
 
     private ThreadPool threadPool;
     private Executor recoveryExecutor;

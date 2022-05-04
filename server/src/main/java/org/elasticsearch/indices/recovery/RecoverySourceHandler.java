@@ -93,7 +93,6 @@ import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
-import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 /**
  * RecoverySourceHandler handles the three phases of shard recovery, which is
@@ -602,7 +601,7 @@ public class RecoverySourceHandler {
     private boolean canUseSnapshots() {
         return useSnapshots && request.canDownloadSnapshotFiles()
         // Avoid using snapshots for searchable snapshots as these are implicitly recovered from a snapshot
-            && "snapshot".equals(INDEX_STORE_TYPE_SETTING.get(shard.indexSettings().getSettings())) == false;
+            && shard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
     }
 
     void recoverFilesFromSourceAndSnapshot(

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
@@ -24,6 +25,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_R
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearchableSnapshotsIntegTestCase {
     public void testSearchableSnapshotRelocationDoNotUseSnapshotBasedRecoveries() throws Exception {
@@ -40,6 +42,13 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
                 .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
         );
+
+        final TotalHits totalHits = internalCluster().client()
+            .prepareSearch(indexName)
+            .setTrackTotalHits(true)
+            .get()
+            .getHits()
+            .getTotalHits();
 
         final var snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createSnapshot(repositoryName, snapshotName, List.of(indexName));
@@ -81,6 +90,8 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
             .get();
 
         ensureGreen(restoredIndexName);
+
+        assertHitCount(client().prepareSearch(restoredIndexName).setTrackTotalHits(true).get(), totalHits.value);
 
         mockAppender.assertAllExpectationsMatched();
         Loggers.removeAppender(logger, mockAppender);

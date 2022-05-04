@@ -67,7 +67,7 @@ deprecation warnings are displayed when the {transform} is previewed or started.
 However, it is not possible to check for deprecation warnings across all 
 {transforms} as a bulk action because running the required queries might be a 
 resource intensive process. Therefore any deprecation warnings due to deprecated 
-Painless syntax is not available in the Upgrade assistant.
+Painless syntax are not available in the Upgrade Assistant.
 
 [discrete]
 [[transform-runtime-field-limitation]]

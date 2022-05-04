@@ -352,9 +352,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             if (currentIngestMetadata == null) {
                 return null;
             }
-            Map<String, PipelineConfiguration> pipelines1 = currentIngestMetadata.getPipelines();
+            Map<String, PipelineConfiguration> pipelines = currentIngestMetadata.getPipelines();
             Set<String> toRemove = new HashSet<>();
-            for (String pipelineKey : pipelines1.keySet()) {
+            for (String pipelineKey : pipelines.keySet()) {
                 if (Regex.simpleMatch(request.getId(), pipelineKey)) {
                     toRemove.add(pipelineKey);
                 }
@@ -364,7 +364,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             } else if (toRemove.isEmpty()) {
                 return currentIngestMetadata;
             }
-            final Map<String, PipelineConfiguration> pipelinesCopy = new HashMap<>(pipelines1);
+            final Map<String, PipelineConfiguration> pipelinesCopy = new HashMap<>(pipelines);
             for (String key : toRemove) {
                 validateNotInUse(key, allIndexMetadata);
                 pipelinesCopy.remove(key);

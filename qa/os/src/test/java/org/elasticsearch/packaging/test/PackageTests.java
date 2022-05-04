@@ -163,7 +163,7 @@ public class PackageTests extends PackagingTestCase {
         // add fake bin directory as if a plugin was installed
         Files.createDirectories(installation.bin.resolve("myplugin"));
 
-        dumpDebug();
+        logger.info(sh.run("journalctl -u elasticsearch.service").stdout());
         remove(distribution());
 
         // removing must stop the service

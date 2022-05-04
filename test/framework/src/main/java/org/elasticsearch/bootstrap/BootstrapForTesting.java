@@ -24,10 +24,12 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.secure_sm.SecureSM;
+import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.mockito.SecureMockMaker;
 import org.junit.Assert;
 
 import java.io.InputStream;
+import java.lang.invoke.MethodHandles;
 import java.net.SocketPermission;
 import java.net.URL;
 import java.nio.file.Files;
@@ -101,6 +103,13 @@ public class BootstrapForTesting {
 
         // init mockito
         SecureMockMaker.init();
+
+        // init the test in-memory java source code compiler
+        try {
+            MethodHandles.publicLookup().ensureInitialized(InMemoryJavaCompiler.class);
+        } catch (IllegalAccessException unexpected) {
+            throw new AssertionError(unexpected);
+        }
 
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();

@@ -274,6 +274,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             .setMasterNodeTimeout(TimeValue.MAX_VALUE)
             .setIgnoreUnavailable(true)
             .setPolicies(policies.toArray(Strings.EMPTY_ARRAY))
+            .setIncludeIndexNames(false)
             .execute(ActionListener.wrap(resp -> {
                 if (logger.isTraceEnabled()) {
                     logger.trace(

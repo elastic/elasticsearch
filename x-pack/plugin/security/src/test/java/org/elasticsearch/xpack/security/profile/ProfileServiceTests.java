@@ -357,7 +357,10 @@ public class ProfileServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ProfileService.class);
         Loggers.setLevel(logger, Level.DEBUG);
         doAnswer(invocation -> {
-            assertThat(threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME), equalTo(SECURITY_PROFILE_ORIGIN));
+            assertThat(
+                threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
+                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+            );
             final MultiGetRequest multiGetRequest = (MultiGetRequest) invocation.getArguments()[1];
             List<MultiGetItemResponse> responses = new ArrayList<>();
             for (MultiGetRequest.Item item : multiGetRequest.getItems()) {

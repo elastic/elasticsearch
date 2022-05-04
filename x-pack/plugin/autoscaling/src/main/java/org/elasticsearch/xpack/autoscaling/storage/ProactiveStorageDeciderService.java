@@ -54,7 +54,7 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
         if (autoscalingCapacity == null || autoscalingCapacity.total().storage() == null) {
             return new AutoscalingDeciderResult(
                 null,
-                new ReactiveStorageDeciderService.ReactiveReason("current capacity not available", -1, -1, List.of(), List.of())
+                new ReactiveStorageDeciderService.ReactiveReason("current capacity not available", -1, -1)
             );
         }
 

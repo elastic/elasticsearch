@@ -107,16 +107,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         var unassignedBytesUnassignedShards = allocationState.storagePreventsAllocation0();
         AutoscalingCapacity autoscalingCapacity = context.currentCapacity();
         if (autoscalingCapacity == null || autoscalingCapacity.total().storage() == null) {
-            return new AutoscalingDeciderResult(
-                null,
-                new ReactiveReason(
-                    "current capacity not available",
-                    -1,
-                    -1,
-                    List.of(),
-                    List.of()
-                )
-            );
+            return new AutoscalingDeciderResult(null, new ReactiveReason("current capacity not available", -1, -1));
         }
 
         long unassignedBytes = unassignedBytesUnassignedShards.unassignedBytes();
@@ -717,6 +708,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         private final long assigned;
         private final Set<ShardId> unassignedShardIds;
         private final Set<ShardId> assignedShardIds;
+
+        public ReactiveReason(String reason, long unassigned, long assigned) {
+            this(reason, unassigned, assigned, Set.<ShardId>of(), Set.<ShardId>of());
+        }
 
         public ReactiveReason(
             String reason,

@@ -71,13 +71,13 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
@@ -344,7 +344,8 @@ public class ProfileService {
                     .addIds(frozenProfileIndex.aliasName(), uids.stream().map(ProfileService::uidToDocId).toArray(String[]::new))
                     .execute(ActionListener.wrap(multiGetResponse -> {
                         List<ProfileDocument> retrievedDocs = new ArrayList<>(multiGetResponse.getResponses().length);
-                        Set<String> failures = new HashSet<>(0);
+                        // ordered for tests
+                        Set<String> failures = new TreeSet<>();
                         Exception loggedException = null;
                         for (MultiGetItemResponse itemResponse : multiGetResponse.getResponses()) {
                             if (itemResponse.isFailed() && itemResponse.getFailure() != null) {

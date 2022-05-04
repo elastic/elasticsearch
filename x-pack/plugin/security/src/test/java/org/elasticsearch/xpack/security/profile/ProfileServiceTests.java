@@ -82,6 +82,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -349,7 +350,9 @@ public class ProfileServiceTests extends ESTestCase {
                     "org.elasticsearch.xpack.security.profile.ProfileService",
                     Level.DEBUG,
                     "Failed to retrieve profiles "
-                        + missingProfileUids.stream().filter(v -> errorProfileUids.contains(v)).collect(Collectors.toList())
+                        + missingProfileUids.stream()
+                            .filter(v -> errorProfileUids.contains(v))
+                            .collect(Collectors.toCollection(TreeSet::new))
                 )
             );
         }

@@ -98,11 +98,10 @@ public class MasterHistoryService {
                             node,
                             MasterHistoryAction.NAME,
                             new MasterHistoryAction.Request(),
-                            new ActionListenerResponseHandler<>(new ActionListener<>() {
+                            new ActionListenerResponseHandler<>(ActionListener.runBefore(new ActionListener<>() {
 
                                 @Override
                                 public void onResponse(MasterHistoryAction.Response response) {
-                                    connection.close();
                                     long endTime = System.nanoTime();
                                     logger.trace("Received history from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
                                     remoteHistoryOrException = new RemoteHistoryOrException(response.getMasterHistory());
@@ -110,11 +109,10 @@ public class MasterHistoryService {
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    connection.close();
                                     logger.warn("Exception in master history request to master node", e);
                                     remoteHistoryOrException = new RemoteHistoryOrException(e);
                                 }
-                            }, MasterHistoryAction.Response::new)
+                            }, connection::close), MasterHistoryAction.Response::new)
                         );
                     } else {
                         connection.close();

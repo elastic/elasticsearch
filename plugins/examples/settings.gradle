@@ -11,11 +11,7 @@ plugins {
 }
 
 // Include all subdirectories as example projects
-rootDir.listFiles().findAll { it.directory && new File(it, 'build.gradle').exists() }
-        // filter out failing project till https://github.com/elastic/elasticsearch/issues/86378
-        // is addressed
-        .findAll {projectDir -> (projectDir.name == 'security-authorization-engine') == false }
-        .each { subDir ->
+rootDir.listFiles().findAll { it.directory && new File(it, 'build.gradle').exists() }.each { subDir ->
   include ":${subDir.name}"
 }
 

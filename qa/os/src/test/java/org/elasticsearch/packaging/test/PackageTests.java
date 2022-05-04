@@ -163,15 +163,11 @@ public class PackageTests extends PackagingTestCase {
         // add fake bin directory as if a plugin was installed
         Files.createDirectories(installation.bin.resolve("myplugin"));
 
+        dumpDebug();
         remove(distribution());
 
         // removing must stop the service
-        String psOutput = sh.run("ps aux").stdout();
-        if (psOutput.contains("org.elasticsearch.bootstrap.Elasticsearch")) {
-            logger.error("Elasticsearch process still alive after uninstall");
-            dumpDebug();
-        }
-        assertThat(psOutput, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
+        assertThat(sh.run("ps aux").stdout(), not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
 
         if (isSystemd()) {
 

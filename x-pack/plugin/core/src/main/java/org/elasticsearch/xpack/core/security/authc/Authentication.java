@@ -957,7 +957,7 @@ public class Authentication implements ToXContentObject {
             final boolean isInternalUser = input.readBoolean();
             final String username = input.readString();
             if (isInternalUser) {
-                if (SystemUser.is(username)) {
+                if (SystemUser.deserializesFrom(username)) {
                     return SystemUser.INSTANCE;
                 } else if (XPackUser.is(username)) {
                     return XPackUser.INSTANCE;
@@ -968,15 +968,14 @@ public class Authentication implements ToXContentObject {
                 } else if (AsyncSearchUser.is(username)) {
                     return AsyncSearchUser.INSTANCE;
                 }
-                throw new IllegalStateException("user [" + username + "] is not an internal user");
+                throw new IllegalStateException("user name [" + username + "] does not match internal user");
             }
             return partialReadUserFrom(username, input);
         }
 
         public static void writeUserTo(User user, StreamOutput output) throws IOException {
             if (SystemUser.is(user)) {
-                output.writeBoolean(true);
-                output.writeString(SystemUser.NAME);
+                SystemUser.write(output);
             } else if (XPackUser.is(user)) {
                 output.writeBoolean(true);
                 output.writeString(XPackUser.NAME);

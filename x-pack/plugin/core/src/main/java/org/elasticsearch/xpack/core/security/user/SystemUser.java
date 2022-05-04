@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authz.privilege.SystemPrivilege;
 
+import java.io.IOException;
 import java.util.function.Predicate;
 
 /**
@@ -15,7 +17,7 @@ import java.util.function.Predicate;
  */
 public class SystemUser extends User {
 
-    public static final String NAME = UsernamesField.SYSTEM_NAME;
+    private static final String NAME = UsernamesField.SYSTEM_NAME;
     public static final String ROLE_NAME = UsernamesField.SYSTEM_ROLE;
 
     public static final User INSTANCE = new SystemUser();
@@ -44,8 +46,13 @@ public class SystemUser extends User {
         return INSTANCE.equals(user);
     }
 
-    public static boolean is(String principal) {
+    public static boolean deserializesFrom(String principal) {
         return NAME.equals(principal);
+    }
+
+    public static void write(StreamOutput output) throws IOException {
+        output.writeBoolean(true);
+        output.writeString(NAME);
     }
 
     public static boolean isAuthorized(String action) {

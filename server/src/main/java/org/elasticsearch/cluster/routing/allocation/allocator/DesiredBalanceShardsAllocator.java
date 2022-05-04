@@ -57,16 +57,21 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     var listener = new ActionListener<ClusterState>() {
                         @Override
                         public void onResponse(ClusterState clusterState) {
+                            // TODO assert in a system context
                             if (isFreshInput) {
                                 pendingReroute = false;
-                                pollListeners(desiredBalanceInput.index()).forEach(listener -> listener.onResponse(null));
+                                for (var listener : pollListeners(desiredBalanceInput.index())) {
+                                    listener.onResponse(null);
+                                }
                             }
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            //TODO check exception type?
-                            pollListeners(Long.MAX_VALUE).forEach(listener -> listener.onFailure(e));
+                            // TODO assert in a system context
+                            for (var listener : pollListeners(desiredBalanceInput.index())) {
+                                listener.onFailure(e);
+                            }
                         }
                     };
                     rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, listener);
@@ -102,6 +107,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             : Thread.currentThread().getName();
         // assert allocation.debugDecision() == false; set to true when called via the reroute API
         assert allocation.ignoreDisable() == false;
+        // TODO add system context assertion
 
         // TODO must also capture any shards that the existing-shards allocators have allocated this pass, not just the ignored ones
 
@@ -117,7 +123,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         // Otherwise we will have to do a second cluster state update straight away.
 
         new DesiredBalanceReconciler(getCurrentDesiredBalance(), allocation).run();
-
     }
 
     @Override

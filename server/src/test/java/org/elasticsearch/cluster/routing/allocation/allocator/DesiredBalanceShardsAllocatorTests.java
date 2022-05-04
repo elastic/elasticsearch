@@ -33,11 +33,15 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -158,31 +162,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
         }, desiredBalanceShardsAllocator, () -> ClusterInfo.EMPTY, () -> SnapshotShardSizeInfo.EMPTY);
 
-        final var transportAddress = buildNewFakeTransportAddress();
-        final var discoveryNode = new DiscoveryNode(
-            "node-0",
-            "node-0",
-            UUIDs.randomBase64UUID(random()),
-            transportAddress.address().getHostString(),
-            transportAddress.getAddress(),
-            transportAddress,
-            Map.of(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
-        final var indexMetadata = IndexMetadata.builder(TEST_INDEX)
-            .settings(
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-            )
-            .build();
-        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).masterNodeId(discoveryNode.getId()))
-            .metadata(Metadata.builder().put(indexMetadata, true))
-            .routingTable(RoutingTable.builder().addAsNew(indexMetadata))
-            .build();
+        final var discoveryNode = createDiscoveryNode();
+        final var indexMetadata = createIndex(TEST_INDEX);
+        var clusterState = createClusterState(discoveryNode, indexMetadata);
+
         var listener = new TestActionListener();
 
         switch (gatewayAllocatorBehaviour) {
@@ -245,5 +228,105 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         assertSame(clusterState, allocationService.reroute(clusterState, "test"));
         deterministicTaskQueue.runAllTasks();
         rerouteService.assertNoPendingReroute();
+    }
+
+    public void testCallListenersOnlyAfterProducingFreshInput() {
+
+        var threadPool = new TestThreadPool(getTestName());
+
+        var secondInputSubmitted = new CountDownLatch(1);
+        var listenersCalled = new AtomicInteger(0);
+        var reroutesCalled = new AtomicInteger(0);
+
+        RerouteService rerouteService = (r, p, l) -> {
+            reroutesCalled.incrementAndGet();
+            l.onResponse(null);
+        };
+
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(new ShardsAllocator() {
+            @Override
+            public void allocate(RoutingAllocation allocation) {
+
+                try {
+                    assertTrue("Should have submitted the second input in time", secondInputSubmitted.await(10, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    throw new AssertionError("Should have submitted the second input");
+                }
+
+                final var dataNodeId = allocation.nodes().getDataNodes().values().iterator().next().getId();
+                final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
+                while (unassignedIterator.hasNext()) {
+                    unassignedIterator.next();
+                    unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
+                }
+            }
+
+            @Override
+            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                throw new AssertionError("only used for allocation explain");
+            }
+        }, threadPool, () -> rerouteService);
+
+        var discoveryNode = createDiscoveryNode();
+        var index1 = createIndex(UUIDs.randomBase64UUID());
+        var index2 = createIndex(UUIDs.randomBase64UUID());
+
+        var listener = ActionListener.<Void>wrap(() -> {
+            assertThat("Should execute listeners only after both reroutes are completed", reroutesCalled.get(), equalTo(2));
+            listenersCalled.incrementAndGet();
+        });
+
+        desiredBalanceShardsAllocator.allocate(createAllocationFrom(createClusterState(discoveryNode, index1)), listener);
+        desiredBalanceShardsAllocator.allocate(createAllocationFrom(createClusterState(discoveryNode, index2)), listener);
+
+        secondInputSubmitted.countDown();
+
+        terminate(threadPool);
+        assertThat(listenersCalled.get(), equalTo(2));
+    }
+
+    private static RoutingAllocation createAllocationFrom(ClusterState clusterState) {
+        return new RoutingAllocation(
+            new AllocationDeciders(List.of()),
+            clusterState.mutableRoutingNodes(),
+            clusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+    }
+
+    private static ClusterState createClusterState(DiscoveryNode discoveryNode, IndexMetadata indexMetadata) {
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).masterNodeId(discoveryNode.getId()))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder().addAsNew(indexMetadata))
+            .build();
+    }
+
+    private static DiscoveryNode createDiscoveryNode() {
+        var transportAddress = buildNewFakeTransportAddress();
+        return new DiscoveryNode(
+            "node-0",
+            "node-0",
+            UUIDs.randomBase64UUID(random()),
+            transportAddress.address().getHostString(),
+            transportAddress.getAddress(),
+            transportAddress,
+            Map.of(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT
+        );
+    }
+
+    private static IndexMetadata createIndex(String name) {
+        return IndexMetadata.builder(name)
+            .settings(
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            )
+            .build();
     }
 }

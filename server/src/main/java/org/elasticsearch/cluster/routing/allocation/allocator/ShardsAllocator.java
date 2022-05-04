@@ -34,7 +34,6 @@ public interface ShardsAllocator {
      */
     void allocate(RoutingAllocation allocation);
 
-
     default void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
         allocate(allocation);
         listener.onResponse(null);

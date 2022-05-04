@@ -13,13 +13,12 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 
@@ -53,16 +52,6 @@ public class CompletionStatsCacheTests extends ESTestCase {
             }
         });
 
-        final QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
-            @Override
-            public void onUse(Query query) {}
-
-            @Override
-            public boolean shouldCache(Query query) {
-                return false;
-            }
-        };
-
         try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
 
             final Document document = new Document();
@@ -79,7 +68,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
                 openCloseCounter.countOpened();
                 try {
                     final DirectoryReader directoryReader = DirectoryReader.open(indexWriter);
-                    return new Engine.Searcher("test", directoryReader, null, null, queryCachingPolicy, () -> {
+                    return new Engine.Searcher("test", directoryReader, null, null, TrivialQueryCachingPolicy.NEVER, () -> {
                         openCloseCounter.countClosed();
                         IOUtils.close(directoryReader);
                     });

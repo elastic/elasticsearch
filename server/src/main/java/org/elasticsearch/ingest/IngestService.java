@@ -43,6 +43,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
@@ -851,6 +852,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 itemDroppedHandler.accept(slot);
                 handler.accept(null);
             } else {
+                try {
+                    CollectionUtils.ensureNoSelfReferences(result.getSourceAndMetadata(), "ingest pipeline [" + pipeline.getId() + "]");
+                } catch (IllegalArgumentException ex) {
+                    totalMetrics.ingestFailed();
+                    handler.accept(ex);
+                    return;
+                }
                 Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
 
                 String newIndex = (String) metadataMap.get(IngestDocument.Metadata.INDEX);

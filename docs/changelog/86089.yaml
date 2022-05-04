@@ -1,0 +1,6 @@
+pr: 86089
+summary: Fix NPE when using object field as match field for enrich policy
+area: Ingest
+type: bug
+issues:
+ - 86058

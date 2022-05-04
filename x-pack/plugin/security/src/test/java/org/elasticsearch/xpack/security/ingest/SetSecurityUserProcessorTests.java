@@ -431,15 +431,6 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
     }
 
     private User randomUser() {
-        final User user = doRandomUser();
-        if (false == user.fullName().startsWith("Service account - ") && randomBoolean()) {
-            return new User(user, doRandomUser());
-        } else {
-            return user;
-        }
-    }
-
-    private User doRandomUser() {
         if (randomIntBetween(0, 2) < 2) {
             return new User(
                 randomAlphaOfLengthBetween(3, 8),
@@ -465,7 +456,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
     private Authentication randomAuthentication() {
         final User user = randomUser();
         if (user.fullName().startsWith("Service account - ")) {
-            assert false == user.isRunAs() : "cannot run-as service account";
+            // no run-as for service account";
             final Authentication.RealmRef authBy = new Authentication.RealmRef(
                 "_service_account",
                 "_service_account",
@@ -478,13 +469,8 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
                 Map.of("_token_name", ValidationTests.randomTokenName(), "_token_source", tokenSource.name().toLowerCase(Locale.ROOT))
             );
         } else {
-            if (user.isRunAs()) {
-                return AuthenticationTestHelper.builder()
-                    .realm()
-                    .user(user.authenticatedUser())
-                    .runAs()
-                    .user(new User(user.principal(), user.roles(), user.fullName(), user.email(), user.metadata(), user.enabled()))
-                    .build();
+            if (randomBoolean()) {
+                return AuthenticationTestHelper.builder().realm().user(randomUser()).runAs().user(user).build();
             } else {
                 return AuthenticationTestHelper.builder().user(user).metadata(randomFrom(Map.of(), Map.of("foo", "bar"))).build(false);
             }

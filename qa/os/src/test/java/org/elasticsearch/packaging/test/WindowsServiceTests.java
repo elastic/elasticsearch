@@ -19,6 +19,7 @@ import org.junit.After;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -72,7 +73,20 @@ public class WindowsServiceTests extends PackagingTestCase {
             logger.error("---- Unexpected exit code (expected " + exitCode + ", got " + result.exitCode() + ") for script: " + script);
             logger.error(result);
             logger.error("Dumping log files\n");
-            Result logs = sh.run(
+            dumpDebug();
+            try (var logsDir = Files.list(installation.logs)) {
+                for (Path logFile : logsDir.toList()) {
+                    String filename = logFile.getFileName().toString();
+                    if (filename.startsWith("elasticsearch-service-x64")) {
+                        logger.warn(filename + "\n" + FileUtils.slurp(logFile));
+                    }
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+
+
+            /*Result logs = sh.run(
                 "$files = Get-ChildItem \""
                     + installation.logs
                     + "\\elasticsearch.log\"; "
@@ -82,7 +96,7 @@ public class WindowsServiceTests extends PackagingTestCase {
                     + "    Get-Content \"$file\" "
                     + "}"
             );
-            logger.error(logs.stdout());
+            logger.error(logs.stdout());*/
             fail();
         } else {
             logger.info("\nscript: " + script + "\nstdout: " + result.stdout() + "\nstderr: " + result.stderr());

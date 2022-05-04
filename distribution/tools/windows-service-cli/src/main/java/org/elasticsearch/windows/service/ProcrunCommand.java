@@ -88,7 +88,7 @@ abstract class ProcrunCommand extends Command {
         if (logsDir == null || logsDir.isBlank()) {
             logsDir = esHome.resolve("logs").toString();
         }
-        String logArgsFormat = "--LogPath \"%s\" --LogPrefix \"%s\" --StdError auto --StdOutput auto";
+        String logArgsFormat = "--LogPath \"%s\" --LogPrefix \"%s\" --StdError auto --StdOutput auto --LogLevel Debug";
         return String.format(Locale.ROOT, logArgsFormat, logsDir, serviceId);
     }
 

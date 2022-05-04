@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.smoketest;
 
-import io.netty.util.ThreadDeathWatcher;
-import io.netty.util.concurrent.GlobalEventExecutor;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
@@ -22,15 +19,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -40,7 +34,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -67,35 +60,6 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
             super(client(), RestClient::close, Collections.emptyList());
         }
     }
-
-    /**
-     * A JUnit class level rule that runs after the AfterClass method in {@link ESIntegTestCase},
-     * which stops the cluster. After the cluster is stopped, there are a few netty threads that
-     * can linger, so we wait for them to finish otherwise these lingering threads can intermittently
-     * trigger the thread leak detector
-     */
-    @ClassRule
-    public static final ExternalResource STOP_NETTY_RESOURCE = new ExternalResource() {
-        @Override
-        protected void after() {
-            try {
-                GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (IllegalStateException e) {
-                if (e.getMessage().equals("thread was not started") == false) {
-                    throw e;
-                }
-                // ignore since the thread was never started
-            }
-
-            try {
-                ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-    };
 
     private static final String USER = "test_user";
     private static final SecureString PASS = new SecureString("x-pack-test-password".toCharArray());

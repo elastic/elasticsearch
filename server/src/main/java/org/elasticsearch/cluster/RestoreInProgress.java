@@ -361,7 +361,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                     snapshot,
                     state,
                     Collections.unmodifiableList(indexBuilder),
-                    in.readImmutableMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)
+                    in.readImmutableOpenMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)
                 )
             );
         }

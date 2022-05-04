@@ -124,8 +124,6 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TASK_NAME, HealthNodeSelectorTaskParams::new)
-        );
+        return List.of(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TASK_NAME, HealthNodeSelectorTaskParams::new));
     }
 }

@@ -39,7 +39,9 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
@@ -903,9 +905,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         var settings = MetadataIndexTemplateService.resolveSettings(indexTemplate, componentTemplates());
-        if (IndexMetadata.INDEX_ROUTING_PATH.exists(settings)) {
-            // No need to validate the index.mode=time_series validation takes care of validating that the mentioned fields exist in the
-            // mapping and that it refers to fields of type keyword and with time_series_dimension enabled.
+        var indexMode = IndexSettings.MODE.get(settings);
+        if (indexMode == IndexMode.TIME_SERIES) {
+            // No need to check for the existence of index.routing_path here, because index.mode=time_series can't be specified without it.
+            // Setting validation takes care of this.
+            // Also no need to validate that the fields defined in index.routing_path are keyword fields with time_series_dimension
+            // attribute enabled. This is validated elsewhere (DocumentMapper).
             return true;
         }
 

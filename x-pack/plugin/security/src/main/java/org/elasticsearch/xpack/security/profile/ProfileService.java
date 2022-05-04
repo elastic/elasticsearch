@@ -348,19 +348,19 @@ public class ProfileService {
                         Set<String> failures = new TreeSet<>();
                         Exception loggedException = null;
                         for (MultiGetItemResponse itemResponse : multiGetResponse.getResponses()) {
-                            if (itemResponse.isFailed() && itemResponse.getFailure() != null) {
-                                failures.add(docIdToUid(itemResponse.getFailure().getId()));
+                            if (itemResponse.isFailed()) {
+                                failures.add(docIdToUid(itemResponse.getId()));
                                 if (logger.isDebugEnabled() && itemResponse.getFailure().getFailure() != null) {
                                     loggedException = ExceptionsHelper.useOrSuppress(
                                         loggedException,
                                         itemResponse.getFailure().getFailure()
                                     );
                                 }
-                            } else if (false == itemResponse.isFailed() && itemResponse.getResponse() != null) {
+                            } else if (itemResponse.getResponse() != null) {
                                 if (itemResponse.getResponse().isExists()) {
                                     retrievedDocs.add(buildProfileDocument(itemResponse.getResponse().getSourceAsBytesRef()));
                                 } else if (logger.isDebugEnabled()) {
-                                    logger.debug("Profile [{}] not found", docIdToUid(itemResponse.getResponse().getId()));
+                                    logger.debug("Profile [{}] not found", docIdToUid(itemResponse.getId()));
                                 }
                             } else {
                                 logger.error("Inconsistent get item response [{}] [{}]", itemResponse.getIndex(), itemResponse.getId());

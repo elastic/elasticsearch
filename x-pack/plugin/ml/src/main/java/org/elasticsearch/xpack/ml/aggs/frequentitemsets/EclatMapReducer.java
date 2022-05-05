@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
@@ -178,7 +177,7 @@ public class EclatMapReducer extends AbstractMapReducer<EclatMapReducer, Transac
     @Override
     public EclatResult doReduceFinalize(TransactionStore transactionStore) throws IOException {
         transactionStore.prune(minimumSupport);
-        EclatResult frequentItemSets = eclat(transactionStore);
+        EclatResult frequentItemSets = eclat(transactionStore, minimumSupport, minimumSetSize, size);
         transactionStore.close();
         return frequentItemSets;
     }
@@ -191,12 +190,11 @@ public class EclatMapReducer extends AbstractMapReducer<EclatMapReducer, Transac
         return eclatResult;
     }
 
-    private EclatResult eclat(TransactionStore transactionStore) throws IOException {
+    private static EclatResult eclat(TransactionStore transactionStore, double minimumSupport, int minimumSetSize, int size)
+        throws IOException {
         final long relativeStartNanos = System.nanoTime();
         final long totalTransactionCount = transactionStore.getTotalTransactionCount();
 
-        ItemSetTraverser topItemSetTraverser = null;
-        TopTransactionIds topTransactionIds = null;
         long minCount = (long) (totalTransactionCount * minimumSupport);
         FrequentItemSetCollector collector = new FrequentItemSetCollector(transactionStore, size, minCount);
 
@@ -206,15 +204,13 @@ public class EclatMapReducer extends AbstractMapReducer<EclatMapReducer, Transac
         int cacheNumberOfTransactions = (int) Math.min(MAX_BITSET_CACHE_NUMBER_OF_TRANSACTIONS, totalTransactionCount);
         BitSet transactionSkipList = new FixedBitSet((BITSET_CACHE_TRAVERSAL_DEPTH - 1) * cacheNumberOfTransactions);
 
-        try {
-            // get the releasables
-            topTransactionIds = transactionStore.getTopTransactionIds();
-            topItemSetTraverser = transactionStore.getTopItemIdTraverser();
-
+        try (
+            TopTransactionIds topTransactionIds = transactionStore.getTopTransactionIds();
+            ItemSetTraverser topItemSetTraverser = transactionStore.getTopItemIdTraverser();
+        ) {
             long previousOccurences = 0;
             long occurences = 0;
-            int depth = 0;
-            int transactionNumber = 0;
+            int previousDepth = 0;
 
             logger.trace(
                 "total transaction count {}, min count: {}, total items: {}",
@@ -226,108 +222,19 @@ public class EclatMapReducer extends AbstractMapReducer<EclatMapReducer, Transac
             long previousMinCount = 0;
             while (topItemSetTraverser.next()) {
                 // remember count only if we move down the tree, not up
-                previousOccurences = topItemSetTraverser.getDepth() > depth ? occurences : 0;
-                depth = topItemSetTraverser.getDepth();
+                previousOccurences = topItemSetTraverser.getDepth() > previousDepth ? occurences : 0;
 
-                /**
-                 * Create new item sets
-                 *
-                 * The traverser returns items that we haven't visited in this combination yet.
-                 *
-                 *  basic algorithm
-                 *
-                 *  - expand the set with the item reported by the traverser
-                 *  - re-calculate the count of transactions that contain the given item set
-                 *    - optimization: if we go down the tree, a bitset is used to skip transactions,
-                 *      that do not pass a previous step:
-                 *          if [a, b] is not in T, [a, b, c] can not be in T either
-                 *  - check which item sets should be reported, this is done lazily
-                 */
-                // at the 1st level, we can take the count directly from the transaction store
-                if (depth == 1) {
-                    occurences = transactionStore.getItemCount(topItemSetTraverser.getItemId());
-
-                    // till a certain depth store results in a cache matrix
-                } else if (depth < BITSET_CACHE_TRAVERSAL_DEPTH) {
-                    // get the cached skip count
-                    long skipCount = transactionSkipCounts[depth - 2];
-
-                    // use the countdown from a previous iteration
-                    long maxReachableTransactionCount = totalTransactionCount - skipCount;
-
-                    // we recalculate the row for this depth, so we have to clear the bits first
-                    transactionSkipList.clear((depth - 1) * cacheNumberOfTransactions, ((depth) * cacheNumberOfTransactions));
-
-                    transactionNumber = 0;
-                    occurences = 0;
-
-                    for (Long transactionId : topTransactionIds) {
-                        // caching: if the transaction is already marked for skipping, quickly continue
-                        if (transactionNumber < cacheNumberOfTransactions
-                            && transactionSkipList.get(cacheNumberOfTransactions * (depth - 2) + transactionNumber)) {
-                            // set the bit for the next iteration
-                            transactionSkipList.set(cacheNumberOfTransactions * (depth - 1) + transactionNumber);
-                            transactionNumber++;
-                            continue;
-                        }
-
-                        long transactionCount = transactionStore.getTransactionCount(transactionId);
-
-                        if (transactionStore.transactionContainAllIds(topItemSetTraverser.getItemSet(), transactionId)) {
-                            occurences += transactionCount;
-                        } else if (transactionNumber < cacheNumberOfTransactions) {
-                            // put this transaction to the skip list
-                            skipCount += transactionCount;
-                            transactionSkipList.set(cacheNumberOfTransactions * (depth - 1) + transactionNumber);
-                        }
-
-                        maxReachableTransactionCount -= transactionCount;
-                        // exit early if min support can't be reached
-                        if (maxReachableTransactionCount + occurences < minCount) {
-                            break;
-                        }
-
-                        transactionNumber++;
-                    }
-
-                    transactionSkipCounts[depth - 1] = skipCount;
-
-                    // deep traversal: use the last cached values, but don't store any
-                    // this is exactly the same (unrolled) code as before, but without writing to the cache
-                } else {
-                    // get the last cached skip count
-                    long skipCount = transactionSkipCounts[BITSET_CACHE_TRAVERSAL_DEPTH - 2];
-
-                    // use the countdown from a previous iteration
-                    long maxReachableTransactionCount = totalTransactionCount - skipCount;
-
-                    occurences = 0;
-                    for (Long transactionId : topTransactionIds) {
-                        // caching: if the transaction is already marked for skipping, quickly continue
-                        if (transactionNumber < cacheNumberOfTransactions
-                            && transactionSkipList.get(
-                                cacheNumberOfTransactions * (BITSET_CACHE_TRAVERSAL_DEPTH - 2) + transactionNumber
-                            )) {
-                            transactionNumber++;
-                            continue;
-                        }
-
-                        long transactionCount = transactionStore.getTransactionCount(transactionId);
-
-                        if (transactionStore.transactionContainAllIds(topItemSetTraverser.getItemSet(), transactionId)) {
-                            occurences += transactionCount;
-                        }
-
-                        maxReachableTransactionCount -= transactionCount;
-
-                        // exit early if min support can't be reached
-                        if (maxReachableTransactionCount + occurences < minCount) {
-                            break;
-                        }
-
-                        transactionNumber++;
-                    }
-                }
+                // advance the iterator the next set of interest
+                occurences = advanceIteratorToNextSet(
+                    transactionStore,
+                    totalTransactionCount,
+                    minCount,
+                    transactionSkipCounts,
+                    cacheNumberOfTransactions,
+                    transactionSkipList,
+                    topTransactionIds,
+                    topItemSetTraverser
+                );
 
                 // stop exploring the current branch if we fall below minCount
                 if (occurences < minCount) {
@@ -364,14 +271,7 @@ public class EclatMapReducer extends AbstractMapReducer<EclatMapReducer, Transac
                  */
                 if (topItemSetTraverser.getItemSet().size() > minimumSetSize && occurences < previousOccurences) {
                     // add the set without the last item
-                    minCount = collector.add(topItemSetTraverser.getItemSet().subList(0, depth - 1), previousOccurences);
-                }
-
-                /**
-                 * Corner case if we exhausted the traverser and we need to report the very last set
-                 */
-                if (topItemSetTraverser.hasNext() == false && topItemSetTraverser.getItemSet().size() >= minimumSetSize) {
-                    minCount = collector.add(topItemSetTraverser.getItemSet(), occurences);
+                    minCount = collector.add(topItemSetTraverser.getItemSet().subList(0, previousDepth - 1), previousOccurences);
                 }
 
                 /**
@@ -382,10 +282,15 @@ public class EclatMapReducer extends AbstractMapReducer<EclatMapReducer, Transac
                     previousMinCount = minCount;
                     logger.trace("adjusting min count to {}", minCount);
                 }
-            }
 
-        } finally {
-            Releasables.close(topItemSetTraverser, topTransactionIds);
+                previousDepth = topItemSetTraverser.getDepth();
+            }
+            /**
+             * report the very last set if necessary
+             */
+            if (topItemSetTraverser.getItemSet().size() >= minimumSetSize) {
+                minCount = collector.add(topItemSetTraverser.getItemSet(), occurences);
+            }
         }
 
         FrequentItemSet[] topFrequentItems = collector.finalizeAndGetResults();
@@ -401,10 +306,130 @@ public class EclatMapReducer extends AbstractMapReducer<EclatMapReducer, Transac
                 transactionStore.getTotalTransactionCount(),
                 "unique_items",
                 transactionStore.getUniqueItemsCount(),
+                "start_min_count",
+                (long) (totalTransactionCount * minimumSupport),
+                "end_min_count",
+                minCount,
                 "eclat_runtime_ms",
                 TimeUnit.NANOSECONDS.toMillis(eclatRuntimeNanos)
             )
         );
+    }
+
+    /**
+     * Find the next interesting item set.
+     *
+     * TODO: this could potentially be wrapped in an Iterator
+     *
+     * The traverser returns items that we haven't visited in this combination yet.
+     *
+     *  basic algorithm
+     *
+     *  - expand the set with the item reported by the traverser
+     *  - re-calculate the count of transactions that contain the given item set
+     *    - optimization: if we go down the tree, a bitset is used to skip transactions,
+     *      that do not pass a previous step:
+     *          if [a, b] is not in T, [a, b, c] can not be in T either
+     *  - check which item sets should be reported, this is done lazily
+     */
+    private static long advanceIteratorToNextSet(
+        TransactionStore transactionStore,
+        final long totalTransactionCount,
+        long minCount,
+        long[] transactionSkipCounts,
+        int cacheNumberOfTransactions,
+        BitSet transactionSkipList,
+        TopTransactionIds topTransactionIds,
+        ItemSetTraverser topItemSetTraverser
+    ) {
+        int depth = topItemSetTraverser.getDepth();
+        if (depth == 1) {
+            // at the 1st level, we can take the count directly from the transaction store
+            return transactionStore.getItemCount(topItemSetTraverser.getItemId());
+
+            // till a certain depth store results in a cache matrix
+        } else if (depth < BITSET_CACHE_TRAVERSAL_DEPTH) {
+            // get the cached skip count
+            long skipCount = transactionSkipCounts[depth - 2];
+
+            // use the countdown from a previous iteration
+            long maxReachableTransactionCount = totalTransactionCount - skipCount;
+
+            // we recalculate the row for this depth, so we have to clear the bits first
+            transactionSkipList.clear((depth - 1) * cacheNumberOfTransactions, ((depth) * cacheNumberOfTransactions));
+
+            int transactionNumber = 0;
+            long occurences = 0;
+
+            for (Long transactionId : topTransactionIds) {
+                // caching: if the transaction is already marked for skipping, quickly continue
+                if (transactionNumber < cacheNumberOfTransactions
+                    && transactionSkipList.get(cacheNumberOfTransactions * (depth - 2) + transactionNumber)) {
+                    // set the bit for the next iteration
+                    transactionSkipList.set(cacheNumberOfTransactions * (depth - 1) + transactionNumber);
+                    transactionNumber++;
+                    continue;
+                }
+
+                long transactionCount = transactionStore.getTransactionCount(transactionId);
+
+                if (transactionStore.transactionContainAllIds(topItemSetTraverser.getItemSet(), transactionId)) {
+                    occurences += transactionCount;
+                } else if (transactionNumber < cacheNumberOfTransactions) {
+                    // put this transaction to the skip list
+                    skipCount += transactionCount;
+                    transactionSkipList.set(cacheNumberOfTransactions * (depth - 1) + transactionNumber);
+                }
+
+                maxReachableTransactionCount -= transactionCount;
+                // exit early if min support can't be reached
+                if (maxReachableTransactionCount + occurences < minCount) {
+                    break;
+                }
+
+                transactionNumber++;
+            }
+
+            transactionSkipCounts[depth - 1] = skipCount;
+
+            return occurences;
+            // deep traversal: use the last cached values, but don't store any
+            // this is exactly the same (unrolled) code as before, but without writing to the cache
+        }
+
+        // get the last cached skip count
+        long skipCount = transactionSkipCounts[BITSET_CACHE_TRAVERSAL_DEPTH - 2];
+
+        // use the countdown from a previous iteration
+        long maxReachableTransactionCount = totalTransactionCount - skipCount;
+
+        int transactionNumber = 0;
+        long occurences = 0;
+        for (Long transactionId : topTransactionIds) {
+            // caching: if the transaction is already marked for skipping, quickly continue
+            if (transactionNumber < cacheNumberOfTransactions
+                && transactionSkipList.get(cacheNumberOfTransactions * (BITSET_CACHE_TRAVERSAL_DEPTH - 2) + transactionNumber)) {
+                transactionNumber++;
+                continue;
+            }
+
+            long transactionCount = transactionStore.getTransactionCount(transactionId);
+
+            if (transactionStore.transactionContainAllIds(topItemSetTraverser.getItemSet(), transactionId)) {
+                occurences += transactionCount;
+            }
+
+            maxReachableTransactionCount -= transactionCount;
+
+            // exit early if min support can't be reached
+            if (maxReachableTransactionCount + occurences < minCount) {
+                break;
+            }
+
+            transactionNumber++;
+        }
+
+        return occurences;
     }
 
 }

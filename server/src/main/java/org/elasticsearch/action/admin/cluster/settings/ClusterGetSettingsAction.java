@@ -60,6 +60,21 @@ public class ClusterGetSettingsAction extends ActionType<ClusterGetSettingsActio
         private final Settings transientSettings;
         private final Settings settings;
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return Objects.equals(persistentSettings, response.persistentSettings)
+                && Objects.equals(transientSettings, response.transientSettings)
+                && Objects.equals(settings, response.settings);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(persistentSettings, transientSettings, settings);
+        }
+
         public Response(StreamInput in) throws IOException {
             super(in);
             assert in.getVersion().onOrAfter(Version.V_8_3_0);

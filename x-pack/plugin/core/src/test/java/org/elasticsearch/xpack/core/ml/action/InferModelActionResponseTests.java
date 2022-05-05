@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Response;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResultsTests;
@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class InternalInferModelActionResponseTests extends AbstractWireSerializingTestCase<Response> {
+public class InferModelActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {

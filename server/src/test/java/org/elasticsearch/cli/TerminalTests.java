@@ -18,8 +18,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class TerminalTests extends ESTestCase {
 
     public void testVerbosity() throws Exception {
-        MockTerminal terminal = MockTerminal.create();
-        terminal.setVerbosity(Terminal.Verbosity.SILENT);
+        MockTerminal terminal = MockTerminal.create(Terminal.Verbosity.SILENT);
         assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertNotPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
@@ -29,16 +28,14 @@ public class TerminalTests extends ESTestCase {
         assertPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
 
-        terminal = MockTerminal.create();
-        terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
+        terminal = MockTerminal.create(Terminal.Verbosity.VERBOSE);
         assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
     }
 
     public void testErrorVerbosity() throws Exception {
-        MockTerminal terminal = MockTerminal.create();
-        terminal.setVerbosity(Terminal.Verbosity.SILENT);
+        MockTerminal terminal = MockTerminal.create(Terminal.Verbosity.SILENT);
         assertErrorPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertErrorNotPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertErrorNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
@@ -48,8 +45,7 @@ public class TerminalTests extends ESTestCase {
         assertErrorPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertErrorNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
 
-        terminal = MockTerminal.create();
-        terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
+        terminal = MockTerminal.create(Terminal.Verbosity.VERBOSE);
         assertErrorPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertErrorPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertErrorPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");

@@ -846,13 +846,13 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testQuietFlagDisabled() throws Exception {
-        terminal.setVerbosity(randomFrom(Terminal.Verbosity.NORMAL, Terminal.Verbosity.VERBOSE));
+        terminal = MockTerminal.create(randomFrom(Terminal.Verbosity.NORMAL, Terminal.Verbosity.VERBOSE));
         installPlugin(false);
         assertThat(terminal.getOutput(), containsString("100%"));
     }
 
     public void testQuietFlagEnabled() throws Exception {
-        terminal.setVerbosity(Terminal.Verbosity.SILENT);
+        terminal = MockTerminal.create(Terminal.Verbosity.SILENT);
         installPlugin(false);
         assertThat(terminal.getOutput(), not(containsString("100%")));
     }

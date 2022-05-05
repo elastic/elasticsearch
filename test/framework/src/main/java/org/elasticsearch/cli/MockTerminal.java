@@ -81,12 +81,24 @@ public class MockTerminal extends Terminal {
     private final ByteArrayOutputStream stderrBuffer;
     private boolean supportsBinary = false;
 
-    private MockTerminal(ResettableInputStreamReader stdinReader, ByteArrayOutputStream stdout, ByteArrayOutputStream stderr) {
-        super(stdinReader, newPrintWriter(stdout), newPrintWriter(stderr));
+    private MockTerminal(
+        Verbosity verbosity,
+        ResettableInputStreamReader stdinReader,
+        ByteArrayOutputStream stdout,
+        ByteArrayOutputStream stderr,
+        PrintWriter outWriter,
+        PrintWriter errWriter
+    ) {
+        super(verbosity, stdinReader, outWriter, errWriter);
         this.stdinReader = stdinReader;
         this.stdinBuffer = stdinReader.stream;
         this.stdoutBuffer = stdout;
         this.stderrBuffer = stderr;
+    }
+
+    @Override
+    public Terminal withVerbosity(Verbosity verbosity) {
+        return new MockTerminal(verbosity, stdinReader, stdoutBuffer, stderrBuffer, getWriter(), getErrorWriter());
     }
 
     @Override
@@ -104,8 +116,14 @@ public class MockTerminal extends Terminal {
     }
 
     public static MockTerminal create() {
+        return create(Verbosity.DEFAULT);
+    }
+
+    public static MockTerminal create(Verbosity verbosity) {
         var reader = new ResettableInputStreamReader(new LazyByteArrayInputStream());
-        return new MockTerminal(reader, new ByteArrayOutputStream(), new ByteArrayOutputStream());
+        var stdout = new ByteArrayOutputStream();
+        var stderr = new ByteArrayOutputStream();
+        return new MockTerminal(Verbosity.DEFAULT, reader, stdout, stderr, newPrintWriter(stdout), newPrintWriter(stderr));
     }
 
     /** Adds a character input that will be returned from reading this Terminal. Values are read in FIFO order. */

@@ -49,35 +49,33 @@ public abstract class Terminal {
     public enum Verbosity {
         SILENT, /* always printed */
         NORMAL, /* printed when no options are given to cli */
-        VERBOSE /* printed only when cli is passed verbose option */
+        VERBOSE /* printed only when cli is passed verbose option */;
+
+        public static final Verbosity DEFAULT = NORMAL;
     }
 
+    private final Verbosity verbosity;
     private final Reader reader;
     private final PrintWriter outWriter;
     private final PrintWriter errWriter;
-    private Verbosity currentVerbosity = Verbosity.NORMAL;
 
     /**
      * Constructs a terminal instance.
      *
-     * @param reader A character-based reader over the input of this terminal
+     * @param verbosity The minimum verbosity for which this terminal should print messages
+     * @param reader    A character-based reader over the input of this terminal
      * @param outWriter A character-based writer for the output of this terminal
      * @param errWriter A character-based writer for the error stream of this terminal
      */
-    protected Terminal(Reader reader, PrintWriter outWriter, PrintWriter errWriter) {
+    protected Terminal(Verbosity verbosity, Reader reader, PrintWriter outWriter, PrintWriter errWriter) {
+        this.verbosity = verbosity;
         this.reader = reader;
         this.outWriter = outWriter;
         this.errWriter = errWriter;
     }
 
-    /**
-     * Sets the verbosity of the terminal.
-     *
-     * <p> Defaults to {@link Verbosity#NORMAL}.
-     */
-    public void setVerbosity(Verbosity verbosity) {
-        this.currentVerbosity = verbosity;
-    }
+    /** Get a new version of this terminal that prints at a different verbosity level. */
+    public abstract Terminal withVerbosity(Verbosity verbosity);
 
     private char[] read(String prompt) {
         errWriter.print(prompt); // prompts should go to standard error to avoid mixing with list output
@@ -96,6 +94,11 @@ public abstract class Terminal {
     /** Reads password text from the terminal input. See {@link Console#readPassword()}}. */
     public char[] readSecret(String prompt) {
         return read(prompt);
+    }
+
+    /** Returns a Reader which can be used to read directly from the terminal directly using standard input. */
+    public final Reader getReader() {
+        return reader;
     }
 
     /** Returns a Writer which can be used to write to the terminal directly using standard output. */
@@ -178,7 +181,7 @@ public abstract class Terminal {
 
     /** Checks if is enough {@code verbosity} level to be printed */
     public final boolean isPrintable(Verbosity verbosity) {
-        return this.currentVerbosity.ordinal() >= verbosity.ordinal();
+        return this.verbosity.ordinal() >= verbosity.ordinal();
     }
 
     /**
@@ -265,11 +268,20 @@ public abstract class Terminal {
         private static final Console CONSOLE = System.console();
 
         ConsoleTerminal() {
-            super(CONSOLE.reader(), CONSOLE.writer(), ERROR_WRITER);
+            this(Verbosity.DEFAULT);
+        }
+
+        private ConsoleTerminal(Verbosity verbosity) {
+            super(verbosity, CONSOLE.reader(), CONSOLE.writer(), ERROR_WRITER);
         }
 
         static boolean isSupported() {
             return CONSOLE != null;
+        }
+
+        @Override
+        public Terminal withVerbosity(Verbosity verbosity) {
+            return new ConsoleTerminal(verbosity);
         }
 
         @Override
@@ -287,14 +299,23 @@ public abstract class Terminal {
     @SuppressForbidden(reason = "Access streams for construction")
     static class SystemTerminal extends Terminal {
         SystemTerminal() {
-            super(
+            this(
+                Verbosity.DEFAULT,
                 // TODO: InputStreamReader can advance stdin past what it decodes. We need a way to buffer this and put it back
                 // at the end of each character based read, so that switching to using getInputStream() returns binary data
                 // right after the last character based input (newline)
                 new InputStreamReader(System.in, Charset.defaultCharset()),
-                new PrintWriter(System.out),
-                ERROR_WRITER
+                new PrintWriter(System.out)
             );
+        }
+
+        SystemTerminal(Verbosity verbosity, Reader reader, PrintWriter outWriter) {
+            super(verbosity, reader, outWriter, ERROR_WRITER);
+        }
+
+        @Override
+        public Terminal withVerbosity(Verbosity verbosity) {
+            return new SystemTerminal(verbosity, getReader(), getWriter());
         }
 
         @Override

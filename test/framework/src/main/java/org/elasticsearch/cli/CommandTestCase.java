@@ -36,7 +36,6 @@ public abstract class CommandTestCase extends ESTestCase {
     public void resetTerminal() {
         terminal.reset();
         terminal.setSupportsBinary(false);
-        terminal.setVerbosity(Terminal.Verbosity.NORMAL);
         esHomeDir = createTempDir();
         sysprops.clear();
         sysprops.put("es.path.home", esHomeDir.toString());

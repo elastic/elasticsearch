@@ -234,13 +234,12 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         }
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = MockTerminal.create();
+        final MockTerminal t = MockTerminal.create(Terminal.Verbosity.VERBOSE);
         final OptionParser parser = command.getParser();
 
         // run command with dry-run
         t.addTextInput("n"); // mean dry run
         final OptionSet options = parser.parse("-d", indexPath.toString());
-        t.setVerbosity(Terminal.Verbosity.VERBOSE);
         try {
             command.execute(t, options, environment, processInfo);
             fail();
@@ -299,13 +298,12 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         closeShard(corruptedShard, false); // translog is corrupted already - do not check consistency
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = MockTerminal.create();
+        final MockTerminal t = MockTerminal.create(Terminal.Verbosity.VERBOSE);
         final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString());
         // run command with dry-run
         t.addTextInput("n"); // mean dry run
-        t.setVerbosity(Terminal.Verbosity.VERBOSE);
         try {
             command.execute(t, options, environment, processInfo);
             fail();
@@ -354,14 +352,13 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         TestTranslog.corruptRandomTranslogFile(logger, random(), translogPath);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = MockTerminal.create();
+        final MockTerminal t = MockTerminal.create(Terminal.Verbosity.VERBOSE);
         final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString());
         // run command with dry-run
         t.addTextInput("n"); // mean dry run
         t.addTextInput("n"); // mean dry run
-        t.setVerbosity(Terminal.Verbosity.VERBOSE);
         try {
             command.execute(t, options, environment, processInfo);
             fail();
@@ -432,11 +429,10 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         closeShards(indexShard);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = MockTerminal.create();
+        final MockTerminal t = MockTerminal.create(Terminal.Verbosity.VERBOSE);
         final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString());
-        t.setVerbosity(Terminal.Verbosity.VERBOSE);
         assertThat(
             expectThrows(ElasticsearchException.class, () -> command.execute(t, options, environment, processInfo)).getMessage(),
             allOf(containsString("Shard does not seem to be corrupted"), containsString("--" + TRUNCATE_CLEAN_TRANSLOG_FLAG))
@@ -450,12 +446,11 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         closeShards(indexShard);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = MockTerminal.create();
+        final MockTerminal t = MockTerminal.create(Terminal.Verbosity.VERBOSE);
         final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString(), "--" + TRUNCATE_CLEAN_TRANSLOG_FLAG);
         t.addTextInput("y");
-        t.setVerbosity(Terminal.Verbosity.VERBOSE);
         command.execute(t, options, environment, processInfo);
         assertThat(t.getOutput(), containsString("Lucene index is clean"));
         assertThat(t.getOutput(), containsString("Translog was not analysed and will be truncated"));
@@ -476,14 +471,13 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         closeShards(corruptedShard);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = MockTerminal.create();
+        final MockTerminal t = MockTerminal.create(Terminal.Verbosity.VERBOSE);
         final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString());
         // run command with dry-run
         t.addTextInput("n"); // mean dry run
         t.addTextInput("n"); // mean dry run
-        t.setVerbosity(Terminal.Verbosity.VERBOSE);
         try {
             command.execute(t, options, environment, processInfo);
             fail();

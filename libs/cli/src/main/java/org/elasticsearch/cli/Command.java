@@ -97,15 +97,16 @@ public abstract class Command implements Closeable {
             return;
         }
 
+        final Terminal.Verbosity verbosity;
         if (options.has(silentOption)) {
-            terminal.setVerbosity(Terminal.Verbosity.SILENT);
+            verbosity = Terminal.Verbosity.SILENT;
         } else if (options.has(verboseOption)) {
-            terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
+            verbosity = Terminal.Verbosity.VERBOSE;
         } else {
-            terminal.setVerbosity(Terminal.Verbosity.NORMAL);
+            verbosity = Terminal.Verbosity.NORMAL;
         }
 
-        execute(terminal, options, processInfo);
+        execute(terminal.withVerbosity(verbosity), options, processInfo);
     }
 
     /** Prints a help message for the command to the terminal. */

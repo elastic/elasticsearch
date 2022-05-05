@@ -44,31 +44,27 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
     public void testStatsWhenNoPersistentTasksMetadataExists() throws InterruptedException {
         final AtomicBoolean onResponse = new AtomicBoolean();
         final CountDownLatch latch = new CountDownLatch(1);
-        client().execute(
-            FollowStatsAction.INSTANCE,
-            new FollowStatsAction.StatsRequest(),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(final FollowStatsAction.StatsResponses statsResponses) {
-                    try {
-                        assertThat(statsResponses.getTaskFailures(), empty());
-                        assertThat(statsResponses.getNodeFailures(), empty());
-                        onResponse.set(true);
-                    } finally {
-                        latch.countDown();
-                    }
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    try {
-                        fail(e.toString());
-                    } finally {
-                        latch.countDown();
-                    }
+        client().execute(FollowStatsAction.INSTANCE, new FollowStatsAction.StatsRequest(), new ActionListener<>() {
+            @Override
+            public void onResponse(final FollowStatsAction.StatsResponses statsResponses) {
+                try {
+                    assertThat(statsResponses.getTaskFailures(), empty());
+                    assertThat(statsResponses.getNodeFailures(), empty());
+                    onResponse.set(true);
+                } finally {
+                    latch.countDown();
                 }
             }
-        );
+
+            @Override
+            public void onFailure(final Exception e) {
+                try {
+                    fail(e.toString());
+                } finally {
+                    latch.countDown();
+                }
+            }
+        });
         latch.await();
         assertTrue(onResponse.get());
     }

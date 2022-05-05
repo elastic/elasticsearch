@@ -20,7 +20,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetHealthAction extends BaseRestHandler {
 
-    private static final String INCLUDE_DETAILS_PARAM = "include_details";
+    private static final String EXPLAIN_PARAM = "explain";
 
     @Override
     public String getName() {
@@ -41,10 +41,10 @@ public class RestGetHealthAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String componentName = request.param("component");
         String indicatorName = request.param("indicator");
-        boolean includeDetails = request.paramAsBoolean(INCLUDE_DETAILS_PARAM, true);
+        boolean explain = request.paramAsBoolean(EXPLAIN_PARAM, true);
         GetHealthAction.Request getHealthRequest = componentName == null
-            ? new GetHealthAction.Request(includeDetails)
-            : new GetHealthAction.Request(componentName, indicatorName, includeDetails);
+            ? new GetHealthAction.Request(explain)
+            : new GetHealthAction.Request(componentName, indicatorName, explain);
         return channel -> client.execute(GetHealthAction.INSTANCE, getHealthRequest, new RestToXContentListener<>(channel));
     }
 }

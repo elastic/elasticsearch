@@ -151,9 +151,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             context.onFailure(
                 new IllegalStateException(
                     context.indexCommit()
-                        + " is not a regular index and cannot be snapshotted into a source-only repository ["
+                        + " is not a regular index, but ["
                         + unwrap.toString()
-                        + ']'
+                        + "]  and cannot be snapshotted into a source-only repository"
                 )
             );
             return;

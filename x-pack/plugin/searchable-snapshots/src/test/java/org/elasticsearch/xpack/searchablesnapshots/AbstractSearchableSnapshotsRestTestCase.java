@@ -49,6 +49,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -269,7 +270,10 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                     assertThat(extractValue(failure, "status"), equalTo(RestStatus.INTERNAL_SERVER_ERROR.toString()));
                     assertThat(
                         extractValue(failure, "reason"),
-                        containsString("is not a regular index and cannot be snapshotted into a source-only repository")
+                        allOf(
+                            containsString("is not a regular index"),
+                            containsString("cannot be snapshotted into a source-only repository")
+                        )
                     );
                 }
             }

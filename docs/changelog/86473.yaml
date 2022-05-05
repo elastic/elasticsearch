@@ -1,5 +1,5 @@
 pr: 86473
-summary: Setting enabled user status accounts for source realm in same user check
+summary: An authorized user can disable a user with same name but different realm
 area: Authentication
 type: bug
 issues: []

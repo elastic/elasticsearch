@@ -1,5 +1,5 @@
 pr: 86473
-summary: Account for realms in set enabled user action
+summary: Setting enabled user status accounts for source realm in same user check
 area: Authentication
 type: bug
 issues: []

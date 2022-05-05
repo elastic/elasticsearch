@@ -37,8 +37,9 @@ public class HealthService {
     // Visible for testing
     static final String UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED = "Could not determine indicator state. Cluster state is not stable. Check "
         + "details for critical issues keeping this indicator from running.";
-    static final String UNKNOWN_RESULT_SUMMARY_NOT_RECOVERED = "Could not determine indicator state. The current node handling the health request is not ready to assess the health of the cluster. Try "
-        + "again later or execute the health API against a different node.";
+    static final String UNKNOWN_RESULT_SUMMARY_NOT_RECOVERED =
+        "Could not determine indicator state. The current node handling the health request is not ready to assess the health of the "
+            + "cluster. Try again later or execute the health API against a different node.";
 
     /**
      * Detail map key that contains the reasons a result was marked as UNKNOWN

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotA
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
 import org.elasticsearch.xpack.searchablesnapshots.LocalStateSearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -165,7 +166,15 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         logger.info("--> using storage [{}]", storage);
 
         final Settings.Builder otherDataNodeSettings = Settings.builder();
-        otherDataNodeSettings.put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_COLD_NODE_ROLE.roleName());
+        if (storage == FULL_COPY) {
+            otherDataNodeSettings.put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_COLD_NODE_ROLE.roleName());
+        } else {
+            otherDataNodeSettings.put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
+                .put(
+                    FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
+                    ByteSizeValue.ofBytes(Math.min(indicesStoresSizes.values().stream().mapToLong(value -> value).sum(), 5 * 1024L * 1024L))
+                );
+        }
         final String otherDataNode = internalCluster().startNode(otherDataNodeSettings.build());
         ensureStableCluster(3);
 

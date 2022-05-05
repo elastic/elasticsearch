@@ -44,10 +44,6 @@ public class SystemUser extends User {
         return INSTANCE.equals(user);
     }
 
-    public static boolean is(String principal) {
-        return NAME.equals(principal);
-    }
-
     public static boolean isAuthorized(String action) {
         return PREDICATE.test(action);
     }

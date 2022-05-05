@@ -26,7 +26,7 @@ import java.util.Map;
 
 class WindowsServiceCli extends MultiCommand {
 
-    private static final Command installCommand = new ProcrunCommand("Install Elasticsearch as a Windows Service", "install") {
+    private static final Command installCommand = new ProcrunCommand("Install Elasticsearch as a Windows Service", "IS") {
         @Override
         protected String getAdditionalArgs(String serviceId, ProcessInfo pinfo) {
             List<String> args = new ArrayList<>();
@@ -136,7 +136,7 @@ class WindowsServiceCli extends MultiCommand {
         }
     };
 
-    private static final Command removeCommand = new ProcrunCommand("Remove the Elasticsearch Windows Service", "delete") {
+    private static final Command removeCommand = new ProcrunCommand("Remove the Elasticsearch Windows Service", "DS") {
         @Override
         protected String getSuccessMessage(String serviceId) {
             return "The service '%s' has been removed".formatted(serviceId);
@@ -148,7 +148,7 @@ class WindowsServiceCli extends MultiCommand {
         }
     };
 
-    private static final Command startCommand = new ProcrunCommand("Starts the Elasticsearch Windows Service", "start") {
+    private static final Command startCommand = new ProcrunCommand("Starts the Elasticsearch Windows Service", "ES") {
         @Override
         protected String getSuccessMessage(String serviceId) {
             return "The service '%s' has been started".formatted(serviceId);
@@ -160,7 +160,7 @@ class WindowsServiceCli extends MultiCommand {
         }
     };
 
-    private static final Command stopCommand = new ProcrunCommand("Stops the Elasticsearch Windows Service", "stop") {
+    private static final Command stopCommand = new ProcrunCommand("Stops the Elasticsearch Windows Service", "SS") {
         @Override
         protected String getSuccessMessage(String serviceId) {
             return "The service '%s' has been stopped".formatted(serviceId);
@@ -172,10 +172,15 @@ class WindowsServiceCli extends MultiCommand {
         }
     };
 
-    private static final Command managerCommand = new ProcrunCommand("Starts the Elasticsearch Windows Service manager", "manage") {
+    private static final Command managerCommand = new ProcrunCommand("Starts the Elasticsearch Windows Service manager", "ES") {
         @Override
         protected String getExecutable() {
             return "elasticsearch-service-mgr.exe";
+        }
+
+        @Override
+        protected boolean includeLogArgs() {
+            return false;
         }
 
         @Override

@@ -53,9 +53,10 @@ abstract class ProcrunCommand extends Command {
 
         List<String> procrunCmd = new ArrayList<>();
         procrunCmd.add(procrun.toString());
-        procrunCmd.add(cmd);
-        procrunCmd.add(serviceId);
-        procrunCmd.add(getLogArgs(serviceId, processInfo.workingDir(), processInfo.envVars()));
+        procrunCmd.add("//" + cmd + "//" +serviceId);
+        if (includeLogArgs()) {
+            procrunCmd.add(getLogArgs(serviceId, processInfo.workingDir(), processInfo.envVars()));
+        }
         procrunCmd.add(getAdditionalArgs(serviceId, processInfo));
 
         ProcessBuilder processBuilder = new ProcessBuilder("cmd.exe", "/C", String.join(" ", procrunCmd).trim());
@@ -99,6 +100,10 @@ abstract class ProcrunCommand extends Command {
 
     protected String getAdditionalArgs(String serviceId, ProcessInfo processInfo) {
         return "";
+    }
+
+    protected boolean includeLogArgs() {
+        return true;
     }
 
     protected void preExecute(Terminal terminal, ProcessInfo pinfo, String serviceId) throws UserException {}

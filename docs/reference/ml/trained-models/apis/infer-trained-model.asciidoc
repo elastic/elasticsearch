@@ -6,7 +6,7 @@
 <titleabbrev>Infer trained model</titleabbrev>
 ++++
 
-Evaluates a trained model.
+Evaluates a trained model. The model may be any supervised model either trained by {dfanalytics} or imported.
 
 [[infer-trained-model-request]]
 == {api-request-title}
@@ -44,8 +44,9 @@ Controls the amount of time to wait for {infer} results. Defaults to 10 seconds.
 `docs`::
 (Required, array)
 An array of objects to pass to the model for inference. The objects should
-contain a field matching your configured trained model input. Typically, the field
-name is `text_field`. Currently, only a single value is allowed.
+contain the fields matching your configured trained model input. Typically for NLP models, the field
+name is `text_field`. Currently for NLP models, only a single value is allowed. For {dfanalytics} or
+imported classification or regression models, more than one value is allowed.
 
 ////
 [[infer-trained-model-results]]
@@ -60,8 +61,39 @@ name is `text_field`. Currently, only a single value is allowed.
 [[infer-trained-model-example]]
 == {api-examples-title}
 
-The response depends on the task the model is trained for. If it is a
-text classification task, the response is the score. For example:
+The response depends on the kind of model.
+
+For example, for language identification the response is the predicted language and the score:
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/lang_ident_model_1/_infer
+{
+  "docs":[{"text": "The fool doth think he is wise, but the wise man knows himself to be a fool."}]
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+Here are the results predicting english with a high probability.
+
+[source,console-result]
+----
+{
+  "inference_results": [
+    {
+      "predicted_value": "en",
+      "prediction_probability": 0.9999658805366392,
+      "prediction_score": 0.9999658805366392
+    }
+  ]
+}
+----
+// NOTCONSOLE
+
+
+When it is a text classification model, the response is the score and predicted classification.
+
+For example:
 
 [source,console]
 --------------------------------------------------
@@ -85,7 +117,7 @@ The API returns the predicted label and the confidence.
 ----
 // NOTCONSOLE
 
-For named entity recognition (NER) tasks, the response contains the annotated
+For named entity recognition (NER) models, the response contains the annotated
 text output and the recognized entities.
 
 [source,console]
@@ -125,7 +157,7 @@ The API returns in this case:
 ----
 // NOTCONSOLE
 
-Zero-shot classification tasks require extra configuration defining the class labels.
+Zero-shot classification models require extra configuration defining the class labels.
 These labels are passed in the zero-shot inference config.
 
 [source,console]

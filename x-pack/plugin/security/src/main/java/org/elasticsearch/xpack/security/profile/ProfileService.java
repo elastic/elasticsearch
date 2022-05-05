@@ -364,7 +364,9 @@ public class ProfileService {
                                     logger.debug("Profile [{}] not found", docIdToUid(itemResponse.getId()));
                                 }
                             } else {
-                                logger.error("Inconsistent get item response [{}] [{}]", itemResponse.getIndex(), itemResponse.getId());
+                                assert false
+                                    : "Inconsistent mget item response [" + itemResponse.getIndex() + "] [" + itemResponse.getId() + "]";
+                                logger.error("Inconsistent mget item response [{}] [{}]", itemResponse.getIndex(), itemResponse.getId());
                             }
                         }
                         if (loggedException != null) {

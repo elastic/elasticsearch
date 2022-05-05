@@ -20,6 +20,8 @@ import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -137,14 +139,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(10, 5, 14, md5, 10))));
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
 
-        ClusterState state = ClusterState.builder(new ClusterName("name"))
-            .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
-            .nodes(
-                new DiscoveryNodes.Builder().add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
-                    .localNodeId("_id1")
-            )
-            .routingTable(createIndexRoutingTable())
-            .build();
+        ClusterState state = createClusterState(tasksCustomMetadata);
 
         int numPipelinesToBeReloaded = randomInt(4);
         List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).collect(Collectors.toList());
@@ -167,14 +162,8 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         );
         tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
 
-        state = ClusterState.builder(new ClusterName("name"))
-            .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
-            .nodes(
-                new DiscoveryNodes.Builder().add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
-                    .localNodeId("_id1")
-            )
-            .routingTable(createIndexRoutingTable())
-            .build();
+        state = createClusterState(tasksCustomMetadata);
+
         // Database should be downloaded
         databaseNodeService.checkDatabases(state);
         database = databaseNodeService.getDatabase("GeoIP2-City.mmdb");
@@ -196,8 +185,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(0L, 0, 9, md5, 10))));
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
 
-        ClusterState state = ClusterState.builder(new ClusterName("name"))
-            .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
+        ClusterState state = ClusterState.builder(createClusterState(tasksCustomMetadata))
             .nodes(
                 new DiscoveryNodes.Builder().add(
                     new DiscoveryNode(
@@ -210,7 +198,6 @@ public class DatabaseNodeServiceTests extends ESTestCase {
                     )
                 ).localNodeId("_id1")
             )
-            .routingTable(createIndexRoutingTable())
             .build();
 
         databaseNodeService.checkDatabases(state);
@@ -247,14 +234,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     public void testCheckDatabases_dontCheckDatabaseWhenGeoIpDownloadTask() throws Exception {
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(0L, Map.of());
 
-        ClusterState state = ClusterState.builder(new ClusterName("name"))
-            .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
-            .nodes(
-                new DiscoveryNodes.Builder().add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
-                    .localNodeId("_id1")
-            )
-            .routingTable(createIndexRoutingTable())
-            .build();
+        ClusterState state = createClusterState(tasksCustomMetadata);
 
         mockSearches("GeoIP2-City.mmdb", 0, 9);
 
@@ -372,8 +352,23 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         return MessageDigests.toHexString(md.digest());
     }
 
-    private static RoutingTable createIndexRoutingTable() {
-        Index index = new Index(GeoIpDownloader.DATABASES_INDEX, UUID.randomUUID().toString());
+    private static ClusterState createClusterState(PersistentTasksCustomMetadata tasksCustomMetadata) {
+        boolean aliasGeoipDatabase = randomBoolean();
+        String indexName = aliasGeoipDatabase
+            ? GeoIpDownloader.DATABASES_INDEX + "-" + randomAlphaOfLength(5)
+            : GeoIpDownloader.DATABASES_INDEX;
+        Index index = new Index(indexName, UUID.randomUUID().toString());
+        IndexMetadata.Builder idxMeta = IndexMetadata.builder(index.getName())
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", Version.CURRENT)
+                    .put("index.uuid", index.getUUID())
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+            );
+        if (aliasGeoipDatabase) {
+            idxMeta.putAlias(AliasMetadata.builder(GeoIpDownloader.DATABASES_INDEX));
+        }
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             new ShardId(index, 0),
             true,
@@ -384,7 +379,13 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
             shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted()
         ).build();
-        return RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(table).build()).build();
+        return ClusterState.builder(new ClusterName("name"))
+            .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).put(idxMeta))
+            .nodes(
+                DiscoveryNodes.builder().add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT)).localNodeId("_id1")
+            )
+            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(table)))
+            .build();
     }
 
     private static List<byte[]> gzip(String name, String content, int chunks) throws IOException {

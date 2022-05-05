@@ -277,7 +277,7 @@ public class CompletionFieldMapper extends FieldMapper {
          */
         public CompletionQuery prefixQuery(Object value) {
             return new PrefixCompletionQuery(
-                getTextSearchInfo().getSearchAnalyzer().analyzer(),
+                getTextSearchInfo().searchAnalyzer().analyzer(),
                 new Term(name(), indexedValueForSearch(value))
             );
         }
@@ -302,7 +302,7 @@ public class CompletionFieldMapper extends FieldMapper {
             boolean unicodeAware
         ) {
             return new FuzzyCompletionQuery(
-                getTextSearchInfo().getSearchAnalyzer().analyzer(),
+                getTextSearchInfo().searchAnalyzer().analyzer(),
                 new Term(name(), indexedValueForSearch(value)),
                 null,
                 fuzziness.asDistance(),

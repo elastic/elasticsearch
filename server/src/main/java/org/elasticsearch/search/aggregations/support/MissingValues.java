@@ -276,6 +276,11 @@ public enum MissingValues {
             }
 
             @Override
+            public long docValueCount() {
+                return values.docValueCount();
+            }
+
+            @Override
             public boolean advanceExact(int doc) throws IOException {
                 hasOrds = values.advanceExact(doc);
                 nextMissingOrd = missingOrd;
@@ -307,6 +312,11 @@ public enum MissingValues {
                 } else {
                     return missingValue;
                 }
+            }
+
+            @Override
+            public long docValueCount() {
+                return values.docValueCount();
             }
 
             @Override

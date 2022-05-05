@@ -17,6 +17,8 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -53,7 +55,12 @@ class CliToolLauncher {
         String libs = pinfo.sysprops().getOrDefault("cli.libs", "");
 
         Command command = CliToolProvider.load(toolname, libs).create();
-        exit(command.main(args, Terminal.DEFAULT, pinfo));
+        Terminal terminal = Terminal.DEFAULT;
+        Runtime.getRuntime().addShutdownHook(createShutdownHook(terminal, command));
+
+        int exitCode = command.main(args, terminal, pinfo);
+        terminal.flush(); // make sure nothing is left in buffers
+        exit(exitCode);
     }
 
     // package private for tests
@@ -70,6 +77,18 @@ class CliToolLauncher {
             }
         }
         return toolname;
+    }
+
+    static Thread createShutdownHook(Terminal terminal, Closeable closeable) {
+        return new Thread(() -> {
+            try {
+                closeable.close();
+            } catch (final IOException e) {
+                e.printStackTrace(terminal.getErrorWriter());
+            }
+            terminal.flush(); // make sure to flush whatever the close or error might have written
+        });
+
     }
 
     @SuppressForbidden(reason = "System#exit")

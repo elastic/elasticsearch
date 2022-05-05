@@ -158,7 +158,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
         load = nodeLoadDetector.detectNodeLoad(cs, nodes.get("_node_id4"), 5, 30, false);
-        assertThat(load.getAssignedJobMemory(), equalTo(429916160L));
+        assertThat(load.getAssignedJobMemory(), equalTo(398458880L));
         assertThat(load.getNumAllocatingJobs(), equalTo(0L));
         assertThat(load.getNumAssignedJobs(), equalTo(2L));
         assertThat(load.getMaxJobs(), equalTo(5));

@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigUpdateTes
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
@@ -63,6 +65,7 @@ public class InternalInferModelActionRequestTests extends AbstractBWCWireSeriali
             FillMaskConfigUpdateTests.randomUpdate(),
             ZeroShotClassificationConfigUpdateTests.randomUpdate(),
             PassThroughConfigUpdateTests.randomUpdate(),
+            QuestionAnsweringConfigUpdateTests.randomUpdate(),
             EmptyConfigUpdateTests.testInstance()
         );
     }
@@ -102,6 +105,8 @@ public class InternalInferModelActionRequestTests extends AbstractBWCWireSeriali
                 adjustedUpdate = ZeroShotClassificationConfigUpdateTests.mutateForVersion(update, version);
             } else if (nlpConfigUpdate instanceof PassThroughConfigUpdate update) {
                 adjustedUpdate = PassThroughConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof QuestionAnsweringConfigUpdate update) {
+                adjustedUpdate = QuestionAnsweringConfigUpdateTests.mutateForVersion(update, version);
             } else {
                 throw new IllegalArgumentException("Unknown update [" + currentUpdate.getName() + "]");
             }

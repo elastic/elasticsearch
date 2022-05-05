@@ -76,10 +76,35 @@ public class GeoHexCellIdSource extends ValuesSource.Numeric {
         private final boolean crossesDateline;
         private final GeoBoundingBox bbox;
 
+        private final long northPoleHex, southPoleHex;
+        private final boolean northPoleHexValid, southPoleHexValid;
+
         protected BoundedCellValues(MultiGeoPointValues geoValues, int precision, GeoBoundingBox bbox) {
             super(geoValues, precision);
             this.crossesDateline = bbox.right() < bbox.left();
             this.bbox = bbox;
+            northPoleHex = H3.geoToH3(90, 0, precision);
+            northPoleHexValid = northPoleValidHex(northPoleHex);
+            southPoleHex = H3.geoToH3(-90, 0, precision);
+            southPoleHexValid = southPoleValidHex(southPoleHex);
+        }
+
+        private boolean northPoleValidHex(long northPoleHex) {
+            CellBoundary boundary = H3.h3ToGeoBoundary(northPoleHex);
+            double minLat = Double.POSITIVE_INFINITY;
+            for (int i = 0; i < boundary.numPoints(); i++) {
+                minLat = Math.min(minLat, boundary.getLatLon(i).getLatDeg());
+            }
+            return minLat < bbox.top();
+        }
+
+        private boolean southPoleValidHex(long northPoleHex) {
+            CellBoundary boundary = H3.h3ToGeoBoundary(northPoleHex);
+            double maxLat = Double.NEGATIVE_INFINITY;
+            for (int i = 0; i < boundary.numPoints(); i++) {
+                maxLat = Math.max(maxLat, boundary.getLatLon(i).getLatDeg());
+            }
+            return maxLat > bbox.bottom();
         }
 
         @Override
@@ -107,23 +132,29 @@ public class GeoHexCellIdSource extends ValuesSource.Numeric {
         }
 
         private boolean validHex(long hex) {
-            CellBoundary boundary = H3.h3ToGeoBoundary(hex);
-            double minLat = Double.POSITIVE_INFINITY;
-            double minLon = Double.POSITIVE_INFINITY;
-            double maxLat = Double.NEGATIVE_INFINITY;
-            double maxLon = Double.NEGATIVE_INFINITY;
-            for (int i = 0; i < boundary.numPoints(); i++) {
-                double boundaryLat = boundary.getLatLon(i).getLatDeg();
-                double boundaryLon = boundary.getLatLon(i).getLonDeg();
-                minLon = Math.min(minLon, boundaryLon);
-                maxLon = Math.max(maxLon, boundaryLon);
-                minLat = Math.min(minLat, boundaryLat);
-                maxLat = Math.max(maxLat, boundaryLat);
-            }
-            if (maxLon - minLon > 180) {
-                return intersects(-180, minLon, minLat, maxLat) || intersects(maxLon, 180, minLat, maxLat);
+            if (northPoleHex == hex) {
+                return northPoleHexValid;
+            } else if (southPoleHex == hex) {
+                return southPoleHexValid;
             } else {
-                return intersects(minLon, maxLon, minLat, maxLat);
+                CellBoundary boundary = H3.h3ToGeoBoundary(hex);
+                double minLat = Double.POSITIVE_INFINITY;
+                double minLon = Double.POSITIVE_INFINITY;
+                double maxLat = Double.NEGATIVE_INFINITY;
+                double maxLon = Double.NEGATIVE_INFINITY;
+                for (int i = 0; i < boundary.numPoints(); i++) {
+                    double boundaryLat = boundary.getLatLon(i).getLatDeg();
+                    double boundaryLon = boundary.getLatLon(i).getLonDeg();
+                    minLon = Math.min(minLon, boundaryLon);
+                    maxLon = Math.max(maxLon, boundaryLon);
+                    minLat = Math.min(minLat, boundaryLat);
+                    maxLat = Math.max(maxLat, boundaryLat);
+                }
+                if (maxLon - minLon > 180) {
+                    return intersects(-180, minLon, minLat, maxLat) || intersects(maxLon, 180, minLat, maxLat);
+                } else {
+                    return intersects(minLon, maxLon, minLat, maxLat);
+                }
             }
         }
 

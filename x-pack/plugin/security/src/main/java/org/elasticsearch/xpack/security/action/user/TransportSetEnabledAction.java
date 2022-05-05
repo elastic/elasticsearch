@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
@@ -52,9 +51,6 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
         // make sure the user is not disabling themselves
         if (isSameUserRequest(request)) {
             listener.onFailure(new IllegalArgumentException("users may not update the enabled status of their own account"));
-            return;
-        } else if (User.isInternalUsername(username)) {
-            listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
             return;
         } else if (AnonymousUser.isAnonymousUsername(username, settings)) {
             listener.onFailure(new IllegalArgumentException("user [" + username + "] is anonymous and cannot be modified using the api"));

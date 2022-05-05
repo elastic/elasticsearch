@@ -21,26 +21,19 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
-import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -120,68 +113,15 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         verifyNoMoreInteractions(usersStore);
     }
 
-    public void testInternalUser() throws Exception {
-        final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
-        ThreadPool threadPool = mock(ThreadPool.class);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
-        new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
-
-        NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportService transportService = new TransportService(
-            Settings.EMPTY,
-            mock(Transport.class),
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> null,
-            null,
-            Collections.emptySet()
-        );
-        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        TransportSetEnabledAction action = new TransportSetEnabledAction(
-            Settings.EMPTY,
-            transportService,
-            mock(ActionFilters.class),
-            securityContext,
-            usersStore
-        );
-
-        SetEnabledRequest request = new SetEnabledRequest();
-        request.username(
-            randomFrom(
-                SystemUser.INSTANCE.principal(),
-                XPackUser.INSTANCE.principal(),
-                XPackSecurityUser.INSTANCE.principal(),
-                AsyncSearchUser.INSTANCE.principal()
-            )
-        );
-        request.enabled(randomBoolean());
-
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<>() {
-            @Override
-            public void onResponse(ActionResponse.Empty setEnabledResponse) {
-                responseRef.set(setEnabledResponse);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throwableRef.set(e);
-            }
-        });
-
-        assertThat(responseRef.get(), is(nullValue()));
-        assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
-        assertThat(throwableRef.get().getMessage(), containsString("is internal"));
-        verifyNoMoreInteractions(usersStore);
+    public void testValidUser() throws Exception {
+        testValidUser(randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"), new User(SystemUser.INSTANCE.principal())));
     }
 
-    public void testValidUser() throws Exception {
+    public void testValidUserWithInternalUsername() throws Exception {
+        testValidUser(new User(AuthenticationTestHelper.randomInternalUsername()));
+    }
+
+    private void testValidUser(User user) throws IOException {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -192,7 +132,6 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
-        final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SetEnabledRequest request = new SetEnabledRequest();
         request.username(user.principal());
@@ -327,11 +266,9 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        Authentication authentication = mock(Authentication.class);
-        Subject effectiveSubject = mock(Subject.class, RETURNS_DEEP_STUBS);
-        when(authentication.getEffectiveSubject()).thenReturn(effectiveSubject);
-        when(effectiveSubject.getUser()).thenReturn(user);
-        when(effectiveSubject.getRealm().getType()).thenReturn("other_realm");
+        Authentication authentication = mock(Authentication.class, RETURNS_DEEP_STUBS);
+        when(authentication.getEffectiveSubject().getUser()).thenReturn(user);
+        when(authentication.getEffectiveSubject().getRealm().getType()).thenReturn("other_realm");
         when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 

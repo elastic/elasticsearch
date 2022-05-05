@@ -12,24 +12,20 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class ThreadSettingsTests extends AbstractXContentTestCase<ThreadSettings> {
+public class ErrorResultTests extends AbstractXContentTestCase<ErrorResult> {
 
-    public static ThreadSettings createRandom() {
-        return new ThreadSettings(
-            randomIntBetween(1, Integer.MAX_VALUE),
-            randomIntBetween(1, Integer.MAX_VALUE),
-            randomBoolean() ? null : randomAlphaOfLength(5)
-        );
+    public static ErrorResult createRandom() {
+        return new ErrorResult(randomBoolean() ? null : randomAlphaOfLength(5), randomAlphaOfLength(5));
     }
 
     @Override
-    protected ThreadSettings createTestInstance() {
+    protected ErrorResult createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected ThreadSettings doParseInstance(XContentParser parser) throws IOException {
-        return ThreadSettings.PARSER.parse(parser, null);
+    protected ErrorResult doParseInstance(XContentParser parser) throws IOException {
+        return ErrorResult.PARSER.parse(parser, null);
     }
 
     @Override

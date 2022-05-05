@@ -12,3 +12,6 @@ by the health API.
 
 include::troubleshooting/data/increase-shard-limit.asciidoc[]
 
+include::troubleshooting/data/increase-cluster-shard-limit.asciidoc[]
+
+

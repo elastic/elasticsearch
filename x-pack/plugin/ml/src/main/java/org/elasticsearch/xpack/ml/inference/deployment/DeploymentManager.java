@@ -256,14 +256,8 @@ public class DeploymentManager {
             threadPool,
             listener
         );
-        try {
-            processContext.getExecutorService().execute(inferenceAction);
-        } catch (EsRejectedExecutionException e) {
-            processContext.getRejectedExecutionCount().incrementAndGet();
-            inferenceAction.onFailure(e);
-        } catch (Exception e) {
-            inferenceAction.onFailure(e);
-        }
+
+        executePyTorchAction(processContext, inferenceAction);
     }
 
     public void updateNumAllocations(
@@ -288,13 +282,18 @@ public class DeploymentManager {
             threadPool,
             listener
         );
+
+        executePyTorchAction(processContext, controlMessageAction);
+    }
+
+    public void executePyTorchAction(ProcessContext processContext, AbstractPyTorchAction<?> action) {
         try {
-            processContext.getExecutorService().execute(controlMessageAction);
+            processContext.getExecutorService().execute(action);
         } catch (EsRejectedExecutionException e) {
             processContext.getRejectedExecutionCount().incrementAndGet();
-            controlMessageAction.onFailure(e);
+            action.onFailure(e);
         } catch (Exception e) {
-            controlMessageAction.onFailure(e);
+            action.onFailure(e);
         }
     }
 

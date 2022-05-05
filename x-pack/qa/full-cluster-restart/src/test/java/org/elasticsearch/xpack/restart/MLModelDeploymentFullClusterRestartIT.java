@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@AbstractFullClusterRestartTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/2258")
 public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     // See PyTorchModelIT for how this model was created

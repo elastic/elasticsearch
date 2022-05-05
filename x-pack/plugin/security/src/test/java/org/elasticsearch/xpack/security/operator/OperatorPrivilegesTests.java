@@ -21,6 +21,7 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -134,8 +135,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         );
 
         // Will mark empty for run_as user
-        final Authentication runAsAuth = mock(Authentication.class);
-        when(runAsAuth.getUser()).thenReturn(new User(operatorUser, operatorUser));
+        final Authentication runAsAuth = AuthenticationTestHelper.builder().user(operatorUser).runAs().user(operatorUser).build();
         Mockito.reset(fileOperatorUsersStore);
         when(fileOperatorUsersStore.isOperatorUser(runAsAuth)).thenReturn(true);
         threadContext = new ThreadContext(settings);

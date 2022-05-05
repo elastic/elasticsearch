@@ -136,13 +136,7 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
     }
 
     private String readPasswordFromOutput(String output) {
-        String[] lines = output.split("\\n");
-        for (String line : lines) {
-            if (line.startsWith("New value: ")) {
-                return line.substring(11);
-            }
-        }
-        return null;
+        return output.lines().filter(line -> line.startsWith("New value: ")).map(line -> line.substring(11)).findFirst().orElse(null);
     }
 
 }

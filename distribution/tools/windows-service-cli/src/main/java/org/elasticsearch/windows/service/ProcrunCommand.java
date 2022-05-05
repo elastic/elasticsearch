@@ -53,7 +53,7 @@ abstract class ProcrunCommand extends Command {
 
         List<String> procrunCmd = new ArrayList<>();
         procrunCmd.add(procrun.toString());
-        procrunCmd.add("//" + cmd + "//" +serviceId);
+        procrunCmd.add("//" + cmd + "//" + serviceId);
         if (includeLogArgs()) {
             procrunCmd.add(getLogArgs(serviceId, processInfo.workingDir(), processInfo.envVars()));
         }

@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.MultiValueAggregation;
@@ -59,6 +60,7 @@ public final class AggregationResultUtils {
         tempMap.put(GeoCentroid.class.getName(), new GeoCentroidAggExtractor());
         tempMap.put(GeoBounds.class.getName(), new GeoBoundsAggExtractor());
         tempMap.put(Percentiles.class.getName(), new PercentilesAggExtractor());
+        tempMap.put(Range.class.getName(), new RangeAggExtractor());
         tempMap.put(SingleBucketAggregation.class.getName(), new SingleBucketAggExtractor());
         tempMap.put(MultiBucketsAggregation.class.getName(), new MultiBucketsAggExtractor());
         tempMap.put(GeoShapeMetricAggregation.class.getName(), new GeoShapeMetricAggExtractor());
@@ -166,6 +168,10 @@ public final class AggregationResultUtils {
             // TODO: can the Percentiles extractor be removed?
         } else if (aggregation instanceof Percentiles) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(Percentiles.class.getName());
+            // note: range is also a multi bucket agg, therefore check range first
+            // TODO: can the Range extractor be removed?
+        } else if (aggregation instanceof Range) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(Range.class.getName());
         } else if (aggregation instanceof MultiValue) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(MultiValue.class.getName());
         } else if (aggregation instanceof MultiValueAggregation) {
@@ -332,6 +338,27 @@ public final class AggregationResultUtils {
 
             return percentiles;
         }
+    }
+
+    static class RangeAggExtractor implements AggValueExtractor {
+        @Override
+        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            Range aggregation = (Range) agg;
+            HashMap<String, Long> ranges = new HashMap<>();
+            for (Range.Bucket bucket : aggregation.getBuckets()) {
+                double from = bucket.getFrom() == null ? Double.NEGATIVE_INFINITY : ((Double) bucket.getFrom()).doubleValue();
+                double to = bucket.getTo() == null ? Double.POSITIVE_INFINITY : ((Double) bucket.getTo()).doubleValue();
+                ranges.put(generateKeyForRange(from, to), bucket.getDocCount());
+            }
+            return ranges;
+        }
+    }
+
+    static String generateKeyForRange(double from, double to) {
+        return new StringBuilder().append(Double.isInfinite(from) ? "*" : OutputFieldNameConverter.fromDouble(from))
+            .append("-")
+            .append(Double.isInfinite(to) ? "*" : OutputFieldNameConverter.fromDouble(to))
+            .toString();
     }
 
     static class SingleBucketAggExtractor implements AggValueExtractor {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.transform.utils.OutputFieldNameConverter;
@@ -70,7 +71,6 @@ public final class TransformAggregations {
         "matrix_stats",
         "nested",
         "percentile_ranks",
-        "range",
         "random_sampler",
         "reverse_nested",
         "sampler",
@@ -112,6 +112,7 @@ public final class TransformAggregations {
         BUCKET_SELECTOR("bucket_selector", DYNAMIC),
         BUCKET_SCRIPT("bucket_script", DYNAMIC),
         PERCENTILES("percentiles", DOUBLE),
+        RANGE("range", LONG),
         FILTER("filter", LONG),
         TERMS("terms", FLATTENED),
         RARE_TERMS("rare_terms", FLATTENED),
@@ -207,14 +208,28 @@ public final class TransformAggregations {
         // todo: can this be removed?
         if (agg instanceof PercentilesAggregationBuilder percentilesAgg) {
 
-            // note: eclipse does not like p -> agg.getType()
             // the merge function (p1, p2) -> p1 ignores duplicates
             return new Tuple<>(
                 Collections.emptyMap(),
                 Arrays.stream(percentilesAgg.percentiles())
                     .mapToObj(OutputFieldNameConverter::fromDouble)
+                    .collect(Collectors.toMap(p -> percentilesAgg.getName() + "." + p, p -> percentilesAgg.getType(), (p1, p2) -> p1))
+            );
+        }
+
+        if (agg instanceof RangeAggregationBuilder rangeAgg) {
+
+            // the merge function (p1, p2) -> p1 ignores duplicates
+            return new Tuple<>(
+                Collections.emptyMap(),
+                rangeAgg.ranges()
+                    .stream()
                     .collect(
-                        Collectors.toMap(p -> percentilesAgg.getName() + "." + p, p -> { return percentilesAgg.getType(); }, (p1, p2) -> p1)
+                        Collectors.toMap(
+                            r -> rangeAgg.getName() + "." + AggregationResultUtils.generateKeyForRange(r.getFrom(), r.getTo()),
+                            r -> "range",
+                            (p1, p2) -> p1
+                        )
                     )
             );
         }
@@ -266,5 +281,4 @@ public final class TransformAggregations {
         // catch all in case no special handling required
         return new Tuple<>(Collections.emptyMap(), Collections.singletonMap(agg.getName(), agg.getType()));
     }
-
 }

@@ -10,16 +10,20 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.ParsedComposite;
+import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
+import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
@@ -958,6 +962,41 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testPercentilesAggExtractorNaN() {
         Aggregation agg = createPercentilesAgg("p_agg", Arrays.asList(new Percentile(1, Double.NaN), new Percentile(50, Double.NaN)));
         assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), equalTo(asMap("1", null, "50", null)));
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Range createRangeAgg(String name, List<InternalRange.Bucket> buckets) {
+        Range agg = mock(Range.class);
+        when(agg.getName()).thenReturn(name);
+        when(agg.getBuckets()).thenReturn((List) buckets);
+        return agg;
+    }
+
+    public void testRangeAggExtractor() {
+        Aggregation agg = createRangeAgg(
+            "p_agg",
+            Arrays.asList(
+                new InternalRange.Bucket(null, Double.NEGATIVE_INFINITY, 10.5, 10, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, 10.5, 19.5, 30, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, 19.5, 20, 30, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, 20, Double.POSITIVE_INFINITY, 0, InternalAggregations.EMPTY, false, DocValueFormat.RAW)
+            )
+        );
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""),
+            equalTo(asMap("*-10_5", 10L, "10_5-19_5", 30L, "19_5-20", 30L, "20-*", 0L))
+        );
+    }
+
+    public void testGenerateKeyForRange() {
+        assertThat(AggregationResultUtils.generateKeyForRange(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY), is(equalTo("*-*")));
+        assertThat(AggregationResultUtils.generateKeyForRange(Double.NEGATIVE_INFINITY, 0.0), is(equalTo("*-0")));
+        assertThat(AggregationResultUtils.generateKeyForRange(0.0, 0.0), is(equalTo("0-0")));
+        assertThat(AggregationResultUtils.generateKeyForRange(10.0, 10.0), is(equalTo("10-10")));
+        assertThat(AggregationResultUtils.generateKeyForRange(10.5, 10.5), is(equalTo("10_5-10_5")));
+        assertThat(AggregationResultUtils.generateKeyForRange(10.5, 19.5), is(equalTo("10_5-19_5")));
+        assertThat(AggregationResultUtils.generateKeyForRange(19.5, 20), is(equalTo("19_5-20")));
+        assertThat(AggregationResultUtils.generateKeyForRange(20, Double.POSITIVE_INFINITY), is(equalTo("20-*")));
     }
 
     public static SingleBucketAggregation createSingleBucketAgg(String name, long docCount, Aggregation... subAggregations) {

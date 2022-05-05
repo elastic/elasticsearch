@@ -14,6 +14,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
@@ -62,6 +63,12 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("double", TransformAggregations.resolveTargetMapping("sum", "double"));
         assertEquals("double", TransformAggregations.resolveTargetMapping("sum", "half_float"));
         assertEquals("double", TransformAggregations.resolveTargetMapping("sum", null));
+
+        // range
+        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "int"));
+        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "double"));
+        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "half_float"));
+        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "scaled_float"));
 
         // geo_centroid
         assertEquals("geo_point", TransformAggregations.resolveTargetMapping("geo_centroid", "geo_point"));
@@ -173,6 +180,17 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("percentiles", outputTypes.get("percentiles.1"));
         assertEquals("percentiles", outputTypes.get("percentiles.5"));
         assertEquals("percentiles", outputTypes.get("percentiles.10"));
+
+        percentialAggregationBuilder = new PercentilesAggregationBuilder("percentiles", new double[] { 1.2, 5.5, 10.7 }, null);
+
+        inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(percentialAggregationBuilder);
+        assertTrue(inputAndOutputTypes.v1().isEmpty());
+        outputTypes = inputAndOutputTypes.v2();
+
+        assertEquals(3, outputTypes.size());
+        assertEquals("percentiles", outputTypes.get("percentiles.1_2"));
+        assertEquals("percentiles", outputTypes.get("percentiles.5_5"));
+        assertEquals("percentiles", outputTypes.get("percentiles.10_7"));
     }
 
     public void testGetAggregationOutputTypesStats() {
@@ -188,6 +206,38 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("stats", outputTypes.get("stats.avg"));
         assertEquals("stats", outputTypes.get("stats.count"));
         assertEquals("stats", outputTypes.get("stats.sum"));
+    }
+
+    public void testGetAggregationOutputTypesRange() {
+        {
+            AggregationBuilder rangeAggregationBuilder = new RangeAggregationBuilder("range_agg_name").addUnboundedTo(100)
+                .addRange(100, 200)
+                .addUnboundedFrom(200);
+
+            Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(
+                rangeAggregationBuilder
+            );
+            Map<String, String> outputTypes = inputAndOutputTypes.v2();
+            assertEquals(3, outputTypes.size());
+            assertEquals("range", outputTypes.get("range_agg_name.*-100"));
+            assertEquals("range", outputTypes.get("range_agg_name.100-200"));
+            assertEquals("range", outputTypes.get("range_agg_name.200-*"));
+        }
+
+        {
+            AggregationBuilder rangeAggregationBuilder = new RangeAggregationBuilder("range_agg_name").addUnboundedTo(100.5)
+                .addRange(100.5, 200.7)
+                .addUnboundedFrom(200.7);
+
+            Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(
+                rangeAggregationBuilder
+            );
+            Map<String, String> outputTypes = inputAndOutputTypes.v2();
+            assertEquals(3, outputTypes.size());
+            assertEquals("range", outputTypes.get("range_agg_name.*-100_5"));
+            assertEquals("range", outputTypes.get("range_agg_name.100_5-200_7"));
+            assertEquals("range", outputTypes.get("range_agg_name.200_7-*"));
+        }
     }
 
     public void testGetAggregationOutputTypesSubAggregations() {

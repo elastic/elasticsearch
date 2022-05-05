@@ -21,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
@@ -94,10 +95,13 @@ public class MasterHistoryService {
                     Version minSupportedVersion = Version.V_8_3_0;
                     if (connection.getVersion().onOrAfter(minSupportedVersion)) { // This was introduced in 8.3.0
                         logger.trace("Opened connection to {}, making master history request", node);
+                        // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
+                        final TimeValue remoteMasterHistoryTimeout = TimeValue.timeValueSeconds(10);
                         transportService.sendRequest(
                             node,
                             MasterHistoryAction.NAME,
                             new MasterHistoryAction.Request(),
+                            TransportRequestOptions.timeout(remoteMasterHistoryTimeout),
                             new ActionListenerResponseHandler<>(ActionListener.runBefore(new ActionListener<>() {
 
                                 @Override

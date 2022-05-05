@@ -232,13 +232,10 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
     }
 
-    private final ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses;
+    private final Map<String, Map<Integer, List<StoreStatus>>> storeStatuses;
     private final List<Failure> failures;
 
-    public IndicesShardStoresResponse(
-        ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses,
-        List<Failure> failures
-    ) {
+    public IndicesShardStoresResponse(Map<String, Map<Integer, List<StoreStatus>>> storeStatuses, List<Failure> failures) {
         this.storeStatuses = storeStatuses;
         this.failures = failures;
     }
@@ -249,7 +246,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
     public IndicesShardStoresResponse(StreamInput in) throws IOException {
         super(in);
-        storeStatuses = in.readImmutableMap(StreamInput::readString, i -> {
+        storeStatuses = in.readImmutableOpenMap(StreamInput::readString, i -> {
             int indexEntries = i.readVInt();
             ImmutableOpenIntMap.Builder<List<StoreStatus>> shardEntries = ImmutableOpenIntMap.builder();
             for (int shardCount = 0; shardCount < indexEntries; shardCount++) {
@@ -264,7 +261,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
      * Returns {@link StoreStatus}s
      * grouped by their index names and shard ids.
      */
-    public ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> getStoreStatuses() {
+    public Map<String, Map<Integer, List<StoreStatus>>> getStoreStatuses() {
         return storeStatuses;
     }
 
@@ -299,7 +296,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
 
         builder.startObject(Fields.INDICES);
-        for (Map.Entry<String, ImmutableOpenIntMap<List<StoreStatus>>> indexShards : storeStatuses.entrySet()) {
+        for (Map.Entry<String, Map<Integer, List<StoreStatus>>> indexShards : storeStatuses.entrySet()) {
             builder.startObject(indexShards.getKey());
 
             builder.startObject(Fields.SHARDS);

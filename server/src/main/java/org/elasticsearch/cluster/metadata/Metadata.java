@@ -896,6 +896,25 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             .orElse(Collections.emptyMap());
     }
 
+    public boolean isTimeSeriesTemplate(ComposableIndexTemplate indexTemplate) {
+        var template = indexTemplate.template();
+        if (indexTemplate.getDataStreamTemplate() == null || template == null) {
+            return false;
+        }
+
+        var settings = MetadataIndexTemplateService.resolveSettings(indexTemplate, componentTemplates());
+        if (IndexMetadata.INDEX_ROUTING_PATH.exists(settings)) {
+            // No need to validate the index.mode=time_series validation takes care of validating that the mentioned fields exist in the
+            // mapping and that it refers to fields of type keyword and with time_series_dimension enabled.
+            return true;
+        }
+
+        // in a followup change: check the existence of keyword fields of type keyword and time_series_dimension attribute enabled in
+        // the template. In this case the index.routing_path setting can be generated from the mapping.
+
+        return false;
+    }
+
     public Map<String, DataStream> dataStreams() {
         return Optional.ofNullable((DataStreamMetadata) this.custom(DataStreamMetadata.TYPE))
             .map(DataStreamMetadata::dataStreams)

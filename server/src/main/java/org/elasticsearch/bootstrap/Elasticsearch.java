@@ -17,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
@@ -135,11 +136,11 @@ class Elasticsearch extends EnvironmentAwareCommand {
     }
 
     static int main(final String[] args, final Elasticsearch elasticsearch, final Terminal terminal) throws Exception {
-        return elasticsearch.main(args, terminal);
+        return elasticsearch.main(args, terminal, ProcessInfo.fromSystem());
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws UserException {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws UserException {
         if (options.nonOptionArguments().isEmpty() == false) {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }

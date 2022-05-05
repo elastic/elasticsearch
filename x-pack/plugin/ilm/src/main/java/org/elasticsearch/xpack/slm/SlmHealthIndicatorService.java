@@ -54,11 +54,29 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     public HealthIndicatorResult calculate(boolean includeDetails) {
         var slmMetadata = clusterService.state().metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
-            return createIndicator(GREEN, "No policies configured", createDetails(includeDetails, slmMetadata), Collections.emptyList());
+            return createIndicator(
+                GREEN,
+                "No policies configured",
+                createDetails(includeDetails, slmMetadata),
+                Collections.emptyList(),
+                Collections.emptyList()
+            );
         } else if (slmMetadata.getOperationMode() != OperationMode.RUNNING) {
-            return createIndicator(YELLOW, "SLM is not running", createDetails(includeDetails, slmMetadata), Collections.emptyList());
+            return createIndicator(
+                YELLOW,
+                "SLM is not running",
+                createDetails(includeDetails, slmMetadata),
+                Collections.emptyList(),
+                Collections.emptyList()
+            );
         } else {
-            return createIndicator(GREEN, "SLM is running", createDetails(includeDetails, slmMetadata), Collections.emptyList());
+            return createIndicator(
+                GREEN,
+                "SLM is running",
+                createDetails(includeDetails, slmMetadata),
+                Collections.emptyList(),
+                Collections.emptyList()
+            );
         }
     }
 

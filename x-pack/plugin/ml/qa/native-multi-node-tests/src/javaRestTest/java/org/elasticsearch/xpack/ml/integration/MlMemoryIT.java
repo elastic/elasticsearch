@@ -57,6 +57,7 @@ public class MlMemoryIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         cleanUp();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/2258")
     public void testMemoryStats() throws Exception {
 
         deployTrainedModel();

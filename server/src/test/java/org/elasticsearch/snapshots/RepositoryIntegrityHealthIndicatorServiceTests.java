@@ -82,7 +82,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     Collections.singletonList(
                         new HealthIndicatorImpact(
                             1,
-                            "Snapshots in corrupted repositories [corrupted-repo] cannot be restored. Data loss is possible.",
+                            "Data in corrupted snapshot repository [corrupted-repo] may be lost and cannot be restored.",
                             List.of(ImpactArea.BACKUP)
                         )
                     ),

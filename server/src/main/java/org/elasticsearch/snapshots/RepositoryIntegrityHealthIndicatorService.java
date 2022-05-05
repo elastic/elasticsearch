@@ -97,7 +97,8 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 1,
                 String.format(
                     Locale.ROOT,
-                    "Snapshots in corrupted repositories %s cannot be restored. Data loss is possible.",
+                    "Data in corrupted snapshot repositor%s %s may be lost and cannot be restored.",
+                    corrupted.size() > 1 ? "ies" : "y",
                     limitSize(corrupted, 10)
                 ),
                 List.of(ImpactArea.BACKUP)

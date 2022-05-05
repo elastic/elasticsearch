@@ -31,7 +31,11 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
 
     private static final String INSTANCE_HAS_MASTER_GREEN_SUMMARY = "Health coordinating instance has a master node.";
     private static final String INSTANCE_HAS_MASTER_RED_SUMMARY = "Health coordinating instance does not have a master node.";
-    private static final String NO_MASTER_IMPACT = "The cluster cannot create, delete, or rebalance indices, and is likely to be unstable";
+    private static final String NO_MASTER_INGEST_IMPACT = "The cluster cannot create, delete, or rebalance indices, and cannot insert or "
+        + "update documents.";
+    private static final String NO_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT = "Scheduled tasks such as Watcher, ILM, and SLM will not work. "
+        + "The _cat APIs will not work.";
+    private static final String NO_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work.";
 
     private final ClusterService clusterService;
 
@@ -61,7 +65,9 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
         String instanceHasMasterSummary = masterNode == null ? INSTANCE_HAS_MASTER_RED_SUMMARY : INSTANCE_HAS_MASTER_GREEN_SUMMARY;
         List<HealthIndicatorImpact> impacts = new ArrayList<>();
         if (masterNode == null) {
-            impacts.add(new HealthIndicatorImpact(1, NO_MASTER_IMPACT, List.of(ImpactArea.INGEST)));
+            impacts.add(new HealthIndicatorImpact(1, NO_MASTER_INGEST_IMPACT, List.of(ImpactArea.INGEST)));
+            impacts.add(new HealthIndicatorImpact(1, NO_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)));
+            impacts.add(new HealthIndicatorImpact(3, NO_MASTER_BACKUP_IMPACT, List.of(ImpactArea.BACKUP)));
         }
 
         return createIndicator(instanceHasMasterStatus, instanceHasMasterSummary, includeDetails ? (builder, params) -> {

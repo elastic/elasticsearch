@@ -1,0 +1,5 @@
+pr: 86473
+summary: Account for realms in set enabled user action
+area: Authentication
+type: bug
+issues: []

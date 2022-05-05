@@ -19,11 +19,11 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
+import org.elasticsearch.xpack.ml.job.process.ProcessWorkerExecutorService;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.JOB_COMMS_THREAD_POOL_NAME;
@@ -80,7 +80,7 @@ public class DeploymentManagerTests extends ESTestCase {
             mock(PyTorchProcessFactory.class)
         );
 
-        ExecutorService executorService = mock(ExecutorService.class);
+        ProcessWorkerExecutorService executorService = mock(ProcessWorkerExecutorService.class);
         doThrow(new EsRejectedExecutionException("mock executor rejection")).when(executorService).execute(any(Runnable.class));
 
         AtomicInteger rejectedCount = new AtomicInteger();
@@ -96,6 +96,7 @@ public class DeploymentManagerTests extends ESTestCase {
             task,
             mock(InferenceConfig.class),
             Map.of(),
+            false,
             TimeValue.timeValueMinutes(1),
             ActionListener.wrap(result -> fail("unexpected success"), e -> assertThat(e, instanceOf(EsRejectedExecutionException.class)))
         );

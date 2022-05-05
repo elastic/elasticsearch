@@ -235,6 +235,7 @@ public class DeploymentManager {
         TrainedModelDeploymentTask task,
         InferenceConfig config,
         Map<String, Object> doc,
+        boolean skipQueue,
         TimeValue timeout,
         ActionListener<InferenceResults> listener
     ) {
@@ -256,7 +257,7 @@ public class DeploymentManager {
             listener
         );
 
-        executePyTorchAction(processContext, inferenceAction);
+        executePyTorchAction(processContext, skipQueue, inferenceAction);
     }
 
     public void updateNumAllocations(
@@ -282,12 +283,16 @@ public class DeploymentManager {
             listener
         );
 
-        executePyTorchAction(processContext, controlMessageAction);
+        executePyTorchAction(processContext, false, controlMessageAction);
     }
 
-    public void executePyTorchAction(ProcessContext processContext, AbstractPyTorchAction<?> action) {
+    public void executePyTorchAction(ProcessContext processContext, boolean skipQueue, AbstractPyTorchAction<?> action) {
         try {
-            processContext.getExecutorService().execute(action);
+            if (skipQueue == false) {
+                processContext.getExecutorService().execute(action);
+            } else {
+                processContext.getExecutorService().executeFirst(action, action.getTimeout());
+            }
         } catch (EsRejectedExecutionException e) {
             processContext.getRejectedExecutionCount().incrementAndGet();
             action.onFailure(e);
@@ -402,7 +407,7 @@ public class DeploymentManager {
         }
 
         // accessor used for mocking in tests
-        ExecutorService getExecutorService() {
+        ProcessWorkerExecutorService getExecutorService() {
             return executorService;
         }
 

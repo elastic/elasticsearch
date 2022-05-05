@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.job.process;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -19,8 +20,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
 
@@ -128,6 +131,45 @@ public class ProcessWorkerExecutorServiceTests extends ESTestCase {
         }
         Error e = expectThrows(Error.class, executor::start);
         assertThat(e.getMessage(), containsString("future error"));
+    }
+
+    public void testExecuteFirst() throws InterruptedException {
+        ProcessWorkerExecutorService executor = createExecutorService();
+
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch finished = new CountDownLatch(1);
+        threadPool.generic().submit(executor::start);
+
+        var order = new AtomicInteger();
+        var orderCalled = new AtomicIntegerArray(4);
+
+        // run a task that will block while the others are queued up
+        executor.execute(() -> {
+            try {
+                start.await();
+                orderCalled.set(0, order.incrementAndGet());
+            } catch (InterruptedException e) {
+                fail(e.getMessage());
+            }
+        });
+
+        executor.executeFirst(() -> { orderCalled.set(1, order.incrementAndGet()); }, TimeValue.timeValueMillis(1000));
+
+        executor.executeFirst(() -> { orderCalled.set(2, order.incrementAndGet()); }, TimeValue.timeValueMillis(1000));
+
+        executor.execute(() -> { orderCalled.set(3, order.incrementAndGet()); });
+
+        executor.execute(finished::countDown);
+
+        start.countDown();
+        finished.await();
+
+        assertThat(orderCalled.get(0), equalTo(1));
+        assertThat(orderCalled.get(1), equalTo(3)); // executeFirst
+        assertThat(orderCalled.get(2), equalTo(2)); // executeFirst
+        assertThat(orderCalled.get(3), equalTo(4));
+
+        executor.shutdown();
     }
 
     private ProcessWorkerExecutorService createExecutorService() {

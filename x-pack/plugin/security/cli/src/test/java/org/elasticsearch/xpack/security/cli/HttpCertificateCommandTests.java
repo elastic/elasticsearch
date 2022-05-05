@@ -709,7 +709,6 @@ public class HttpCertificateCommandTests extends ESTestCase {
         }
 
         ExtendedKeyUsage extendedKeyUsage = ExtendedKeyUsage.fromExtensions(extensions);
-        assertThat(extendedKeyUsage.getUsages(), arrayWithSize(1));
         assertThat(extendedKeyUsage.getUsages(), arrayContainingInAnyOrder(KeyPurposeId.id_kp_serverAuth));
     }
 

@@ -328,8 +328,7 @@ public class CertGenUtils {
      * @param principal the principal of the certificate; commonly referred to as the distinguished name (DN)
      * @param sanList   the subject alternative names that should be added to the certificate as an X509v3 extension. May be
      *                  {@code null}
-     * @param extendedKeyUsages the extended key usages that should be added to the certificate as an X509v3 extension. May be
-     *                  {@code null} or empty.
+     * @param extendedKeyUsages the extended key usages that should be added to the certificate as an X509v3 extension. May be empty.
      * @return a certificate signing request
      */
     static PKCS10CertificationRequest generateCSR(
@@ -341,6 +340,7 @@ public class CertGenUtils {
         Objects.requireNonNull(keyPair, "Key-Pair must not be null");
         Objects.requireNonNull(keyPair.getPublic(), "Public-Key must not be null");
         Objects.requireNonNull(principal, "Principal must not be null");
+        Objects.requireNonNull(extendedKeyUsages, "extendedKeyUsages must not be null");
         JcaPKCS10CertificationRequestBuilder builder = new JcaPKCS10CertificationRequestBuilder(principal, keyPair.getPublic());
 
         ExtensionsGenerator extGen = new ExtensionsGenerator();
@@ -348,10 +348,8 @@ public class CertGenUtils {
             extGen.addExtension(Extension.subjectAlternativeName, false, sanList);
         }
 
-        if (extendedKeyUsages != null) {
-            for (ExtendedKeyUsage extendedKeyUsage : extendedKeyUsages) {
-                extGen.addExtension(Extension.extendedKeyUsage, false, extendedKeyUsage);
-            }
+        for (ExtendedKeyUsage extendedKeyUsage : extendedKeyUsages) {
+            extGen.addExtension(Extension.extendedKeyUsage, false, extendedKeyUsage);
         }
 
         if (extGen.isEmpty() == false) {

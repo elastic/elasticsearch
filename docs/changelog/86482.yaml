@@ -1,0 +1,5 @@
+pr: 86482
+summary: Fix min node version before state recovery
+area: Infra/REST API
+type: bug
+issues: []

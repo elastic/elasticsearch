@@ -70,6 +70,14 @@ public class AuthenticationTestHelper {
         ServiceAccountSettings.REALM_TYPE
     );
 
+    private static final Set<User> INTERNAL_USERS = Set.of(
+        SystemUser.INSTANCE,
+        XPackUser.INSTANCE,
+        XPackSecurityUser.INSTANCE,
+        AsyncSearchUser.INSTANCE,
+        SecurityProfileUser.INSTANCE
+    );
+
     public static AuthenticationTestBuilder builder() {
         return new AuthenticationTestBuilder();
     }
@@ -161,6 +169,17 @@ public class AuthenticationTestHelper {
         }
     }
 
+    public static String randomInternalUsername() {
+        return builder().internal().build(false).getUser().principal();
+    }
+
+    /**
+     * @return non-empty collection of internal usernames
+     */
+    public static List<String> randomInternalUsernames() {
+        return ESTestCase.randomNonEmptySubsetOf(INTERNAL_USERS.stream().map(User::principal).toList());
+    }
+
     public static class AuthenticationTestBuilder {
         private Version version;
         private Authentication authenticatingAuthentication;
@@ -174,7 +193,7 @@ public class AuthenticationTestHelper {
         private AuthenticationTestBuilder() {}
 
         private AuthenticationTestBuilder(Authentication authentication) {
-            assert false == authentication.getUser().isRunAs() : "authenticating authentication cannot itself be run-as";
+            assert false == authentication.isRunAs() : "authenticating authentication cannot itself be run-as";
             this.authenticatingAuthentication = authentication;
             this.version = authentication.getVersion();
         }
@@ -238,15 +257,7 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder internal() {
-            return internal(
-                ESTestCase.randomFrom(
-                    SystemUser.INSTANCE,
-                    XPackUser.INSTANCE,
-                    XPackSecurityUser.INSTANCE,
-                    SecurityProfileUser.INSTANCE,
-                    AsyncSearchUser.INSTANCE
-                )
-            );
+            return internal(ESTestCase.randomFrom(INTERNAL_USERS));
         }
 
         public AuthenticationTestBuilder internal(User user) {
@@ -423,13 +434,7 @@ public class AuthenticationTestHelper {
                     }
                     case INTERNAL -> {
                         if (user == null) {
-                            user = ESTestCase.randomFrom(
-                                SystemUser.INSTANCE,
-                                XPackUser.INSTANCE,
-                                XPackSecurityUser.INSTANCE,
-                                SecurityProfileUser.INSTANCE,
-                                AsyncSearchUser.INSTANCE
-                            );
+                            user = ESTestCase.randomFrom(INTERNAL_USERS);
                         }
                         assert User.isInternal(user) : "user must be internal for internal authentication";
                         assert realmRef == null : "cannot specify realm type for internal authentication";

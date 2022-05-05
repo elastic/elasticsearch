@@ -68,34 +68,27 @@ public class WindowsServiceTests extends PackagingTestCase {
         return result;
     }
 
+    private void dumpServiceLogs() {
+        logger.warn("\n");
+        try (var logsDir = Files.list(installation.logs)) {
+            for (Path logFile : logsDir.toList()) {
+                String filename = logFile.getFileName().toString();
+                if (filename.startsWith("elasticsearch-service-x64")) {
+                    logger.warn(filename + "\n" + FileUtils.slurp(logFile));
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     private void assertExit(Result result, String script, int exitCode) {
         if (result.exitCode() != exitCode) {
             logger.error("---- Unexpected exit code (expected " + exitCode + ", got " + result.exitCode() + ") for script: " + script);
             logger.error(result);
             logger.error("Dumping log files\n");
             dumpDebug();
-            try (var logsDir = Files.list(installation.logs)) {
-                for (Path logFile : logsDir.toList()) {
-                    String filename = logFile.getFileName().toString();
-                    if (filename.startsWith("elasticsearch-service-x64")) {
-                        logger.warn(filename + "\n" + FileUtils.slurp(logFile));
-                    }
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-
-            /*Result logs = sh.run(
-                "$files = Get-ChildItem \""
-                    + installation.logs
-                    + "\\elasticsearch.log\"; "
-                    + "Write-Output $files; "
-                    + "foreach ($file in $files) {"
-                    + "    Write-Output \"$file\"; "
-                    + "    Get-Content \"$file\" "
-                    + "}"
-            );
-            logger.error(logs.stdout());*/
+            dumpServiceLogs();
             fail();
         } else {
             logger.info("\nscript: " + script + "\nstdout: " + result.stdout() + "\nstderr: " + result.stderr());
@@ -196,6 +189,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     public void test31StartNotInstalled() throws IOException {
         Result result = sh.runIgnoreExitCode(serviceScript + " start");
         assertThat(result.stderr(), result.exitCode(), equalTo(1));
+        dumpServiceLogs();
         assertThat(result.stderr(), containsString("Failed starting '" + DEFAULT_ID + "' service"));
     }
 

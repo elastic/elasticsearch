@@ -10,7 +10,6 @@ Evaluates a trained model.
 
 deprecated::[8.3.0,Replaced by <<infer-trained-model>>.]
 
-
 [[infer-trained-model-deployment-request]]
 == {api-request-title}
 

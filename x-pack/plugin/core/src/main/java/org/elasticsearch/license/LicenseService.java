@@ -15,10 +15,11 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -134,6 +135,9 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      * @see #ALLOWED_LICENSE_TYPES_SETTING
      */
     private final List<License.LicenseType> allowedLicenseTypes;
+
+    private final StartTrialClusterTask.Executor startTrialExecutor = new StartTrialClusterTask.Executor();
+    private final StartBasicClusterTask.Executor startBasicExecutor = new StartBasicClusterTask.Executor();
 
     /**
      * Max number of nodes licensed by generated trial license
@@ -303,42 +307,38 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 }
             }
 
-            clusterService.submitStateUpdateTask(
-                "register license [" + newLicense.uid() + "]",
-                new AckedClusterStateUpdateTask(request, listener) {
-                    @Override
-                    protected PutLicenseResponse newResponse(boolean acknowledged) {
-                        return new PutLicenseResponse(acknowledged, LicensesStatus.VALID);
-                    }
+            submitUnbatchedTask("register license [" + newLicense.uid() + "]", new AckedClusterStateUpdateTask(request, listener) {
+                @Override
+                protected PutLicenseResponse newResponse(boolean acknowledged) {
+                    return new PutLicenseResponse(acknowledged, LicensesStatus.VALID);
+                }
 
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-                        final Version oldestNodeVersion = currentState.nodes().getSmallestNonClientNodeVersion();
-                        if (licenseIsCompatible(newLicense, oldestNodeVersion) == false) {
-                            throw new IllegalStateException(
-                                "The provided license is not compatible with node version [" + oldestNodeVersion + "]"
-                            );
-                        }
-                        Metadata currentMetadata = currentState.metadata();
-                        LicensesMetadata licensesMetadata = currentMetadata.custom(LicensesMetadata.TYPE);
-                        Version trialVersion = null;
-                        if (licensesMetadata != null) {
-                            trialVersion = licensesMetadata.getMostRecentTrialVersion();
-                        }
-                        Metadata.Builder mdBuilder = Metadata.builder(currentMetadata);
-                        mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(newLicense, trialVersion));
-                        return ClusterState.builder(currentState).metadata(mdBuilder).build();
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
+                    final Version oldestNodeVersion = currentState.nodes().getSmallestNonClientNodeVersion();
+                    if (licenseIsCompatible(newLicense, oldestNodeVersion) == false) {
+                        throw new IllegalStateException(
+                            "The provided license is not compatible with node version [" + oldestNodeVersion + "]"
+                        );
                     }
-                },
-                newExecutor()
-            );
+                    Metadata currentMetadata = currentState.metadata();
+                    LicensesMetadata licensesMetadata = currentMetadata.custom(LicensesMetadata.TYPE);
+                    Version trialVersion = null;
+                    if (licensesMetadata != null) {
+                        trialVersion = licensesMetadata.getMostRecentTrialVersion();
+                    }
+                    Metadata.Builder mdBuilder = Metadata.builder(currentMetadata);
+                    mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(newLicense, trialVersion));
+                    return ClusterState.builder(currentState).metadata(mdBuilder).build();
+                }
+            });
         }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private static boolean licenseIsCompatible(License license, Version version) {
@@ -403,7 +403,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             "delete license",
             listener
         );
-        clusterService.submitStateUpdateTask(task.getDescription(), task, newExecutor());
+        clusterService.submitStateUpdateTask(
+            task.getDescription(),
+            task,
+            ClusterStateTaskConfig.build(Priority.NORMAL), // TODO should pass in request.masterNodeTimeout() here
+            startBasicExecutor
+        );
     }
 
     public License getLicense() {
@@ -426,8 +431,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                     + "]"
             );
         }
-        StartTrialClusterTask task = new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener);
-        clusterService.submitStateUpdateTask(StartTrialClusterTask.TASK_SOURCE, task, newExecutor());
+        clusterService.submitStateUpdateTask(
+            StartTrialClusterTask.TASK_SOURCE,
+            new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener),
+            ClusterStateTaskConfig.build(Priority.NORMAL), // TODO should pass in request.masterNodeTimeout() here
+            startTrialExecutor
+        );
     }
 
     void startBasicLicense(PostStartBasicRequest request, final ActionListener<PostStartBasicResponse> listener) {
@@ -439,7 +448,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             "start basic license",
             listener
         );
-        clusterService.submitStateUpdateTask(task.getDescription(), task, newExecutor());
+        clusterService.submitStateUpdateTask(
+            task.getDescription(),
+            task,
+            ClusterStateTaskConfig.build(Priority.NORMAL), // TODO should pass in request.masterNodeTimeout() here
+            startBasicExecutor
+        );
     }
 
     /**
@@ -449,10 +463,9 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      * a new basic license with no expiration date is generated.
      */
     private void registerOrUpdateSelfGeneratedLicense() {
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             StartupSelfGeneratedLicenseTask.TASK_SOURCE,
-            new StartupSelfGeneratedLicenseTask(settings, clock, clusterService),
-            newExecutor()
+            new StartupSelfGeneratedLicenseTask(settings, clock, clusterService)
         );
     }
 

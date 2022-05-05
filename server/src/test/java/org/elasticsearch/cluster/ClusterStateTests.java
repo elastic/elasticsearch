@@ -180,6 +180,7 @@ public class ClusterStateTests extends ESTestCase {
                   "name": "",
                   "ephemeral_id": "%s",
                   "transport_address": "127.0.0.1:111",
+                  "external_id": "",
                   "attributes": {},
                   "roles": [
                     "data",
@@ -390,6 +391,7 @@ public class ClusterStateTests extends ESTestCase {
                   "name" : "",
                   "ephemeral_id" : "%s",
                   "transport_address" : "127.0.0.1:111",
+                  "external_id" : "",
                   "attributes" : { },
                   "roles" : [
                     "data",
@@ -593,6 +595,7 @@ public class ClusterStateTests extends ESTestCase {
                   "name" : "",
                   "ephemeral_id" : "%s",
                   "transport_address" : "127.0.0.1:111",
+                  "external_id" : "",
                   "attributes" : { },
                   "roles" : [
                     "data",

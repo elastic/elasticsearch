@@ -42,6 +42,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
@@ -402,6 +404,9 @@ public class InferenceProcessor extends AbstractProcessor {
             } else if (configMap.containsKey(ZeroShotClassificationConfig.NAME)) {
                 checkNlpSupported(ZeroShotClassificationConfig.NAME);
                 return ZeroShotClassificationConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(QuestionAnsweringConfig.NAME)) {
+                checkNlpSupported(QuestionAnsweringConfig.NAME);
+                return QuestionAnsweringConfigUpdate.fromMap(valueMap);
             } else {
                 throw ExceptionsHelper.badRequestException(
                     "unrecognized inference configuration type {}. Supported types {}",

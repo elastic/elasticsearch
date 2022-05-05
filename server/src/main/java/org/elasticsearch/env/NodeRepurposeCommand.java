@@ -48,7 +48,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     }
 
     void testExecute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        execute(terminal, options, env);
+        execute(terminal, options, env, null);
     }
 
     @Override

@@ -25,10 +25,10 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
@@ -40,10 +40,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
@@ -104,6 +106,53 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final IngestMetric totalMetrics = new IngestMetric();
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
+
+    /**
+     * Cluster state task executor for ingest pipeline operations
+     */
+    private static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = (currentState, taskContexts) -> {
+        ClusterState state = currentState;
+        for (final var taskContext : taskContexts) {
+            try {
+                final var task = taskContext.getTask();
+                state = task.execute(state);
+                taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
+            } catch (Exception e) {
+                taskContext.onFailure(e);
+            }
+        }
+        return state;
+    };
+
+    /**
+     * Specialized cluster state update task specifically for ingest pipeline operations.
+     * These operations all receive an AcknowledgedResponse.
+     */
+    private abstract static class PipelineClusterStateUpdateTask extends ClusterStateUpdateTask {
+        private final ActionListener<AcknowledgedResponse> listener;
+
+        PipelineClusterStateUpdateTask(TimeValue timeout, ActionListener<AcknowledgedResponse> listener) {
+            super(timeout);
+            this.listener = listener;
+        }
+
+        public abstract ClusterState doExecute(ClusterState currentState) throws Exception;
+
+        @Override
+        public ClusterState execute(ClusterState currentState) throws Exception {
+            return doExecute(currentState);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        }
+    }
 
     public IngestService(
         ClusterService clusterService,
@@ -285,17 +334,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Deletes the pipeline specified by id in the request.
      */
     public void delete(DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("delete-pipeline-" + request.getId(), new AckedClusterStateUpdateTask(request, listener) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return innerDelete(request, currentState);
-            }
-        }, newExecutor());
+        clusterService.submitStateUpdateTask(
+            "delete-pipeline-" + request.getId(),
+            new PipelineClusterStateUpdateTask(request.timeout(), listener) {
+                @Override
+                public ClusterState doExecute(ClusterState currentState) {
+                    return innerDelete(request, currentState);
+                }
+            },
+            ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
+            PIPELINE_TASK_EXECUTOR
+        );
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static ClusterState innerDelete(DeletePipelineRequest request, ClusterState currentState) {
@@ -443,12 +497,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
 
             validatePipeline(ingestInfos, request.getId(), config);
-            clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(), new AckedClusterStateUpdateTask(request, listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return innerPut(request, currentState);
-                }
-            }, newExecutor());
+            clusterService.submitStateUpdateTask(
+                "put-pipeline-" + request.getId(),
+                new PipelineClusterStateUpdateTask(request.timeout(), listener) {
+                    @Override
+                    public ClusterState doExecute(ClusterState currentState) {
+                        return innerPut(request, currentState);
+                    }
+                },
+                ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
+                PIPELINE_TASK_EXECUTOR
+            );
         }, listener::onFailure));
     }
 
@@ -852,6 +911,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 itemDroppedHandler.accept(slot);
                 handler.accept(null);
             } else {
+                try {
+                    CollectionUtils.ensureNoSelfReferences(result.getSourceAndMetadata(), "ingest pipeline [" + pipeline.getId() + "]");
+                } catch (IllegalArgumentException ex) {
+                    totalMetrics.ingestFailed();
+                    handler.accept(ex);
+                    return;
+                }
                 Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
 
                 String newIndex = (String) metadataMap.get(IngestDocument.Metadata.INDEX);

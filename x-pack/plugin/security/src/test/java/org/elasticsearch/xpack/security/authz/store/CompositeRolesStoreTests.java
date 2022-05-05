@@ -55,8 +55,8 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -1481,14 +1481,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final Version version = randomFrom(Version.CURRENT, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_1));
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
-            createAuthentication(),
+            randomValueOtherThanMany(
+                authc -> authc.getAuthenticationType() == AuthenticationType.API_KEY,
+                () -> AuthenticationTestHelper.builder().build()
+            ),
             Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[] { "manage" }, null, null)),
             null,
             version
         );
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
-        compositeRolesStore.getRole(AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject(), roleFuture);
+        compositeRolesStore.getRole(authentication.getEffectiveSubject(), roleFuture);
         Role role = roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
 
@@ -1554,7 +1557,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final Version version = randomFrom(Version.CURRENT, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_1));
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
-            createAuthentication(),
+            randomValueOtherThanMany(
+                authc -> authc.getAuthenticationType() == AuthenticationType.API_KEY,
+                () -> AuthenticationTestHelper.builder().build()
+            ),
             Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[] { "manage" }, null, null)),
             Collections.singletonList(new RoleDescriptor("key_role_" + randomAlphaOfLength(8), new String[] { "monitor" }, null, null)),
             version
@@ -1562,7 +1568,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final String apiKeyId = (String) authentication.getMetadata().get(API_KEY_ID_KEY);
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
-        compositeRolesStore.getRole(AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject(), roleFuture);
+        compositeRolesStore.getRole(authentication.getEffectiveSubject(), roleFuture);
         Role role = roleFuture.actionGet();
         assertThat(role.checkClusterAction("cluster:admin/foo", Empty.INSTANCE, mock(Authentication.class)), is(false));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
@@ -1615,46 +1621,23 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final BytesReference limitedByRoleDescriptorBytes = new BytesArray("{\"a\":{\"cluster\":[\"all\"]}}");
 
         final User authenticatedUser1 = new User("authenticated_user");
-        final Authentication authentication1 = new Authentication(
-            new User(new User(randomAlphaOfLengthBetween(3, 8)), authenticatedUser1),
-            new RealmRef("_es_api_key", "_es_api_key", randomAlphaOfLength(8)),
-            new RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLength(8)),
-            Version.CURRENT,
-            AuthenticationType.API_KEY,
-            Map.of(
-                API_KEY_ID_KEY,
-                apiKeyId,
-                API_KEY_ROLE_DESCRIPTORS_KEY,
-                roleDescriptorBytes,
-                API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                limitedByRoleDescriptorBytes
+        final Authentication authentication1 = AuthenticationTestHelper.builder()
+            .apiKey(apiKeyId)
+            .metadata(
+                Map.of(
+                    API_KEY_ROLE_DESCRIPTORS_KEY,
+                    roleDescriptorBytes,
+                    API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                    limitedByRoleDescriptorBytes
+                )
             )
-        );
+            .runAs()
+            .build();
+
         final PlainActionFuture<Role> future1 = new PlainActionFuture<>();
-        compositeRolesStore.getRole(AuthenticationContext.fromAuthentication(authentication1).getAuthenticatingSubject(), future1);
+        compositeRolesStore.getRole(authentication1.getAuthenticatingSubject(), future1);
         future1.actionGet();
         verify(apiKeyService).parseRoleDescriptorsBytes(apiKeyId, limitedByRoleDescriptorBytes, RoleReference.ApiKeyRoleType.LIMITED_BY);
-
-        // Service account run as
-        final User authenticatedUser2 = new User("elastic/some-service");
-        final Authentication authentication2 = new Authentication(
-            new User(new User(randomAlphaOfLengthBetween(3, 8)), authenticatedUser2),
-            new RealmRef("_service_account", "_service_account", randomAlphaOfLength(8)),
-            new RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLength(8)),
-            Version.CURRENT,
-            AuthenticationType.TOKEN,
-            Map.of()
-        );
-        final PlainActionFuture<Role> future2 = new PlainActionFuture<>();
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            final ActionListener<RoleDescriptor> listener = (ActionListener<RoleDescriptor>) invocation.getArguments()[1];
-            listener.onResponse(new RoleDescriptor(authenticatedUser2.principal(), null, null, null));
-            return null;
-        }).when(serviceAccountService).getRoleDescriptorForPrincipal(eq(authenticatedUser2.principal()), anyActionListener());
-        compositeRolesStore.getRole(AuthenticationContext.fromAuthentication(authentication2).getAuthenticatingSubject(), future2);
-        future2.actionGet();
-        verify(serviceAccountService).getRoleDescriptorForPrincipal(eq(authenticatedUser2.principal()), anyActionListener());
     }
 
     public void testUsageStats() {
@@ -1812,17 +1795,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
         metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);
         metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
-        Authentication authentication = new Authentication(
-            new User("test api key user", "superuser"),
-            new RealmRef("_es_api_key", "_es_api_key", "node"),
-            null,
-            Version.CURRENT,
-            AuthenticationType.API_KEY,
-            metadata
-        );
+        Authentication authentication = AuthenticationTestHelper.builder().apiKey().metadata(metadata).build();
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
-        compositeRolesStore.getRole(AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject(), roleFuture);
+        compositeRolesStore.getRole(authentication.getEffectiveSubject(), roleFuture);
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verify(apiKeyService).parseRoleDescriptorsBytes("key-id-1", roleBytes, RoleReference.ApiKeyRoleType.ASSIGNED);
@@ -1834,16 +1810,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         metadata2.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
         metadata2.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);
         metadata2.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
-        authentication = new Authentication(
-            new User("test api key user 2", "superuser"),
-            new RealmRef("_es_api_key", "_es_api_key", "node"),
-            null,
-            Version.CURRENT,
-            AuthenticationType.API_KEY,
-            metadata2
-        );
+        authentication = AuthenticationTestHelper.builder().apiKey().metadata(metadata2).build();
         roleFuture = new PlainActionFuture<>();
-        compositeRolesStore.getRole(AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject(), roleFuture);
+        compositeRolesStore.getRole(authentication.getEffectiveSubject(), roleFuture);
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verify(apiKeyService, never()).parseRoleDescriptorsBytes(eq("key-id-2"), any(BytesReference.class), any());
@@ -1855,46 +1824,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
         metadata3.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
         metadata3.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, anotherRoleBytes);
         metadata3.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
-        authentication = new Authentication(
-            new User("test api key user 2", "superuser"),
-            new RealmRef("_es_api_key", "_es_api_key", "node"),
-            null,
-            Version.CURRENT,
-            AuthenticationType.API_KEY,
-            metadata3
-        );
+        authentication = AuthenticationTestHelper.builder().apiKey().metadata(metadata3).build();
         roleFuture = new PlainActionFuture<>();
-        compositeRolesStore.getRole(AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject(), roleFuture);
+        compositeRolesStore.getRole(authentication.getEffectiveSubject(), roleFuture);
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verify(apiKeyService).parseRoleDescriptorsBytes("key-id-3", anotherRoleBytes, RoleReference.ApiKeyRoleType.ASSIGNED);
-    }
-
-    private Authentication createAuthentication() {
-        final RealmRef lookedUpBy;
-        final User user;
-        if (randomBoolean()) {
-            user = new User(
-                "_username",
-                randomBoolean() ? new String[] { "r1" } : new String[] { ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName() },
-                new User("authenticated_username", new String[] { "r2" })
-            );
-            lookedUpBy = new RealmRef("lookRealm", "up", "by");
-        } else {
-            user = new User(
-                "_username",
-                randomBoolean() ? new String[] { "r1" } : new String[] { ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName() }
-            );
-            lookedUpBy = null;
-        }
-        return new Authentication(
-            user,
-            new RealmRef("authRealm", "test", "foo"),
-            lookedUpBy,
-            Version.CURRENT,
-            randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN, AuthenticationType.INTERNAL, AuthenticationType.ANONYMOUS),
-            Collections.emptyMap()
-        );
     }
 
     public void testXPackSecurityUserCanAccessAnyIndex() {

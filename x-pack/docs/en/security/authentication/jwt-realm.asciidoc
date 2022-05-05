@@ -40,22 +40,17 @@ way to enable OIDC authentication in {kib}.
 [[jwt-realm-configuration]]
 ==== Configure {es} to use a JWT realm
 
-To use JWT authentication, you create the realm in the `elasticsearch.yml` file
+To use JWT authentication, create the realm in the `elasticsearch.yml` file
 to configure it within the {es} authentication chain.
 
 The JWT realm has a few mandatory settings, plus optional settings that are
-described in <<ref-jwt-settings,JWT realm settings>>. The following example
-includes the most common settings. After defining settings, use the
-{ref}/elasticsearch-keystore.html[`elasticsearch-keystore`] tool to store
-values in the {es} keystore.
+described in <<ref-jwt-settings,JWT realm settings>>.
 
-NOTE: The example values are not intended for every use case, and are included
-only to highlight some common settings for this realm.
+NOTE: Client authentication is enabled by default for the JWT realms. Disabling
+client authentication is possible, but strongly discouraged.
 
-Client authentication is enabled by default for the JWT realms. Disabling client
-authentication is possible, but strongly discouraged.
-
-. Add your JWT realm to the `elasticsearch.yml` file:
+. Add your JWT realm to the `elasticsearch.yml` file. The following example
+includes the most common settings, which are not intended for every use case:
 +
 --
 [source,yaml]
@@ -104,14 +99,18 @@ The name of the JWT claim that contains the user's principal (username).
 
 --
 
-. Store the `shared_secret` value for `client_authentication.type`:
+. After defining settings, use the
+{ref}/elasticsearch-keystore.html[`elasticsearch-keystore`] tool to store
+values for secure settings in the {es} keystore.
+
+.. Store the `shared_secret` value for `client_authentication.type`:
 +
 [source,shell]
 ----
 bin/elasticsearch-keystore add xpack.security.authc.realms.jwt.jwt1.client_authentication.shared_secret
 ----
 
-. Store the HMAC keys for `allowed_signature_algorithms`, which use the HMAC
+.. Store the HMAC keys for `allowed_signature_algorithms`, which use the HMAC
 SHA-256 algorithm `HS256` in the example:
 +
 [source,shell]
@@ -119,14 +118,14 @@ SHA-256 algorithm `HS256` in the example:
 bin/elasticsearch-keystore add-file xpack.security.authc.realms.jwt.jwt1.hmac_jwkset <path> <1>
 ----
 <1> Path to a JWKS, which is a resource for a set of JSON-encoded secret keys.
-The file can be removed after the contents are loaded into the {es} keystore setting.
+The file can be removed after you load the contents into the {es} keystore.
 +
 [NOTE]
 ====
-Using the JWK Set is preferred. However, you can add an HMAC key in string format
+Using the JWKS is preferred. However, you can add an HMAC key in string format
 using the following command. This format is compatible with OIDC HMAC keys, but
 only supports a single key with no attributes. You can only use one HMAC format
-simultaneously.
+(either `hmac_jwkset`or `hmac_key`) simultaneously.
 
 [source,shell]
 ----
@@ -158,8 +157,8 @@ Signature: UnnFmsoFKfNmKMsVoDQmKI_3-j95PCaKdgqqau3jPMY
 This example illustrates a partial decoding of a JWT. The validity period is
 from 2000 to 2099 (inclusive), as defined by the issue time (`iat`) and
 expiration time (`exp`). JWTs typically have a validity period shorter than
-100 years. The signature in this example is deterministic because the header,
-claims, and HMAC key are fixed.
+100 years, so a single JWT can span an entire human life. The signature in this
+example is deterministic because the header, claims, and HMAC key are fixed.
 
 The supported JWT encoding is JSON Web Signature (JWS). The JWS `Header` and
 `Signature` are validated using OpenID Connect ID Token validation rules. Some
@@ -261,49 +260,6 @@ as well as delegating authorization to another realm.
 IMPORTANT: You cannot map roles in the JWT realm using the `role_mapping.yml`
 file.
 
-You can also apply the <<run-as-privilege-apply,`run_as` privilege>> to JWT
-realm users. If a user's roles in the JWT realm mapping contain the `run_as`
-privilege, that user can submit requests on behalf of the specified users. Any
-requests from users with this privilege contain an `es_run_as` header in
-requests, allowing the request to run as a different user from another realm and
-use that user's roles.
-
-For example, the following request creates a user role named `jwt_role1`, which
-specifies a `run_as` user named `user123_runas`. Any user with this role can
-issue requests as the specified user.
-
-[source,console]
-----
-POST /_security/role/jwt_role1?refresh=true
-{
-  "cluster": ["manage"],
-  "indices": [ { "names": [ "*" ], "privileges": ["read"] } ],
-  "run_as": [ "user123_runas" ],
-  "metadata" : { "version" : 1 }
-}
-----
-
-You can then map that role to a user in a specific realm. The following request
-maps the `jwt_role1` role to a user with the username `user2` in the `jwt2`
-realm. This means that {es} will use the `jwt2` realm to authenticate the user
-named `user2`. Because `user2` has a role that includes the `run_as` privilege,
-{es} retrieves the role mappings for the `user123_runas` user and uses the roles
-for that user to submit requests.
-
-[source,console]
-----
-POST /_security/role_mapping/jwt_user1?refresh=true
-{
-  "roles": [ "jwt_role1"],
-  "rules" : { "all" : [
-      { "field": { "realm.name": "jwt2" } },
-      { "field": { "username": "user2" } }
-  ] },
-  "enabled": true,
-  "metadata" : { "version" : 1 }
-}
-----
-
 ===== Authorizing with the role mapping API
 You can use the
 <<security-api-put-role-mapping,create or update role mappings API>> to define
@@ -388,11 +344,93 @@ If realm `jwt2` successfully authenticates a client with a JWT for principal
 this defined role mapping, the realm can also look up this role mapping rule
 linked to realm `native1`.
 
+===== Applying the `run_as` privilege to roles
+
+You can also apply the <<run-as-privilege-apply,`run_as` privilege>> to JWT
+realm users. If a user's roles in the JWT realm mapping contains the `run_as`
+privilege, that user can submit requests on behalf of the specified `run_as`
+user. To submit requests as another user, include the `es-security-runas-user`
+header in your requests. Requests run as if they were issued from that user and
+{es} uses their roles.
+
+For example, let's assume that there's a user with the username `user123_runas`.
+The following request creates a user role named `jwt_role1`, which specifies a
+`run_as` user with the `user123_runas` username. Any user with the `jwt_role1`
+role can issue requests as the specified `run_as` user.
+
+[source,console]
+----
+POST /_security/role/jwt_role1?refresh=true
+{
+  "cluster": ["manage"],
+  "indices": [ { "names": [ "*" ], "privileges": ["read"] } ],
+  "run_as": [ "user123_runas" ],
+  "metadata" : { "version" : 1 }
+}
+----
+
+You can then map that role to a user in a specific realm. The following request
+maps the `jwt_role1` role to a user with the username `user2` in the `jwt2` JWT
+realm. This means that {es} will use the `jwt2` realm to authenticate the user
+named `user2`. Because `user2` has a role (the `jwt_role1` role) that includes
+the `run_as` privilege, {es} retrieves the role mappings for the `user123_runas`
+user and uses the roles for that user to submit requests.
+
+[source,console]
+----
+POST /_security/role_mapping/jwt_user1?refresh=true
+{
+  "roles": [ "jwt_role1"],
+  "rules" : { "all" : [
+      { "field": { "realm.name": "jwt2" } },
+      { "field": { "username": "user2" } }
+  ] },
+  "enabled": true,
+  "metadata" : { "version" : 1 }
+}
+----
+
+After mapping the roles, you can make an
+<<security-api-authenticate,authenticated call>> to {es} using a JWT and include
+the `ES-Client-Authentication` header:
+
+[source,sh]
+----
+curl -s -X GET -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhdWQiOlsiZXMwMSIsImVzMDIiLCJlczAzIl0sInN1YiI6InVzZXIyIiwiaXNzIjoibXktaXNzdWVyIiwiZXhwIjo0MDcwOTA4ODAwLCJpYXQiOjk0NjY4NDgwMCwiZW1haWwiOiJ1c2VyMkBzb21ldGhpbmcuZXhhbXBsZS5jb20ifQ.UgO_9w--EoRyUKcWM5xh9SimTfMzl1aVu6ZBsRWhxQA" -H "ES-Client-Authentication: sharedsecret test-secret" https://localhost:9200/_security/_authenticate
+----
+// NOTCONSOLE
+
+The response includes the user who submitted the request (`user2`), including
+the `jwt_role1` role that you mapped to this user in the JWT realm:
+
+[source,sh]
+----
+{"username":"user2","roles":["jwt_role1"],"full_name":null,"email":"user2@something.example.com","metadata":{"jwt_claim_email":"user2@something.example.com","jwt_claim_aud":["es01","es02","es03"],"jwt_claim_sub":"user2","jwt_claim_iss":"my-issuer"},"enabled":true,"authentication_realm":{"name":"jwt2","type":"jwt"},"lookup_realm":{"name":"jwt2","type":"jwt"},"authentication_type":"realm"}% 
+----
+
+If you want to specify a request as the `run_as` user, include the
+the `es-security-runas-user` header with the name of the user that you
+want to submit requests as. The following request uses the `user123_runas` user:
+
+[source,sh]
+----
+curl -s -X GET -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhdWQiOlsiZXMwMSIsImVzMDIiLCJlczAzIl0sInN1YiI6InVzZXIyIiwiaXNzIjoibXktaXNzdWVyIiwiZXhwIjo0MDcwOTA4ODAwLCJpYXQiOjk0NjY4NDgwMCwiZW1haWwiOiJ1c2VyMkBzb21ldGhpbmcuZXhhbXBsZS5jb20ifQ.UgO_9w--EoRyUKcWM5xh9SimTfMzl1aVu6ZBsRWhxQA" -H "ES-Client-Authentication: sharedsecret test-secret" -H "es-security-runas-user: user123_runas" https://localhost:9200/_security/_authenticate
+----
+// NOTCONSOLE
+
+In the response, you'll see that the `user123_runas` user submitted the request,
+and {es} used the `jwt_role1` role:
+
+[source,sh]
+----
+{"username":"user123_runas","roles":["jwt_role1"],"full_name":null,"email":null,"metadata":{},"enabled":true,"authentication_realm":{"name":"jwt2","type":"jwt"},"lookup_realm":{"name":"native","type":"native"},"authentication_type":"realm"}% 
+----
+
 [[hmac-oidc-example]]
 ==== Authorizing to the JWT realm with an OIDC HMAC key
 The following settings are for a JWT issuer, {es}, and a client of {es}. The
-example HMAC key is in an OIDC HMAC compatible format. The key bytes are the
-UTF-8 encoding of the UNICODE characters.
+example HMAC key is in an OIDC format that's compatible with HMAC. The key bytes
+are the UTF-8 encoding of the UNICODE characters.
 
 IMPORTANT: HMAC UTF-8 keys need to be longer than HMAC random byte keys to
 achieve the same key strength.
@@ -424,7 +462,7 @@ xpack.security.authc.realms.jwt.jwt8.claims.principal: sub
 xpack.security.authc.realms.jwt.jwt8.client_authentication.type: shared_secret
 ----
 <1> In {ess}, the realm order starts at `2`. `0` and `1` are reserved in the
-realm chain.
+realm chain on {ess}.
 
 ===== JWT realm secure settings
 After defining the realm settings, use the 

@@ -6,9 +6,9 @@
 <titleabbrev>Start trained model deployment</titleabbrev>
 ++++
 
-experimental::[]
-
 Starts a new trained model deployment.
+
+preview::[]
 
 [[start-trained-model-deployment-request]]
 == {api-request-title}

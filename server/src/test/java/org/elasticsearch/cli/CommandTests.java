@@ -53,11 +53,6 @@ public class CommandTests extends CommandTestCase {
             terminal.println("Some extra help");
         }
 
-        @Override
-        protected boolean addShutdownHook() {
-            return false;
-        }
-
     }
 
     public void testHelp() throws Exception {

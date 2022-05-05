@@ -315,8 +315,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {
         MetadataCreateIndexService s = mock(MetadataCreateIndexService.class);
         when(s.getSystemIndices()).thenReturn(getSystemIndices());
-        when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean())).thenAnswer(
-            mockInvocation -> {
+        when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any()))
+            .thenAnswer(mockInvocation -> {
                 ClusterState currentState = (ClusterState) mockInvocation.getArguments()[0];
                 CreateIndexClusterStateUpdateRequest request = (CreateIndexClusterStateUpdateRequest) mockInvocation.getArguments()[1];
 
@@ -337,8 +337,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                         false
                     );
                 return ClusterState.builder(currentState).metadata(b.build()).build();
-            }
-        );
+            });
 
         return s;
     }

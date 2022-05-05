@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.Inferenc
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,17 +40,6 @@ public class InferenceIT extends ESRestTestCase {
         SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
     );
 
-    @Before
-    public void setup() throws Exception {
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
-            {"persistent" : {
-                    "logger.org.elasticsearch.xpack.ml.inference" : "TRACE"
-                }}""");
-        client().performRequest(loggingSettings);
-        client().performRequest(new Request("GET", "/_cluster/health?wait_for_status=green&timeout=30s"));
-    }
-
     @Override
     protected Settings restClientSettings() {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
@@ -60,12 +48,6 @@ public class InferenceIT extends ESRestTestCase {
     @After
     public void cleanUpData() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
-            {"persistent" : {
-                    "logger.org.elasticsearch.xpack.ml.inference" : null
-                }}""");
-        client().performRequest(loggingSettings);
     }
 
     @SuppressWarnings("unchecked")

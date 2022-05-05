@@ -18,10 +18,12 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
 /**
  * Transport action that handles setting a native or reserved user to enabled
@@ -70,10 +72,16 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
     }
 
     private boolean isSameUserRequest(SetEnabledRequest request) {
-        Authentication.RealmRef realmRef = securityContext.getAuthentication().getEffectiveSubject().getRealm();
-        if (realmRef.getType().equals(NativeRealmSettings.TYPE) == false) {
+        Authentication authentication = securityContext.getAuthentication();
+        String realmType = authentication.getEffectiveSubject().getRealm().getType();
+        final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
+        if (authType.equals(Authentication.AuthenticationType.REALM)
+            && (ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType))) {
+            return securityContext.getUser().principal().equals(request.username());
+        } else {
+            // Only native or reserved realm users can be disabled via the API. If the realm of the authenticated user is neither,
+            // the target must be a different user
             return false;
         }
-        return securityContext.getUser().principal().equals(request.username());
     }
 }

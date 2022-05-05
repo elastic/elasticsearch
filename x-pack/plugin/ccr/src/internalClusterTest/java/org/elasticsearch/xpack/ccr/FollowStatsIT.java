@@ -9,11 +9,8 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
@@ -40,20 +37,17 @@ import static org.hamcrest.collection.IsEmptyCollection.empty;
 public class FollowStatsIT extends CcrSingleNodeTestCase {
 
     /**
-     * Previously we would throw a NullPointerException when there was no persistent tasks metadata in the cluster state. This tests
-     * maintains that we do not make this mistake again.
+     * This test ensures no errors occur when there are no related persistent tasks metadata in the cluster state.
      *
      * @throws InterruptedException if we are interrupted waiting on the latch to countdown
      */
     public void testStatsWhenNoPersistentTasksMetadataExists() throws InterruptedException {
-        final ClusterStateResponse response = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
-        assertNull(response.getState().metadata().custom(PersistentTasksCustomMetadata.TYPE));
         final AtomicBoolean onResponse = new AtomicBoolean();
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(
             FollowStatsAction.INSTANCE,
             new FollowStatsAction.StatsRequest(),
-            new ActionListener<FollowStatsAction.StatsResponses>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(final FollowStatsAction.StatsResponses statsResponses) {
                     try {

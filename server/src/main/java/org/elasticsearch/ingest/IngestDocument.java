@@ -53,6 +53,8 @@ public final class IngestDocument {
     private final Map<String, Object> sourceAndMetadata;
     private final Map<String, Object> ingestMetadata;
 
+    private final IngestDocumentMetadata ingestDocumentMetadata;
+
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
 
@@ -60,6 +62,8 @@ public final class IngestDocument {
         // source + at max 5 extra fields
         this.sourceAndMetadata = Maps.newMapWithExpectedSize(source.size() + 5);
         this.sourceAndMetadata.putAll(source);
+        ingestDocumentMetadata = new IngestDocumentMetadata(index, id, routing, version, versionType, ZonedDateTime.now(ZoneOffset.UTC));
+        /*
         this.sourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
         this.sourceAndMetadata.put(Metadata.ID.getFieldName(), id);
         if (routing != null) {
@@ -71,8 +75,9 @@ public final class IngestDocument {
         if (versionType != null) {
             sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
         }
+         */
         this.ingestMetadata = new HashMap<>();
-        this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
+        this.ingestMetadata.put(TIMESTAMP, ingestDocumentMetadata.getTimestamp());
     }
 
     /**
@@ -90,6 +95,7 @@ public final class IngestDocument {
     public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = sourceAndMetadata;
         this.ingestMetadata = ingestMetadata;
+        this.ingestDocumentMetadata = new IngestDocumentMetadata(ingestMetadata.get(TIMESTAMP) instanceof ZonedDateTime zdt ? zdt : null);
     }
 
     /**
@@ -732,6 +738,10 @@ public final class IngestDocument {
         return this.ingestMetadata;
     }
 
+    public IngestDocumentMetadata getIngestDocumentMetadata() {
+        return ingestDocumentMetadata;
+    }
+
     /**
      * Returns the document including its metadata fields, unless {@link #extractMetadata()} has been called, in which case the
      * metadata fields will not be present anymore.
@@ -864,6 +874,75 @@ public final class IngestDocument {
     @Override
     public String toString() {
         return "IngestDocument{" + " sourceAndMetadata=" + sourceAndMetadata + ", ingestMetadata=" + ingestMetadata + '}';
+    }
+
+    private class IngestDocumentMetadata extends org.elasticsearch.script.field.Metadata {
+        private final ZonedDateTime timestamp;
+
+        IngestDocumentMetadata(ZonedDateTime timestamp) {
+            super(Metadata.INDEX.fieldName, Metadata.ID.fieldName, Metadata.ROUTING.fieldName, Metadata.VERSION.fieldName,
+                Metadata.VERSION_TYPE.fieldName, null);
+            this.timestamp = timestamp;
+        }
+
+        IngestDocumentMetadata(String index, String id, String routing, Long version, VersionType versionType, ZonedDateTime timestamp) {
+            this(timestamp);
+            setIndex(Objects.requireNonNull(index));
+            setId(Objects.requireNonNull(id));
+            if (routing != null) {
+                setRouting(routing);
+            }
+
+            if (version != null) {
+                setVersion(version);
+            }
+
+            if (versionType != null) {
+                setVersionType(versionType);
+            }
+        }
+
+        @Override
+        public void setVersionType(Object versionType) {
+            if (versionType instanceof VersionType vt) {
+                put(versionTypeKey, VersionType.toString(vt));
+            } else if (versionType instanceof String str) {
+                // validate, throws IllegalArgumentException
+                VersionType.fromString(str);
+                put(versionTypeKey, str);
+            } else if (versionType == null) {
+                put(versionTypeKey, null);
+            } else {
+                throw new IllegalArgumentException("invalid version type [" + versionType + "]");
+            }
+        }
+
+        @Override
+        public ZonedDateTime getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public String getOp() {
+            throw new UnsupportedOperationException("cannot get op in ingest pipeline");
+        }
+
+        @Override
+        public void setOp(Object op) {
+            throw new UnsupportedOperationException("cannot set op in ingest pipeline");
+        }
+
+        @Override
+        protected void put(String key, Object value) {
+            ensureKeyNotNull(key);
+            sourceAndMetadata.put(key, value);
+        }
+
+        @Override
+        protected Object get(String key) {
+            ensureKeyNotNull(key);
+            return sourceAndMetadata.get(key);
+        }
     }
 
     public enum Metadata {

@@ -9,12 +9,15 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.script.field.Metadata;
+
 import java.util.Map;
 
 /**
  * An update script.
  */
 public abstract class UpdateScript {
+    // TODO(stu): change
 
     public static final String[] PARAMETERS = {};
 
@@ -24,11 +27,14 @@ public abstract class UpdateScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
+    private final Metadata metadata;
+
     /** The update context for the script. */
     private final Map<String, Object> ctx;
 
-    public UpdateScript(Map<String, Object> params, Map<String, Object> ctx) {
+    public UpdateScript(Map<String, Object> params, Metadata metadata, Map<String, Object> ctx) {
         this.params = params;
+        this.metadata = metadata;
         this.ctx = ctx;
     }
 
@@ -42,9 +48,11 @@ public abstract class UpdateScript {
         return ctx;
     }
 
+    public Metadata meta() { return metadata; }
+
     public abstract void execute();
 
     public interface Factory {
-        UpdateScript newInstance(Map<String, Object> params, Map<String, Object> ctx);
+        UpdateScript newInstance(Map<String, Object> params, Metadata metadata, Map<String, Object> ctx);
     }
 }

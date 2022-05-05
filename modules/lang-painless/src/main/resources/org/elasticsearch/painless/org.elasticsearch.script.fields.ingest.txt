@@ -1,0 +1,39 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+# This file contains a whitelist for the fields API for ingest scripts
+
+class org.elasticsearch.script.field.Metadata {
+    String getIndex()
+    void setIndex(String)
+
+    String getId()
+    void setId(String)
+
+    String getRouting()
+    void setRouting(String)
+
+    long getVersion()
+    void setVersion(long)
+
+    String getVersionType()
+    void setVersionType(def)
+
+    String getOp()
+    void setOp(def)
+
+    ZonedDateTime getTimestamp()
+}
+
+class org.elasticsearch.script.IngestScript {
+    Metadata meta()
+}
+
+class org.elasticsearch.script.UpdateScript {
+    Metadata meta()
+}

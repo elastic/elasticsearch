@@ -146,9 +146,9 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(StringSortScript.class)) {
             return context.factoryClazz.cast(new MockStringSortScriptFactory(script));
         } else if (context.instanceClazz.equals(IngestScript.class)) {
-            IngestScript.Factory factory = vars -> new IngestScript(vars) {
+            IngestScript.Factory factory = (vars, meta, ctx) -> new IngestScript(vars, meta, ctx) {
                 @Override
-                public void execute(Map<String, Object> ctx) {
+                public void execute() {
                     script.apply(ctx);
                 }
             };
@@ -164,7 +164,7 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(UpdateScript.class)) {
-            UpdateScript.Factory factory = (parameters, ctx) -> new UpdateScript(parameters, ctx) {
+            UpdateScript.Factory factory = (parameters, meta, ctx) -> new UpdateScript(parameters, meta, ctx) {
                 @Override
                 public void execute() {
                     final Map<String, Object> vars = new HashMap<>();

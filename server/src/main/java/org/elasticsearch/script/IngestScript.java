@@ -10,6 +10,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.script.field.Metadata;
 
 import java.util.Map;
 
@@ -18,7 +19,7 @@ import java.util.Map;
  */
 public abstract class IngestScript {
 
-    public static final String[] PARAMETERS = { "ctx" };
+    public static final String[] PARAMETERS = {};
 
     /** The context used to compile {@link IngestScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>(
@@ -33,8 +34,15 @@ public abstract class IngestScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    public IngestScript(Map<String, Object> params) {
+    /** The update context for the script. */
+    private final Map<String, Object> ctx;
+
+    private final Metadata metadata;
+
+    public IngestScript(Map<String, Object> params, Metadata metadata, Map<String, Object> ctx) {
         this.params = params;
+        this.metadata = metadata;
+        this.ctx = ctx;
     }
 
     /** Return the parameters for this script. */
@@ -42,9 +50,19 @@ public abstract class IngestScript {
         return params;
     }
 
-    public abstract void execute(Map<String, Object> ctx);
+    /** Return the update context for this script. */
+    public Map<String, Object> getCtx() {
+        return ctx;
+    }
+
+    /** Return the metadata for the ingest document, this is available to the script */
+    public Metadata meta() {
+        return metadata;
+    }
+
+    public abstract void execute();
 
     public interface Factory {
-        IngestScript newInstance(Map<String, Object> params);
+        IngestScript newInstance(Map<String, Object> params, Metadata metadata, Map<String, Object> ctx);
     }
 }

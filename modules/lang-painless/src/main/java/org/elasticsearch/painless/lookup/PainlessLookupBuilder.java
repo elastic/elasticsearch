@@ -2350,6 +2350,7 @@ public final class PainlessLookupBuilder {
             PainlessMethod bridgePainlessMethod = painlessClassBuilder.runtimeMethods.get(methodKey);
             String methodName = painlessMethod.javaMethod().getName();
             int typeParametersSize = painlessMethod.typeParameters().size();
+            // TODO(stu): make duck-typed
 
             if (typeParametersSize == 0
                 && methodName.startsWith("get")

@@ -63,6 +63,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         "org.elasticsearch.txt",
         "org.elasticsearch.net.txt",
         "org.elasticsearch.script.fields.txt",
+        "org.elasticsearch.script.fields.ingest.txt",
         "java.lang.txt",
         "java.math.txt",
         "java.text.txt",

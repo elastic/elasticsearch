@@ -108,4 +108,21 @@ public class DesiredNodeTests extends ESTestCase {
             assertThat(desiredNode.getRoles(), contains(NODE_ROLES_SETTING.get(Settings.EMPTY).toArray()));
         }
     }
+
+    public void testNodeCPUsRoundUp() {
+        final var settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10));
+
+        final var desiredNode = new DesiredNode(
+            settings.build(),
+            new DesiredNode.Processors((float) 0.4, (float) 1.2),
+            ByteSizeValue.ofGb(1),
+            ByteSizeValue.ofGb(1),
+            Version.CURRENT
+        );
+
+        assertThat(desiredNode.minProcessors(), is(equalTo((float) 0.4)));
+        assertThat(desiredNode.roundedMinProcessors(), is(equalTo(1)));
+        assertThat(desiredNode.maxProcessors(), is(equalTo((float) 1.2)));
+        assertThat(desiredNode.roundedMinProcessors(), is(equalTo(1)));
+    }
 }

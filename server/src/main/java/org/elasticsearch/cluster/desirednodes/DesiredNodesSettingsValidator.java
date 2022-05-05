@@ -89,8 +89,9 @@ public class DesiredNodesSettingsValidator {
         // we create a new setting just to run the validations using the desired node
         // number of available processors
         if (settings.hasValue(NODE_PROCESSORS_SETTING.getKey())) {
-            int processors = node.minProcessors();
-            Setting.intSetting(NODE_PROCESSORS_SETTING.getKey(), processors, 1, processors, Setting.Property.NodeScope).get(settings);
+            int processors = node.roundedMinProcessors();
+            int maxProcessors = node.roundedMaxProcessors();
+            Setting.intSetting(NODE_PROCESSORS_SETTING.getKey(), processors, 1, maxProcessors, Setting.Property.NodeScope).get(settings);
             final Settings.Builder updatedSettings = Settings.builder().put(settings);
             updatedSettings.remove(NODE_PROCESSORS_SETTING.getKey());
             settings = updatedSettings.build();

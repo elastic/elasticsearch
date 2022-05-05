@@ -169,12 +169,20 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         return settings;
     }
 
-    public float processors() {
+    public float minProcessors() {
         return processors.min();
     }
 
-    public int minProcessors() {
-        return processors.minCeil();
+    public int roundedMinProcessors() {
+        return Math.max(1, processors.roundedMin());
+    }
+
+    public float maxProcessors() {
+        return processors.max();
+    }
+
+    public int roundedMaxProcessors() {
+        return Math.max(1, processors.roundedMax());
     }
 
     public ByteSizeValue memory() {
@@ -306,12 +314,16 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
                 out.writeFloat(min);
                 out.writeFloat(max);
             } else {
-                out.writeInt(minCeil());
+                out.writeInt(roundedMin());
             }
         }
 
-        public int minCeil() {
-            return (int) Math.ceil(min);
+        public int roundedMin() {
+            return Math.round(min);
+        }
+
+        public int roundedMax() {
+            return Math.round(max);
         }
 
         @Override

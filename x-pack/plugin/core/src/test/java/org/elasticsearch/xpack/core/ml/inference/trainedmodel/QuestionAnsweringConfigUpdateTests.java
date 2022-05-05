@@ -101,6 +101,7 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
         return QuestionAnsweringConfigUpdate.fromMap(map);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86487")
     public void testApply() {
         Tokenization tokenizationConfig = randomFrom(
             BertTokenizationTests.createRandom(),

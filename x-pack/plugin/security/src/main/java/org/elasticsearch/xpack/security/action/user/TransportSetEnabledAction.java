@@ -68,12 +68,9 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
     private boolean isSameUserRequest(SetEnabledRequest request) {
         final var effectiveSubject = securityContext.getAuthentication().getEffectiveSubject();
         final var realmType = effectiveSubject.getRealm().getType();
-        if (ReservedRealm.TYPE.equals(realmType) == false && NativeRealmSettings.TYPE.equals(realmType) == false) {
-            // Only native or reserved realm users can be disabled via the API. If the realm of the effective subject is neither,
-            // the target must be a different user
-            return false;
-        } else {
-            return effectiveSubject.getUser().principal().equals(request.username());
-        }
+        // Only native or reserved realm users can be disabled via the API. If the realm of the effective subject is neither,
+        // the target must be a different user
+        return (ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType))
+            && effectiveSubject.getUser().principal().equals(request.username());
     }
 }

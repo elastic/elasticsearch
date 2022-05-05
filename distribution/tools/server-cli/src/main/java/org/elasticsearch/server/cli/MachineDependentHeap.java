@@ -186,8 +186,8 @@ public final class MachineDependentHeap {
             return (int) (bytes / (1024 * 1024));
         }
 
-        private static int mb(long bytes, int toNearestMultiple) {
-            return toNearestMultiple * (int) (bytes / (1024 * 1024 * toNearestMultiple));
+        private static int mb(long bytes, int toLowerMultipleOfMb) {
+            return toLowerMultipleOfMb * (int) (bytes / (1024 * 1024 * toLowerMultipleOfMb));
         }
     }
 }

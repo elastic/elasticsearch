@@ -123,7 +123,7 @@ public class MockTerminal extends Terminal {
         var reader = new ResettableInputStreamReader(new LazyByteArrayInputStream());
         var stdout = new ByteArrayOutputStream();
         var stderr = new ByteArrayOutputStream();
-        return new MockTerminal(Verbosity.DEFAULT, reader, stdout, stderr, newPrintWriter(stdout), newPrintWriter(stderr));
+        return new MockTerminal(verbosity, reader, stdout, stderr, newPrintWriter(stdout), newPrintWriter(stderr));
     }
 
     /** Adds a character input that will be returned from reading this Terminal. Values are read in FIFO order. */

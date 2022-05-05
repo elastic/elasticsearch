@@ -159,7 +159,10 @@ public class PyTorchModelIT extends ESRestTestCase {
                 executorService.execute(() -> {
                     try {
                         Response inference = infer("my words", modelId);
-                        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"predicted_value\":[[1.0,1.0]]}"));
+                        assertThat(
+                            EntityUtils.toString(inference.getEntity()),
+                            equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}")
+                        );
                     } catch (IOException ex) {
                         failures.add(ex.getMessage());
                     } finally {
@@ -184,7 +187,10 @@ public class PyTorchModelIT extends ESRestTestCase {
         startDeployment(modelId);
         String resultsField = randomAlphaOfLength(10);
         Response inference = infer("my words", modelId, resultsField);
-        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"" + resultsField + "\":[[1.0,1.0]]}"));
+        assertThat(
+            EntityUtils.toString(inference.getEntity()),
+            equalTo("{\"inference_results\":[{\"" + resultsField + "\":[[1.0,1.0]]}]}")
+        );
         stopDeployment(modelId);
     }
 

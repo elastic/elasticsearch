@@ -17,6 +17,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
@@ -48,7 +50,7 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
     protected void doExecute(Task task, SetEnabledRequest request, ActionListener<ActionResponse.Empty> listener) {
         final String username = request.username();
         // make sure the user is not disabling themselves
-        if (securityContext.getUser().principal().equals(request.username())) {
+        if (isSameUserRequest(request)) {
             listener.onFailure(new IllegalArgumentException("users may not update the enabled status of their own account"));
             return;
         } else if (User.isInternalUsername(username)) {
@@ -65,5 +67,13 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
             request.getRefreshPolicy(),
             listener.delegateFailure((l, v) -> l.onResponse(ActionResponse.Empty.INSTANCE))
         );
+    }
+
+    private boolean isSameUserRequest(SetEnabledRequest request) {
+        Authentication.RealmRef realmRef = securityContext.getAuthentication().getEffectiveSubject().getRealm();
+        if (realmRef.getType().equals(NativeRealmSettings.TYPE) == false) {
+            return false;
+        }
+        return securityContext.getUser().principal().equals(request.username());
     }
 }

@@ -57,7 +57,7 @@ public class SyncPluginsActionTests extends ESTestCase {
         Files.createDirectories(env.configFile());
         Files.createDirectories(env.pluginsFile());
 
-        terminal = new MockTerminal();
+        terminal = MockTerminal.create();
         action = new SyncPluginsAction(terminal, env);
         config = new PluginsConfig();
     }

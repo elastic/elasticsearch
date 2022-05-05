@@ -15,6 +15,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
+import static org.elasticsearch.health.HealthStatus.UNKNOWN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 
 public class HealthStatusTests extends ESTestCase {
@@ -23,16 +24,20 @@ public class HealthStatusTests extends ESTestCase {
         assertEquals(GREEN, HealthStatus.merge(randomStatusesContaining(GREEN)));
     }
 
+    public void testUnknownStatus() {
+        assertEquals(UNKNOWN, HealthStatus.merge(randomStatusesContaining(GREEN, UNKNOWN)));
+    }
+
     public void testYellowStatus() {
-        assertEquals(YELLOW, HealthStatus.merge(randomStatusesContaining(GREEN, YELLOW)));
+        assertEquals(YELLOW, HealthStatus.merge(randomStatusesContaining(GREEN, UNKNOWN, YELLOW)));
     }
 
     public void testRedStatus() {
-        assertEquals(RED, HealthStatus.merge(randomStatusesContaining(GREEN, YELLOW, RED)));
+        assertEquals(RED, HealthStatus.merge(randomStatusesContaining(GREEN, UNKNOWN, YELLOW, RED)));
     }
 
     public void testEmpty() {
-        assertEquals(GREEN, HealthStatus.merge(Stream.empty()));
+        expectThrows(IllegalArgumentException.class, () -> HealthStatus.merge(Stream.empty()));
     }
 
     private static Stream<HealthStatus> randomStatusesContaining(HealthStatus... statuses) {

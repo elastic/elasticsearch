@@ -1,3 +1,25 @@
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "settings": {
+    "index.routing.allocation.total_shards_per_node": "1"
+  }
+}
+
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE my-index-000001
+--------------------------------------------------
+// TEARDOWN
+
+//////////////////////////
+
 // tag::cloud[]
 In order to get the shards assigned we'll need to increase the number of shards 
 that can be collocated on a node in order to get all shards assigned. 
@@ -34,38 +56,12 @@ image::images/kibana-console.png[{kib} Console,align="center"]
 . Inspect the `index.routing.allocation.total_shards_per_node` <<indices-get-settings, index setting>> 
 for the index with unassigned shards:
 +
-
-//////////////////////////
-
-[source,console]
---------------------------------------------------
-PUT my-index-000001
-{
-  "settings": {
-    "index.routing.allocation.total_shards_per_node": "1"
-  }
-}
-
---------------------------------------------------
-// TESTSETUP
-
-[source,console]
---------------------------------------------------
-DELETE my-index-000001
---------------------------------------------------
-// TEARDOWN
-
-//////////////////////////
-
-
 [source,console]
 ----
 GET /my-index-000001/_settings/index.routing.allocation.total_shards_per_node?flat_settings
 ----
-
 +
 The response will look like this:
-
 +
 [source,console-result]
 ----
@@ -77,7 +73,6 @@ The response will look like this:
   }
 }
 ----
-
 +
 <1> Represents the current configured value for the maximum number of shards
 that can reside on one node for the `my-index-000001` index.
@@ -99,7 +94,7 @@ PUT /my-index-000001/_settings
 +
 <1> The new value for the `total_shards_per_node` configuration for the `my-index-000001` index
 is increased from the previous value of `1` to `2`. 
-Another value the `total_shards_per_node` configuration can be set to is `-1`, which 
+The `total_shards_per_node` configuration can also be set to `-1`, which 
 represents no upper bound with regards to how many primary shards of the same 
 index can reside on one node.
 

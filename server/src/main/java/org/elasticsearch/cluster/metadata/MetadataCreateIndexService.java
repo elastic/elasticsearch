@@ -288,21 +288,19 @@ public class MetadataCreateIndexService {
     private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
         normalizeRequestSetting(request);
 
-        var future = new ListenableFuture<AcknowledgedResponse>();
+        var future = new ListenableFuture<Void>();
 
         submitUnbatchedTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
-            new AckedClusterStateUpdateTask(Priority.URGENT, request, future) {
+            new AckedClusterStateUpdateTask(
+                Priority.URGENT,
+                request,
+                future.delegateFailure((delegate, response) -> future.addListener(listener.map(ignored -> response)))
+            ) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return applyCreateIndexRequest(
-                        currentState,
-                        request,
-                        false,
-                        null,
-                        future.delegateFailure((delegate, ignored) -> future.addListener(listener))
-                    );
+                    return applyCreateIndexRequest(currentState, request, false, null, future);
                 }
 
                 @Override

@@ -75,7 +75,7 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
             project.getTasks().named("javadoc", Javadoc.class).configure(javadoc -> {
                 Javadoc upstreamJavadoc = upstreamProject.getTasks().named("javadoc", Javadoc.class).get();
                 javadoc.setSource(javadoc.getSource().plus(upstreamJavadoc.getSource()));
-                javadoc.setClasspath(upstreamJavadoc.getClasspath());
+                javadoc.setClasspath(javadoc.getClasspath().plus(upstreamJavadoc.getClasspath()));
             });
             /*
              * Instead we need the upstream project's javadoc classpath so
@@ -89,7 +89,8 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
                 String artifactPath = dep.getGroup().replaceAll("\\.", "/") + '/' + externalLinkName.replaceAll("\\.", "/") + '/' + dep
                     .getVersion();
                 var options = (StandardJavadocDocletOptions) javadoc.getOptions();
-                options.linksOffline(artifactHost() + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/");
+                options.linksOffline(artifactHost() + "/javadoc/" + artifactPath,
+                        upstreamProject.getBuildDir().getPath() + "/docs/javadoc/");
             });
         }
     }

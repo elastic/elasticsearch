@@ -34,6 +34,15 @@ public interface ShardsAllocator {
      */
     void allocate(RoutingAllocation allocation);
 
+    /**
+     * Allocates shards to nodes in the cluster. An implementation of this method should:
+     * - assign unassigned shards
+     * - relocate shards that cannot stay on a node anymore
+     * - relocate shards to find a good shard balance in the cluster
+     *
+     * @param allocation current node allocation
+     * @param listener listener to be executed once async allocation is completed
+     */
     default void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
         allocate(allocation);
         listener.onResponse(null);

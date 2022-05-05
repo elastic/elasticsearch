@@ -72,9 +72,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -985,10 +983,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .build();
 
         assertThat(
-            expectThrows(
-                IllegalStateException.class,
-                () -> clusterStateCreateIndex(currentClusterState, Set.of(), newIndex, (state, reason) -> state, null)
-            ).getMessage(),
+            expectThrows(IllegalStateException.class, () -> clusterStateCreateIndex(currentClusterState, Set.of(), newIndex, null))
+                .getMessage(),
             startsWith("alias [alias1] has more than one write index [")
         );
     }
@@ -1003,23 +999,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .putAlias(AliasMetadata.builder("alias1").writeIndex(true).build())
             .build();
 
-        // used as a value container, not for the concurrency and visibility guarantees
-        AtomicBoolean allocationRerouted = new AtomicBoolean(false);
-        BiFunction<ClusterState, String, ClusterState> rerouteRoutingTable = (clusterState, reason) -> {
-            allocationRerouted.compareAndSet(false, true);
-            return clusterState;
-        };
-
         ClusterState updatedClusterState = clusterStateCreateIndex(
             currentClusterState,
             Set.of(INDEX_READ_ONLY_BLOCK),
             newIndexMetadata,
-            rerouteRoutingTable,
             null
         );
         assertThat(updatedClusterState.blocks().getIndexBlockWithId("test", INDEX_READ_ONLY_BLOCK.id()), is(INDEX_READ_ONLY_BLOCK));
         assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
-        assertThat(allocationRerouted.get(), is(true));
 
         Metadata metadata = updatedClusterState.metadata();
         IndexAbstraction alias = metadata.getIndicesLookup().get("alias1");
@@ -1061,7 +1048,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             currentClusterState,
             Set.of(INDEX_READ_ONLY_BLOCK),
             newIndexMetadata,
-            (clusterState, y) -> clusterState,
             metadataTransformer
         );
         assertTrue(updatedClusterState.metadata().findAllAliases(new String[] { "my-index" }).containsKey("my-index"));

@@ -95,8 +95,6 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put("index.routing.allocation.include.tag", "no_such_node").build())
             .get();
 
-        awaitDesiredBalanceShardsAllocator();
-
         ClusterHealthResponse health = client().admin().cluster().prepareHealth("test").setWaitForNodes(">=2").get();
         assertThat(health.isTimedOut(), equalTo(false));
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.RED));

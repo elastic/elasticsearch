@@ -31,6 +31,24 @@ import java.util.function.Supplier;
  */
 public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
+    public static final ActionListener<Void> REMOVE_ME = new ActionListener<Void>() {
+
+        @Override
+        public void onResponse(Void unused) {
+            // TODO this is a noop listener stub that need so be replaced with a real implementation eventually
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+
+        }
+
+        @Override
+        public String toString() {
+            return "REMOVE_ME";
+        }
+    };
+
     private final ShardsAllocator delegateAllocator;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
     private final DesiredBalanceService desiredBalanceService;
@@ -98,7 +116,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     @Override
     public void allocate(RoutingAllocation allocation) {
-        allocate(allocation, ActionListener.noop());
+        throw new UnsupportedOperationException();
     }
 
     @Override

@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
@@ -285,13 +287,20 @@ public class MetadataCreateIndexService {
 
     private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
         normalizeRequestSetting(request);
+
+        var future = new ListenableFuture<Void>();
+
         submitUnbatchedTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
-            new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
+            new AckedClusterStateUpdateTask(
+                Priority.URGENT,
+                request,
+                listener.delegateFailure((delegate, response) -> future.addListener(listener.map(ignored -> response)))
+            ) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return applyCreateIndexRequest(currentState, request, false);
+                    return applyCreateIndexRequest(currentState, request, false, null, future);
                 }
 
                 @Override
@@ -329,7 +338,8 @@ public class MetadataCreateIndexService {
         ClusterState currentState,
         CreateIndexClusterStateUpdateRequest request,
         boolean silent,
-        BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        ActionListener<Void> rerouteListener
     ) throws Exception {
 
         normalizeRequestSetting(request);
@@ -390,14 +400,21 @@ public class MetadataCreateIndexService {
                     );
                 }
 
-                return applyCreateIndexRequestWithV1Templates(currentState, request, silent, v1Templates, metadataTransformer);
+                return applyCreateIndexRequestWithV1Templates(
+                    currentState,
+                    request,
+                    silent,
+                    v1Templates,
+                    metadataTransformer,
+                    rerouteListener
+                );
             }
         }
     }
 
     public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request, boolean silent)
         throws Exception {
-        return applyCreateIndexRequest(currentState, request, silent, null);
+        return applyCreateIndexRequest(currentState, request, silent, null, DesiredBalanceShardsAllocator.REMOVE_ME);
     }
 
     /**
@@ -416,6 +433,7 @@ public class MetadataCreateIndexService {
      *                            creates the index
      * @return a new cluster state with the index added
      */
+
     private ClusterState applyCreateIndexWithTemporaryService(
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
@@ -425,7 +443,8 @@ public class MetadataCreateIndexService {
         final List<CompressedXContent> mappings,
         final Function<IndexService, List<AliasMetadata>> aliasSupplier,
         final List<String> templatesApplied,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final ActionListener<Void> rerouteListener
     ) throws Exception {
         // create the index here (on the master) to validate it can be created, as well as adding the mapping
         return indicesService.<ClusterState, Exception>withTempIndexService(temporaryIndexMeta, indexService -> {
@@ -465,10 +484,12 @@ public class MetadataCreateIndexService {
             );
 
             indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetadata.getIndex(), indexMetadata.getSettings());
-            BiFunction<ClusterState, String, ClusterState> rerouteFunction = request.performReroute()
-                ? allocationService::reroute
-                : (cs, reason) -> cs;
-            return clusterStateCreateIndex(currentState, request.blocks(), indexMetadata, rerouteFunction, metadataTransformer);
+
+            ClusterState updated = clusterStateCreateIndex(currentState, request.blocks(), indexMetadata, metadataTransformer);
+            if (request.performReroute()) {
+                updated = allocationService.reroute(updated, "index [" + indexMetadata.getIndex().getName() + "] created", rerouteListener);
+            }
+            return updated;
         });
     }
 
@@ -508,7 +529,8 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
         final List<IndexTemplateMetadata> templates,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.debug(
             "applying create index request using legacy templates {}",
@@ -561,7 +583,8 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             templates.stream().map(IndexTemplateMetadata::getName).collect(toList()),
-            metadataTransformer
+            metadataTransformer,
+            rerouteListener
         );
     }
 
@@ -627,7 +650,8 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             Collections.singletonList(templateName),
-            metadataTransformer
+            metadataTransformer,
+            DesiredBalanceShardsAllocator.REMOVE_ME
         );
     }
 
@@ -683,7 +707,8 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             List.of(),
-            metadataTransformer
+            metadataTransformer,
+            DesiredBalanceShardsAllocator.REMOVE_ME
         );
     }
 
@@ -777,7 +802,8 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             List.of(),
-            metadataTransformer
+            metadataTransformer,
+            DesiredBalanceShardsAllocator.REMOVE_ME
         );
     }
 
@@ -1117,7 +1143,6 @@ public class MetadataCreateIndexService {
         ClusterState currentState,
         Set<ClusterBlock> clusterBlocks,
         IndexMetadata indexMetadata,
-        BiFunction<ClusterState, String, ClusterState> rerouteRoutingTable,
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
     ) {
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(indexMetadata, false);
@@ -1134,8 +1159,7 @@ public class MetadataCreateIndexService {
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
             .addAsNew(updatedState.metadata().index(indexName));
-        updatedState = ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
-        return rerouteRoutingTable.apply(updatedState, "index [" + indexName + "] created");
+        return ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
     }
 
     static IndexMetadata buildIndexMetadata(

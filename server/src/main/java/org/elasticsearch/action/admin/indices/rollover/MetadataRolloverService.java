@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -280,7 +281,8 @@ public class MetadataRolloverService {
             silent,
             (builder, indexMetadata) -> builder.put(
                 ds.rollover(indexMetadata.getIndex(), newGeneration, metadata.isTimeSeriesTemplate(templateV2))
-            )
+            ),
+            DesiredBalanceShardsAllocator.REMOVE_ME
         );
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());

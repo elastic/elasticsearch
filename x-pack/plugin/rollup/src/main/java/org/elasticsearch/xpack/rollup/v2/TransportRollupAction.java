@@ -195,7 +195,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                                         .put(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey(), sourceIndexName)
                                         .put(IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.getKey(), sourceIndexUuid)
                                 )
-                        )
+                        ),
+                        ActionListener.noop()
                     );
                 }
 

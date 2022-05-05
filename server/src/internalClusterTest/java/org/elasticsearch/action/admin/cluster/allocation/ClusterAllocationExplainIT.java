@@ -419,8 +419,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             ActiveShardCount.NONE
         );
 
-        awaitDesiredBalanceShardsAllocator();
-
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();
         ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);

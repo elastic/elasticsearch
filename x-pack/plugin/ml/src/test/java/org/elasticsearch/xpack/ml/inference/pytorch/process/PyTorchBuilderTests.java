@@ -53,8 +53,8 @@ public class PyTorchBuilderTests extends ESTestCase {
             contains(
                 "./pytorch_inference",
                 "--validElasticLicenseKeyConfirmed=true",
-                "--inferenceThreads=2",
-                "--modelThreads=4",
+                "--numThreadsPerAllocation=2",
+                "--numAllocations=4",
                 PROCESS_PIPES_ARG
             )
         );

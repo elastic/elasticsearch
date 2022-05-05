@@ -553,6 +553,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     }
 
+    @Override
     public void syncClusterInfo() {
         refreshAsync(new PlainActionFuture<>());
     }

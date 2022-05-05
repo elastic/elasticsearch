@@ -248,10 +248,6 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 return env;
             }
 
-            @Override
-            protected boolean addShutdownHook() {
-                return false;
-            }
         };
     }
 }

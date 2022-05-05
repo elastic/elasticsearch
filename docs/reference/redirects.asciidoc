@@ -1857,3 +1857,8 @@ include::redirects.asciidoc[tag=upgrade-reindex]
 
 For more information about reindexing from a remote cluster, refer to
 <<reindex-from-remote>>.
+
+[role="exclude",id="infer-trained-model-deployment"]
+=== Infer trained model deployment API
+
+See <<infer-trained-model>>.

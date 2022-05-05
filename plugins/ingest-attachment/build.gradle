@@ -16,7 +16,7 @@ esplugin {
 }
 
 versions << [
-  'tika'  : '2.3.0',
+  'tika'  : '2.4.0',
   'pdfbox': '2.0.25',
   'poi'   : '5.2.0',
   'mime4j': '0.8.5'

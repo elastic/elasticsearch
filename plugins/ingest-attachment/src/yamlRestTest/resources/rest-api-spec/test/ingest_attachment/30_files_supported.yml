@@ -74,11 +74,11 @@
         index: test
         id: "1"
   - length: { _source.attachment: 8 }
-  - match: { _source.attachment.content: "Test elasticsearch\n\n/docProps/thumbnail.jpeg" }
+  - match: { _source.attachment.content: "Test elasticsearch" }
   - match: { _source.attachment.language: "et" }
   - match: { _source.attachment.author: "David Pilato" }
   - match: { _source.attachment.date: "2016-03-10T08:24:00Z" }
-  - match: { _source.attachment.content_length: 46 }
+  - match: { _source.attachment.content_length: 20 }
   - match: { _source.attachment.content_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }
   - match: { _source.attachment.modifier: "David Pilato" }
   - match: { _source.attachment.modified: "2016-03-10T08:24:00Z" }

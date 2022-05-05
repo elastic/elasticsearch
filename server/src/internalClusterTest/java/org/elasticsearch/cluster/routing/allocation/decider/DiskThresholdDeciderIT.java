@@ -100,7 +100,6 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, hasSize(1));
     }
 
-    @AwaitsFix(bugUrl = "TODO")
     public void testRestoreSnapshotAllocationDoesNotExceedWatermark() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();

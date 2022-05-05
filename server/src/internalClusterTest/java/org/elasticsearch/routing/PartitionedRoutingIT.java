@@ -55,7 +55,6 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "TODO")
     public void testShrinking() throws Exception {
         assumeFalse("http://github.com/elastic/elasticsearch/issues/33857", Constants.WINDOWS);
 

@@ -504,7 +504,6 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         Loggers.removeAppender(actionLogger, allocateMockLog);
     }
 
-    @AwaitsFix(bugUrl = "TODO")
     public void testClusterRerouteWithBlocks() {
         List<String> nodesIds = internalCluster().startNodes(2);
 

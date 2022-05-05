@@ -39,7 +39,7 @@ import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@Seed("CE894EFB3245C0C4:FF689F98080087EB")
+@Seed("71B7600B2BF33F8:761351F7B236C746")
 public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     @Override
@@ -365,7 +365,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     static class SyntheticSourceExampleHelper {
         private final double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
-        // private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
+        // private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean()); NOCOMMIT fix null
 
         public SyntheticSourceExample example() {
             if (randomBoolean()) {
@@ -383,14 +383,16 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             // if (nullValue != null && randomBoolean()) {
             // return Tuple.tuple(null, nullValue);
             // }
-            float f = randomFloat();
+            //         return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
+
+            // NOOCMMIT random double?
+            float f = randomFloat();   // NOCOMMIT random float across all possible values
             return Tuple.tuple(f, round(f));
         }
 
         private double round(float f) {
             long encoded = Math.round(Double.parseDouble(Float.toString(f)) * scalingFactor);
-            double inverseScalingFactor = 1 / scalingFactor;
-            return encoded * inverseScalingFactor;
+            return encoded / scalingFactor;
         }
 
         private void mapping(XContentBuilder b) throws IOException {

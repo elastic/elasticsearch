@@ -472,8 +472,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 + doubleValue
                 + "   round tripped: "
                 + (scaledValue * (1d / scalingFactor))
+                + "   round tripped 2: "
+                + (scaledValue / scalingFactor)
         );
-        System.err.println("largest " + (Long.MAX_VALUE * (1d / scalingFactor)));
+        System.err.println("largest: " + Long.MAX_VALUE + " decoded: " + (Long.MAX_VALUE / scalingFactor));
 
         List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, hasDocValues, stored);
         context.doc().addAll(fields);
@@ -683,11 +685,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        double scalingFactorInverse = 1d / scalingFactor;
         return new NumberFieldMapper.NumericSyntheticFieldLoader(name(), simpleName()) {
             @Override
             protected void loadNextValue(XContentBuilder b, long value) throws IOException {
-                b.value(value * scalingFactorInverse);
+                System.err.println("loaded " + value + " decoded to " + (value / scalingFactor));
+                b.value(value / scalingFactor);
             }
         };
     }

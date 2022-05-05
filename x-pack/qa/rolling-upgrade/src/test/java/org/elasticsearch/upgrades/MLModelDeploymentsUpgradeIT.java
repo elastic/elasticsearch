@@ -56,6 +56,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/2258")
     public void testTrainedModelDeployment() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
 
@@ -89,6 +90,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/2258")
     public void testTrainedModelDeploymentStopOnMixedCluster() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
 

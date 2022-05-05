@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -25,11 +26,14 @@ public class TransportClusterGetSettingsAction extends TransportMasterNodeReadAc
     ClusterGetSettingsAction.Request,
     ClusterGetSettingsAction.Response> {
 
+    private final SettingsFilter settingsFilter;
+
     @Inject
     public TransportClusterGetSettingsAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
+        SettingsFilter settingsFilter,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
@@ -45,6 +49,8 @@ public class TransportClusterGetSettingsAction extends TransportMasterNodeReadAc
             ClusterGetSettingsAction.Response::new,
             ThreadPool.Names.SAME
         );
+
+        this.settingsFilter = settingsFilter;
     }
 
     @Override
@@ -56,7 +62,11 @@ public class TransportClusterGetSettingsAction extends TransportMasterNodeReadAc
     ) throws Exception {
         Metadata metadata = state.metadata();
         listener.onResponse(
-            new ClusterGetSettingsAction.Response(metadata.persistentSettings(), metadata.transientSettings(), metadata.settings())
+            new ClusterGetSettingsAction.Response(
+                settingsFilter.filter(metadata.persistentSettings()),
+                settingsFilter.filter(metadata.transientSettings()),
+                settingsFilter.filter(metadata.settings())
+            )
         );
     }
 

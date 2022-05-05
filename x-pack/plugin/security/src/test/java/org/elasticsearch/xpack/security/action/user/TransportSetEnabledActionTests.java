@@ -21,16 +21,13 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
-import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
 import java.io.IOException;
@@ -116,7 +113,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
     }
 
     public void testValidUserWithInternalUsername() throws Exception {
-        testValidUser(new User(randomInternalUsername()));
+        testValidUser(new User(AuthenticationTestHelper.randomInternalUsername()));
     }
 
     private void testValidUser(User user) throws IOException {
@@ -307,15 +304,5 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
         assertThat(throwableRef.get().getMessage(), containsString("own account"));
         verifyNoMoreInteractions(usersStore);
-    }
-
-    private String randomInternalUsername() {
-        return randomFrom(
-            SystemUser.INSTANCE.principal(),
-            XPackUser.INSTANCE.principal(),
-            XPackSecurityUser.INSTANCE.principal(),
-            AsyncSearchUser.INSTANCE.principal(),
-            SecurityProfileUser.INSTANCE.principal()
-        );
     }
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
@@ -403,14 +404,6 @@ public class TransportGetUsersActionTests extends ESTestCase {
     }
 
     private List<User> randomUsersWithInternalUsernames() {
-        return randomNonEmptySubsetOf(
-            List.of(
-                SystemUser.INSTANCE.principal(),
-                XPackUser.INSTANCE.principal(),
-                XPackSecurityUser.INSTANCE.principal(),
-                AsyncSearchUser.INSTANCE.principal(),
-                SecurityProfileUser.INSTANCE.principal()
-            )
-        ).stream().map(User::new).collect(Collectors.toList());
+        return AuthenticationTestHelper.randomInternalUsernames().stream().map(User::new).collect(Collectors.toList());
     }
 }

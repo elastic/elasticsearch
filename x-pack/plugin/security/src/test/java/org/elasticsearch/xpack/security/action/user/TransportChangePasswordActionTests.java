@@ -19,16 +19,12 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
-import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
 import java.util.Collections;
@@ -105,7 +101,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
     }
 
     public void testValidUserWithInternalUsername() {
-        testValidUser(new User(randomInternalUsername()));
+        testValidUser(new User(AuthenticationTestHelper.randomInternalUsername()));
     }
 
     private void testValidUser(User user) {
@@ -255,15 +251,5 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(notNullValue()));
         assertThat(throwableRef.get(), sameInstance(e));
         verify(usersStore, times(1)).changePassword(eq(request), anyActionListener());
-    }
-
-    private String randomInternalUsername() {
-        return randomFrom(
-            SystemUser.INSTANCE.principal(),
-            XPackUser.INSTANCE.principal(),
-            XPackSecurityUser.INSTANCE.principal(),
-            AsyncSearchUser.INSTANCE.principal(),
-            SecurityProfileUser.INSTANCE.principal()
-        );
     }
 }

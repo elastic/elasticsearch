@@ -17,15 +17,11 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserResponse;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
-import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
 import java.util.Collections;
@@ -129,7 +125,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
     }
 
     public void testValidUserWithInternalUsername() {
-        testValidUser(new User(randomInternalUsername()));
+        testValidUser(new User(AuthenticationTestHelper.randomInternalUsername()));
     }
 
     private void testValidUser(User user) {
@@ -231,13 +227,4 @@ public class TransportDeleteUserActionTests extends ESTestCase {
         verify(usersStore, times(1)).deleteUser(eq(request), anyActionListener());
     }
 
-    private String randomInternalUsername() {
-        return randomFrom(
-            SystemUser.INSTANCE.principal(),
-            XPackUser.INSTANCE.principal(),
-            XPackSecurityUser.INSTANCE.principal(),
-            AsyncSearchUser.INSTANCE.principal(),
-            SecurityProfileUser.INSTANCE.principal()
-        );
-    }
 }

@@ -23,14 +23,10 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealmTests;
@@ -150,7 +146,7 @@ public class TransportPutUserActionTests extends ESTestCase {
     }
 
     public void testValidUserWithInternalUsername() {
-        testValidUser(new User(randomInternalUsername()));
+        testValidUser(new User(AuthenticationTestHelper.randomInternalUsername()));
     }
 
     private void testValidUser(User user) {
@@ -273,15 +269,5 @@ public class TransportPutUserActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(notNullValue()));
         assertThat(throwableRef.get(), sameInstance(e));
         verify(usersStore, times(1)).putUser(eq(request), anyActionListener());
-    }
-
-    private String randomInternalUsername() {
-        return randomFrom(
-            SystemUser.INSTANCE.principal(),
-            XPackUser.INSTANCE.principal(),
-            XPackSecurityUser.INSTANCE.principal(),
-            AsyncSearchUser.INSTANCE.principal(),
-            SecurityProfileUser.INSTANCE.principal()
-        );
     }
 }

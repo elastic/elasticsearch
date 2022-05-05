@@ -167,25 +167,15 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             );
         }
 
-        reconcile(routingAllocation, new DesiredBalance(Map.of(), Map.of()));
-        assertFalse(routingAllocation.routingNodesChanged());
-
-        for (ShardRouting shardRouting : routingAllocation.routingNodes().unassigned()) {
-            assertTrue(shardRouting.toString(), shardRouting.unassigned());
-            assertThat(
-                shardRouting.unassignedInfo().getLastAllocationStatus(),
-                equalTo(
-                    shardRouting.primary() && shardRouting.shardId().id() == 1
-                        ? UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED
-                        : UnassignedInfo.AllocationStatus.NO_ATTEMPT
-                )
-            );
-        }
-
         reconcile(
             routingAllocation,
             new DesiredBalance(
-                Map.of(new ShardId(clusterState.metadata().index(DesiredBalanceServiceTests.TEST_INDEX).getIndex(), 0), Set.of("node-0")),
+                randomBoolean()
+                    ? Map.of()
+                    : Map.of(
+                        new ShardId(clusterState.metadata().index(DesiredBalanceServiceTests.TEST_INDEX).getIndex(), 0),
+                        Set.of("node-0")
+                    ),
                 Map.of()
             )
         );

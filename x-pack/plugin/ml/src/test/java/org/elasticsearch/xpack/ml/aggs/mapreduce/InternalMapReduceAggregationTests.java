@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.ml.aggs.mapreduce;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -20,6 +22,7 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -40,17 +43,43 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
 
     private static String[] WORDS = new String[] { "apple", "banana", "orange", "peach", "strawberry" };
 
-    static class WordCountMapReducer implements MapReducer {
+    static class WordCountMapReducer extends AbstractMapReducer<
+        WordCountMapReducer,
+        WordCountMapReducer.WordCounts,
+        WordCountMapReducer.WordCounts> {
+
+        private static class WordCounts implements ToXContent, Writeable {
+
+            Map<String, Long> frequencies = new HashMap<>();
+
+            WordCounts() {}
+
+            WordCounts(StreamInput in) throws IOException {
+                this.frequencies = in.readMap(StreamInput::readString, StreamInput::readLong);
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeMap(frequencies, StreamOutput::writeString, StreamOutput::writeLong);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.field(Aggregation.CommonFields.BUCKETS.getPreferredName(), frequencies);
+                return builder;
+            }
+
+        }
 
         public static String MAP_REDUCER_NAME = "word-count-test-aggregation";
         public static String AGG_NAME = "internal-map-reduce-aggregation-test";
 
-        private Map<String, Long> frequencies = new HashMap<>();
-
-        WordCountMapReducer() {}
+        WordCountMapReducer() {
+            super(AGG_NAME);
+        }
 
         WordCountMapReducer(StreamInput in) throws IOException {
-            this.frequencies = in.readMap(StreamInput::readString, StreamInput::readLong);
+            super(in);
         }
 
         @Override
@@ -59,45 +88,52 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(frequencies, StreamOutput::writeString, StreamOutput::writeLong);
+        public WordCounts mapInit(BigArrays bigArrays) {
+            return new WordCounts();
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(Aggregation.CommonFields.BUCKETS.getPreferredName(), frequencies);
-            return builder;
-        }
+        public WordCounts doMap(Stream<Tuple<String, List<Object>>> keyValues, WordCounts wordCounts) {
 
-        @Override
-        public String getAggregationWritableName() {
-            return AGG_NAME;
-        }
-
-        @Override
-        public void map(Stream<Tuple<String, List<Object>>> keyValues) {
             keyValues.forEach(
-                v -> { v.v2().stream().forEach(word -> { frequencies.compute((String) word, (k, c) -> (c == null) ? 1 : c + 1); }); }
+                v -> {
+                    v.v2().stream().forEach(word -> { wordCounts.frequencies.compute((String) word, (k, c) -> (c == null) ? 1 : c + 1); });
+                }
             );
+
+            return wordCounts;
         }
 
         @Override
-        public void reduce(Stream<MapReducer> partitions) {
-
-            Map<String, Long> frequenciesMerged = new HashMap<>();
-
-            partitions.forEach(p -> {
-                WordCountMapReducer wc = (WordCountMapReducer) p;
-                wc.frequencies.forEach((key, value) -> frequenciesMerged.merge(key, value, (v1, v2) -> v1 + v2));
-            });
-
-            // reuse this instance
-            frequencies = frequenciesMerged;
+        public WordCounts doReadMapContext(StreamInput in, BigArrays bigArrays) throws IOException {
+            return new WordCounts(in);
         }
 
-        public Map<String, Long> getFrequencies() {
-            return frequencies;
+        @Override
+        public WordCounts doReduceInit(BigArrays bigArrays) {
+            return new WordCounts();
         }
+
+        @Override
+        public WordCounts doReduce(Stream<WordCounts> partitions, WordCounts wordCounts) {
+            partitions.forEach(
+                p -> { p.frequencies.forEach((key, value) -> wordCounts.frequencies.merge(key, value, (v1, v2) -> v1 + v2)); }
+            );
+
+            return wordCounts;
+        }
+
+        @Override
+        public WordCounts doMapInit(BigArrays bigArrays) {
+            // TODO Auto-generated method stub
+            return null;
+        }
+
+        @Override
+        public WordCounts doReduceFinalize(WordCounts wordCounts) throws IOException {
+            return wordCounts;
+        }
+
     }
 
     static class ParsedWordCountMapReduceAggregation extends ParsedAggregation {
@@ -142,8 +178,6 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
         }
     }
 
-    Map<String, Long> expectedFrequencies = new HashMap<>();
-
     @Override
     protected InternalMapReduceAggregation createTestInstance(String name, Map<String, Object> metadata) {
         WordCountMapReducer mr = new WordCountMapReducer();
@@ -154,17 +188,23 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
             randomText.add(randomFrom(WORDS));
         }
 
-        mr.map(randomText.stream().map(word -> Tuple.tuple("text", Collections.singletonList(word))));
+        Writeable context = mr.mapInit(/* unused: bigarrays */ null);
+        context = mr.map(randomText.stream().map(word -> Tuple.tuple("text", Collections.singletonList(word))), context);
 
-        mr.getFrequencies().forEach((key, value) -> expectedFrequencies.merge(key, value, (v1, v2) -> v1 + v2));
-
-        return new InternalMapReduceAggregation(name, metadata, mr, false);
+        return new InternalMapReduceAggregation(name, metadata, mr, context, false);
     }
 
     @Override
     protected void assertReduced(InternalMapReduceAggregation reduced, List<InternalMapReduceAggregation> inputs) {
-        WordCountMapReducer wc = (WordCountMapReducer) reduced.getMapReducer();
-        assertMapEquals(expectedFrequencies, wc.getFrequencies());
+        WordCountMapReducer.WordCounts wcReduced = (WordCountMapReducer.WordCounts) reduced.getMapReduceContext();
+        Map<String, Long> expectedFrequencies2 = new HashMap<>();
+
+        inputs.forEach(mr -> {
+            WordCountMapReducer.WordCounts wcInput = (WordCountMapReducer.WordCounts) mr.getMapReduceContext();
+            wcInput.frequencies.forEach((key, value) -> expectedFrequencies2.merge(key, value, (v1, v2) -> v1 + v2));
+        });
+
+        assertMapEquals(expectedFrequencies2, wcReduced.frequencies);
     }
 
     @Override
@@ -172,8 +212,8 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
         ParsedWordCountMapReduceAggregation parsed = (ParsedWordCountMapReduceAggregation) parsedAggregation;
         assertThat(parsed.getName(), equalTo(aggregation.getName()));
 
-        WordCountMapReducer wc = (WordCountMapReducer) aggregation.getMapReducer();
-        assertMapEquals(wc.getFrequencies(), parsed.getFrequencies());
+        WordCountMapReducer.WordCounts wc = (WordCountMapReducer.WordCounts) aggregation.getMapReduceContext();
+        assertMapEquals(wc.frequencies, parsed.getFrequencies());
     }
 
     @Override
@@ -186,7 +226,7 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
         List<NamedWriteableRegistry.Entry> namedWritables = new ArrayList<>(super.getNamedWriteables());
 
         namedWritables.add(
-            new NamedWriteableRegistry.Entry(MapReducer.class, WordCountMapReducer.MAP_REDUCER_NAME, WordCountMapReducer::new)
+            new NamedWriteableRegistry.Entry(AbstractMapReducer.class, WordCountMapReducer.MAP_REDUCER_NAME, WordCountMapReducer::new)
         );
         namedWritables.add(
             new NamedWriteableRegistry.Entry(InternalAggregation.class, WordCountMapReducer.AGG_NAME, InternalMapReduceAggregation::new)

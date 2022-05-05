@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
@@ -18,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,10 +38,55 @@ import java.util.Map.Entry;
  */
 public class FrequentItemSetCollector {
 
+    public class FrequentItemSet implements ToXContent, Writeable {
+        private final Map<String, List<Object>> fields;
+        private final double support;
+
+        // mutable for sampling
+        private long docCount;
+
+        public FrequentItemSet(Map<String, List<Object>> fields, long docCount, double support) {
+            this.fields = Collections.unmodifiableMap(fields);
+            this.setDocCount(docCount);
+            this.support = support;
+        }
+
+        public long getDocCount() {
+            return docCount;
+        }
+
+        public void setDocCount(long docCount) {
+            this.docCount = docCount;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject(CommonFields.KEY.getPreferredName());
+            for (Entry<String, List<Object>> item : fields.entrySet()) {
+                builder.field(item.getKey(), item.getValue());
+            }
+            builder.endObject();
+
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
+            builder.field("support", support);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeGenericValue(fields);
+            out.writeLong(getDocCount());
+            out.writeDouble(support);
+        }
+
+    }
+
     /**
      * Container for a single frequent itemset
      */
-    public class FrequentItemSet implements ToXContent {
+    class FrequentItemSetCandidate implements ToXContent {
 
         private LongsRef items;
         private long docCount;
@@ -46,7 +94,7 @@ public class FrequentItemSetCollector {
         // every set has a unique id, required for the outer logic
         private int id;
 
-        private FrequentItemSet() {
+        private FrequentItemSetCandidate() {
             this.id = -1;
             this.items = new LongsRef(10);
             this.docCount = -1;
@@ -82,19 +130,36 @@ public class FrequentItemSetCollector {
             return builder;
         }
 
-        public long getDocCount() {
+        FrequentItemSet toFrequentItemSet() throws IOException {
+            Map<String, List<Object>> frequentItemsKeyValues = new HashMap<>();
+
+            for (int i = 0; i < items.length; ++i) {
+                Tuple<String, String> item = transactionStore.getItem(items.longs[i]);
+                if (frequentItemsKeyValues.containsKey(item.v1())) {
+                    frequentItemsKeyValues.get(item.v1()).add(item.v2());
+                } else {
+                    List<Object> l = new ArrayList<>();
+                    l.add(item.v2());
+                    frequentItemsKeyValues.put(item.v1(), l);
+                }
+            }
+
+            return new FrequentItemSet(frequentItemsKeyValues, docCount, (double) docCount / transactionStore.getTotalTransactionCount());
+        }
+
+        long getDocCount() {
             return docCount;
         }
 
-        public LongsRef getItems() {
+        LongsRef getItems() {
             return items;
         }
 
-        public int getId() {
+        int getId() {
             return id;
         }
 
-        public int size() {
+        int size() {
             return items.length;
         }
 
@@ -113,13 +178,13 @@ public class FrequentItemSetCollector {
         }
     }
 
-    private static class FrequentItemSetPriorityQueue extends PriorityQueue<FrequentItemSet> {
+    static class FrequentItemSetPriorityQueue extends PriorityQueue<FrequentItemSetCandidate> {
         FrequentItemSetPriorityQueue(int size) {
             super(size);
         }
 
         @Override
-        protected boolean lessThan(FrequentItemSet a, FrequentItemSet b) {
+        protected boolean lessThan(FrequentItemSetCandidate a, FrequentItemSetCandidate b) {
             if (a.docCount == b.docCount) {
                 if (a.size() == b.size()) {
                     return Arrays.compare(a.items.longs, 0, a.items.length, b.items.longs, 0, b.items.length) < 0;
@@ -135,13 +200,13 @@ public class FrequentItemSetCollector {
     private final FrequentItemSetPriorityQueue queue;
 
     // index for closed item set de-duplication
-    private final Map<Long, List<FrequentItemSet>> frequentItemsByCount;
+    private final Map<Long, List<FrequentItemSetCandidate>> frequentItemsByCount;
 
     private final int size;
     private final long min;
 
     private int count = 0;
-    private FrequentItemSet spareSet = new FrequentItemSet();
+    private FrequentItemSetCandidate spareSet = new FrequentItemSetCandidate();
 
     public FrequentItemSetCollector(TransactionStore transactionStore, int size, long min) {
         this.transactionStore = transactionStore;
@@ -151,8 +216,12 @@ public class FrequentItemSetCollector {
         frequentItemsByCount = Maps.newMapWithExpectedSize(size / 10);
     }
 
-    public FrequentItemSet pop() {
-        return queue.pop();
+    public FrequentItemSet[] finalizeAndGetResults() throws IOException {
+        FrequentItemSet[] topFrequentItems = new FrequentItemSet[size()];
+        for (int i = topFrequentItems.length - 1; i >= 0; i--) {
+            topFrequentItems[i] = queue.pop().toFrequentItemSet();
+        }
+        return topFrequentItems;
     }
 
     public int size() {
@@ -175,8 +244,8 @@ public class FrequentItemSetCollector {
             // closed set criteria: don't add if we already store a superset
             if (hasSuperSet(itemSet, docCount) == false) {
                 spareSet.reset(count++, itemSet, docCount);
-                FrequentItemSet newItemSet = spareSet;
-                FrequentItemSet removedItemSet = queue.insertWithOverflow(spareSet);
+                FrequentItemSetCandidate newItemSet = spareSet;
+                FrequentItemSetCandidate removedItemSet = queue.insertWithOverflow(spareSet);
                 if (removedItemSet != null) {
                     // remove item from frequentItemsByCount
                     frequentItemsByCount.compute(removedItemSet.getDocCount(), (k, sets) -> {
@@ -191,7 +260,7 @@ public class FrequentItemSetCollector {
                     });
                     spareSet = removedItemSet;
                 } else {
-                    spareSet = new FrequentItemSet();
+                    spareSet = new FrequentItemSetCandidate();
                 }
 
                 frequentItemsByCount.compute(newItemSet.getDocCount(), (k, sets) -> {
@@ -209,8 +278,12 @@ public class FrequentItemSetCollector {
     }
 
     // for unit tests
-    Map<Long, List<FrequentItemSet>> getFrequentItemsByCount() {
+    Map<Long, List<FrequentItemSetCandidate>> getFrequentItemsByCount() {
         return frequentItemsByCount;
+    }
+
+    FrequentItemSetPriorityQueue getQueue() {
+        return queue;
     }
 
     /**
@@ -227,10 +300,10 @@ public class FrequentItemSetCollector {
      *
      */
     private boolean hasSuperSet(List<Long> itemSet, long docCount) {
-        List<FrequentItemSet> setsThatShareSameDocCount = frequentItemsByCount.get(docCount);
+        List<FrequentItemSetCandidate> setsThatShareSameDocCount = frequentItemsByCount.get(docCount);
         boolean foundSuperSet = false;
         if (setsThatShareSameDocCount != null) {
-            for (FrequentItemSet otherSet : setsThatShareSameDocCount) {
+            for (FrequentItemSetCandidate otherSet : setsThatShareSameDocCount) {
                 if (otherSet.size() < itemSet.size()) {
                     continue;
                 }

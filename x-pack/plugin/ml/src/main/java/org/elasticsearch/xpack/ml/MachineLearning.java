@@ -279,14 +279,13 @@ import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregationBuilder
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
-import org.elasticsearch.xpack.ml.aggs.frequentitemsets.EclatMapReducer;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetsAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
 import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.kstest.BucketCountKSTestAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.mapreduce.InternalMapReduceAggregation;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceRegistry;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReducer;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
@@ -1619,7 +1618,7 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
 
         // map reducers
-        namedWriteables.add(new NamedWriteableRegistry.Entry(MapReducer.class, EclatMapReducer.NAME, EclatMapReducer::new));
+        namedWriteables.addAll(new MapReduceNamedContentProvider().getNamedWriteables());
 
         return namedWriteables;
     }

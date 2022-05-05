@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetCollector.FrequentItemSetPriorityQueue;
 import org.junit.After;
 
 import java.io.IOException;
@@ -66,11 +67,13 @@ public class FrequentItemSetCollectorTests extends ESTestCase {
         // ignore set below current weakest one
         assertEquals(20L, collector.add(List.of(111L, 2L, 3L, 4L), 1L));
 
-        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 61L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 71L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 81L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 91L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 101L, 2L, 3L, 4L }));
+        FrequentItemSetPriorityQueue queue = collector.getQueue();
+
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 61L, 2L, 3L, 4L }));
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 71L, 2L, 3L, 4L }));
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 81L, 2L, 3L, 4L }));
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 91L, 2L, 3L, 4L }));
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 101L, 2L, 3L, 4L }));
 
         assertEquals(0, collector.size());
     }
@@ -100,11 +103,13 @@ public class FrequentItemSetCollectorTests extends ESTestCase {
         // add as view for demonstration
         assertEquals(13L, collector.add(List.of(81L, 2L, 4L, 23L).subList(0, 3), 20L));
 
-        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 21L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 61L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 71L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 81L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 91L, 2L, 3L, 4L }));
+        FrequentItemSetPriorityQueue queue = collector.getQueue();
+
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 21L, 2L, 3L, 4L }));
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 61L, 2L, 3L, 4L }));
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 71L, 2L, 3L, 4L }));
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 81L, 2L, 3L, 4L }));
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 91L, 2L, 3L, 4L }));
 
         assertEquals(0, collector.size());
     }
@@ -122,8 +127,9 @@ public class FrequentItemSetCollectorTests extends ESTestCase {
 
         assertEquals(Long.MAX_VALUE, collector.add(itemSet, 10L));
         itemSet.clear();
+        FrequentItemSetPriorityQueue queue = collector.getQueue();
 
-        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 1L, 2L, 3L, 4L, 5L }));
+        assertThat(queue.pop().getItems().longs, equalTo(new long[] { 1L, 2L, 3L, 4L, 5L }));
     }
 
 }

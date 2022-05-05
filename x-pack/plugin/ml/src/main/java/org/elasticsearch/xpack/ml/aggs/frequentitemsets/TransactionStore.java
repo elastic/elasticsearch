@@ -81,9 +81,9 @@ public final class TransactionStore implements Writeable, Releasable {
      *
      * Only stores a list of ids, not the count
      */
-    public static class TopItemIds implements Iterable<Long>, Releasable {
+    static class TopItemIds implements Iterable<Long>, Releasable {
 
-        public class IdIterator implements Iterator<Long> {
+        class IdIterator implements Iterator<Long> {
 
             private int currentIndex;
 
@@ -121,7 +121,7 @@ public final class TransactionStore implements Writeable, Releasable {
 
         private final LongArray sortedItems;
 
-        TopItemIds(LongArray sortedItems) {
+        private TopItemIds(LongArray sortedItems) {
             this.sortedItems = sortedItems;
         }
 
@@ -149,10 +149,10 @@ public final class TransactionStore implements Writeable, Releasable {
      *
      * Only stores a list of ids, not the count
      */
-    public static class TopTransactionIds implements Iterable<Long>, Releasable {
+    static class TopTransactionIds implements Iterable<Long>, Releasable {
         private final LongArray sortedTransactions;
 
-        TopTransactionIds(LongArray sortedTransactions) {
+        private TopTransactionIds(LongArray sortedTransactions) {
             this.sortedTransactions = sortedTransactions;
         }
 

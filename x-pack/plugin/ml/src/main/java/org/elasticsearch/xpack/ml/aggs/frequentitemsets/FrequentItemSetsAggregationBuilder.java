@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -104,7 +105,7 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
         this.minimumSetSize = in.readVInt();
         this.size = in.readVInt();
     }
-    
+
     @Override
     public boolean supportsSampling() {
         return true;
@@ -163,6 +164,14 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.MANY;
+    }
+
+    // this is a leaf only aggregation
+    @Override
+    public final FrequentItemSetsAggregationBuilder subAggregations(Builder subFactories) {
+        throw new AggregationInitializationException(
+            "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
+        );
     }
 
     @Override

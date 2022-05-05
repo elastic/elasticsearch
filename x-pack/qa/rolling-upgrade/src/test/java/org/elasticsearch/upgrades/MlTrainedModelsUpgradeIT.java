@@ -27,6 +27,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+@AbstractUpgradeTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/2258")
 public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
 
     static final String BOOLEAN_FIELD = "boolean-field";

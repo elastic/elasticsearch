@@ -512,11 +512,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        return generateRandomInputValue(((DateFieldType) ft).resolution());
-    }
-
-    private Object generateRandomInputValue(DateFieldMapper.Resolution resolution) {
-        switch (resolution) {
+        switch (((DateFieldType) ft).resolution()) {
             case MILLISECONDS:
                 if (randomBoolean()) {
                     return randomIs8601Nanos(MAX_ISO_DATE);
@@ -584,7 +580,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             ? null
             : randomValueOtherThanMany(
                 v -> v instanceof BigDecimal,  // BigDecimal values don't parse properly so limit the test to others
-                () -> generateRandomInputValue(resolution)
+                () -> randomValue()
             );
         private final DateFormatter formatter = resolution == DateFieldMapper.Resolution.MILLISECONDS
             ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER
@@ -609,9 +605,28 @@ public class DateFieldMapperTests extends MapperTestCase {
             if (nullValue != null && randomBoolean()) {
                 return Tuple.tuple(null, outValue(nullValue));
             }
-            Object in = generateRandomInputValue(resolution);
+            Object in = randomValue();
             String out = outValue(in);
             return Tuple.tuple(in, out);
+        }
+
+        private Object randomValue() {
+            switch (resolution) {
+                case MILLISECONDS:
+                    if (randomBoolean()) {
+                        return randomIs8601Nanos(MAX_ISO_DATE);
+                    }
+                    return randomLongBetween(0, MAX_ISO_DATE);
+                case NANOSECONDS:
+                    return switch (randomInt(2)) {
+                        case 0 -> randomLongBetween(0, MAX_NANOS);
+                        case 1 -> randomIs8601Nanos(MAX_NANOS);
+                        case 2 -> new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION));
+                        default -> throw new IllegalStateException();
+                    };
+                default:
+                    throw new IllegalStateException();
+            }
         }
 
         private String outValue(Object in) {

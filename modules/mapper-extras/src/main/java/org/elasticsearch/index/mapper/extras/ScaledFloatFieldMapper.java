@@ -465,17 +465,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             }
         }
         long scaledValue = Math.round(doubleValue * scalingFactor);
-        System.err.println(
-            "scaled value "
-                + scaledValue
-                + "   original value: "
-                + doubleValue
-                + "   round tripped: "
-                + (scaledValue * (1d / scalingFactor))
-                + "   round tripped 2: "
-                + (scaledValue / scalingFactor)
-        );
-        System.err.println("largest: " + Long.MAX_VALUE + " decoded: " + (Long.MAX_VALUE / scalingFactor));
 
         List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, hasDocValues, stored);
         context.doc().addAll(fields);
@@ -688,7 +677,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         return new NumberFieldMapper.NumericSyntheticFieldLoader(name(), simpleName()) {
             @Override
             protected void loadNextValue(XContentBuilder b, long value) throws IOException {
-                System.err.println("loaded " + value + " decoded to " + (value / scalingFactor));
                 b.value(value / scalingFactor);
             }
         };

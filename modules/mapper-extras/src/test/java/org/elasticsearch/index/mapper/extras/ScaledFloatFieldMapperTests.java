@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.mapper.extras;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
@@ -39,7 +37,6 @@ import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@Seed("71B7600B2BF33F8:761351F7B236C746")
 public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     @Override
@@ -365,42 +362,43 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     static class SyntheticSourceExampleHelper {
         private final double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
-        // private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean()); NOCOMMIT fix null
+        private final Double nullValue = usually() ? null : round(randomValue());
 
         public SyntheticSourceExample example() {
             if (randomBoolean()) {
-                Tuple<Float, Double> v = generateValue();
+                Tuple<Double, Double> v = generateValue();
                 return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
             }
-            List<Tuple<Float, Double>> values = randomList(1, 5, this::generateValue);
-            List<Float> in = values.stream().map(Tuple::v1).toList();
+            List<Tuple<Double, Double>> values = randomList(1, 5, this::generateValue);
+            List<Double> in = values.stream().map(Tuple::v1).toList();
             List<Double> outList = values.stream().map(Tuple::v2).sorted().toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }
 
-        private Tuple<Float, Double> generateValue() {
-            // if (nullValue != null && randomBoolean()) {
-            // return Tuple.tuple(null, nullValue);
-            // }
-            //         return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
-
-            // NOOCMMIT random double?
-            float f = randomFloat();   // NOCOMMIT random float across all possible values
-            return Tuple.tuple(f, round(f));
+        private Tuple<Double, Double> generateValue() {
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            double d = randomValue();
+            return Tuple.tuple(d, round(d));
         }
 
-        private double round(float f) {
-            long encoded = Math.round(Double.parseDouble(Float.toString(f)) * scalingFactor);
+        private double randomValue() {
+            return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
+        }
+
+        private double round(double d) {
+            long encoded = Math.round(d * scalingFactor);
             return encoded / scalingFactor;
         }
 
         private void mapping(XContentBuilder b) throws IOException {
             b.field("type", "scaled_float");
             b.field("scaling_factor", scalingFactor);
-            // if (nullValue != null) {
-            // b.field("null_value", NetworkAddress.format(nullValue));
-            // }
+            if (nullValue != null) {
+                b.field("null_value", nullValue);
+            }
             if (rarely()) {
                 b.field("index", false);
             }
@@ -437,6 +435,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     @Override
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
         throws IOException {
-        // Disabled because it currently fails
+        // Intentionally disabled because it doesn't work yet
     }
 }

@@ -251,7 +251,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                 stats.get(0)
             );
             assertThat(responseMap.toString(), requiredNativeMemory, is(not(nullValue())));
-            assertThat(requiredNativeMemory, equalTo((int) (ByteSizeValue.ofMb(270).getBytes() + 2 * RAW_MODEL_SIZE)));
+            assertThat(requiredNativeMemory, equalTo((int) (ByteSizeValue.ofMb(240).getBytes() + 2 * RAW_MODEL_SIZE)));
 
             Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
             var humanResponseMap = entityAsMap(humanResponse);
@@ -273,7 +273,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                 stringRequiredNativeMemory,
                 is(not(nullValue()))
             );
-            assertThat(stringRequiredNativeMemory, equalTo("270mb"));
+            assertThat(stringRequiredNativeMemory, equalTo("240mb"));
             stopDeployment(modelId);
         };
 

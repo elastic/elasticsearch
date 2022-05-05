@@ -49,7 +49,7 @@ unhealthy, in which case please contact https://support.elastic.co[Elastic Suppo
 or your deployment doesn't include {kib}, in which case all you need to do is 
 {cloud}/ec-access-kibana.html[enable Kibana first].
 
-. Open your deployment's side navigation (placed under the Elastic logo in the upper left corner)
+. Open your deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
 and go to **Dev Tools > Console**.
 +
 [role="screenshot"]

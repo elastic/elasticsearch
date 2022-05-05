@@ -4,6 +4,8 @@
 <titleabbrev>Frequent items</titleabbrev>
 ++++
 
+experimental::[]
+
 A bucket aggregation which finds frequent item sets. It
 is a form of association rules mining that identifies items that often occur 
 together. It also helps you to discover relationships between different data 

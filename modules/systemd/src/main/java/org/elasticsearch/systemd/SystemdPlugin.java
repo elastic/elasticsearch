@@ -28,7 +28,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.lang.management.ManagementFactory;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
@@ -68,9 +67,6 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
             throw new RuntimeException("ES_SD_NOTIFY set to unexpected value [" + esSDNotify + "]");
         }
         enabled = Boolean.TRUE.toString().equals(esSDNotify);
-        if (enabled) {
-            setMainPid();
-        }
     }
 
     private final SetOnce<Scheduler.Cancellable> extender = new SetOnce<>();
@@ -110,19 +106,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
                 logger.warn("extending startup timeout via sd_notify failed with [{}]", rc);
             }
         }, TimeValue.timeValueSeconds(15), ThreadPool.Names.SAME));
-
         return List.of();
-    }
-
-    void setMainPid() {
-        /*final int rc = sd_notify(0, "MAINPID=" + getPid());
-        if (rc < 0) {
-            logger.warn("setting main pid via sd_notify failed with [{}]", rc);
-        }*/
-    }
-
-    long getPid() {
-        return ManagementFactory.getRuntimeMXBean().getPid();
     }
 
     int sd_notify(@SuppressWarnings("SameParameterValue") final int unset_environment, final String state) {

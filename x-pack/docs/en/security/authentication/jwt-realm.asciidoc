@@ -260,6 +260,7 @@ as well as delegating authorization to another realm.
 IMPORTANT: You cannot map roles in the JWT realm using the `role_mapping.yml`
 file.
 
+[[jwt-authorization-role-mapping]]
 ===== Authorizing with the role mapping API
 You can use the
 <<security-api-put-role-mapping,create or update role mappings API>> to define
@@ -301,6 +302,7 @@ boolean values, and collections that are used as the {es} user's metadata.
 These values are key value pairs formatted as
 `metadata.jwt_claim_<key>` = `<value>`.
 
+[[jwt-authorization-delegation]]
 ===== Delegating JWT authorization to another realm
 If you <<authorization_realms,delegate authorization>> to another realm from the
 JWT realm, only the `principal` claim is available for role lookup. When
@@ -344,7 +346,8 @@ If realm `jwt2` successfully authenticates a client with a JWT for principal
 this defined role mapping, the realm can also look up this role mapping rule
 linked to realm `native1`.
 
-===== Applying the `run_as` privilege to roles
+[[jwt-realm-runas]]
+===== Applying the `run_as` privilege to JWT realm users
 
 You can also apply the <<run-as-privilege-apply,`run_as` privilege>> to JWT
 realm users. If a user's roles in the JWT realm mapping contains the `run_as`
@@ -405,7 +408,11 @@ the `jwt_role1` role that you mapped to this user in the JWT realm:
 
 [source,sh]
 ----
-{"username":"user2","roles":["jwt_role1"],"full_name":null,"email":"user2@something.example.com","metadata":{"jwt_claim_email":"user2@something.example.com","jwt_claim_aud":["es01","es02","es03"],"jwt_claim_sub":"user2","jwt_claim_iss":"my-issuer"},"enabled":true,"authentication_realm":{"name":"jwt2","type":"jwt"},"lookup_realm":{"name":"jwt2","type":"jwt"},"authentication_type":"realm"}% 
+{"username":"user2","roles":["jwt_role1"],"full_name":null,"email":"user2@something.example.com",
+"metadata":{"jwt_claim_email":"user2@something.example.com","jwt_claim_aud":["es01","es02","es03"],
+"jwt_claim_sub":"user2","jwt_claim_iss":"my-issuer"},"enabled":true,"authentication_realm":
+{"name":"jwt2","type":"jwt"},"lookup_realm":{"name":"jwt2","type":"jwt"},"authentication_type":"realm"}
+% 
 ----
 
 If you want to specify a request as the `run_as` user, include the
@@ -423,7 +430,9 @@ and {es} used the `jwt_role1` role:
 
 [source,sh]
 ----
-{"username":"user123_runas","roles":["jwt_role1"],"full_name":null,"email":null,"metadata":{},"enabled":true,"authentication_realm":{"name":"jwt2","type":"jwt"},"lookup_realm":{"name":"native","type":"native"},"authentication_type":"realm"}% 
+{"username":"user123_runas","roles":["jwt_role1"],"full_name":null,"email":null,"metadata":{},
+"enabled":true,"authentication_realm":{"name":"jwt2","type":"jwt"},"lookup_realm":{"name":"native",
+"type":"native"},"authentication_type":"realm"}% 
 ----
 
 [[hmac-oidc-example]]

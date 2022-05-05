@@ -124,7 +124,6 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     /**
      * Test that we can snapshot feature states by name.
      */
-    @AwaitsFix(bugUrl = "TODO")
     public void testSnapshotByFeature() {
         createRepository(REPO_NAME, "fs");
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
@@ -197,7 +196,6 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     /**
      * Take a snapshot with global state but restore features by feature state.
      */
-    @AwaitsFix(bugUrl = "TODO")
     public void testRestoreByFeature() {
         createRepository(REPO_NAME, "fs");
         final String regularIndex = "test-idx";
@@ -243,7 +241,6 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * Test that if a feature state has associated indices, they are included in the snapshot
      * when that feature state is selected.
      */
-    @AwaitsFix(bugUrl = "TODO")
     public void testSnapshotAndRestoreAssociatedIndices() {
         createRepository(REPO_NAME, "fs");
         final String regularIndex = "regular-idx";
@@ -465,7 +462,6 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * If the list of feature states to restore contains only "none" and we are restoring global state,
      * no feature states should be restored.
      */
-    @AwaitsFix(bugUrl = "TODO")
     public void testRestoreSystemIndicesAsGlobalStateWithNoFeatureStates() {
         createRepository(REPO_NAME, "fs");
         String regularIndex = "my-index";
@@ -507,7 +503,6 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      *
      * However, other feature states should be unaffected.
      */
-    @AwaitsFix(bugUrl = "TODO")
     public void testAllSystemIndicesAreRemovedWhenThatFeatureStateIsRestored() {
         createRepository(REPO_NAME, "fs");
         // Create a system index we'll snapshot and restore

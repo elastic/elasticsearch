@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -379,6 +380,8 @@ public class DesiredBalanceServiceTests extends ESTestCase {
                         .stream()
                         .anyMatch(r -> r.primary() && r.started())) {
                             unassignedIterator.initialize("node-1", null, 0L, allocation.changes());
+                        } else {
+                            unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
                         }
                 }
             }

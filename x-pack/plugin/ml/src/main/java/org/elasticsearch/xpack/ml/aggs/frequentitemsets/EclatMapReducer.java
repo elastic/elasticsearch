@@ -224,7 +224,7 @@ public class EclatMapReducer extends AbstractMapReducer<EclatMapReducer, Transac
                 // remember count only if we move down the tree, not up
                 previousOccurences = topItemSetTraverser.getDepth() > previousDepth ? occurences : 0;
 
-                // advance the iterator the next set of interest
+                // Step 1: advance the iterator to the next set of interest
                 occurences = advanceIteratorToNextSet(
                     transactionStore,
                     totalTransactionCount,
@@ -236,6 +236,7 @@ public class EclatMapReducer extends AbstractMapReducer<EclatMapReducer, Transac
                     topItemSetTraverser
                 );
 
+                // Step 2: check which item sets should be reported, this is done lazily
                 // stop exploring the current branch if we fall below minCount
                 if (occurences < minCount) {
 
@@ -330,7 +331,6 @@ public class EclatMapReducer extends AbstractMapReducer<EclatMapReducer, Transac
      *    - optimization: if we go down the tree, a bitset is used to skip transactions,
      *      that do not pass a previous step:
      *          if [a, b] is not in T, [a, b, c] can not be in T either
-     *  - check which item sets should be reported, this is done lazily
      */
     private static long advanceIteratorToNextSet(
         TransactionStore transactionStore,
@@ -391,11 +391,12 @@ public class EclatMapReducer extends AbstractMapReducer<EclatMapReducer, Transac
             }
 
             transactionSkipCounts[depth - 1] = skipCount;
-
             return occurences;
-            // deep traversal: use the last cached values, but don't store any
-            // this is exactly the same (unrolled) code as before, but without writing to the cache
         }
+
+        // else: deep traversal (we only cache until a certain depth, while depth == number of items in a transaction)
+        // use the last cached values, but don't store any
+        // this is exactly the same (unrolled) code as before, but without writing to the cache
 
         // get the last cached skip count
         long skipCount = transactionSkipCounts[BITSET_CACHE_TRAVERSAL_DEPTH - 2];

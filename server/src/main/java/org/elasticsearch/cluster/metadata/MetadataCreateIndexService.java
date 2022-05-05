@@ -296,17 +296,13 @@ public class MetadataCreateIndexService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return applyCreateIndexRequest(currentState, request, false, null, new ActionListener<>() {
-                        @Override
-                        public void onResponse(Void unused) {
-                            future.addListener(listener);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            future.onFailure(e);
-                        }
-                    });
+                    return applyCreateIndexRequest(
+                        currentState,
+                        request,
+                        false,
+                        null,
+                        future.delegateFailure((delegate, ignored) -> future.addListener(listener))
+                    );
                 }
 
                 @Override

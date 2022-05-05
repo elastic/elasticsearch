@@ -10,6 +10,7 @@ package org.elasticsearch.health;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -37,7 +38,13 @@ public class HealthIndicatorServiceTests extends ESTestCase {
                 new HealthIndicatorImpact(randomIntBetween(5, 20), randomAlphaOfLength(20), List.of(randomFrom(ImpactArea.values())))
             );
         }
-        HealthIndicatorResult result = service.createIndicator(status, randomAlphaOfLength(20), HealthIndicatorDetails.EMPTY, impacts);
+        HealthIndicatorResult result = service.createIndicator(
+            status,
+            randomAlphaOfLength(20),
+            HealthIndicatorDetails.EMPTY,
+            impacts,
+            Collections.emptyList()
+        );
         List<HealthIndicatorImpact> outputImpacts = result.impacts();
         assertEquals(3, outputImpacts.size());
         List<HealthIndicatorImpact> expectedImpacts = List.of(impact1, impact2, impact3);

@@ -47,9 +47,9 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     @Override
     public void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener) {
         final Authentication authentication = requestInfo.getAuthentication();
-        if (authentication.getUser().isRunAs()) {
+        if (authentication.isRunAs()) {
             final CustomAuthorizationInfo authenticatedUserAuthzInfo =
-                new CustomAuthorizationInfo(authentication.getUser().authenticatedUser().roles(), null);
+                new CustomAuthorizationInfo(authentication.getAuthenticatingSubject().getUser().roles(), null);
             listener.onResponse(new CustomAuthorizationInfo(authentication.getUser().roles(), authenticatedUserAuthzInfo));
         } else {
             listener.onResponse(new CustomAuthorizationInfo(authentication.getUser().roles(), null));
@@ -58,7 +58,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
 
     @Override
     public void authorizeRunAs(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
-        if (isSuperuser(requestInfo.getAuthentication().getUser().authenticatedUser())) {
+        if (isSuperuser(requestInfo.getAuthentication().getAuthenticatingSubject().getUser())) {
             listener.onResponse(AuthorizationResult.granted());
         } else {
             listener.onResponse(AuthorizationResult.deny());

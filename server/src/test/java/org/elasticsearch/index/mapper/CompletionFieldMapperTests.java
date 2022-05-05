@@ -109,7 +109,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         checker.registerUpdateCheck(
             b -> b.field("search_analyzer", "standard"),
-            m -> assertEquals("standard", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name())
+            m -> assertEquals("standard", m.fieldType().getTextSearchInfo().searchAnalyzer().name())
         );
         checker.registerUpdateCheck(b -> b.field("max_input_length", 30), m -> {
             CompletionFieldMapper cfm = (CompletionFieldMapper) m;
@@ -156,7 +156,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(true));
 
-        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().getSearchAnalyzer();
+        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().searchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("simple"));
         assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
@@ -184,7 +184,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 
-        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().getSearchAnalyzer();
+        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().searchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("standard"));
         assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();

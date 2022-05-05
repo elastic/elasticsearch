@@ -19,7 +19,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
@@ -80,6 +79,7 @@ import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
@@ -373,17 +373,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
         if (IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.get(settings)) {
-            cachingPolicy = new QueryCachingPolicy() {
-                @Override
-                public void onUse(Query query) {
-
-                }
-
-                @Override
-                public boolean shouldCache(Query query) {
-                    return true;
-                }
-            };
+            cachingPolicy = TrivialQueryCachingPolicy.ALWAYS;
         } else {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }

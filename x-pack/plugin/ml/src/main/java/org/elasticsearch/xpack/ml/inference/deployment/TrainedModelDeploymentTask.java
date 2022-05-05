@@ -38,6 +38,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     private final TaskParams params;
     private final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService;
     private volatile boolean stopped;
+    private volatile boolean failed;
     private final SetOnce<String> stoppedReasonHolder = new SetOnce<>();
     private final SetOnce<InferenceConfig> inferenceConfigHolder = new SetOnce<>();
     private final XPackLicenseState licenseState;
@@ -145,6 +146,11 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     }
 
     public void setFailed(String reason) {
+        failed = true;
         trainedModelAssignmentNodeService.failAssignment(this, reason);
+    }
+
+    public boolean isFailed() {
+        return failed;
     }
 }

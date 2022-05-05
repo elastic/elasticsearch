@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -151,7 +152,6 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
         }
 
         private final Map<String, TrainedModelAssignment.Builder> modelRoutingEntries;
-        private boolean isChanged;
 
         public static Builder fromMetadata(TrainedModelAssignmentMetadata modelAssignmentMetadata) {
             return new Builder(modelAssignmentMetadata);
@@ -177,7 +177,14 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
                 throw new ResourceAlreadyExistsException("[{}] assignment already exists", modelId);
             }
             modelRoutingEntries.put(modelId, assignment);
-            isChanged = true;
+            return this;
+        }
+
+        public Builder updateAssignment(String modelId, TrainedModelAssignment.Builder assignment) {
+            if (modelRoutingEntries.containsKey(modelId) == false) {
+                throw new ResourceNotFoundException("[{}] assignment does not exist", modelId);
+            }
+            modelRoutingEntries.put(modelId, assignment);
             return this;
         }
 
@@ -186,12 +193,8 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
         }
 
         public Builder removeAssignment(String modelId) {
-            isChanged |= modelRoutingEntries.remove(modelId) != null;
+            modelRoutingEntries.remove(modelId);
             return this;
-        }
-
-        public boolean isChanged() {
-            return isChanged || modelRoutingEntries.values().stream().anyMatch(TrainedModelAssignment.Builder::isChanged);
         }
 
         public TrainedModelAssignmentMetadata build() {

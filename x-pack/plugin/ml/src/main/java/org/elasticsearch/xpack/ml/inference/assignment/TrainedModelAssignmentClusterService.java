@@ -9,10 +9,9 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -26,14 +25,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentStateAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -42,30 +41,36 @@ import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.Locale;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata.fromState;
 
 public class TrainedModelAssignmentClusterService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
 
+    public static final Version DISTRIBUTED_MODEL_ALLOCATION_VERSION = Version.V_8_4_0;
+
     private final ClusterService clusterService;
+    private final ThreadPool threadPool;
     private final NodeLoadDetector nodeLoadDetector;
     private volatile int maxMemoryPercentage;
     private volatile boolean useAuto;
     private volatile int maxOpenJobs;
 
-    public TrainedModelAssignmentClusterService(Settings settings, ClusterService clusterService, NodeLoadDetector nodeLoadDetector) {
+    public TrainedModelAssignmentClusterService(
+        Settings settings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        NodeLoadDetector nodeLoadDetector
+    ) {
         this.clusterService = clusterService;
+        this.threadPool = threadPool;
         this.nodeLoadDetector = nodeLoadDetector;
         this.maxMemoryPercentage = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
         this.useAuto = MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
@@ -104,46 +109,36 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             return;
         }
         if (event.localNodeMaster() && shouldAllocateModels(event)) {
-            submitUnbatchedTask("allocating models to nodes", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    // TODO this has a weird side-effect for allocating to nodes
-                    // If the event indicates there were nodes added/removed, this method only looks at the current state and has
-                    // no previous knowledge of existing nodes. Consequently, if a model was manually removed (task-kill) from a node
-                    // it may get re-allocated to that node when another node is added/removed...
-
-                    // As this produces a cluster state update task, we are certain that if the persistent
-                    // task framework results in assigning some ML tasks on that same cluster state change
-                    // we do not end up over-allocating a node. Both this service and the persistant task service
-                    // will produce a cluster state update but the one that gets applied first wins. The other
-                    // update will be rejected and we will retry to assign getting a correct update on available memory
-                    // on each node.
-                    // Also, note that as this service is a returned as a component of the ML plugin,
-                    // and components are created before persistent task executors, we will try to allocate
-                    // trained models before we try to assign ML persistent tasks.
-                    return addRemoveAssignmentNodes(currentState);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn("failed to allocate models", e);
-                }
-
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    logger.trace(
+            // TODO this has a weird side-effect for allocating to nodes
+            // If the event indicates there were nodes added/removed, this method only looks at the current state and has
+            // no previous knowledge of existing nodes. Consequently, if a model was manually removed (task-kill) from a node
+            // it may get re-allocated to that node when another node is added/removed...
+            //
+            // As this produces a cluster state update task, we are certain that if the persistent
+            // task framework results in assigning some ML tasks on that same cluster state change
+            // we do not end up over-allocating a node. Both this service and the persistent task service
+            // will produce a cluster state update but the one that gets applied first wins. The other
+            // update will be rejected and we will retry to assign getting a correct update on available memory
+            // on each node.
+            rebalanceAssignments(
+                clusterService.state(),
+                Optional.empty(),
+                "rebalancing allocations because nodes changed",
+                ActionListener.wrap(
+                    newMetadata -> logger.trace(
                         () -> format(
                             "updated model assignments based on node changes in the cluster; new metadata [%s]",
-                            Strings.toString(fromState(newState), false, true)
+                            Strings.toString(TrainedModelAssignmentMetadata.fromState(event.state()), false, true)
                         )
-                    );
-                }
-            });
+                    ),
+                    e -> logger.warn("failed to rebalance models", e)
+                )
+            );
         }
     }
 
     public void updateModelRoutingTable(
-        UpdateTrainedModelAssignmentStateAction.Request request,
+        UpdateTrainedModelAssignmentRoutingInfoAction.Request request,
         ActionListener<AcknowledgedResponse> listener
     ) {
         submitUnbatchedTask("updating model routing for node assignment", new ClusterStateUpdateTask() {
@@ -168,22 +163,38 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         StartTrainedModelDeploymentAction.TaskParams params,
         ActionListener<TrainedModelAssignment> listener
     ) {
-        submitUnbatchedTask("create model assignment", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return createModelAssignment(currentState, params);
-            }
+        if (clusterService.state().nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "cannot create new assignment for model [{}] while there are nodes older than version [{}]",
+                    RestStatus.CONFLICT,
+                    params.getModelId(),
+                    DISTRIBUTED_MODEL_ALLOCATION_VERSION
+                )
+            );
+            return;
+        }
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
+        if (MlMetadata.getMlMetadata(clusterService.state()).isResetMode()) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "cannot create new assignment for model [{}] while feature reset is in progress.",
+                    RestStatus.CONFLICT,
+                    params.getModelId()
+                )
+            );
+            return;
+        }
 
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                listener.onResponse(TrainedModelAssignmentMetadata.fromState(newState).getModelAssignment(params.getModelId()));
-            }
-        });
+        rebalanceAssignments(
+            clusterService.state(),
+            Optional.of(params),
+            "create model assignment",
+            ActionListener.wrap(
+                newMetadata -> listener.onResponse(newMetadata.getModelAssignment(params.getModelId())),
+                listener::onFailure
+            )
+        );
     }
 
     public void setModelAssignmentToStopping(String modelId, ActionListener<AcknowledgedResponse> listener) {
@@ -245,55 +256,106 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     }
 
     private static ClusterState update(ClusterState currentState, TrainedModelAssignmentMetadata.Builder modelAssignments) {
-        if (modelAssignments.isChanged()) {
-            return ClusterState.builder(currentState)
-                .metadata(
-                    Metadata.builder(currentState.metadata())
-                        .putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
-                        .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME)
-                )
-                .build();
-        } else {
+        TrainedModelAssignmentMetadata previousMetadata = TrainedModelAssignmentMetadata.fromState(currentState);
+        TrainedModelAssignmentMetadata updatedMetadata = modelAssignments.build();
+        if (updatedMetadata.equals(previousMetadata)) {
             return currentState;
         }
+        return ClusterState.builder(currentState)
+            .metadata(
+                Metadata.builder(currentState.metadata())
+                    .putCustom(TrainedModelAssignmentMetadata.NAME, updatedMetadata)
+                    .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME)
+            )
+            .build();
     }
 
+    /** Visible for testing */
     ClusterState createModelAssignment(ClusterState currentState, StartTrainedModelDeploymentAction.TaskParams params) {
-        if (MlMetadata.getMlMetadata(currentState).isResetMode()) {
-            throw new ElasticsearchStatusException(
-                "cannot create new assignment for model [{}] while feature reset is in progress.",
-                RestStatus.CONFLICT,
-                params.getModelId()
-            );
-        }
-        TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
-        if (builder.hasModel(params.getModelId())) {
-            throw new ResourceAlreadyExistsException("assignment for model with id [{}] already exist", params.getModelId());
-        }
-        TrainedModelAssignment.Builder assignmentBuilder = TrainedModelAssignment.Builder.empty(params);
+        return update(currentState, rebalanceAssignments(currentState, Optional.of(params)));
+    }
 
-        Set<String> shuttingDownNodes = nodesShuttingDown(currentState);
-        Map<String, String> nodeToReason = new TreeMap<>();
-        for (DiscoveryNode node : currentState.getNodes()) {
-            if (StartTrainedModelDeploymentAction.TaskParams.mayAssignToNode(node) && shuttingDownNodes.contains(node.getId()) == false) {
-                Optional<String> maybeError = nodeHasCapacity(currentState, params, node);
-                if (maybeError.isPresent()) {
-                    nodeToReason.put(node.getName(), maybeError.get());
-                } else {
-                    assignmentBuilder.addNewRoutingEntry(node.getId());
-                }
+    private void rebalanceAssignments(
+        ClusterState clusterState,
+        Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd,
+        String reason,
+        ActionListener<TrainedModelAssignmentMetadata> listener
+    ) {
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+            TrainedModelAssignmentMetadata.Builder rebalancedMetadata;
+            try {
+                rebalancedMetadata = rebalanceAssignments(clusterState, modelToAdd);
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
             }
-        }
-        if (nodeToReason.isEmpty() == false) {
-            assignmentBuilder.setReason(
-                nodeToReason.entrySet()
-                    .stream()
-                    .map(entry -> String.format(Locale.ROOT, "Not allocating on node [%s]. Reason: %s", entry.getKey(), entry.getValue()))
-                    .collect(Collectors.joining("|"))
+            submitUnbatchedTask(reason, new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+
+                    if (areClusterStatesCompatibleForRebalance(clusterState, currentState)) {
+                        return update(currentState, rebalancedMetadata);
+                    }
+                    rebalanceAssignments(currentState, modelToAdd, reason, listener);
+                    return currentState;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(TrainedModelAssignmentMetadata.fromState(newState));
+                }
+            });
+        });
+    }
+
+    private boolean areClusterStatesCompatibleForRebalance(ClusterState source, ClusterState target) {
+        List<DiscoveryNode> sourceNodes = getAssignableNodes(source);
+        List<DiscoveryNode> targetNodes = getAssignableNodes(target);
+        // We also compare node loads as it could be that another ML job has been started meanwhile
+        return sourceNodes.equals(targetNodes)
+            && detectNodeLoads(sourceNodes, source).equals(detectNodeLoads(targetNodes, target))
+            && MlMetadata.getMlMetadata(source).equals(MlMetadata.getMlMetadata(target))
+            && TrainedModelAssignmentMetadata.fromState(source).equals(TrainedModelAssignmentMetadata.fromState(target));
+    }
+
+    private TrainedModelAssignmentMetadata.Builder rebalanceAssignments(
+        ClusterState currentState,
+        Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd
+    ) {
+        List<DiscoveryNode> nodes = getAssignableNodes(currentState);
+        Map<DiscoveryNode, NodeLoad> nodeLoads = detectNodeLoads(nodes, currentState);
+        TrainedModelAssignmentRebalancer rebalancer = new TrainedModelAssignmentRebalancer(
+            TrainedModelAssignmentMetadata.fromState(currentState),
+            nodeLoads,
+            modelToAdd
+        );
+        return rebalancer.rebalance();
+    }
+
+    private List<DiscoveryNode> getAssignableNodes(ClusterState clusterState) {
+        final Set<String> shuttingDownNodes = nodesShuttingDown(clusterState);
+        return clusterState.getNodes()
+            .getNodes()
+            .values()
+            .stream()
+            .filter(StartTrainedModelDeploymentAction.TaskParams::mayAssignToNode)
+            .filter(n -> shuttingDownNodes.contains(n.getId()) == false)
+            .toList();
+    }
+
+    private Map<DiscoveryNode, NodeLoad> detectNodeLoads(List<DiscoveryNode> nodes, ClusterState clusterState) {
+        return nodes.stream()
+            .collect(
+                Collectors.toMap(
+                    Function.identity(),
+                    n -> nodeLoadDetector.detectNodeLoad(clusterState, null, n, maxOpenJobs, maxMemoryPercentage, useAuto)
+                )
             );
-        }
-        builder.addNewAssignment(params.getModelId(), assignmentBuilder);
-        return update(currentState, builder);
     }
 
     static ClusterState setToStopping(ClusterState clusterState, String modelId, String reason) {
@@ -311,7 +373,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         return update(clusterState, builder);
     }
 
-    static ClusterState updateModelRoutingTable(ClusterState currentState, UpdateTrainedModelAssignmentStateAction.Request request) {
+    static ClusterState updateModelRoutingTable(ClusterState currentState, UpdateTrainedModelAssignmentRoutingInfoAction.Request request) {
         final String modelId = request.getModelId();
         final String nodeId = request.getNodeId();
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
@@ -319,7 +381,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         final TrainedModelAssignment existingAssignment = metadata.getModelAssignment(modelId);
         final TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
         // If state is stopped, this indicates the node process is closed, remove the node from the assignment
-        if (request.getRoutingState().getState().equals(RoutingState.STOPPED)) {
+        if (request.getRoutingInfo().getState().equals(RoutingState.STOPPED)) {
             if (existingAssignment == null || existingAssignment.isRoutedToNode(nodeId) == false) {
                 return currentState;
             }
@@ -337,7 +399,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     "[%s] requested update from node [%s] to update route state to [%s]",
                     modelId,
                     nodeId,
-                    request.getRoutingState()
+                    request.getRoutingInfo()
                 )
             );
             return currentState;
@@ -345,7 +407,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         if (existingAssignment.isRoutedToNode(nodeId) == false) {
             throw new ResourceNotFoundException("assignment for model with id [{}]] is not routed to node [{}]", modelId, nodeId);
         }
-        builder.getAssignment(modelId).updateExistingRoutingEntry(nodeId, request.getRoutingState()).calculateAndSetAssignmentState();
+        builder.getAssignment(modelId).updateExistingRoutingEntry(nodeId, request.getRoutingInfo()).calculateAndSetAssignmentState();
 
         return update(currentState, builder);
     }
@@ -370,70 +432,6 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     .build()
             )
             .build();
-    }
-
-    ClusterState addRemoveAssignmentNodes(ClusterState currentState) {
-        final TrainedModelAssignmentMetadata previousState = TrainedModelAssignmentMetadata.fromState(currentState);
-        final TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
-        Set<String> shuttingDownNodes = nodesShuttingDown(currentState);
-        Map<String, DiscoveryNode> currentEligibleNodes = currentState.getNodes()
-            .stream()
-            // TODO: Change when we update `mayAllocateToNode`
-            .filter(
-                node -> shuttingDownNodes.contains(node.getId()) == false
-                    && StartTrainedModelDeploymentAction.TaskParams.mayAssignToNode(node)
-            )
-            .collect(Collectors.toMap(DiscoveryNode::getId, Function.identity()));
-        // TODO: make more efficient, we iterate every entry, sorting by nodes routed (fewest to most)
-        previousState.modelAssignments()
-            .entrySet()
-            .stream()
-            .filter(entry -> entry.getValue().getAssignmentState().equals(AssignmentState.STOPPING) == false)
-            .sorted(Comparator.comparing(e -> e.getValue().getNodeRoutingTable().size()))
-            .forEach(modelAssignmentEntry -> {
-                final String modelId = modelAssignmentEntry.getKey();
-                Map<String, String> nodeToReason = new TreeMap<>();
-                for (DiscoveryNode node : currentEligibleNodes.values()) {
-                    if (modelAssignmentEntry.getValue().isRoutedToNode(node.getId()) == false) {
-                        Optional<String> failure = builder.isChanged() ?
-                        // We use the builder only if we have changed, there is no point in creating a new object if we haven't changed
-                        nodeHasCapacity(currentState, builder, modelAssignmentEntry.getValue().getTaskParams(), node)
-                            : nodeHasCapacity(currentState, modelAssignmentEntry.getValue().getTaskParams(), node);
-                        if (failure.isPresent()) {
-                            nodeToReason.put(node.getName(), failure.get());
-                        } else {
-                            builder.getAssignment(modelId).addNewRoutingEntry(node.getId());
-                        }
-                    }
-                }
-                if (nodeToReason.isEmpty() == false) {
-                    builder.getAssignment(modelId)
-                        .setReason(
-                            nodeToReason.entrySet()
-                                .stream()
-                                .map(
-                                    entry -> String.format(
-                                        Locale.ROOT,
-                                        "Not allocating on node [%s]. Reason: %s",
-                                        entry.getKey(),
-                                        entry.getValue()
-                                    )
-                                )
-                                .collect(Collectors.joining("|"))
-                        );
-                } else {
-                    builder.getAssignment(modelId).clearReason();
-                }
-                for (String nodeId : modelAssignmentEntry.getValue().getNodeRoutingTable().keySet()) {
-                    if (currentEligibleNodes.containsKey(nodeId) == false) {
-                        builder.getAssignment(modelId).removeRoutingEntry(nodeId);
-                    }
-                }
-                // It may be we moved from STARTED to PARTIALLY_STARTED with the addition of new nodes
-                // Or moved from PARTIALLY_STARTED to STARTED if a node was removed
-                builder.getAssignment(modelId).calculateAndSetAssignmentState();
-            });
-        return update(currentState, builder);
     }
 
     static boolean shouldAllocateModels(final ClusterChangedEvent event) {
@@ -507,61 +505,6 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         return false;
     }
 
-    Optional<String> nodeHasCapacity(ClusterState state, StartTrainedModelDeploymentAction.TaskParams params, DiscoveryNode node) {
-        NodeLoad load = nodeLoadDetector.detectNodeLoad(state, node, maxOpenJobs, maxMemoryPercentage, useAuto);
-        return handleNodeLoad(load, node.getId(), params);
-    }
-
-    /**
-     *  Gather current node capacity taking the passed assignment metadata into account instead of the one stored in cluster state.
-     */
-    Optional<String> nodeHasCapacity(
-        ClusterState state,
-        TrainedModelAssignmentMetadata.Builder builder,
-        StartTrainedModelDeploymentAction.TaskParams params,
-        DiscoveryNode node
-    ) {
-        NodeLoad load = nodeLoadDetector.detectNodeLoad(state, builder.build(), node, maxOpenJobs, maxMemoryPercentage, useAuto);
-        return handleNodeLoad(load, node.getId(), params);
-    }
-
-    Optional<String> handleNodeLoad(NodeLoad load, String nodeId, StartTrainedModelDeploymentAction.TaskParams params) {
-        if (Strings.isNullOrEmpty(load.getError()) == false) {
-            logger.warn("[{}] failed to calculate current node load with error [{}]", params.getModelId(), nodeId);
-            return Optional.of(load.getError());
-        }
-        if (load.remainingJobs() == 0) {
-            return Optional.of(
-                ParameterizedMessage.format(
-                    "This node is full. Number of opened jobs and allocated native inference processes [{}], {} [{}].",
-                    new Object[] { load.getNumAssignedJobs(), MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxOpenJobs }
-                )
-            );
-        }
-        // If any ML processes are running on a node we require some space to load the shared libraries.
-        // So if none are currently running then this per-node overhead must be added to the requirement.
-        long requiredMemory = params.estimateMemoryUsageBytes() + ((load.getNumAssignedJobs() == 0)
-            ? MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes()
-            : 0);
-        if (load.getFreeMemory() < params.estimateMemoryUsageBytes()) {
-            return Optional.of(
-                ParameterizedMessage.format(
-                    "This node has insufficient available memory. Available memory for ML [{} ({})], "
-                        + "memory required by existing jobs and models [{} ({})], "
-                        + "estimated memory required for this model [{} ({})].",
-                    new Object[] {
-                        load.getMaxMlMemory(),
-                        ByteSizeValue.ofBytes(load.getMaxMlMemory()).toString(),
-                        load.getAssignedJobMemory(),
-                        ByteSizeValue.ofBytes(load.getAssignedJobMemory()).toString(),
-                        requiredMemory,
-                        ByteSizeValue.ofBytes(requiredMemory).toString() }
-                )
-            );
-        }
-        return Optional.empty();
-    }
-
     /**
      * Returns the set of nodes that are currently shutting down
      */
@@ -571,5 +514,4 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             .map(Map::keySet)
             .orElse(Collections.emptySet());
     }
-
 }

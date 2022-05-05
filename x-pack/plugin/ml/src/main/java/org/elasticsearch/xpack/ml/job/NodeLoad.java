@@ -166,7 +166,8 @@ public class NodeLoad {
      * @return The number of jobs that can still be assigned to the node
      */
     public int remainingJobs() {
-        return Math.max(maxJobs - getNumAssignedJobs(), 0);
+        // Native inference jobs use their own thread pool so they should not account towards the limit of open jobs.
+        return Math.max(maxJobs - (getNumAssignedJobs() - numAssignedNativeInferenceJobs), 0);
     }
 
     /**
@@ -275,7 +276,8 @@ public class NodeLoad {
         }
 
         public int remainingJobs() {
-            return Math.max(maxJobs - getNumAssignedJobs(), 0);
+            // Native inference jobs use their own thread pool so they should not account towards the limit of open jobs.
+            return Math.max(maxJobs - (getNumAssignedJobs() - numAssignedNativeInferenceJobs), 0);
         }
 
         public String getNodeId() {

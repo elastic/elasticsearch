@@ -18,6 +18,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -128,12 +129,25 @@ public class NodeLoadDetectorTests extends ESTestCase {
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams("model1", MODEL_MEMORY_REQUIREMENT, 1, 1, 1024)
                                 )
-                                    .addNewRoutingEntry("_node_id4")
-                                    .addNewFailedRoutingEntry("_node_id2", "test")
-                                    .addNewRoutingEntry("_node_id1")
+                                    .addRoutingEntry(
+                                        "_node_id4",
+                                        new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, ""))
+                                    )
+                                    .addRoutingEntry(
+                                        "_node_id2",
+                                        new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.FAILED, "test"))
+                                    )
+                                    .addRoutingEntry(
+                                        "_node_id1",
+                                        new RoutingInfo(1, 1, new RoutingStateAndReason(RoutingState.STARTING, ""))
+                                    )
                                     .updateExistingRoutingEntry(
                                         "_node_id1",
-                                        new RoutingStateAndReason(randomFrom(RoutingState.STOPPED, RoutingState.FAILED), "test")
+                                        new RoutingInfo(
+                                            1,
+                                            1,
+                                            new RoutingStateAndReason(randomFrom(RoutingState.STOPPED, RoutingState.FAILED), "test")
+                                        )
                                     )
                             )
                             .build()

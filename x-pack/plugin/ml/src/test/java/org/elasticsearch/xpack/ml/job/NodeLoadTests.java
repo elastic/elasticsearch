@@ -25,6 +25,6 @@ public class NodeLoadTests extends ESTestCase {
             .build();
 
         assertThat(nodeLoad.getNumAssignedJobs(), equalTo(6));
-        assertThat(nodeLoad.remainingJobs(), equalTo(4));
+        assertThat(nodeLoad.remainingJobs(), equalTo(7));
     }
 }

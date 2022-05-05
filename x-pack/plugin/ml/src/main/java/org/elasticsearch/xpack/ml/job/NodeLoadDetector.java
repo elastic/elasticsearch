@@ -11,8 +11,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
@@ -134,7 +134,7 @@ public class NodeLoadDetector {
         if (trainedModelAssignmentMetadata != null && trainedModelAssignmentMetadata.modelAssignments().isEmpty() == false) {
             for (TrainedModelAssignment assignment : trainedModelAssignmentMetadata.modelAssignments().values()) {
                 if (Optional.ofNullable(assignment.getNodeRoutingTable().get(nodeLoad.getNodeId()))
-                    .map(RoutingStateAndReason::getState)
+                    .map(RoutingInfo::getState)
                     .orElse(RoutingState.STOPPED)
                     .consumesMemory()) {
                     nodeLoad.incNumAssignedNativeInferenceJobs();

@@ -69,8 +69,22 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
      */
     private final Map<Model, Map<Node, Integer>> assignments;
 
-    private AssignmentPlan(Map<Model, Map<Node, Integer>> assignments) {
+    private final Map<String, Long> remainingNodeMemory;
+    private final Map<String, Integer> remainingNodeCores;
+    private final Map<Model, Integer> remainingModelAllocations;
+
+    private AssignmentPlan(
+        Map<Model, Map<Node, Integer>> assignments,
+        Map<Node, Long> remainingNodeMemory,
+        Map<Node, Integer> remainingNodeCores,
+        Map<Model, Integer> remainingModelAllocations
+    ) {
         this.assignments = Objects.requireNonNull(assignments);
+        this.remainingNodeMemory = remainingNodeMemory.entrySet()
+            .stream()
+            .collect(Collectors.toMap(e -> e.getKey().id(), e -> e.getValue()));
+        this.remainingNodeCores = remainingNodeCores.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().id(), e -> e.getValue()));
+        this.remainingModelAllocations = Objects.requireNonNull(remainingModelAllocations);
     }
 
     public Set<Model> models() {
@@ -105,6 +119,18 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         Map<Node, Integer> nodeAssignments = assignments.get(m);
         int currentAllocations = nodeAssignments.values().stream().mapToInt(Integer::intValue).sum();
         return currentAllocations >= m.getPreviouslyAssignedAllocations();
+    }
+
+    public boolean satisfiesAllocations(Model m) {
+        return remainingModelAllocations.getOrDefault(m, 0) == 0;
+    }
+
+    public int getRemainingNodeCores(String nodeId) {
+        return remainingNodeCores.get(nodeId);
+    }
+
+    public long getRemainingNodeMemory(String nodeId) {
+        return remainingNodeMemory.get(nodeId);
     }
 
     private Quality computeQuality() {
@@ -279,7 +305,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 }
                 finalAssignments.put(m, allocationsPerNode);
             }
-            return new AssignmentPlan(finalAssignments);
+            return new AssignmentPlan(finalAssignments, remainingNodeMemory, remainingNodeCores, remainingModelAllocations);
         }
     }
 

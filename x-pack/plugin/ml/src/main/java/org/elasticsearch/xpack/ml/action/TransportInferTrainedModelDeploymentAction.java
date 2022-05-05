@@ -14,7 +14,6 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -31,6 +30,7 @@ import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTas
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.List;
+import java.util.Optional;
 
 public class TransportInferTrainedModelDeploymentAction extends TransportTasksAction<
     TrainedModelDeploymentTask,
@@ -94,15 +94,13 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
-        String[] randomRunningNode = assignment.getStartedNodes();
-        if (randomRunningNode.length == 0) {
+        Optional<String> randomRunningNode = assignment.selectRandomStartedNodeWeighedOnAllocations();
+        if (randomRunningNode.isEmpty()) {
             String message = "Trained model [" + deploymentId + "] is not allocated to any nodes";
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
-        // TODO Do better routing for inference calls
-        int nodeIndex = Randomness.get().nextInt(randomRunningNode.length);
-        request.setNodes(randomRunningNode[nodeIndex]);
+        request.setNodes(randomRunningNode.get());
         super.doExecute(task, request, listener);
     }
 

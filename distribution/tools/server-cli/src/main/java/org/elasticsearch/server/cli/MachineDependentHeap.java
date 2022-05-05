@@ -141,6 +141,14 @@ public final class MachineDependentHeap {
          * </ul>
          *
          * In all cases the result is rounded down to the next whole multiple of 4 megabytes.
+         * The reason for doing this is that Java will round requested heap sizes to a multiple
+         * of 4 megabytes (certainly versions 11 to 18 do this), so by doing this ourselves we
+         * are more likely to actually get the amount we request. This is worthwhile for ML where
+         * the ML autoscaling code needs to be able to calculate the JVM size for different sizes
+         * of ML node, and if Java is also rounding then this causes a discrepancy. It's possible
+         * that a future version of Java could round to an even bigger number of megabytes, which
+         * would cause a discrepancy for people using that version of Java. But there's no harm
+         * in a bit of extra rounding here - it can only reduce discrepancies.
          *
          * If this formula is changed then corresponding changes must be made to the {@code NativeMemoryCalculator} and
          * {@code MlAutoscalingDeciderServiceTests} classes in the ML plugin code. Failure to keep the logic synchronized

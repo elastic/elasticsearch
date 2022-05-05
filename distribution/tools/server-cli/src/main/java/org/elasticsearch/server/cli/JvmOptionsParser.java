@@ -94,7 +94,7 @@ final class JvmOptionsParser {
      *
      * <p> This method works by joining the options found in {@link SystemJvmOptions}, the {@code jvm.options} file,
      * files in the {@code jvm.options.d} directory, and the options given by the {@code ES_JAVA_OPTS} environment
-     * variable. After the options are read, they are passed to a java subprocess which prints out the final options.
+     * variable.
      *
      * @param configDir the ES config dir
      * @param pluginsDir the ES plugins dir

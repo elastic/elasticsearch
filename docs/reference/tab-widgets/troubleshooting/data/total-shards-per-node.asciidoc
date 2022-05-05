@@ -39,16 +39,17 @@ https://support.elastic.co[Elastic Support] to discuss available options.
 . Log in to the {ess-console}[{ecloud} console].
 +
 
-. On the **Deployments** page click on the name of your deployment, if it is enabled.
+. On the **Elasticsearch Service** panel, click the name of your deployment. 
 +
 
 NOTE:
-If the name of your deployment is grayed out your {kib} instances might be
+If the name of your deployment is disabled your {kib} instances might be
 unhealthy, in which case please contact https://support.elastic.co[Elastic Support],
 or your deployment doesn't include {kib}, in which case all you need to do is 
 {cloud}/ec-access-kibana.html[enable Kibana first].
 
-. Open {kib}'s main menu and go to **Dev Tools > Console**.
+. Open your deployment's side navigation (placed under the Elastic logo in the upper left corner)
+and go to **Dev Tools > Console**.
 +
 [role="screenshot"]
 image::images/kibana-console.png[{kib} Console,align="center"]

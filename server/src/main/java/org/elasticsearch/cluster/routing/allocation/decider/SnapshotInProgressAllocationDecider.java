@@ -48,7 +48,7 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
         return canAllocate(shardRouting, node, allocation);
     }
 
-    private static final Decision YES_NO_SNAPSHOTS_RUNNING = Decision.single(Decision.Type.YES, NAME, "no snapshots are currently running");
+    private static final Decision YES_NOT_RUNNING = Decision.single(Decision.Type.YES, NAME, "no snapshots are currently running");
     private static final Decision YES_NOT_SNAPSHOTTED = Decision.single(Decision.Type.YES, NAME, "the shard is not being snapshotted");
 
     private static Decision canMove(ShardRouting shardRouting, RoutingAllocation allocation) {
@@ -60,7 +60,7 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
         SnapshotsInProgress snapshotsInProgress = allocation.custom(SnapshotsInProgress.TYPE);
         if (snapshotsInProgress == null || snapshotsInProgress.isEmpty()) {
             // Snapshots are not running
-            return YES_NO_SNAPSHOTS_RUNNING;
+            return YES_NOT_RUNNING;
         }
 
         final ShardId shardId = shardRouting.shardId();

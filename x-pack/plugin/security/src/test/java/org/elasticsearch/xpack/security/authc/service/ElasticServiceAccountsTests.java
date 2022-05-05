@@ -68,7 +68,7 @@ import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
@@ -448,7 +448,8 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.cluster().check(GetRecordsAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(GetTrainedModelsAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(GetTrainedModelsStatsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(InternalInferModelAction.NAME, request, authentication), is(false)); // internal use only
+        assertThat(role.cluster().check(InferModelAction.EXTERNAL_NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(InferModelAction.NAME, request, authentication), is(false)); // internal use only
         assertThat(role.cluster().check(IsolateDatafeedAction.NAME, request, authentication), is(false)); // internal use only
         assertThat(role.cluster().check(KillProcessAction.NAME, request, authentication), is(false)); // internal use only
         assertThat(role.cluster().check(MlInfoAction.NAME, request, authentication), is(true));

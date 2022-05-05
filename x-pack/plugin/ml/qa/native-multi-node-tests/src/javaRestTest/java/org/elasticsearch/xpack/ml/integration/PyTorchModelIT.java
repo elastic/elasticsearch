@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -75,8 +74,6 @@ import static org.hamcrest.Matchers.nullValue;
  * torch.jit.save(traced_model, "simplemodel.pt")
  * ## End Python
  */
-
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/2258")
 public class PyTorchModelIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE_SUPER_USER = UsernamePasswordToken.basicAuthHeaderValue(
@@ -162,7 +159,10 @@ public class PyTorchModelIT extends ESRestTestCase {
                 executorService.execute(() -> {
                     try {
                         Response inference = infer("my words", modelId);
-                        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"predicted_value\":[[1.0,1.0]]}"));
+                        assertThat(
+                            EntityUtils.toString(inference.getEntity()),
+                            equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}")
+                        );
                     } catch (IOException ex) {
                         failures.add(ex.getMessage());
                     } finally {
@@ -187,7 +187,10 @@ public class PyTorchModelIT extends ESRestTestCase {
         startDeployment(modelId);
         String resultsField = randomAlphaOfLength(10);
         Response inference = infer("my words", modelId, resultsField);
-        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"" + resultsField + "\":[[1.0,1.0]]}"));
+        assertThat(
+            EntityUtils.toString(inference.getEntity()),
+            equalTo("{\"inference_results\":[{\"" + resultsField + "\":[[1.0,1.0]]}]}")
+        );
         stopDeployment(modelId);
     }
 
@@ -254,7 +257,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                 stats.get(0)
             );
             assertThat(responseMap.toString(), requiredNativeMemory, is(not(nullValue())));
-            assertThat(requiredNativeMemory, equalTo((int) (ByteSizeValue.ofMb(270).getBytes() + 2 * RAW_MODEL_SIZE)));
+            assertThat(requiredNativeMemory, equalTo((int) (ByteSizeValue.ofMb(240).getBytes() + 2 * RAW_MODEL_SIZE)));
 
             Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
             var humanResponseMap = entityAsMap(humanResponse);
@@ -276,7 +279,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                 stringRequiredNativeMemory,
                 is(not(nullValue()))
             );
-            assertThat(stringRequiredNativeMemory, equalTo("270mb"));
+            assertThat(stringRequiredNativeMemory, equalTo("240mb"));
             stopDeployment(modelId);
         };
 
@@ -558,7 +561,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
         );
 
-        request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+        request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
         request.setJsonEntity("""
             {
               "docs": [
@@ -771,7 +774,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response infer(String input, String modelId, TimeValue timeout) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer?timeout=" + timeout.toString());
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=" + timeout.toString());
         request.setJsonEntity("""
             {  "docs": [{"input":"%s"}] }
             """.formatted(input));
@@ -779,7 +782,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
         request.setJsonEntity("""
             {  "docs": [{"input":"%s"}] }
             """.formatted(input));
@@ -787,7 +790,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response infer(String input, String modelId, String resultsField) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
         request.setJsonEntity("""
             {
               "docs": [ { "input": "%s" } ],

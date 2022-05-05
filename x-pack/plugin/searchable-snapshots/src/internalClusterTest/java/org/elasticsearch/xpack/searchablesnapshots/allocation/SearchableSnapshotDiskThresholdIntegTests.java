@@ -160,6 +160,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         final Map<String, Long> indicesStoresSizes = sizeOfShardsStores("index-*");
         assertAcked(client().admin().indices().prepareDelete("index-*"));
 
+        // The test completes reliably successfully only when we do a full copy, we can overcommit on SHARED_CACHE
         final Storage storage = FULL_COPY;
         logger.info("--> using storage [{}]", storage);
 

@@ -41,10 +41,6 @@ public class MultiCommandTests extends CommandTestCase {
             }
         }
 
-        @Override
-        protected boolean addShutdownHook() {
-            return false;
-        }
     }
 
     static class DummySubCommand extends Command {
@@ -211,10 +207,6 @@ public class MultiCommandTests extends CommandTestCase {
             throw new UserException(1, "Dummy error");
         }
 
-        @Override
-        protected boolean addShutdownHook() {
-            return false;
-        }
     }
 
     public void testErrorDisplayedWithDefault() throws Exception {

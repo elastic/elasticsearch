@@ -475,6 +475,27 @@ public abstract class AbstractStreamTests extends ESTestCase {
         assertImmutableMapSerialization(Map.of("a", 1, "b", 2));
     }
 
+    public <T> void assertImmutableListSerialization(List<T> expected, Writeable.Reader<T> reader, Writeable.Writer<T> writer)
+        throws IOException {
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.writeCollection(expected, writer);
+        final BytesReference bytesReference = output.bytes();
+
+        final StreamInput input = getStreamInput(bytesReference);
+        List<T> got = input.readImmutableList(reader);
+        assertThat(got, equalTo(expected));
+
+        expectThrows(UnsupportedOperationException.class, got::clear);
+    }
+
+    public void testImmutableListSerialization() throws IOException {
+        assertImmutableListSerialization(List.of(), StreamInput::readString, StreamOutput::writeString);
+        assertImmutableListSerialization(List.of("a"), StreamInput::readString, StreamOutput::writeString);
+        assertImmutableListSerialization(List.of("a", "b"), StreamInput::readString, StreamOutput::writeString);
+        assertImmutableListSerialization(List.of(1), StreamInput::readVInt, StreamOutput::writeVInt);
+        assertImmutableListSerialization(List.of(1, 2, 3), StreamInput::readVInt, StreamOutput::writeVInt);
+    }
+
     private void assertSerialization(
         CheckedConsumer<StreamOutput, IOException> outputAssertions,
         CheckedConsumer<StreamInput, IOException> inputAssertions

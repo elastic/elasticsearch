@@ -73,7 +73,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     GetIndexResponse(StreamInput in) throws IOException {
         super(in);
         this.indices = in.readStringArray();
-        mappings = in.readImmutableMap(StreamInput::readString, in.getVersion().before(Version.V_8_0_0) ? i -> {
+        mappings = in.readImmutableOpenMap(StreamInput::readString, in.getVersion().before(Version.V_8_0_0) ? i -> {
             int numMappings = i.readVInt();
             assert numMappings == 0 || numMappings == 1 : "Expected 0 or 1 mappings but got " + numMappings;
             if (numMappings == 1) {
@@ -85,10 +85,10 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             }
         } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS);
 
-        aliases = in.readImmutableMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
-        settings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
-        defaultSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
-        dataStreams = in.readImmutableMap(StreamInput::readString, StreamInput::readOptionalString);
+        aliases = in.readImmutableOpenMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
+        settings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
+        defaultSettings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
+        dataStreams = in.readImmutableOpenMap(StreamInput::readString, StreamInput::readOptionalString);
     }
 
     public String[] indices() {

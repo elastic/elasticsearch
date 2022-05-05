@@ -70,7 +70,7 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
     ) {
         indexTemplateService.removeTemplates(
             new MetadataIndexTemplateService.RemoveRequest(request.name()).masterTimeout(request.masterNodeTimeout()),
-            new MetadataIndexTemplateService.RemoveListener() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {
                     listener.onResponse(response);

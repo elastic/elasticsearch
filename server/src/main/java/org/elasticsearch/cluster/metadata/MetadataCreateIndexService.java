@@ -431,7 +431,7 @@ public class MetadataCreateIndexService {
         boolean silent,
         ActionListener<Void> rerouteListener
     ) throws Exception {
-        return applyCreateIndexRequest(currentState, request, silent, null, null);
+        return applyCreateIndexRequest(currentState, request, silent, null, rerouteListener);
     }
 
     /**

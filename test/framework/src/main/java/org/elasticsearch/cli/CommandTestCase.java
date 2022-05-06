@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -19,13 +20,29 @@ import java.util.Map;
  */
 public abstract class CommandTestCase extends ESTestCase {
 
-    /** The terminal that execute uses. */
-    protected final MockTerminal terminal = new MockTerminal();
+    /** The terminal that execute uses */
+    protected final MockTerminal terminal = MockTerminal.create();
+
+    /** The system properties that execute uses */
+    protected final Map<String, String> sysprops = new HashMap<>();
+
+    /** The environment variables that execute uses */
+    protected final Map<String, String> envVars = new HashMap<>();
+
+    /** The working directory that execute uses */
+    protected Path esHomeDir;
 
     @Before
     public void resetTerminal() {
         terminal.reset();
+        terminal.setSupportsBinary(false);
         terminal.setVerbosity(Terminal.Verbosity.NORMAL);
+        esHomeDir = createTempDir();
+        sysprops.clear();
+        sysprops.put("es.path.home", esHomeDir.toString());
+        sysprops.put("es.path.conf", esHomeDir.resolve("config").toString());
+        sysprops.put("os.name", "Linux"); // default to linux, tests can override to check specific OS behavior
+        envVars.clear();
     }
 
     protected static Map<String, String> mockSystemProperties(Path homeDir) {
@@ -41,7 +58,7 @@ public abstract class CommandTestCase extends ESTestCase {
      * Output can be found in {@link #terminal}.
      */
     public int executeMain(String... args) throws Exception {
-        return newCommand().main(args, terminal);
+        return newCommand().main(args, terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
     }
 
     /**
@@ -59,7 +76,7 @@ public abstract class CommandTestCase extends ESTestCase {
      * Output can be found in {@link #terminal}.
      */
     public String execute(Command command, String... args) throws Exception {
-        command.mainWithoutErrorHandling(args, terminal);
+        command.mainWithoutErrorHandling(args, terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
         return terminal.getOutput();
     }
 }

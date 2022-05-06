@@ -111,7 +111,7 @@ import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
@@ -171,6 +171,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
+import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -358,6 +359,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ingestAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(ingestAdminRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
         assertThat(ingestAdminRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(ingestAdminRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(ingestAdminRole.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(ingestAdminRole.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(ingestAdminRole.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(ingestAdminRole.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
         assertThat(ingestAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
         assertThat(
@@ -457,6 +463,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // User profile
         assertThat(kibanaRole.cluster().check(GetProfileAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(true));
         UpdateProfileDataRequest updateProfileDataRequest = randomBoolean()
             ? new UpdateProfileDataRequest(
                 randomAlphaOfLength(10),
@@ -958,7 +966,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // read-only datastream for csp indices
-        Arrays.asList("logs-cis_kubernetes_benchmark.findings-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((cspIndex) -> {
+        Arrays.asList("logs-cloud_security_posture.findings-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((cspIndex) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(cspIndex);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
@@ -1135,6 +1143,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(monitoringUserRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(monitoringUserRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
         assertThat(monitoringUserRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(monitoringUserRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(monitoringUserRole.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(monitoringUserRole.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(monitoringUserRole.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(monitoringUserRole.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
         assertThat(monitoringUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
@@ -1223,6 +1236,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(remoteMonitoringAgentRole.cluster().check(ActivateWatchAction.NAME, request, authentication), is(false));
         assertThat(remoteMonitoringAgentRole.cluster().check(WatcherServiceAction.NAME, request, authentication), is(false));
         assertThat(remoteMonitoringAgentRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
         // ILM
         assertThat(remoteMonitoringAgentRole.cluster().check(GetLifecycleAction.NAME, request, authentication), is(true));
         assertThat(remoteMonitoringAgentRole.cluster().check(PutLifecycleAction.NAME, request, authentication), is(true));
@@ -1860,6 +1878,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(beatsAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(beatsAdminRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
         assertThat(beatsAdminRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(beatsAdminRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(beatsAdminRole.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(beatsAdminRole.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(beatsAdminRole.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(beatsAdminRole.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
         assertThat(beatsAdminRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
@@ -1902,6 +1925,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(beatsSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(beatsSystemRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
         assertThat(beatsSystemRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(true));
+        assertThat(beatsSystemRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(beatsSystemRole.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(beatsSystemRole.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(beatsSystemRole.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(beatsSystemRole.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
         assertThat(beatsSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
@@ -2105,7 +2133,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(GetRecordsAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(GetTrainedModelsAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(GetTrainedModelsStatsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(InternalInferModelAction.NAME, request, authentication), is(false)); // internal use only
+        assertThat(role.cluster().check(InferModelAction.EXTERNAL_NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(InferModelAction.NAME, request, authentication), is(false)); // internal use only
         assertThat(role.cluster().check(IsolateDatafeedAction.NAME, request, authentication), is(false)); // internal use only
         assertThat(role.cluster().check(KillProcessAction.NAME, request, authentication), is(false)); // internal use only
         assertThat(role.cluster().check(MlInfoAction.NAME, request, authentication), is(true));
@@ -2195,6 +2224,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(ValidateDetectorAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(ValidateJobConfigAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
@@ -2314,6 +2348,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(StopTransformAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
             assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
@@ -2435,6 +2474,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
         // Check index privileges
         assertOnlyReadAllowed(role, "observability-annotations");
         assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));
@@ -2489,6 +2533,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
         // Check index privileges
         assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.BatchSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -105,7 +106,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             ElasticsearchException.class,
             () -> handler.newPublicationContext(
                 new ClusterStatePublicationEvent(
-                    "test",
+                    new BatchSummary("test"),
                     clusterState,
                     unserializableClusterState,
                     new Task(randomNonNegativeLong(), "test", STATE_UPDATE_ACTION_NAME, "", TaskId.EMPTY_TASK_ID, emptyMap()),
@@ -287,7 +288,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             try {
                 context = handler.newPublicationContext(
                     new ClusterStatePublicationEvent(
-                        "test",
+                        new BatchSummary("test"),
                         prevClusterState,
                         nextClusterState,
                         new Task(randomNonNegativeLong(), "test", STATE_UPDATE_ACTION_NAME, "", TaskId.EMPTY_TASK_ID, emptyMap()),

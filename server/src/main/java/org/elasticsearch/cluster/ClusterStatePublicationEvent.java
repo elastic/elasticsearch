@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.service.BatchSummary;
 import org.elasticsearch.tasks.Task;
 
 /**
@@ -21,7 +22,7 @@ public class ClusterStatePublicationEvent {
      */
     private static final long NOT_SET = -1L;
 
-    private final String summary;
+    private final BatchSummary summary;
     private final ClusterState oldState;
     private final ClusterState newState;
     private final Task task;
@@ -33,7 +34,7 @@ public class ClusterStatePublicationEvent {
     private volatile long masterApplyElapsedMillis = NOT_SET;
 
     public ClusterStatePublicationEvent(
-        String summary,
+        BatchSummary summary,
         ClusterState oldState,
         ClusterState newState,
         Task task,
@@ -48,7 +49,7 @@ public class ClusterStatePublicationEvent {
         this.publicationStartTimeMillis = publicationStartTimeMillis;
     }
 
-    public String getSummary() {
+    public BatchSummary getSummary() {
         return summary;
     }
 

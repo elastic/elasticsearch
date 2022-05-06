@@ -104,6 +104,7 @@ public class ClusterServiceUtils {
     public static ClusterService createClusterService(ThreadPool threadPool) {
         DiscoveryNode discoveryNode = new DiscoveryNode(
             "node",
+            "node",
             ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             DiscoveryNodeRole.roles(),

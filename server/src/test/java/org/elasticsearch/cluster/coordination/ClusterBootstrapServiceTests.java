@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -676,13 +677,17 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 )
             );
 
+            final var metadataBuilder = Metadata.builder().clusterUUIDCommitted(false);
+            if (randomBoolean()) {
+                metadataBuilder.clusterUUID(UUIDs.randomBase64UUID(random()));
+            }
             new ClusterBootstrapService(
                 Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "node1", "node2").build(),
                 transportService,
                 Collections::emptyList,
                 () -> false,
                 vc -> { throw new AssertionError("should not be called"); }
-            ).logBootstrapState(Metadata.builder().clusterUUIDCommitted(false).build());
+            ).logBootstrapState(metadataBuilder.build());
 
             mockAppender.assertAllExpectationsMatched();
 

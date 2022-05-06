@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Request;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdateTests;
@@ -40,15 +41,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class InternalInferModelActionRequestTests extends AbstractBWCWireSerializationTestCase<Request> {
+public class InferModelActionRequestTests extends AbstractBWCWireSerializationTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
         return randomBoolean()
             ? new Request(
                 randomAlphaOfLength(10),
-                Stream.generate(InternalInferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
+                Stream.generate(InferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
                 randomInferenceConfigUpdate(),
+                TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
                 randomBoolean()
             )
             : new Request(randomAlphaOfLength(10), randomMap(), randomInferenceConfigUpdate(), randomBoolean());
@@ -113,6 +115,20 @@ public class InternalInferModelActionRequestTests extends AbstractBWCWireSeriali
         } else {
             adjustedUpdate = currentUpdate;
         }
-        return new Request(instance.getModelId(), instance.getObjectsToInfer(), adjustedUpdate, instance.isPreviouslyLicensed());
+        return version.before(Version.V_8_3_0)
+            ? new Request(
+                instance.getModelId(),
+                instance.getObjectsToInfer(),
+                adjustedUpdate,
+                TimeValue.MAX_VALUE,
+                instance.isPreviouslyLicensed()
+            )
+            : new Request(
+                instance.getModelId(),
+                instance.getObjectsToInfer(),
+                adjustedUpdate,
+                instance.getTimeout(),
+                instance.isPreviouslyLicensed()
+            );
     }
 }

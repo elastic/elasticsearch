@@ -45,10 +45,11 @@ class LinearProgrammingPlanSolver {
 
     /**
      * Ojalgo creates a 2D double array with size of complexity {@link #memoryComplexity()}.
-     * We set a limit of storing 10M doubles (~80MB) to avoid OOM. We fall back to the
+     * We set a limit of storing 4M doubles. This should result to a max of about ~100MB (determined through tests)
+     * for the solver to run in the heap. This should be enough to avoid OOM exceptions. We fall back to the
      * bin packing solution if we're over that limit.
      */
-    private static final int MEMORY_COMPLEXITY_LIMIT = 10_000_000;
+    private static final int MEMORY_COMPLEXITY_LIMIT = 4_000_000;
 
     private final Random random = new Random(RANDOMIZATION_SEED);
 

@@ -431,7 +431,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             }
         } else {
             final TransportRequest request = mock(TransportRequest.class);
-            final Authentication authentication = mock(Authentication.class);
+            final Authentication authentication = AuthenticationTestHelper.builder().build();
             GetRolesResponse getRolesResponse = new GetRolesRequestBuilder(client()).names("test_role").get();
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
             assertTrue(

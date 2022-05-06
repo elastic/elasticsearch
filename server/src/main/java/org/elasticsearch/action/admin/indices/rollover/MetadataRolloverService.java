@@ -204,7 +204,12 @@ public class MetadataRolloverService {
             rolloverIndexName,
             createIndexRequest
         );
-        ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent);
+        ClusterState newState = createIndexService.applyCreateIndexRequest(
+            currentState,
+            createIndexClusterStateRequest,
+            silent,
+            DesiredBalanceShardsAllocator.REMOVE_ME
+        );
         newState = indexAliasesService.applyAliasActions(
             newState,
             rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, explicitWriteIndex, aliasMetadata.isHidden(), aliasName)

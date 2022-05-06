@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -228,7 +229,12 @@ public class MetadataCreateDataStreamService {
             }
 
             try {
-                currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
+                currentState = metadataCreateIndexService.applyCreateIndexRequest(
+                    currentState,
+                    createIndexRequest,
+                    false,
+                    DesiredBalanceShardsAllocator.REMOVE_ME
+                );
             } catch (ResourceAlreadyExistsException e) {
                 // Rethrow as ElasticsearchStatusException, so that bulk transport action doesn't ignore it during
                 // auto index/data stream creation.

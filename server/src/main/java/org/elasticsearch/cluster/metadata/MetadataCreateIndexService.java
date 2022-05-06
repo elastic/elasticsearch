@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -353,14 +352,21 @@ public class MetadataCreateIndexService {
         if (sourceMetadata != null) {
             // If source metadata was provided, it means we're recovering from an existing index,
             // in which case templates don't apply, so create the index from the source metadata
-            return applyCreateIndexRequestWithExistingMetadata(currentState, request, silent, sourceMetadata, metadataTransformer);
+            return applyCreateIndexRequestWithExistingMetadata(
+                currentState,
+                request,
+                silent,
+                sourceMetadata,
+                metadataTransformer,
+                rerouteListener
+            );
         } else {
             // The backing index may have a different name or prefix than the data stream name.
             final String name = request.dataStreamName() != null ? request.dataStreamName() : request.index();
 
             // The index being created is for a system data stream, so the backing index will also be a system index
             if (request.systemDataStreamDescriptor() != null) {
-                return applyCreateIndexRequestForSystemDataStream(currentState, request, silent, metadataTransformer);
+                return applyCreateIndexRequestForSystemDataStream(currentState, request, silent, metadataTransformer, rerouteListener);
             }
 
             // Hidden indices apply templates slightly differently (ignoring wildcard '*'
@@ -374,13 +380,20 @@ public class MetadataCreateIndexService {
             final String v2Template = MetadataIndexTemplateService.findV2Template(
                 currentState.metadata(),
                 name,
-                isHiddenFromRequest == null ? false : isHiddenFromRequest
+                isHiddenFromRequest != null && isHiddenFromRequest
             );
 
             if (v2Template != null) {
                 // If a v2 template was found, it takes precedence over all v1 templates, so create
                 // the index using that template and the request's specified settings
-                return applyCreateIndexRequestWithV2Template(currentState, request, silent, v2Template, metadataTransformer);
+                return applyCreateIndexRequestWithV2Template(
+                    currentState,
+                    request,
+                    silent,
+                    v2Template,
+                    metadataTransformer,
+                    rerouteListener
+                );
             } else {
                 // A v2 template wasn't found, check the v1 templates, in the event no templates are
                 // found creation still works using the request's specified index settings
@@ -412,9 +425,13 @@ public class MetadataCreateIndexService {
         }
     }
 
-    public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request, boolean silent)
-        throws Exception {
-        return applyCreateIndexRequest(currentState, request, silent, null, DesiredBalanceShardsAllocator.REMOVE_ME);
+    public ClusterState applyCreateIndexRequest(
+        ClusterState currentState,
+        CreateIndexClusterStateUpdateRequest request,
+        boolean silent,
+        ActionListener<Void> rerouteListener
+    ) throws Exception {
+        return applyCreateIndexRequest(currentState, request, silent, null, rerouteListener);
     }
 
     /**
@@ -593,7 +610,8 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
         final String templateName,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
@@ -651,7 +669,7 @@ public class MetadataCreateIndexService {
             ),
             Collections.singletonList(templateName),
             metadataTransformer,
-            DesiredBalanceShardsAllocator.REMOVE_ME
+            rerouteListener
         );
     }
 
@@ -659,7 +677,8 @@ public class MetadataCreateIndexService {
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final ActionListener<Void> rerouteListener
     ) throws Exception {
         Objects.requireNonNull(request.systemDataStreamDescriptor());
         logger.debug("applying create index request for system data stream [{}]", request.systemDataStreamDescriptor());
@@ -708,7 +727,7 @@ public class MetadataCreateIndexService {
             ),
             List.of(),
             metadataTransformer,
-            DesiredBalanceShardsAllocator.REMOVE_ME
+            rerouteListener
         );
     }
 
@@ -758,7 +777,8 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
         final IndexMetadata sourceMetadata,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.info("applying create index request using existing index [{}] metadata", sourceMetadata.getIndex().getName());
 
@@ -803,7 +823,7 @@ public class MetadataCreateIndexService {
             ),
             List.of(),
             metadataTransformer,
-            DesiredBalanceShardsAllocator.REMOVE_ME
+            rerouteListener
         );
     }
 

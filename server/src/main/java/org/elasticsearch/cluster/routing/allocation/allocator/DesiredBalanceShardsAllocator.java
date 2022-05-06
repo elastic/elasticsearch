@@ -31,7 +31,7 @@ import java.util.function.Supplier;
  */
 public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
-    public static final ActionListener<Void> REMOVE_ME = new ActionListener<Void>() {
+    public static final ActionListener<Void> REMOVE_ME = new ActionListener<>() {
 
         @Override
         public void onResponse(Void unused) {

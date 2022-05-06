@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -297,7 +298,12 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         updateRequest = buildUpdateRequest(indexName);
                     }
 
-                    final var clusterState = createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
+                    final var clusterState = createIndexService.applyCreateIndexRequest(
+                        currentState,
+                        updateRequest,
+                        false,
+                        DesiredBalanceShardsAllocator.REMOVE_ME
+                    );
                     taskContext.success(getAckListener(indexName));
                     successfulRequests.put(request, indexName);
                     return clusterState;

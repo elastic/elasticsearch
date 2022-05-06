@@ -17,7 +17,6 @@ import java.util.Map;
  * An update script.
  */
 public abstract class UpdateScript {
-    // TODO(stu): change
 
     public static final String[] PARAMETERS = {};
 
@@ -48,7 +47,9 @@ public abstract class UpdateScript {
         return ctx;
     }
 
-    public Metadata meta() { return metadata; }
+    public Metadata meta() {
+        return metadata;
+    }
 
     public abstract void execute();
 

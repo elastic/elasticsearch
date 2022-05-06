@@ -18,16 +18,31 @@ class org.elasticsearch.script.field.Metadata {
     String getRouting()
     void setRouting(String)
 
-    long getVersion()
-    void setVersion(long)
+    Long getVersion()
+    void setVersion(Long)
 
-    String getVersionType()
-    void setVersionType(def)
+    VersionType getVersionType()
+    void setVersionType(VersionType)
 
-    String getOp()
-    void setOp(def)
+    Op getOp()
+    void setOp(Op)
 
     ZonedDateTime getTimestamp()
+}
+
+class org.elasticsearch.script.field.Op {
+  Op NOOP
+  Op INDEX
+  Op DELETE
+  Op UNKOWN
+  String getName()
+  Op fromString(String)
+}
+
+class org.elasticsearch.index.VersionType {
+  VersionType INTERNAL
+  VersionType EXTERNAL
+  VersionType EXTERNAL_GTE
 }
 
 class org.elasticsearch.script.IngestScript {

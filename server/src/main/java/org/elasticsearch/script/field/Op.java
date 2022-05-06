@@ -8,11 +8,32 @@
 
 package org.elasticsearch.script.field;
 
+import java.util.Locale;
+
 public enum Op {
-    /*
     NOOP("noop"),
     INDEX("index"),
     DELETE("delete"),
-    CREATE("create")
-     */
+    CREATE("create"),
+    UNKOWN("unknown");
+
+    public final String name;
+
+    Op(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public static Op fromString(String op) {
+        return switch (op.toLowerCase(Locale.ROOT)) {
+            case "noop" -> NOOP;
+            case "index" -> INDEX;
+            case "delete" -> DELETE;
+            case "create" -> CREATE;
+            default -> UNKOWN;
+        };
+    }
 }

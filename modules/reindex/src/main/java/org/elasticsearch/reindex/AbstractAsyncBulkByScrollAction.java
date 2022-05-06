@@ -46,16 +46,17 @@ import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateScript;
+import org.elasticsearch.script.field.Op;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -848,22 +849,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 return request;
             }
 
-            Map<String, Object> context = new HashMap<>(); // TODO(stu): metadata _reindex, _update_by_query
-            /*
-            context.put(IndexFieldMapper.NAME, doc.getIndex());
-            context.put(IdFieldMapper.NAME, doc.getId());
-            Long oldVersion = doc.getVersion();
-            context.put(VersionFieldMapper.NAME, oldVersion);
-
-            context.put(RoutingFieldMapper.NAME, oldRouting);
-             */
+            Map<String, Object> context = new HashMap<>();
             context.put(SourceFieldMapper.NAME, request.getSource());
 
             OpType oldOpType = OpType.INDEX;
-            // context.put("op", oldOpType.toString());
-            Long oldVersion = doc.getVersion();
             String oldRouting = doc.getRouting();
-            Metadata metadata = new Metadata(context, doc.getIndex(), doc.getId(), oldRouting, oldVersion, oldOpType);
+            Long oldVersion = doc.getVersion();
+            ReindexMetadata metadata = new ReindexMetadata(context, doc.getIndex(), doc.getId(), oldRouting, oldVersion, oldOpType);
 
             UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
             UpdateScript updateScript = factory.newInstance(params, metadata, context);
@@ -1018,67 +1010,25 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
     }
 
-    private static class Metadata extends org.elasticsearch.script.field.Metadata {
-        private final Map<String, Object> ctx;
-        Metadata(Map<String, Object> ctx, String index, String id, String routing, Long version, OpType op) {
-            super(IndexFieldMapper.NAME, IdFieldMapper.NAME, RoutingFieldMapper.NAME, VersionFieldMapper.NAME, null,
-                  "op");
-            this.ctx = ctx;
+    // reindex and update by query
+    private static class ReindexMetadata extends org.elasticsearch.script.field.Metadata {
+
+        ReindexMetadata(Map<String, Object> ctx, String index, String id, String routing, Long version, OpType op) {
+            super(
+                ctx,
+                IndexFieldMapper.NAME,
+                IdFieldMapper.NAME,
+                RoutingFieldMapper.NAME,
+                VersionFieldMapper.NAME,
+                null,
+                "op",
+                EnumSet.of(Op.NOOP, Op.INDEX, Op.DELETE)
+            );
             setIndex(index);
             setId(id);
             setRouting(routing);
             setVersion(version);
-            setOp(op);
-        }
-
-        @Override
-        public String getVersionType() {
-            throw new UnsupportedOperationException("version type not supported in this context");
-        }
-
-        @Override
-        public void setVersionType(Object versionType) {
-            throw new UnsupportedOperationException("version type not supported in this context");
-        }
-
-        @Override
-        public String getOp() {
-            return getString(opKey);
-        }
-
-        @Override
-        public void setOp(Object op) {
-            if (op instanceof OpType ot) {
-                put(opKey, ot.id);
-            } else if (op instanceof String str) {
-                OpType.fromString(str);
-                put(opKey, str);
-            } else if (op == null) {
-                put(opKey, null);
-            } else {
-                throw new IllegalArgumentException("invalid op type [" + op + "]");
-            }
-        }
-
-        @Override
-        public ZonedDateTime getTimestamp() {
-            throw new UnsupportedOperationException("timestamp type not supported in this context");
-        }
-
-        @Override
-        protected void put(String key, Object value) {
-            if (key == null) {
-                throw new UnsupportedOperationException("not supported in this context");
-            }
-            ctx.put(key, value);
-        }
-
-        @Override
-        protected Object get(String key) {
-            if (key == null) {
-                throw new UnsupportedOperationException("not supported in this context");
-            }
-            return ctx.get(key);
+            setOp(Op.fromString(Objects.requireNonNull(op).id));
         }
     }
 }

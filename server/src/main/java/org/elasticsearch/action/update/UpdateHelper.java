@@ -34,6 +34,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.script.field.Metadata;
+import org.elasticsearch.script.field.Op;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -44,7 +45,10 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.LongSupplier;
 
 /**
@@ -95,16 +99,15 @@ public class UpdateHelper {
     Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Map<String, Object> upsertDoc, Script script, LongSupplier nowInMillis) {
         Map<String, Object> ctx = Maps.newMapWithExpectedSize(3);
         // TODO(stu): Metadata, _update with `"scripted_upsert": true` and doc does not exist
-        // Tell the script that this is a create and not an update
-        // ctx.put(ContextFields.OP, UpdateOpType.CREATE.toString());
         ctx.put(ContextFields.SOURCE, upsertDoc);
-        //ctx.put(ContextFields.NOW, nowInMillis.getAsLong());
+        // Tell the script that this is a create and not an update
         ctx = executeScript(script, new UpsertMetadata(ctx, UpdateOpType.CREATE, nowInMillis.getAsLong()), ctx);
 
         UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, script.getIdOrCode());
         @SuppressWarnings("unchecked")
         Map<String, Object> newSource = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
 
+        // TODO(stu): should we disallow setting update type to null?
         if (operation != UpdateOpType.CREATE && operation != UpdateOpType.NONE) {
             // Only valid options for an upsert script are "create" (the default) or "none", meaning abort upsert
             logger.warn("Invalid upsert operation [{}] for script [{}], doing nothing...", operation, script.getIdOrCode());
@@ -247,16 +250,18 @@ public class UpdateHelper {
 
         // TODO(stu): metadata _update with script, upsert
         Map<String, Object> ctx = Maps.newMapWithExpectedSize(16);
-        //ctx.put(ContextFields.OP, UpdateOpType.INDEX.toString()); // The default operation is "index"
-        //ctx.put(ContextFields.INDEX, getResult.getIndex());
         ctx.put(ContextFields.TYPE, MapperService.SINGLE_MAPPING_NAME);
-        // ctx.put(ContextFields.ID, getResult.getId());
-        //ctx.put(ContextFields.VERSION, getResult.getVersion());
-        //ctx.put(ContextFields.ROUTING, routing);
         ctx.put(ContextFields.SOURCE, sourceAsMap);
-        //ctx.put(ContextFields.NOW, nowInMillis.getAsLong());
-        UpdateMetadata metadata = new UpdateMetadata(ctx, getResult.getIndex(), getResult.getId(), routing, getResult.getVersion(),
-            UpdateOpType.INDEX, nowInMillis.getAsLong());
+        // The default operation is "index"
+        UpdateMetadata metadata = new UpdateMetadata(
+            ctx,
+            getResult.getIndex(),
+            getResult.getId(),
+            routing,
+            getResult.getVersion(),
+            UpdateOpType.INDEX,
+            nowInMillis.getAsLong()
+        );
         ctx = executeScript(request.script, metadata, ctx);
 
         UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, request.script.getIdOrCode());
@@ -472,120 +477,119 @@ public class UpdateHelper {
         public static final String ROUTING = "_routing";
     }
 
+    // Op.NOOP is UpdateOpType.NONE here, so Op.NOOP is spelled "none"
+    private static Op opFromUpdateOpType(UpdateOpType updateOpType) {
+        if (updateOpType == null) {
+            return null;
+        } else if (updateOpType == UpdateOpType.NONE) {
+            return Op.NOOP;
+        }
+        return Op.fromString(updateOpType.name);
+    }
+
+    private static Op opFromString(String opStr) {
+        if (opStr == null) {
+            return null;
+        } else if (UpdateOpType.NONE.name.equals(opStr.toLowerCase(Locale.ROOT))) {
+            return Op.NOOP;
+        }
+        return Op.fromString(opStr);
+    }
+
+    private static String opStringFromOp(Op op) {
+        if (op == null) {
+            return null;
+        } else if (op == Op.NOOP) {
+            return UpdateOpType.NONE.name;
+        }
+        return op.name;
+    }
+
+    // Update with script, update with upsert
     private static class UpdateMetadata extends org.elasticsearch.script.field.Metadata {
-        private Map<String, Object> ctx;
         private final ZonedDateTime timestamp;
+
         UpdateMetadata(Map<String, Object> ctx, String index, String id, String routing, Long version, UpdateOpType op, long timestamp) {
-            super(ContextFields.INDEX, ContextFields.ID, ContextFields.ROUTING, ContextFields.VERSION, null,
-                ContextFields.OP);
-            this.ctx = ctx;
+            super(
+                ctx,
+                ContextFields.INDEX,
+                ContextFields.ID,
+                ContextFields.ROUTING,
+                ContextFields.VERSION,
+                null,
+                ContextFields.OP,
+                EnumSet.of(Op.NOOP, Op.INDEX, Op.DELETE, Op.CREATE)
+            );
             this.timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneOffset.UTC);
-            this.ctx.put(ContextFields.NOW, timestamp);
-            setIndex(index);
-            setId(id);
+            put(ContextFields.NOW, timestamp);
+            put(indexKey, index);
+            put(idKey, id);
             put(routingKey, routing);
-            setVersion(version);
-            setOp(op);
+            put(versionKey, version);
+            setOp(opFromUpdateOpType(Objects.requireNonNull(op)));
         }
 
         @Override
-        public void setVersionType(Object versionType) {
-            throw new UnsupportedOperationException("cannot set version type in update");
+        public void setIndex(String index) {
+            unsupported(INDEX, false);
+        }
+
+        @Override
+        public void setId(String id) {
+            unsupported(ID, false);
         }
 
         @Override
         public void setRouting(String routing) {
-            throw new UnsupportedOperationException("cannot set routing in update");
+            unsupported(ROUTING, false);
         }
 
         @Override
-        public String getOp() {
-            return getString(opKey);
+        public void setVersion(Long version) {
+            unsupported(VERSION, false);
         }
 
         @Override
-        public void setOp(Object op) {
-            if (op instanceof UpdateOpType uot) {
-                put(opKey, uot.name);
-            } else if (op instanceof String str) {
-                UpdateOpType.fromString(str);
-                put(opKey, str);
-            } else if (op == null) {
-                put(opKey, null);
-            } else {
-                throw new IllegalArgumentException("invalid op type [" + op + "]");
-            }
+        public Op getOp() {
+            return opFromString(getString(opKey));
+        }
+
+        @Override
+        public void setOp(Op op) {
+            validateOp(op);
+            put(opKey, opStringFromOp(op));
         }
 
         @Override
         public ZonedDateTime getTimestamp() {
             return timestamp;
-        }
-
-        @Override
-        protected void put(String key, Object value) {
-            ensureKeyNotNull(key);
-            ctx.put(key, value);
-        }
-
-        @Override
-        protected Object get(String key) {
-            ensureKeyNotNull(key);
-            return ctx.get(key);
         }
     }
 
     private static class UpsertMetadata extends org.elasticsearch.script.field.Metadata {
-        private final Map<String, Object> ctx;
         private final ZonedDateTime timestamp;
 
         UpsertMetadata(Map<String, Object> ctx, UpdateOpType op, long timestamp) {
-            super(null, null, null, null, null, ContextFields.OP);
-            this.ctx = ctx;
+            super(ctx, null, null, null, null, null, ContextFields.OP, EnumSet.of(Op.CREATE, Op.NOOP));
             this.timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneOffset.UTC);
-            this.ctx.put(ContextFields.NOW, timestamp);
-            setOp(op);
+            put(ContextFields.NOW, timestamp);
+            setOp(opFromUpdateOpType(op));
         }
 
         @Override
-        public void setVersionType(Object versionType) {
-            throw new UnsupportedOperationException("cannot set version type in update");
+        public Op getOp() {
+            return opFromString(getString(opKey));
         }
 
         @Override
-        public String getOp() {
-            return getString(opKey);
-        }
-
-        @Override
-        public void setOp(Object op) {
-            if (op instanceof UpdateOpType uot) {
-                put(opKey, uot.name);
-            } else if (op instanceof String str) {
-                UpdateOpType.fromString(str);
-                put(opKey, str);
-            } else if (op == null) {
-                put(opKey, null);
-            } else {
-                throw new IllegalArgumentException("invalid op type [" + op + "]");
-            }
+        public void setOp(Op op) {
+            validateOp(op);
+            put(opKey, opStringFromOp(op));
         }
 
         @Override
         public ZonedDateTime getTimestamp() {
             return timestamp;
-        }
-
-        @Override
-        protected void put(String key, Object value) {
-            ensureKeyNotNull(key);
-            ctx.put(key, value);
-        }
-
-        @Override
-        protected Object get(String key) {
-            ensureKeyNotNull(key);
-            return ctx.get(key);
         }
     }
 }

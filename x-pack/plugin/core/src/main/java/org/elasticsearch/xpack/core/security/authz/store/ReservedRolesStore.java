@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyActio
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
+import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
@@ -667,6 +669,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 "delegate_pki",
                 GetProfileAction.NAME,
                 ActivateProfileAction.NAME,
+                SuggestProfilesAction.NAME,
+                ProfileHasPrivilegesAction.NAME,
                 // To facilitate ML UI functionality being controlled using Kibana security privileges
                 "manage_ml",
                 // The symbolic constant for this one is in SecurityActionMapper, so not accessible from X-Pack core

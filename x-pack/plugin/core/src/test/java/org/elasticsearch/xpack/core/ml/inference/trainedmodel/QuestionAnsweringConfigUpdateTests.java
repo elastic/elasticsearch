@@ -101,7 +101,6 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
         return QuestionAnsweringConfigUpdate.fromMap(map);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86487")
     public void testApply() {
         Tokenization tokenizationConfig = randomFrom(
             BertTokenizationTests.createRandom(),
@@ -109,7 +108,7 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
             RobertaTokenizationTests.createRandom()
         );
         QuestionAnsweringConfig originalConfig = new QuestionAnsweringConfig(
-            randomBoolean() ? null : randomIntBetween(-1, 10),
+            randomBoolean() ? null : randomIntBetween(0, 10),
             randomBoolean() ? null : randomIntBetween(1, 20),
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             tokenizationConfig,

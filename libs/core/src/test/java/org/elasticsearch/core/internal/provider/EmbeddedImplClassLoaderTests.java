@@ -11,6 +11,7 @@ package org.elasticsearch.core.internal.provider;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader.CompoundEnumeration;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
@@ -171,14 +172,15 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         Path topLevelDir = createTempDir();
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
-        URLClassLoader parent = URLClassLoader.newInstance(
-            new URL[] { outerJar.toUri().toURL() },
-            EmbeddedImplClassLoaderTests.class.getClassLoader()
-        );
-
-        EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(parent, "x-foo");
-        Class<?> c = loader.loadClass("p.FooBar");
-        return c.getConstructor().newInstance();
+        URL[] urls = new URL[] { outerJar.toUri().toURL() };
+        URLClassLoader parent = URLClassLoader.newInstance(urls, EmbeddedImplClassLoaderTests.class.getClassLoader());
+        try {
+            EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(parent, "x-foo");
+            Class<?> c = loader.loadClass("p.FooBar");
+            return c.getConstructor().newInstance();
+        } finally {
+            PrivilegedOperations.closeURLClassLoader(parent);
+        }
     }
 
     public void testCompoundEnumeration() {
@@ -206,17 +208,18 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
 
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntriesUTF(outerJar, jarEntries);
-        URLClassLoader parent = URLClassLoader.newInstance(
-            new URL[] { outerJar.toUri().toURL() },
-            EmbeddedImplClassLoaderTests.class.getClassLoader()
-        );
+        URL[] urls = new URL[] { outerJar.toUri().toURL() };
+        URLClassLoader parent = URLClassLoader.newInstance(urls, EmbeddedImplClassLoaderTests.class.getClassLoader());
+        try {
+            EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(parent, "res");
+            URL url = loader.findResource("p/res.txt");
+            assertThat(url.toString(), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/p/res.txt"));
 
-        EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(parent, "res");
-        URL url = loader.findResource("p/res.txt");
-        assertThat(url.toString(), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/p/res.txt"));
-
-        var resources = loader.findResources("p/res.txt");
-        assertThat(Collections.list(resources), contains(hasToString(endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/p/res.txt"))));
+            var resources = loader.findResources("p/res.txt");
+            assertThat(Collections.list(resources), contains(hasToString(endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/p/res.txt"))));
+        } finally {
+            PrivilegedOperations.closeURLClassLoader(parent);
+        }
     }
 
     /*
@@ -280,61 +283,73 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         Path topLevelDir = createTempDir();
 
         ClassLoader embedLoader, urlcLoader;
-        {   // load content with URLClassLoader
-            Map<String, String> jarEntries = new HashMap<>();
-            jarEntries.put("p/res.txt", "Hello World0");
-            if (enableMulti) {
-                jarEntries.put("META-INF/MANIFEST.MF", "Multi-Release: true\n");
+        List<URLClassLoader> closeables = new ArrayList<>();
+        try {
+            {   // load content with URLClassLoader
+                Map<String, String> jarEntries = new HashMap<>();
+                jarEntries.put("p/res.txt", "Hello World0");
+                if (enableMulti) {
+                    jarEntries.put("META-INF/MANIFEST.MF", "Multi-Release: true\n");
+                }
+                stream(versions).forEach(v -> jarEntries.put("META-INF/versions/" + v + "/p/res.txt", "Hello World" + v));
+                Path fooJar = topLevelDir.resolve("foo.jar");
+                JarUtils.createJarWithEntriesUTF(fooJar, jarEntries);
+                var urlClassLoader = URLClassLoader.newInstance(
+                    new URL[] { fooJar.toUri().toURL() },
+                    EmbeddedImplClassLoaderTests.class.getClassLoader()
+                );
+                closeables.add(urlClassLoader);
+                urlcLoader = urlClassLoader;
             }
-            stream(versions).forEach(v -> jarEntries.put("META-INF/versions/" + v + "/p/res.txt", "Hello World" + v));
-            Path fooJar = topLevelDir.resolve("foo.jar");
-            JarUtils.createJarWithEntriesUTF(fooJar, jarEntries);
-            urlcLoader = URLClassLoader.newInstance(
-                new URL[] { fooJar.toUri().toURL() },
-                EmbeddedImplClassLoaderTests.class.getClassLoader()
-            );
-        }
-        {   // load EQUIVALENT content with EmbeddedImplClassLoader
-            String prefix = "IMPL-JARS/res/res-impl.jar/";
-            Map<String, String> jarEntries = new HashMap<>();
-            jarEntries.put("IMPL-JARS/res/LISTING.TXT", "res-impl.jar");
-            jarEntries.put(prefix + "p/res.txt", "Hello World0");
-            if (enableMulti) {
-                jarEntries.put(prefix + "META-INF/MANIFEST.MF", "Multi-Release: true\n");
+            {   // load EQUIVALENT content with EmbeddedImplClassLoader
+                String prefix = "IMPL-JARS/res/res-impl.jar/";
+                Map<String, String> jarEntries = new HashMap<>();
+                jarEntries.put("IMPL-JARS/res/LISTING.TXT", "res-impl.jar");
+                jarEntries.put(prefix + "p/res.txt", "Hello World0");
+                if (enableMulti) {
+                    jarEntries.put(prefix + "META-INF/MANIFEST.MF", "Multi-Release: true\n");
+                }
+                stream(versions).forEach(v -> jarEntries.put(prefix + "META-INF/versions/" + v + "/p/res.txt", ("Hello World" + v)));
+                Path outerJar = topLevelDir.resolve("impl.jar");
+                JarUtils.createJarWithEntriesUTF(outerJar, jarEntries);
+                URLClassLoader parent = URLClassLoader.newInstance(
+                    new URL[] { outerJar.toUri().toURL() },
+                    EmbeddedImplClassLoaderTests.class.getClassLoader()
+                );
+                closeables.add(parent);
+                embedLoader = EmbeddedImplClassLoader.getInstance(parent, "res");
             }
-            stream(versions).forEach(v -> jarEntries.put(prefix + "META-INF/versions/" + v + "/p/res.txt", ("Hello World" + v)));
-            Path outerJar = topLevelDir.resolve("impl.jar");
-            JarUtils.createJarWithEntriesUTF(outerJar, jarEntries);
-            URLClassLoader parent = URLClassLoader.newInstance(
-                new URL[] { outerJar.toUri().toURL() },
-                EmbeddedImplClassLoaderTests.class.getClassLoader()
-            );
-            embedLoader = EmbeddedImplClassLoader.getInstance(parent, "res");
+
+            // finding resources with the different loaders should give EQUIVALENT results
+
+            String expectedURLSuffix = "p/res.txt";
+            if (enableMulti) {
+                expectedURLSuffix = "META-INF/versions/" + expectedVersion + "/p/res.txt";
+            }
+
+            // getResource
+            URL url1 = urlcLoader.getResource("p/res.txt");
+            assertThat(url1.toString(), endsWith("!/" + expectedURLSuffix));
+            URL url2 = embedLoader.getResource("p/res.txt");
+            assertThat(url2.toString(), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/" + expectedURLSuffix));
+            assertThat(suffix(url2), endsWith(suffix(url1)));
+
+            // getResources
+            var urls1 = Collections.list(urlcLoader.getResources("p/res.txt")).stream().map(URL::toString).toList();
+            var urls2 = Collections.list(embedLoader.getResources("p/res.txt")).stream().map(URL::toString).toList();
+            assertThat("urls1=%s, urls2=%s".formatted(urls1, urls2), urls2, hasSize(1));
+            assertThat(urls1.get(0), endsWith("!/" + expectedURLSuffix));
+            assertThat(urls2.get(0), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/" + expectedURLSuffix));
+
+            // getResourceAsStream
+            try (var is = embedLoader.getResourceAsStream("p/res.txt")) {
+                assertThat(new String(is.readAllBytes(), UTF_8), is("Hello World" + expectedVersion));
+            }
+        } finally {
+            for (URLClassLoader closeable : closeables) {
+                PrivilegedOperations.closeURLClassLoader(closeable);
+            }
         }
-
-        // finding resources with the different loaders should give EQUIVALENT results
-
-        String expectedURLSuffix = "p/res.txt";
-        if (enableMulti) {
-            expectedURLSuffix = "META-INF/versions/" + expectedVersion + "/p/res.txt";
-        }
-
-        // getResource
-        URL url1 = urlcLoader.getResource("p/res.txt");
-        assertThat(url1.toString(), endsWith("!/" + expectedURLSuffix));
-        URL url2 = embedLoader.getResource("p/res.txt");
-        assertThat(url2.toString(), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/" + expectedURLSuffix));
-        assertThat(suffix(url2), endsWith(suffix(url1)));
-
-        // getResources
-        var urls1 = Collections.list(urlcLoader.getResources("p/res.txt")).stream().map(URL::toString).toList();
-        var urls2 = Collections.list(embedLoader.getResources("p/res.txt")).stream().map(URL::toString).toList();
-        assertThat("urls1=%s, urls2=%s".formatted(urls1, urls2), urls2, hasSize(1));
-        assertThat(urls1.get(0), endsWith("!/" + expectedURLSuffix));
-        assertThat(urls2.get(0), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/" + expectedURLSuffix));
-
-        // getResourceAsStream
-        assertThat(new String(embedLoader.getResourceAsStream("p/res.txt").readAllBytes(), UTF_8), is("Hello World" + expectedVersion));
     }
 
     private static String suffix(URL url) {
@@ -360,29 +375,31 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         jarEntries.put("IMPL-JARS/res/res-impl.jar/p/res.txt", "Hello World0");
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntriesUTF(outerJar, jarEntries);
-        URLClassLoader parent = URLClassLoader.newInstance(
-            new URL[] { outerJar.toUri().toURL() },
-            EmbeddedImplClassLoaderTests.class.getClassLoader()
-        );
-        embedLoader = EmbeddedImplClassLoader.getInstance(parent, "res");
+        URL[] urls = new URL[] { outerJar.toUri().toURL() };
+        URLClassLoader parent = URLClassLoader.newInstance(urls, EmbeddedImplClassLoaderTests.class.getClassLoader());
+        try {
+            embedLoader = EmbeddedImplClassLoader.getInstance(parent, "res");
 
-        Class<?> c = embedLoader.loadClass("java.lang.Object");
-        assertThat(c, is(java.lang.Object.class));
-        assertThat(c.getClassLoader(), not(equalTo(embedLoader)));
+            Class<?> c = embedLoader.loadClass("java.lang.Object");
+            assertThat(c, is(java.lang.Object.class));
+            assertThat(c.getClassLoader(), not(equalTo(embedLoader)));
 
-        // not found
-        expectThrows(CNFE, () -> embedLoader.loadClass("a.b.c.Unknown"));
-        assertThat(embedLoader.getResource("a/b/c/Unknown.class"), nullValue());
-        assertThat(embedLoader.getResources("a/b/c/Unknown.class").hasMoreElements(), is(false));
-        assertThat(embedLoader.getResourceAsStream("a/b/c/Unknown.class"), nullValue());
-        assertThat(embedLoader.resources("a/b/c/Unknown.class").toList(), emptyCollectionOf(URL.class));
+            // not found
+            expectThrows(CNFE, () -> embedLoader.loadClass("a.b.c.Unknown"));
+            assertThat(embedLoader.getResource("a/b/c/Unknown.class"), nullValue());
+            assertThat(embedLoader.getResources("a/b/c/Unknown.class").hasMoreElements(), is(false));
+            assertThat(embedLoader.getResourceAsStream("a/b/c/Unknown.class"), nullValue());
+            assertThat(embedLoader.resources("a/b/c/Unknown.class").toList(), emptyCollectionOf(URL.class));
 
-        // nulls
-        expectThrows(NPE, () -> embedLoader.getResource(null));
-        expectThrows(NPE, () -> embedLoader.getResources(null));
-        expectThrows(NPE, () -> embedLoader.getResourceAsStream(null));
-        expectThrows(NPE, () -> embedLoader.resources(null));
-        expectThrows(NPE, () -> embedLoader.loadClass(null));
+            // nulls
+            expectThrows(NPE, () -> embedLoader.getResource(null));
+            expectThrows(NPE, () -> embedLoader.getResources(null));
+            expectThrows(NPE, () -> embedLoader.getResourceAsStream(null));
+            expectThrows(NPE, () -> embedLoader.resources(null));
+            expectThrows(NPE, () -> embedLoader.loadClass(null));
+        } finally {
+            PrivilegedOperations.closeURLClassLoader(parent);
+        }
     }
 
     /*
@@ -406,17 +423,19 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         Path topLevelDir = createTempDir();
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
-        URLClassLoader parent = URLClassLoader.newInstance(
-            new URL[] { outerJar.toUri().toURL() },
-            EmbeddedImplClassLoaderTests.class.getClassLoader()
-        );
+        URL[] urls = new URL[] { outerJar.toUri().toURL() };
 
-        EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(parent, "blah");
-        Class<?> c = loader.loadClass("p.Foo");
-        Object obj = c.getConstructor().newInstance();
-        assertThat(obj.toString(), startsWith("p.Foo"));
-        assertThat(c.getSuperclass().getName(), is("q.Bar"));
-        assertThat(c.getSuperclass().getSuperclass().getName(), is("r.Baz"));
+        URLClassLoader parent = URLClassLoader.newInstance(urls, EmbeddedImplClassLoaderTests.class.getClassLoader());
+        try {
+            EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(parent, "blah");
+            Class<?> c = loader.loadClass("p.Foo");
+            Object obj = c.getConstructor().newInstance();
+            assertThat(obj.toString(), startsWith("p.Foo"));
+            assertThat(c.getSuperclass().getName(), is("q.Bar"));
+            assertThat(c.getSuperclass().getSuperclass().getName(), is("r.Baz"));
+        } finally {
+            PrivilegedOperations.closeURLClassLoader(parent);
+        }
     }
 
     /*
@@ -435,17 +454,17 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
 
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntriesUTF(outerJar, jarEntries);
-        URLClassLoader parent = URLClassLoader.newInstance(
-            new URL[] { outerJar.toUri().toURL() },
-            EmbeddedImplClassLoaderTests.class.getClassLoader()
-        );
-
-        EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(parent, "blah");
-        var res = Collections.list(loader.getResources("res.txt"));
-
-        assertThat(res, hasSize(3));
-        List<String> l = res.stream().map(EmbeddedImplClassLoaderTests::urlToString).toList();
-        assertThat(l, containsInAnyOrder("fooRes", "barRes", "bazRes"));
+        URL[] urls = new URL[] { outerJar.toUri().toURL() };
+        URLClassLoader parent = URLClassLoader.newInstance(urls, EmbeddedImplClassLoaderTests.class.getClassLoader());
+        try {
+            EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(parent, "blah");
+            var res = Collections.list(loader.getResources("res.txt"));
+            assertThat(res, hasSize(3));
+            List<String> l = res.stream().map(EmbeddedImplClassLoaderTests::urlToString).toList();
+            assertThat(l, containsInAnyOrder("fooRes", "barRes", "bazRes"));
+        } finally {
+            PrivilegedOperations.closeURLClassLoader(parent);
+        }
     }
 
     @SuppressForbidden(reason = "file urls")

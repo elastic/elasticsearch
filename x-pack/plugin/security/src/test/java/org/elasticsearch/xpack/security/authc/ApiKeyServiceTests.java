@@ -1517,7 +1517,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             return null;
         }).when(mockExecutorService).execute(any(Runnable.class));
 
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();

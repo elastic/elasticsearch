@@ -107,7 +107,6 @@ public class BootstrapForTesting {
         // init the privileged operation
         try {
             MethodHandles.publicLookup().ensureInitialized(PrivilegedOperations.class);
-
         } catch (IllegalAccessException unexpected) {
             throw new AssertionError(unexpected);
         }

@@ -70,10 +70,16 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * A loaded plugin is one for which Elasticsearch has successfully constructed an instance of the plugin's class
      * @param info Metadata about the plugin, usually loaded from plugin properties
      * @param instance The constructed instance of the plugin's main class
-     * @param loader   The classloader for the plugin
+     * @param loader   The classloader for the plugin, or null
      * @param layer   The module layer for the plugin, or null
      */
     record LoadedPlugin(PluginInfo info, Plugin instance, ClassLoader loader, ModuleLayer layer) {
+
+        LoadedPlugin {
+            Objects.requireNonNull(info);
+            Objects.requireNonNull(instance);
+        }
+
         LoadedPlugin(PluginInfo info, Plugin instance) {
             this(info, instance, null, null);
         }
@@ -147,7 +153,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
-            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, null, null));
+            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin));
             pluginsList.add(pluginInfo);
             pluginsNames.add(pluginInfo.getName());
         }

@@ -17,10 +17,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 
-<<<<<<< HEAD
-=======
 import java.io.Closeable;
->>>>>>> master
 import java.io.IOException;
 import java.util.Map;
 

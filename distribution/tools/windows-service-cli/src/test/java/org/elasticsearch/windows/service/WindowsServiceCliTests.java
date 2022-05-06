@@ -26,12 +26,7 @@ public class WindowsServiceCliTests extends CommandTestCase {
 
     @Override
     protected Command newCommand() {
-        return new WindowsServiceCli() {
-            @Override
-            public boolean addShutdownHook() {
-                return false;
-            }
-        };
+        return new WindowsServiceCli();
     }
 
     @Before

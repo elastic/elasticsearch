@@ -409,11 +409,6 @@ public class ServerCliTests extends CommandTestCase {
                 assertThat(libs, equalTo("modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli"));
                 return AUTO_CONFIG_CLI;
             }
-
-            @Override
-            public boolean addShutdownHook() {
-                return false;
-            }
         };
     }
 

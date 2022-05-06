@@ -139,6 +139,48 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         normalized(file('some-depending-lib/build/docs/javadoc/element-list').text) == 'org.acme.depending\norg.acme.shadowed'
     }
 
+    def "ignores skipped javadocs of dependent projects"() {
+        given:
+        someLibProject() << """
+            version = '1.0'
+            tasks.named("javadoc").configure { enabled = false }
+        """
+        subProject("some-depending-lib") {
+            buildFile << """               
+                plugins {
+                    id 'elasticsearch.java-doc'
+                    id 'java'
+                }
+                group = 'org.acme.depending'
+                
+                dependencies {
+                    implementation project(':some-lib')
+                }
+            """
+            classFile('org.acme.depending.SomeDepending') << """
+                package org.acme.depending;
+                
+                import org.acme.Something;
+                
+                public class SomeDepending {
+                    public Something createSomething() {
+                        return new Something();
+                    }
+                }
+            """
+        }
+        when:
+        def result = gradleRunner(':some-depending-lib:javadoc').build()
+        then:
+        result.task(":some-lib:javadoc").outcome == TaskOutcome.SKIPPED
+        result.task(":some-depending-lib:javadoc").outcome == TaskOutcome.SUCCESS
+
+        def options = file('some-depending-lib/build/tmp/javadoc/javadoc.options').text
+        options.contains('-notimestamp')
+        options.contains('-quiet')
+        options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' '${file('some-lib/build/docs/javadoc/').canonicalPath}/'") == false
+    }
+
 
     private File someLibProject() {
         subProject("some-lib") {

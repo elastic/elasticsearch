@@ -106,8 +106,11 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
                     artifactHost(project) + "/javadoc/" + artifactPath,
                     upstreamProject.getBuildDir().getPath() + "/docs/javadoc/"
                 );
-                // some dependent javadoc tasks are explicitly disabled. ignore those external links
-                // using Action here instead of lambda to keep gradle happy and don't trigger deprecation
+                /*
+                 *some dependent javadoc tasks are explicitly skipped. We need to ignore those external links as
+                 * javadoc would fail otherwise.
+                 * Using Action here instead of lambda to keep gradle happy and don't trigger deprecation
+                 */
                 javadoc.doFirst(new Action<Task>() {
                     @Override
                     public void execute(Task task) {

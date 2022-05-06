@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
@@ -42,7 +43,7 @@ public class ClusterPermissionTests extends ESTestCase {
     @Before
     public void setup() {
         mockTransportRequest = mock(TransportRequest.class);
-        mockAuthentication = mock(Authentication.class);
+        mockAuthentication = AuthenticationTestHelper.builder().build();
     }
 
     public void testClusterPermissionBuilder() {

@@ -66,6 +66,7 @@ public class PluginPropertiesExtension {
     }
 
     public void setName(String name) {
+        this.project.setProperty("archivesBaseName", name);
         this.name = name;
     }
 
@@ -82,6 +83,7 @@ public class PluginPropertiesExtension {
     }
 
     public void setDescription(String description) {
+        project.setDescription(description);
         this.description = description;
     }
 

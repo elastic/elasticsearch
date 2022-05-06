@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.InstanceHasMasterHealthIndicatorService;
+import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -85,9 +86,9 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -98,6 +99,7 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -317,10 +319,9 @@ public class Node implements Closeable {
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
-                "version[{}], pid[{}], build[{}/{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
+                "version[{}], pid[{}], build[{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
                 Build.CURRENT.qualifiedVersion(),
                 jvmInfo.pid(),
-                Build.CURRENT.flavor().displayName(),
                 Build.CURRENT.type().displayName(),
                 Build.CURRENT.hash(),
                 Build.CURRENT.date(),
@@ -332,16 +333,7 @@ public class Node implements Closeable {
                 Constants.JAVA_VERSION,
                 Constants.JVM_VERSION
             );
-            if (jvmInfo.getBundledJdk()) {
-                logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
-            } else {
-                logger.info("JVM home [{}]", System.getProperty("java.home"));
-                deprecationLogger.warn(
-                    DeprecationCategory.OTHER,
-                    "no-jdk",
-                    "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release"
-                );
-            }
+            logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
             if (Build.CURRENT.isProductionRelease() == false) {
                 logger.warn(
@@ -458,7 +450,7 @@ public class Node implements Closeable {
                 additionalSettingsFilter,
                 settingsUpgraders
             );
-            scriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
+            ScriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
             final NetworkService networkService = new NetworkService(
                 getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class))
             );
@@ -909,7 +901,8 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings()
             );
 
-            HealthService healthService = createHealthService(clusterService);
+            MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
+            HealthService healthService = createHealthService(clusterService, clusterModule, masterHistoryService);
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -992,6 +985,7 @@ public class Node implements Closeable {
                 b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
                 b.bind(HealthService.class).toInstance(healthService);
+                b.bind(MasterHistoryService.class).toInstance(masterHistoryService);
                 b.bind(StatsRequestLimiter.class).toInstance(statsRequestLimiter);
             });
 
@@ -1035,7 +1029,7 @@ public class Node implements Closeable {
             this.namedXContentRegistry = xContentRegistry;
 
             logger.debug("initializing HTTP handlers ...");
-            actionModule.initRestHandlers(() -> clusterService.state().nodes());
+            actionModule.initRestHandlers(() -> clusterService.state().nodesIfRecovered());
             logger.info("initialized");
 
             success = true;
@@ -1048,17 +1042,27 @@ public class Node implements Closeable {
         }
     }
 
-    private HealthService createHealthService(ClusterService clusterService) {
+    private HealthService createHealthService(
+        ClusterService clusterService,
+        ClusterModule clusterModule,
+        MasterHistoryService masterHistoryService
+    ) {
+        List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
+            new InstanceHasMasterHealthIndicatorService(clusterService)
+        );
         var serverHealthIndicatorServices = List.of(
-            new InstanceHasMasterHealthIndicatorService(clusterService),
             new RepositoryIntegrityHealthIndicatorService(clusterService),
-            new ShardsAvailabilityHealthIndicatorService(clusterService)
+            new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService())
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
             .toList();
-        return new HealthService(concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices));
+        return new HealthService(
+            preflightHealthIndicatorServices,
+            concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices),
+            clusterService
+        );
     }
 
     private RecoveryPlannerService getRecoveryPlannerService(
@@ -1267,7 +1271,7 @@ public class Node implements Closeable {
             }
         }
 
-        logger.info("started");
+        logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
 

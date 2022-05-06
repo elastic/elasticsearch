@@ -13,7 +13,6 @@ import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.security.x509.X509Credential;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
@@ -157,12 +156,12 @@ public class SamlRedirectTests extends SamlTestCase {
         assertThat(validateSignature(queryParam.substring(0, queryParam.length() - 5), signature, credential), equalTo(false));
     }
 
-    private String parseAndUrlDecodeParameter(String parameter) throws UnsupportedEncodingException {
+    private String parseAndUrlDecodeParameter(String parameter) {
         final String value = parameter.split("=", 2)[1];
-        return URLDecoder.decode(value, "UTF-8");
+        return URLDecoder.decode(value, StandardCharsets.UTF_8);
     }
 
-    private String validateUrlAndGetSignature(String url) throws UnsupportedEncodingException {
+    private String validateUrlAndGetSignature(String url) {
         final String params[] = url.split("\\?")[1].split("&");
         assert (params.length == 3);
         String sigAlg = parseAndUrlDecodeParameter(params[1]);

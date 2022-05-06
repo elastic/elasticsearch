@@ -42,7 +42,6 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -62,15 +61,15 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -1870,7 +1869,7 @@ public final class TokenService {
         };
     }
 
-    private Tuple<UserToken, String> filterAndParseHit(SearchHit hit, @Nullable Predicate<Map<String, Object>> filter)
+    private static Tuple<UserToken, String> filterAndParseHit(SearchHit hit, @Nullable Predicate<Map<String, Object>> filter)
         throws IllegalStateException, DateTimeException {
         final Map<String, Object> source = hit.getSourceAsMap();
         if (source == null) {
@@ -1887,8 +1886,10 @@ public final class TokenService {
      * @return A {@link Tuple} of access-token and refresh-token-id or null if a Predicate is defined and the userToken source doesn't
      * satisfy it
      */
-    private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter)
-        throws IllegalStateException, DateTimeException {
+    private static Tuple<UserToken, String> parseTokensFromDocument(
+        Map<String, Object> source,
+        @Nullable Predicate<Map<String, Object>> filter
+    ) throws IllegalStateException, DateTimeException {
         @SuppressWarnings("unchecked")
         final Map<String, Object> refreshTokenMap = (Map<String, Object>) source.get("refresh_token");
         final String hashedRefreshToken = refreshTokenMap != null ? (String) refreshTokenMap.get("token") : null;
@@ -2106,7 +2107,7 @@ public final class TokenService {
         }
     }
 
-    private void ensureEncryptionCiphersSupported() throws NoSuchPaddingException, NoSuchAlgorithmException {
+    private static void ensureEncryptionCiphersSupported() throws NoSuchPaddingException, NoSuchAlgorithmException {
         Cipher.getInstance(ENCRYPTION_CIPHER);
         SecretKeyFactory.getInstance(KDF_ALGORITHM);
     }
@@ -2225,7 +2226,7 @@ public final class TokenService {
     /**
      * Logs an exception concerning a specific Token at TRACE level (if enabled)
      */
-    private <E extends Throwable> E traceLog(String action, String identifier, E exception) {
+    private static <E extends Throwable> E traceLog(String action, String identifier, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
@@ -2244,7 +2245,7 @@ public final class TokenService {
     /**
      * Logs an exception at TRACE level (if enabled)
      */
-    private <E extends Throwable> E traceLog(String action, E exception) {
+    private static <E extends Throwable> E traceLog(String action, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
@@ -2260,7 +2261,7 @@ public final class TokenService {
         return exception;
     }
 
-    boolean isExpiredTokenException(ElasticsearchSecurityException e) {
+    static boolean isExpiredTokenException(ElasticsearchSecurityException e) {
         final List<String> headers = e.getHeader("WWW-Authenticate");
         return headers != null && headers.stream().anyMatch(EXPIRED_TOKEN_WWW_AUTH_VALUE::equals);
     }
@@ -2293,7 +2294,7 @@ public final class TokenService {
         }
     }
 
-    private class KeyComputingRunnable extends AbstractRunnable {
+    private static class KeyComputingRunnable extends AbstractRunnable {
 
         private final BytesKey decodedSalt;
         private final KeyAndCache keyAndCache;
@@ -2349,10 +2350,7 @@ public final class TokenService {
                 if (keyCache.cache.containsKey(keyAndCache.getKeyHash())) {
                     continue; // collision -- generate a new key
                 }
-                return newTokenMetadata(
-                    keyCache.currentTokenKeyHash,
-                    Iterables.concat(keyCache.cache.values(), Collections.singletonList(keyAndCache))
-                );
+                return newTokenMetadata(keyCache.currentTokenKeyHash, CollectionUtils.appendToCopy(keyCache.cache.values(), keyAndCache));
             }
         }
         return newTokenMetadata(keyCache.currentTokenKeyHash, keyCache.cache.values());
@@ -2402,7 +2400,7 @@ public final class TokenService {
         return newTokenMetadata(keyCache.currentTokenKeyHash, keyCache.cache.values());
     }
 
-    private TokenMetadata newTokenMetadata(BytesKey activeTokenKey, Iterable<KeyAndCache> iterable) {
+    private static TokenMetadata newTokenMetadata(BytesKey activeTokenKey, Iterable<KeyAndCache> iterable) {
         List<KeyAndTimestamp> list = new ArrayList<>();
         for (KeyAndCache v : iterable) {
             list.add(v.keyAndTimestamp);
@@ -2459,28 +2457,23 @@ public final class TokenService {
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     void rotateKeysOnMaster(ActionListener<AcknowledgedResponse> listener) {
         logger.info("rotate keys on master");
         TokenMetadata tokenMetadata = generateSpareKey();
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "publish next key to prepare key rotation",
             new TokenMetadataPublishAction(tokenMetadata, ActionListener.wrap((res) -> {
                 if (res.isAcknowledged()) {
                     TokenMetadata metadata = rotateToSpareKey();
-                    clusterService.submitStateUpdateTask(
-                        "publish next key to prepare key rotation",
-                        new TokenMetadataPublishAction(metadata, listener),
-                        newExecutor()
-                    );
+                    submitUnbatchedTask("publish next key to prepare key rotation", new TokenMetadataPublishAction(metadata, listener));
                 } else {
                     listener.onFailure(new IllegalStateException("not acked"));
                 }
-            }, listener::onFailure)),
-            newExecutor()
+            }, listener::onFailure))
         );
     }
 
@@ -2551,7 +2544,7 @@ public final class TokenService {
     private void installTokenMetadata(ClusterState state) {
         if (state.custom(TokenMetadata.TYPE) == null) {
             if (installTokenMetadataInProgress.compareAndSet(false, true)) {
-                clusterService.submitStateUpdateTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
+                submitUnbatchedTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
@@ -2573,7 +2566,7 @@ public final class TokenService {
                     public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         installTokenMetadataInProgress.set(false);
                     }
-                }, newExecutor());
+                });
             }
         }
     }

@@ -57,9 +57,9 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin implements Int
             t.copy("forbidden/jdk-deprecated.txt");
             t.copy("forbidden/es-all-signatures.txt");
             t.copy("forbidden/es-test-signatures.txt");
+            t.copy("forbidden/hppc-signatures.txt");
             t.copy("forbidden/http-signatures.txt");
             t.copy("forbidden/es-server-signatures.txt");
-            t.copy("forbidden/snakeyaml-signatures.txt");
         });
 
         project.getExtensions().getByType(SourceSetContainer.class).configureEach(sourceSet -> {

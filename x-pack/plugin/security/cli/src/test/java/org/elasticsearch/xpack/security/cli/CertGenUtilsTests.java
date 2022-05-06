@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.security.cli;
 
+import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.SuppressForbidden;
@@ -25,6 +27,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
@@ -156,7 +159,8 @@ public class CertGenUtilsTests extends ESTestCase {
             true,
             notBefore,
             notAfter,
-            null
+            null,
+            Set.of(new ExtendedKeyUsage(KeyPurposeId.anyExtendedKeyUsage))
         );
 
         final X509Certificate[] certChain = new X509Certificate[] { endEntityCert, subCaCert, rootCaCert };
@@ -165,6 +169,9 @@ public class CertGenUtilsTests extends ESTestCase {
         assertThat(endEntityCert.getIssuerX500Principal(), equalTo(subCaCert.getSubjectX500Principal()));
         assertThat(subCaCert.getIssuerX500Principal(), equalTo(rootCaCert.getSubjectX500Principal()));
         assertThat(rootCaCert.getIssuerX500Principal(), equalTo(rootCaCert.getSubjectX500Principal()));
+
+        // verify custom extended key usage
+        assertThat(endEntityCert.getExtendedKeyUsage(), equalTo(List.of(KeyPurposeId.anyExtendedKeyUsage.toASN1Primitive().toString())));
 
         // verify cert chaining based on PKIX rules (ex: SubjectDNs/IssuerDNs, SKIs/AKIs, BC, KU, EKU, etc)
         final KeyStore trustStore = KeyStore.getInstance("PKCS12", "SunJSSE"); // EX: SunJSSE, BC, BC-FIPS

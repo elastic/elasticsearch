@@ -19,6 +19,7 @@ import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -120,6 +121,10 @@ public final class ScriptProcessor extends AbstractProcessor {
                 IngestScript.Factory ingestScriptFactory = null;
                 try {
                     ingestScriptFactory = scriptService.compile(script, IngestScript.CONTEXT);
+                    if (ScriptType.STORED.equals(script.getType())) {
+                        // do not cache stored scripts lest they change and invalidate the cached value
+                        ingestScriptFactory = null;
+                    }
                 } catch (ScriptException e) {
                     throw newConfigurationException(TYPE, processorTag, null, e);
                 }

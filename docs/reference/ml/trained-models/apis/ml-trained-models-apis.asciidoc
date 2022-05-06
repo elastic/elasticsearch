@@ -12,7 +12,8 @@ You can use the following APIs to perform model management operations:
 * <<delete-trained-models-aliases>>
 * <<get-trained-models>>
 * <<get-trained-models-stats>>
-* <<infer-trained-model-deployment>>
+* <<infer-trained-model>>
+* <<infer-trained-model-deployment>> deprecated:[8.3.0]
 * <<start-trained-model-deployment>>
 * <<stop-trained-model-deployment>>
 

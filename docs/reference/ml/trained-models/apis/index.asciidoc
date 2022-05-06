@@ -11,6 +11,7 @@ include::delete-trained-models.asciidoc[leveloffset=+2]
 include::get-trained-models.asciidoc[leveloffset=+2]
 include::get-trained-models-stats.asciidoc[leveloffset=+2]
 //INFER
+include::infer-trained-model.asciidoc[leveloffset=+2]
 include::infer-trained-model-deployment.asciidoc[leveloffset=+2]
 //START/STOP
 include::start-trained-model-deployment.asciidoc[leveloffset=+2]

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -25,6 +26,8 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
 
+    static final String PATH = BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/deployment/_infer";
+
     @Override
     public String getName() {
         return "xpack_ml_infer_trained_models_deployment_action";
@@ -33,7 +36,20 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            new Route(POST, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/deployment/_infer")
+            Route.builder(POST, PATH)
+                .deprecated(
+                    "["
+                        + POST.name()
+                        + " "
+                        + PATH
+                        + "] is deprecated! Use ["
+                        + POST.name()
+                        + " "
+                        + RestInferTrainedModelAction.PATH
+                        + "] instead.",
+                    RestApiVersion.V_8
+                )
+                .build()
         );
     }
 

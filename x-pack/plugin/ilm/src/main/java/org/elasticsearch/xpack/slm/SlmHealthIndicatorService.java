@@ -80,8 +80,8 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         }
     }
 
-    private static HealthIndicatorDetails createDetails(boolean includeDetails, SnapshotLifecycleMetadata metadata) {
-        if (includeDetails) {
+    private static HealthIndicatorDetails createDetails(boolean explain, SnapshotLifecycleMetadata metadata) {
+        if (explain) {
             return new SimpleHealthIndicatorDetails(
                 Map.of("slm_status", metadata.getOperationMode(), "policies", metadata.getSnapshotConfigurations().size())
             );

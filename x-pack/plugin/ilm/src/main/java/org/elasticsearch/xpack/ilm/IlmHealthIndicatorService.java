@@ -80,8 +80,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         }
     }
 
-    private static HealthIndicatorDetails createDetails(boolean includeDetails, IndexLifecycleMetadata metadata) {
-        if (includeDetails) {
+    private static HealthIndicatorDetails createDetails(boolean explain, IndexLifecycleMetadata metadata) {
+        if (explain) {
             return new SimpleHealthIndicatorDetails(
                 Map.of("ilm_status", metadata.getOperationMode(), "policies", metadata.getPolicies().size())
             );

@@ -307,7 +307,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private final Set<String> indicesWithUnavailableShards = new HashSet<>();
         private final Map<UserAction.Definition, Set<String>> userActions = new HashMap<>();
 
-        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean includeDetails) {
+        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
             available &= routing.active() || isRestarting || isNew;
@@ -323,7 +323,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         unassigned_restarting++;
                     } else {
                         unassigned++;
-                        if (includeDetails) {
+                        if (explain) {
                             diagnoseUnassignedShardRouting(routing, state).forEach(
                                 definition -> addUserAction(definition, routing.getIndexName())
                             );
@@ -677,12 +677,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             this.clusterMetadata = clusterMetadata;
         }
 
-        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean includeDetails) {
-            primaries.increment(routing, state, shutdowns, includeDetails);
+        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
+            primaries.increment(routing, state, shutdowns, explain);
         }
 
-        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean includeDetails) {
-            replicas.increment(routing, state, shutdowns, includeDetails);
+        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
+            replicas.increment(routing, state, shutdowns, explain);
         }
 
         public HealthStatus getStatus() {
@@ -725,8 +725,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             };
         }
 
-        public HealthIndicatorDetails getDetails(boolean includeDetails) {
-            if (includeDetails) {
+        public HealthIndicatorDetails getDetails(boolean explain) {
+            if (explain) {
                 return new SimpleHealthIndicatorDetails(
                     Map.of(
                         "unassigned_primaries",
@@ -788,11 +788,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
         /**
          * Summarizes the user actions that are needed to solve unassigned primary and replica shards.
-         * @param includeDetails true if user actions should be generated, false if they should be omitted.
-         * @return A summary of user actions. Alternatively, an empty list if none were found or includeDetails is false.
+         * @param explain true if user actions should be generated, false if they should be omitted.
+         * @return A summary of user actions. Alternatively, an empty list if none were found or explain is false.
          */
-        public List<UserAction> getUserActions(boolean includeDetails) {
-            if (includeDetails) {
+        public List<UserAction> getUserActions(boolean explain) {
+            if (explain) {
                 Map<UserAction.Definition, Set<String>> actionsToAffectedIndices = new HashMap<>(primaries.userActions);
                 replicas.userActions.forEach((actionDefinition, indicesWithReplicasUnassigned) -> {
                     Set<String> indicesWithPrimariesUnassigned = actionsToAffectedIndices.get(actionDefinition);

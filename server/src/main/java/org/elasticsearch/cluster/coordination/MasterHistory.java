@@ -35,6 +35,7 @@ public class MasterHistory implements ClusterStateListener {
      * The maximum amount of time that the master history covers.
      */
     private final TimeValue maxHistoryAge;
+    // Note: While the master can be null, the TimeAndMaster object in this list is never null
     private volatile List<TimeAndMaster> masterHistory;
     private final LongSupplier currentTimeMillisSupplier;
     /**
@@ -174,16 +175,16 @@ public class MasterHistory implements ClusterStateListener {
     }
 
     /**
-     * Returns true if a non-null master was seen at any point in the last n seconds, or if the last-seen master was more than n seconds
-     * ago and non-null.
-     * @param n The number of seconds to look back
-     * @return true if the current master is non-null or if a non-null master was seen in the last n seconds
+     * Returns true if a non-null master was seen at any point in the last nSeconds seconds, or if the last-seen master was more than
+     * nSeconds seconds ago and non-null.
+     * @param nSeconds The number of seconds to look back
+     * @return true if the current master is non-null or if a non-null master was seen in the last nSeconds seconds
      */
-    public boolean hasSeenMasterInLastNSeconds(int n) {
+    public boolean hasSeenMasterInLastNSeconds(int nSeconds) {
         List<TimeAndMaster> masterHistoryCopy = getRecentMasterHistory(masterHistory);
         long now = currentTimeMillisSupplier.getAsLong();
-        TimeValue nSeconds = new TimeValue(n, TimeUnit.SECONDS);
-        long nSecondsAgo = now - nSeconds.getMillis();
+        TimeValue nSecondsTimeValue = new TimeValue(nSeconds, TimeUnit.SECONDS);
+        long nSecondsAgo = now - nSecondsTimeValue.getMillis();
         return getMostRecentMaster() != null
             || masterHistoryCopy.stream()
                 .filter(timeAndMaster -> timeAndMaster.master != null)
@@ -221,5 +222,5 @@ public class MasterHistory implements ClusterStateListener {
         return masterHistoryCopy.stream().map(TimeAndMaster::master).toList();
     }
 
-    private record TimeAndMaster(long time, DiscoveryNode master) {}
+    private record TimeAndMaster(long startTimeMillis, DiscoveryNode master) {}
 }

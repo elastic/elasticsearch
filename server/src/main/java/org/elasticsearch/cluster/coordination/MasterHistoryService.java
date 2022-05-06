@@ -83,10 +83,10 @@ public class MasterHistoryService {
      * This is a remote call, so clients should avoid calling it any more often than necessary.
      * @param node The node whose view of the master history we want to fetch
      */
-    public void requestRemoteMasterHistory(DiscoveryNode node) {
+    public void refreshRemoteMasterHistory(DiscoveryNode node) {
         long startTime = System.nanoTime();
         transportService.openConnection(
-            // Note: This connection is explicitly closed onResponse or onFailure of the request below
+            // Note: This connection must be explicitly closed below
             node,
             ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
             new ActionListener<>() {

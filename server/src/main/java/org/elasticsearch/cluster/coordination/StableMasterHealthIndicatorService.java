@@ -341,7 +341,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             if (masterHistoryService.getLocalMasterHistory().hasMasterGoneNullAtLeastNTimes(acceptableNullTransitions + 1)) {
                 DiscoveryNode master = masterHistoryService.getLocalMasterHistory().getMostRecentNonNullMaster();
                 if (master != null && clusterService.localNode().equals(master) == false) {
-                    masterHistoryService.requestRemoteMasterHistory(master);
+                    masterHistoryService.refreshRemoteMasterHistory(master);
                 }
             }
         }

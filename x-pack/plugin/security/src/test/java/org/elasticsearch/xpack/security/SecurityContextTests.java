@@ -12,9 +12,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
@@ -175,8 +177,6 @@ public class SecurityContextTests extends ESTestCase {
     }
 
     public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteNewApiKeyMetadata() throws IOException {
-        User user = new User("test", null, new User("authUser"));
-        RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10));
         metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
@@ -185,7 +185,8 @@ public class SecurityContextTests extends ESTestCase {
             AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
             new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
         );
-        final Authentication original = new Authentication(user, authBy, authBy, Version.V_8_0_0, AuthenticationType.API_KEY, metadata);
+
+        final Authentication original = AuthenticationTestHelper.builder().apiKey().metadata(metadata).version(Version.V_8_0_0).build();
         original.writeToContext(threadContext);
 
         // If target is old node, rewrite new style API key metadata to old format
@@ -204,40 +205,37 @@ public class SecurityContextTests extends ESTestCase {
         // If target is new node, no need to rewrite the new style API key metadata
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
-            assertSame(metadata, authentication.getMetadata());
+            assertSame(original.getMetadata(), authentication.getMetadata());
         }, VersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, Version.CURRENT));
     }
 
     public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteOldApiKeyMetadata() throws IOException {
-        User user = new User("test", null, new User("authUser"));
-        RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
-        final Map<String, Object> metadata = new HashMap<>();
-        metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10));
-        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
-        metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, Map.of("a role", Map.of("cluster", List.of("all"))));
-        metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Map.of("limitedBy role", Map.of("cluster", List.of("all"))));
-        final Authentication original = new Authentication(user, authBy, authBy, Version.V_7_8_0, AuthenticationType.API_KEY, metadata);
+        final Authentication original = AuthenticationTestHelper.builder().apiKey().version(Version.V_7_8_0).build();
+
+        // original authentication has the old style of role descriptor maps
+        assertThat(original.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY), instanceOf(Map.class));
+        assertThat(original.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY), instanceOf(Map.class));
+
         original.writeToContext(threadContext);
 
         // If target is old node, no need to rewrite old style API key metadata
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
-            assertSame(metadata, authentication.getMetadata());
+            assertSame(original.getMetadata(), authentication.getMetadata());
         }, Version.V_7_8_0);
 
-        // If target is new old, ensure old map style API key metadata is rewritten to bytesreference
+        // If target is new node, ensure old map style API key metadata is rewritten to bytesreference
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
-            assertEquals(
-                """
-                    {"a role":{"cluster":["all"]}}""",
-                ((BytesReference) authentication.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)).utf8ToString()
-            );
-            assertEquals(
-                """
-                    {"limitedBy role":{"cluster":["all"]}}""",
-                ((BytesReference) authentication.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)).utf8ToString()
-            );
+            List.of(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                .forEach(key -> {
+                    assertThat(authentication.getMetadata().get(key), instanceOf(BytesReference.class));
+
+                    assertThat(
+                        XContentHelper.convertToMap((BytesReference) authentication.getMetadata().get(key), false, XContentType.JSON).v2(),
+                        equalTo(original.getMetadata().get(key))
+                    );
+                });
         }, VersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, Version.CURRENT));
     }
 }

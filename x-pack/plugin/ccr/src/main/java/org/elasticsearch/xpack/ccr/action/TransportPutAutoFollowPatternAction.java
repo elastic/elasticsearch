@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -106,15 +105,14 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
             ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
                 if (e == null) {
-                    clusterService.submitStateUpdateTask(
+                    submitUnbatchedTask(
                         "put-auto-follow-pattern-" + request.getRemoteCluster(),
                         new AckedClusterStateUpdateTask(request, listener) {
                             @Override
                             public ClusterState execute(ClusterState currentState) {
                                 return innerPut(request, filteredHeaders, currentState, remoteClusterState.getState());
                             }
-                        },
-                        newExecutor()
+                        }
                     );
                 } else {
                     listener.onFailure(e);
@@ -137,8 +135,8 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static ClusterState innerPut(

@@ -61,7 +61,8 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
 
         private void expandDots() throws IOException {
-            String field = delegate().currentName();
+            XContentParser delegate = delegate();
+            String field = delegate.currentName();
             String[] subpaths = splitAndValidatePath(field);
             if (subpaths.length == 0) {
                 throw new IllegalArgumentException("field name cannot contain only dots: [" + field + "]");
@@ -73,14 +74,15 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             if (subpaths.length == 1 && field.endsWith(".") == false) {
                 return;
             }
-            XContentLocation location = delegate().getTokenLocation();
-            Token token = delegate().nextToken();
-            if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
-                parsers.push(new DotExpandingXContentParser(new XContentSubParser(delegate()), subpaths, location));
-            } else if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
+            XContentLocation location = delegate.getTokenLocation();
+            Token token = delegate.nextToken();
+            if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
                 throw new IllegalStateException("Expecting START_OBJECT or START_ARRAY or VALUE but got [" + token + "]");
             } else {
-                parsers.push(new DotExpandingXContentParser(new SingletonValueXContentParser(delegate()), subpaths, location));
+                XContentParser subParser = token == Token.START_OBJECT || token == Token.START_ARRAY
+                    ? new XContentSubParser(delegate)
+                    : new SingletonValueXContentParser(delegate);
+                parsers.push(new DotExpandingXContentParser(subParser, subpaths, location));
             }
         }
 

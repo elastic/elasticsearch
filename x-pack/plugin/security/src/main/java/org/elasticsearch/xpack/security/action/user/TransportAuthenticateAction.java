@@ -41,8 +41,13 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
     @Override
     protected void doExecute(Task task, AuthenticateRequest request, ActionListener<AuthenticateResponse> listener) {
         final Authentication authentication = securityContext.getAuthentication();
-        final User runAsUser = authentication == null ? null : authentication.getUser();
-        final User authUser = runAsUser == null ? null : runAsUser.authenticatedUser();
+        final User runAsUser, authUser;
+        if (authentication == null) {
+            runAsUser = authUser = null;
+        } else {
+            runAsUser = authentication.getEffectiveSubject().getUser();
+            authUser = authentication.getAuthenticatingSubject().getUser();
+        }
         if (authUser == null) {
             listener.onFailure(new ElasticsearchSecurityException("did not find an authenticated user"));
         } else if (User.isInternal(authUser)) {

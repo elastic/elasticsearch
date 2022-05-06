@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -134,8 +135,9 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> indexed {} docs", numDocs);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         final OptionParser parser = command.getParser();
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
 
         final Settings nodePathSettings = internalCluster().dataPathSettings(node);
 
@@ -146,7 +148,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // Try running it before the node is stopped (and shard is closed)
         try {
-            command.execute(terminal, options, environment);
+            command.execute(terminal, options, environment, processInfo);
             fail("expected the command to fail as node is locked");
         } catch (Exception e) {
             assertThat(
@@ -162,7 +164,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             public Settings onNodeStopped(String nodeName) throws Exception {
                 // Try running it before the shard is corrupted, it should flip out because there is no corruption file marker
                 try {
-                    command.execute(terminal, options, environment);
+                    command.execute(terminal, options, environment, processInfo);
                     fail("expected the command to fail as there is no corruption file marker");
                 } catch (Exception e) {
                     assertThat(e.getMessage(), startsWith("Shard does not seem to be corrupted at"));
@@ -196,7 +198,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 terminal.addTextInput("y");
-                command.execute(terminal, options, environment);
+                command.execute(terminal, options, environment, processInfo);
 
                 return super.onNodeStopped(nodeName);
             }
@@ -314,7 +316,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         indexRandom(false, false, false, Arrays.asList(builders));
 
         RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         OptionParser parser = command.getParser();
 
         if (randomBoolean() && numDocsToTruncate > 0) {
@@ -384,8 +386,9 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
                 terminal.addTextInput("y");
                 OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString());
+                final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
                 logger.info("--> running command for [{}]", translogDir.toAbsolutePath());
-                command.execute(terminal, options, environment);
+                command.execute(terminal, options, environment, processInfo);
                 logger.info("--> output:\n{}", terminal.getOutput());
 
                 return super.onNodeStopped(nodeName);
@@ -546,7 +549,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // check replica corruption
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         final Environment environment = TestEnvironment.newEnvironment(
@@ -554,8 +557,9 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         );
         terminal.addTextInput("y");
         OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString());
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
         logger.info("--> running command for [{}]", translogDir.toAbsolutePath());
-        command.execute(terminal, options, environment);
+        command.execute(terminal, options, environment, processInfo);
         logger.info("--> output:\n{}", terminal.getOutput());
 
         logger.info("--> starting the replica node to test recovery");

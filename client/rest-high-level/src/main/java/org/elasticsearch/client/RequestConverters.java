@@ -37,14 +37,13 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.GetSourceRequest;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.internal.Requests;
-import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -921,18 +920,6 @@ final class RequestConverters {
         Params withRefresh(boolean refresh) {
             if (refresh) {
                 return withRefreshPolicy(RefreshPolicy.IMMEDIATE);
-            }
-            return this;
-        }
-
-        /**
-         *  @deprecated If creating a new HLRC ReST API call, use {@link RefreshPolicy}
-         *  instead of {@link WriteRequest.RefreshPolicy} from the server project
-         */
-        @Deprecated
-        Params withRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
-            if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
-                return putParam("refresh", refreshPolicy.getValue());
             }
             return this;
         }

@@ -139,4 +139,5 @@ org.apache.logging.log4j.LogManager#getLogger()
 java.lang.String#formatted(java.lang.Object[]) @ Uses default locale - use String#format(Locale, String, Object...) instead
 
 @defaultMessage Unbatched cluster state tasks are a source of performance and stability bugs. Implement the update logic in a executor which is reused across tasks instead.
-org.elasticsearch.cluster.ClusterStateTaskExecutor#unbatched()
+org.elasticsearch.cluster.service.MasterService#submitUnbatchedStateUpdateTask(java.lang.String, org.elasticsearch.cluster.ClusterStateUpdateTask)
+org.elasticsearch.cluster.service.ClusterService#submitUnbatchedStateUpdateTask(java.lang.String, org.elasticsearch.cluster.ClusterStateUpdateTask)

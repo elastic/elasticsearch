@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -1364,16 +1365,15 @@ public final class InternalTestCluster extends TestCluster {
         }
         logger.trace("validating cluster formed, expecting {}", expectedNodes);
 
-        try {
-            // use waiting via the cluster service first to save on some busy-waiting and sleeping before entering the busy assert below
-            ClusterServiceUtils.awaitClusterState(
-                logger,
-                state -> state.nodes().getMasterNodeId() != null && state.nodes().getSize() == expectedNodes.size(),
-                getInstance(ClusterService.class)
-            );
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
+        assertFalse(
+            client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setWaitForNodes(Integer.toString(expectedNodes.size()))
+                .get()
+                .isTimedOut()
+        );
         try {
             assertBusy(() -> {
                 final List<ClusterState> states = nodes.values()

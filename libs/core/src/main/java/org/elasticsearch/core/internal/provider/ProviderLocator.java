@@ -63,7 +63,8 @@ public final class ProviderLocator<T> implements Supplier<T> {
         );
     }
 
-    public ProviderLocator(
+    // package-private for tests
+    ProviderLocator(
         Module caller,
         String providerName,
         Class<T> providerType,

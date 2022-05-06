@@ -9,6 +9,7 @@
 package org.elasticsearch.core.internal.provider;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
@@ -112,7 +113,7 @@ public class ProviderLocatorTests extends ESTestCase {
             jarEntries.put(prefix + "/module-info.class", bytes("bad"));
         }
 
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
         URLClassLoader parent = URLClassLoader.newInstance(
@@ -120,30 +121,34 @@ public class ProviderLocatorTests extends ESTestCase {
             ProviderLocatorTests.class.getClassLoader()
         );
 
-        // test scenario
-        ProviderLocator<IntSupplier> locator = new ProviderLocator<>(
-            this.getClass().getModule(),
-            "x-foo",
-            IntSupplier.class,
-            parent,
-            "x.foo.impl",
-            Set.of(),
-            true
-        );
-        IntSupplier impl = locator.get();
-        assertThat(impl.getAsInt(), is(12));
-        assertThat(impl.toString(), equalTo("Hello from FooIntSupplier - modular!"));
-        assertThat(impl.getClass().getName(), equalTo("p.FooIntSupplier"));
+        try {
+            // test scenario
+            ProviderLocator<IntSupplier> locator = new ProviderLocator<>(
+                this.getClass().getModule(),
+                "x-foo",
+                IntSupplier.class,
+                parent,
+                "x.foo.impl",
+                Set.of(),
+                true
+            );
+            IntSupplier impl = locator.get();
+            assertThat(impl.getAsInt(), is(12));
+            assertThat(impl.toString(), equalTo("Hello from FooIntSupplier - modular!"));
+            assertThat(impl.getClass().getName(), equalTo("p.FooIntSupplier"));
 
-        Module implMod = impl.getClass().getModule();
-        assertThat(implMod.getName(), equalTo("x.foo.impl"));
+            Module implMod = impl.getClass().getModule();
+            assertThat(implMod.getName(), equalTo("x.foo.impl"));
 
-        ModuleDescriptor md = implMod.getDescriptor();
-        assertThat(md.isAutomatic(), equalTo(false));
-        assertThat(md.name(), equalTo("x.foo.impl"));
-        assertThat(md.exports(), containsInAnyOrder(exportsOf("p")));
-        assertThat(md.opens(), containsInAnyOrder(opensOf("q")));
-        assertThat(md.packages(), containsInAnyOrder(equalTo("p"), equalTo("q"), equalTo("r")));
+            ModuleDescriptor md = implMod.getDescriptor();
+            assertThat(md.isAutomatic(), equalTo(false));
+            assertThat(md.name(), equalTo("x.foo.impl"));
+            assertThat(md.exports(), containsInAnyOrder(exportsOf("p")));
+            assertThat(md.opens(), containsInAnyOrder(opensOf("q")));
+            assertThat(md.packages(), containsInAnyOrder(equalTo("p"), equalTo("q"), equalTo("r")));
+        } finally {
+            PrivilegedOperations.closeURLClassLoader(parent);
+        }
     }
 
     static byte[] bytes(String str) {
@@ -171,7 +176,7 @@ public class ProviderLocatorTests extends ESTestCase {
         jarEntries.put("IMPL-JARS/x-foo/x-foo-nm-impl.jar/META-INF/services/java.util.function.LongSupplier", bytes("p.FooLongSupplier"));
         jarEntries.put("IMPL-JARS/x-foo/x-foo-nm-impl.jar/p/FooLongSupplier.class", classToBytes.get("p.FooLongSupplier"));
 
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
         URLClassLoader parent = URLClassLoader.newInstance(
@@ -179,21 +184,25 @@ public class ProviderLocatorTests extends ESTestCase {
             ProviderLocatorTests.class.getClassLoader()
         );
 
-        // test scenario
-        ProviderLocator<LongSupplier> locator = new ProviderLocator<>(
-            this.getClass().getModule(),
-            "x-foo",
-            LongSupplier.class,
-            parent,
-            "",
-            Set.of(),
-            false
-        );
-        LongSupplier impl = locator.get();
-        assertThat(impl.getAsLong(), is(55L));
-        assertThat(impl.toString(), equalTo("Hello from FooLongSupplier - non-modular!"));
-        assertThat(impl.getClass().getName(), equalTo("p.FooLongSupplier"));
-        assertThat(impl.getClass().getModule().isNamed(), is(false));
+        try {
+            // test scenario
+            ProviderLocator<LongSupplier> locator = new ProviderLocator<>(
+                this.getClass().getModule(),
+                "x-foo",
+                LongSupplier.class,
+                parent,
+                "",
+                Set.of(),
+                false
+            );
+            LongSupplier impl = locator.get();
+            assertThat(impl.getAsLong(), is(55L));
+            assertThat(impl.toString(), equalTo("Hello from FooLongSupplier - non-modular!"));
+            assertThat(impl.getClass().getName(), equalTo("p.FooLongSupplier"));
+            assertThat(impl.getClass().getModule().isNamed(), is(false));
+        } finally {
+            PrivilegedOperations.closeURLClassLoader(parent);
+        }
     }
 
     /* Variant of testLoadAsModuleEmbeddedJar, but exploded file paths. */
@@ -212,7 +221,7 @@ public class ProviderLocatorTests extends ESTestCase {
             """);
         var classToBytes = InMemoryJavaCompiler.compile(sources);
 
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path yBar = Files.createDirectories(topLevelDir.resolve("IMPL-JARS").resolve("y-bar"));
         Files.writeString(yBar.resolve("LISTING.TXT"), "y-bar-nm-impl.jar");
         Path barRoot = Files.createDirectories(yBar.resolve("y-bar-nm-impl.jar"));
@@ -226,20 +235,24 @@ public class ProviderLocatorTests extends ESTestCase {
             ProviderLocatorTests.class.getClassLoader()
         );
 
-        // test scenario
-        ProviderLocator<IntSupplier> locator = new ProviderLocator<>(
-            this.getClass().getModule(),
-            "y-bar",
-            IntSupplier.class,
-            parent,
-            "",
-            Set.of(),
-            false
-        );
-        IntSupplier impl = locator.get();
-        assertThat(impl.getAsInt(), is(42));
-        assertThat(impl.toString(), equalTo("Hello from BarIntSupplier - exploded non-modular!"));
-        assertThat(impl.getClass().getName(), equalTo("pb.BarIntSupplier"));
-        assertThat(impl.getClass().getModule().isNamed(), is(false));
+        try {
+            // test scenario
+            ProviderLocator<IntSupplier> locator = new ProviderLocator<>(
+                this.getClass().getModule(),
+                "y-bar",
+                IntSupplier.class,
+                parent,
+                "",
+                Set.of(),
+                false
+            );
+            IntSupplier impl = locator.get();
+            assertThat(impl.getAsInt(), is(42));
+            assertThat(impl.toString(), equalTo("Hello from BarIntSupplier - exploded non-modular!"));
+            assertThat(impl.getClass().getName(), equalTo("pb.BarIntSupplier"));
+            assertThat(impl.getClass().getModule().isNamed(), is(false));
+        } finally {
+            PrivilegedOperations.closeURLClassLoader(parent);
+        }
     }
 }

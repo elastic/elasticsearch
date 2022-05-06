@@ -81,7 +81,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
         jarEntries.put("/a/b/m.jar/q/Bar.class", classToBytes.get("q.Bar"));
         jarEntries.put("/a/b/m.jar/r/R.class", "<empty>".getBytes(UTF_8));
 
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(topLevelDir.resolve("impl.jar"), jarEntries);
 
@@ -111,20 +111,20 @@ public class EmbeddedModulePathTests extends ESTestCase {
     }
 
     public void testToPackageNameString() {
-        assertThat(EmbeddedModulePath.toPackageName("a/b/Foo.class").get(), is("a.b"));
-        assertThat(EmbeddedModulePath.toPackageName("a/b/c/Foo$1.class").get(), is("a.b.c"));
-        assertThat(EmbeddedModulePath.toPackageName("a/b/c/d/Foo$Bar.class").get(), is("a.b.c.d"));
+        assertThat(EmbeddedModulePath.toPackageName("a/b/Foo.class", "/").get(), is("a.b"));
+        assertThat(EmbeddedModulePath.toPackageName("a/b/c/Foo$1.class", "/").get(), is("a.b.c"));
+        assertThat(EmbeddedModulePath.toPackageName("a/b/c/d/Foo$Bar.class", "/").get(), is("a.b.c.d"));
 
-        assertThat(EmbeddedModulePath.toPackageName("module-info.class"), isEmpty());
-        assertThat(EmbeddedModulePath.toPackageName("foo.txt"), isEmpty());
-        assertThat(EmbeddedModulePath.toPackageName("META-INF/MANIFEST.MF"), isEmpty());
-        assertThat(EmbeddedModulePath.toPackageName("a/b/c/1d/Foo$Bar.class"), isEmpty());
+        assertThat(EmbeddedModulePath.toPackageName("module-info.class", "/"), isEmpty());
+        assertThat(EmbeddedModulePath.toPackageName("foo.txt", "/"), isEmpty());
+        assertThat(EmbeddedModulePath.toPackageName("META-INF/MANIFEST.MF", "/"), isEmpty());
+        assertThat(EmbeddedModulePath.toPackageName("a/b/c/1d/Foo$Bar.class", "/"), isEmpty());
 
-        expectThrows(IMDE, () -> EmbeddedModulePath.toPackageName("Foo.class"));
+        expectThrows(IMDE, () -> EmbeddedModulePath.toPackageName("Foo.class", "/"));
     }
 
     public void testScanBasic() throws Exception {
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJar(topLevelDir, "impl.jar", null, "module-info.class", "p/Foo.class", "q/Bar.class", "META-INF/services/a.b.c.Foo");
 
@@ -140,7 +140,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
     }
 
     public void testExplodedPackages() throws Exception {
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path jarPath = JarUtils.createJar(
             topLevelDir,
             "impl.jar",
@@ -162,7 +162,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
     }
 
     public void testExplodedPackagesMultiRelease() throws Exception {
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Manifest manifest = new Manifest(new ByteArrayInputStream("Multi-Release: true\n".getBytes(UTF_8)));
         Path jarPath = JarUtils.createJar(
             topLevelDir,
@@ -187,10 +187,14 @@ public class EmbeddedModulePathTests extends ESTestCase {
         Map<String, String> jarEntries = new HashMap<>();
         jarEntries.put("/META-INF/services/a.b.c.Foo", """
             # service implementation of Foo
-            d.e.f.FooImpl
+            #
+             #
+
+            d.e.f.FooImpl # impl of Foo
+
             """);
 
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntriesUTF(topLevelDir.resolve("impl.jar"), jarEntries);
 
@@ -201,6 +205,33 @@ public class EmbeddedModulePathTests extends ESTestCase {
             Map<String, List<String>> services = EmbeddedModulePath.services(serviceFiles, jarRoot);
             assertThat(services, is(aMapWithSize(1)));
             assertThat(services, hasEntry(is("a.b.c.Foo"), hasItem("d.e.f.FooImpl")));
+        }
+    }
+
+    public void testServicesMultiple() throws Exception {
+        Map<String, String> jarEntries = new HashMap<>();
+        jarEntries.put("/META-INF/services/a.b.c.Foo", """
+            # service implementation of Foo
+            d.e.f.FooImpl # impl of Foo
+            """);
+        jarEntries.put("/META-INF/services/foo.bar.Baz", """
+            # service implementation of Baz
+            # impl of Baz
+            foo.bar.internal.BazImpl
+            """);
+
+        Path topLevelDir = createTempDir(getTestName());
+        Path outerJar = topLevelDir.resolve("impl.jar");
+        JarUtils.createJarWithEntriesUTF(topLevelDir.resolve("impl.jar"), jarEntries);
+
+        try (FileSystem zipFileSystem = FileSystems.newFileSystem(outerJar, Map.of(), EmbeddedModulePathTests.class.getClassLoader())) {
+            Path jarRoot = zipFileSystem.getPath("/");
+
+            Set<String> serviceFiles = Set.of("META-INF/services/a.b.c.Foo", "META-INF/services/foo.bar.Baz");
+            Map<String, List<String>> services = EmbeddedModulePath.services(serviceFiles, jarRoot);
+            assertThat(services, is(aMapWithSize(2)));
+            assertThat(services, hasEntry(is("a.b.c.Foo"), hasItem("d.e.f.FooImpl")));
+            assertThat(services, hasEntry(is("foo.bar.Baz"), hasItem("foo.bar.internal.BazImpl")));
         }
     }
 
@@ -261,7 +292,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
     }
 
     public void testModuleNameFromManifestOrNull() throws Exception {
-        Path dir = createTempDir();
+        Path dir = createTempDir(getTestName());
         Files.createDirectories(dir.resolve("META-INF"));
         Path manifest = dir.resolve("META-INF").resolve("MANIFEST.MF");
 

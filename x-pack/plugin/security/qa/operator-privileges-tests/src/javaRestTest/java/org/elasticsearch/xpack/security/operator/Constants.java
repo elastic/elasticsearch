@@ -309,6 +309,7 @@ public class Constants {
         "cluster:monitor/xpack/ml/inference/get",
         "cluster:monitor/xpack/ml/inference/stats/get",
         "cluster:monitor/xpack/ml/info/get",
+        "cluster:monitor/xpack/ml/inference/infer",
         "cluster:monitor/xpack/ml/job/get",
         "cluster:monitor/xpack/ml/job/model_snapshots/get",
         "cluster:monitor/xpack/ml/job/model_snapshots/upgrade/stats/get",

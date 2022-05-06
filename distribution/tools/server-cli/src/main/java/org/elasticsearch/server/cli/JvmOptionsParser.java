@@ -61,8 +61,25 @@ final class JvmOptionsParser {
 
     }
 
+    /**
+     * Determines the jvm options that should be passed to the Elasticsearch Java process.
+     *
+     * <p> This method works by joining the options found in {@link SystemJvmOptions}, the {@code jvm.options} file,
+     * files in the {@code jvm.options.d} directory, and the options given by the {@code ES_JAVA_OPTS} environment
+     * variable.
+     *
+     * @param configDir the ES config dir
+     * @param pluginsDir the ES plugins dir
+     * @param tmpDir the directory that should be passed to {@code -Djava.io.tmpdir}
+     * @param envOptions the options passed through the ES_JAVA_OPTS env var
+     * @return the list of options to put on the Java command line
+     * @throws InterruptedException if the java subprocess is interrupted
+     * @throws IOException if there is a problem reading any of the files
+     * @throws UserException if there is a problem parsing the jvm.options file or jvm.options.d files
+     */
     static List<String> determineJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws InterruptedException,
         IOException, UserException {
+
         final JvmOptionsParser parser = new JvmOptionsParser();
 
         final Map<String, String> substitutions = new HashMap<>();
@@ -74,10 +91,11 @@ final class JvmOptionsParser {
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
                 Locale.ROOT,
-                "encountered [%d] error%s parsing [%s]",
+                "encountered [%d] error%s parsing [%s]%s",
                 e.invalidLines().size(),
                 e.invalidLines().size() == 1 ? "" : "s",
-                e.jvmOptionsFile()
+                e.jvmOptionsFile(),
+                System.lineSeparator()
             );
             StringBuilder msg = new StringBuilder(errorMessage);
             int count = 0;
@@ -85,13 +103,13 @@ final class JvmOptionsParser {
                 count++;
                 final String message = String.format(
                     Locale.ROOT,
-                    "[%d]: encountered improperly formatted JVM option in [%s] on line number [%d]: [%s]",
+                    "[%d]: encountered improperly formatted JVM option in [%s] on line number [%d]: [%s]%s",
                     count,
                     e.jvmOptionsFile(),
                     entry.getKey(),
-                    entry.getValue()
+                    entry.getValue(),
+                    System.lineSeparator()
                 );
-                msg.append(System.lineSeparator());
                 msg.append(message);
             }
             throw new UserException(ExitCodes.CONFIG, msg.toString());

@@ -6,9 +6,9 @@
 <titleabbrev>Start trained model deployment</titleabbrev>
 ++++
 
-experimental::[]
-
 Starts a new trained model deployment.
+
+preview::[]
 
 [[start-trained-model-deployment-request]]
 == {api-request-title}
@@ -26,7 +26,7 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 Currently only `pytorch` models are supported for deployment. When deployed,
 the model attempts allocation to every machine learning node. Once deployed
 the model can be used by the <<inference-processor,{infer-cap} processor>>
-in an ingest pipeline or directly in the <<infer-trained-model-deployment>> API.
+in an ingest pipeline or directly in the <<infer-trained-model>> API.
 
 [[start-trained-model-deployment-path-params]]
 == {api-path-parms-title}

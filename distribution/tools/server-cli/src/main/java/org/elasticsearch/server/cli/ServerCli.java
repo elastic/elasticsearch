@@ -113,8 +113,10 @@ class ServerCli extends EnvironmentAwareCommand {
         // if we are daemonized and we got the all-clear signal, we can exit cleanly
         if (errorPump.ready && options.has(daemonizeOption)) {
             logger.info("Subprocess is ready and we are daemonized, exiting...");
-            this.process = null; // clear the process handle, we don't want to shut it down now that we are started
-            closeStreams(process);
+            if (processInfo.envVars().get("os.name").startsWith("Windows") == false) {
+                this.process = null; // clear the process handle, we don't want to shut it down now that we are started
+                closeStreams(process);
+            }
             return;
         }
 

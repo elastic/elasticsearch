@@ -46,15 +46,13 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
-import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
@@ -94,9 +92,9 @@ import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
-import static org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction.getApplicationNames;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 
 public class RBACEngine implements AuthorizationEngine {
@@ -139,6 +137,11 @@ public class RBACEngine implements AuthorizationEngine {
                 listener::onFailure
             )
         );
+    }
+
+    @Override
+    public void resolveAuthorizationInfo(Subject subject, ActionListener<AuthorizationInfo> listener) {
+        rolesStore.getRole(subject, listener.map(role -> new RBACAuthorizationInfo(role, role)));
     }
 
     @Override
@@ -507,11 +510,10 @@ public class RBACEngine implements AuthorizationEngine {
 
     @Override
     public void checkPrivileges(
-        Authentication authentication,
         AuthorizationInfo authorizationInfo,
-        HasPrivilegesRequest request,
+        PrivilegesToCheck privilegesToCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
-        ActionListener<HasPrivilegesResponse> listener
+        ActionListener<PrivilegesCheckResult> listener
     ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
             listener.onFailure(
@@ -524,19 +526,19 @@ public class RBACEngine implements AuthorizationEngine {
             () -> new ParameterizedMessage(
                 "Check whether role [{}] has privileges cluster=[{}] index=[{}] application=[{}]",
                 Strings.arrayToCommaDelimitedString(userRole.names()),
-                Strings.arrayToCommaDelimitedString(request.clusterPrivileges()),
-                Strings.arrayToCommaDelimitedString(request.indexPrivileges()),
-                Strings.arrayToCommaDelimitedString(request.applicationPrivileges())
+                Arrays.toString(privilegesToCheck.cluster()),
+                Arrays.toString(privilegesToCheck.index()),
+                Arrays.toString(privilegesToCheck.application())
             )
         );
 
         Map<String, Boolean> cluster = new HashMap<>();
-        for (String checkAction : request.clusterPrivileges()) {
+        for (String checkAction : privilegesToCheck.cluster()) {
             cluster.put(checkAction, userRole.grants(ClusterPrivilegeResolver.resolve(checkAction)));
         }
         boolean allMatch = cluster.values().stream().allMatch(Boolean::booleanValue);
         ResourcePrivilegesMap.Builder combineIndicesResourcePrivileges = ResourcePrivilegesMap.builder();
-        for (RoleDescriptor.IndicesPrivileges check : request.indexPrivileges()) {
+        for (RoleDescriptor.IndicesPrivileges check : privilegesToCheck.index()) {
             ResourcePrivilegesMap resourcePrivileges = userRole.checkIndicesPrivileges(
                 Sets.newHashSet(check.getIndices()),
                 check.allowRestrictedIndices(),
@@ -549,10 +551,14 @@ public class RBACEngine implements AuthorizationEngine {
         allMatch = allMatch && allIndices.allAllowed();
 
         final Map<String, Collection<ResourcePrivileges>> privilegesByApplication = new HashMap<>();
-        for (String applicationName : getApplicationNames(request)) {
+
+        final Set<String> applicationNames = Arrays.stream(privilegesToCheck.application())
+            .map(RoleDescriptor.ApplicationResourcePrivileges::getApplication)
+            .collect(Collectors.toSet());
+        for (String applicationName : applicationNames) {
             logger.debug("Checking privileges for application {}", applicationName);
             ResourcePrivilegesMap.Builder builder = ResourcePrivilegesMap.builder();
-            for (RoleDescriptor.ApplicationResourcePrivileges p : request.applicationPrivileges()) {
+            for (RoleDescriptor.ApplicationResourcePrivileges p : privilegesToCheck.application()) {
                 if (applicationName.equals(p.getApplication())) {
                     ResourcePrivilegesMap appPrivsByResourceMap = userRole.checkApplicationResourcePrivileges(
                         applicationName,
@@ -569,23 +575,12 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         listener.onResponse(
-            new HasPrivilegesResponse(
-                request.username(),
-                allMatch,
-                cluster,
-                allIndices.getResourceToResourcePrivileges().values(),
-                privilegesByApplication
-            )
+            new PrivilegesCheckResult(allMatch, cluster, allIndices.getResourceToResourcePrivileges(), privilegesByApplication)
         );
     }
 
     @Override
-    public void getUserPrivileges(
-        Authentication authentication,
-        AuthorizationInfo authorizationInfo,
-        GetUserPrivilegesRequest request,
-        ActionListener<GetUserPrivilegesResponse> listener
-    ) {
+    public void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
@@ -759,7 +754,7 @@ public class RBACEngine implements AuthorizationEngine {
         // we need to verify that this user was authenticated by or looked up by a realm type that support password changes
         // otherwise we open ourselves up to issues where a user in a different realm could be created with the same username
         // and do malicious things
-        final boolean isRunAs = authentication.getUser().isRunAs();
+        final boolean isRunAs = authentication.isRunAs();
         final String realmType;
         if (isRunAs) {
             realmType = authentication.getLookedUpBy().getType();

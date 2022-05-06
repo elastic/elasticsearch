@@ -12,11 +12,13 @@ import joptsimple.OptionSet;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.env.Environment;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -26,7 +28,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new ShowKeyStoreCommand() {
             @Override
-            protected Environment createEnv(OptionSet options) throws UserException {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                 return env;
             }
         };
@@ -62,7 +64,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         createKeystore(password, "reindex.ssl.keystore.password", value);
         terminal.addSecretInput(password);
         execute("reindex.ssl.keystore.password");
-        assertEquals(value + "\n", terminal.getOutput());
+        assertThat(terminal.getOutput().lines().toList(), contains(value));
     }
 
     public void testShowBinaryValue() throws Exception {
@@ -125,9 +127,9 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         // Not prompted for a password
 
         if (console) {
-            assertEquals(value + "\n", terminal.getOutput());
+            assertThat(terminal.getOutput().lines().toList(), contains(value));
         } else {
-            assertEquals(value, terminal.getOutput());
+            assertThat(terminal.getOutput(), equalTo(value));
         }
     }
 }

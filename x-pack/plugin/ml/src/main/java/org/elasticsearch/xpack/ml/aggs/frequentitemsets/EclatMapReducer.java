@@ -272,7 +272,10 @@ public class EclatMapReducer extends AbstractMapReducer<EclatMapReducer, Transac
                  */
                 if (topItemSetTraverser.getItemSet().size() > minimumSetSize && occurences < previousOccurences) {
                     // add the set without the last item
-                    minCount = collector.add(topItemSetTraverser.getItemSet().subList(0, previousDepth - 1), previousOccurences);
+                    minCount = collector.add(
+                        topItemSetTraverser.getItemSet().subList(0, topItemSetTraverser.getDepth() - 1),
+                        previousOccurences
+                    );
                 }
 
                 /**
@@ -283,8 +286,6 @@ public class EclatMapReducer extends AbstractMapReducer<EclatMapReducer, Transac
                     previousMinCount = minCount;
                     logger.trace("adjusting min count to {}", minCount);
                 }
-
-                previousDepth = topItemSetTraverser.getDepth();
             }
             /**
              * report the very last set if necessary

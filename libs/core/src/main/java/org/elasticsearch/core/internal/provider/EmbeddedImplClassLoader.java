@@ -232,6 +232,8 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
      * <p> The module finder returned by this method can be used during resolution in order to
      * create a configuration. This configuration can subsequently be materialized as a module layer
      * in which classes and resources are loaded by this embedded impl class loader.
+     *
+     * @param missingModules a set of module names to ignore if not present
      */
     InMemoryModuleFinder moduleFinder(Set<String> missingModules) throws IOException {
         Path[] modulePath = modulePath();
@@ -270,8 +272,9 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
             FileSystem fileSystem = FileSystems.newFileSystem(rootURI, Map.of(), ClassLoader.getSystemClassLoader());
             Path rootPath = fileSystem.getPath("/");
             return entries.apply(rootPath);
+        } else {
+            throw new IOException("unknown scheme:" + rootURI.getScheme());
         }
-        throw new UncheckedIOException(new IOException("unknown scheme:" + rootURI.getScheme()));
     }
 
     // -- infra

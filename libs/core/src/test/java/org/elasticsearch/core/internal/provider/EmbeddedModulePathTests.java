@@ -187,7 +187,11 @@ public class EmbeddedModulePathTests extends ESTestCase {
         Map<String, String> jarEntries = new HashMap<>();
         jarEntries.put("/META-INF/services/a.b.c.Foo", """
             # service implementation of Foo
-            d.e.f.FooImpl
+            #
+             #
+
+            d.e.f.FooImpl # impl of Foo
+
             """);
 
         Path topLevelDir = createTempDir(getTestName());
@@ -201,6 +205,34 @@ public class EmbeddedModulePathTests extends ESTestCase {
             Map<String, List<String>> services = EmbeddedModulePath.services(serviceFiles, jarRoot);
             assertThat(services, is(aMapWithSize(1)));
             assertThat(services, hasEntry(is("a.b.c.Foo"), hasItem("d.e.f.FooImpl")));
+        }
+    }
+
+    public void testServicesMultiple() throws Exception {
+        Map<String, String> jarEntries = new HashMap<>();
+        jarEntries.put("/META-INF/services/a.b.c.Foo", """
+            # service implementation of Foo
+            d.e.f.FooImpl # impl of Foo
+            """);
+        jarEntries.put("/META-INF/services/foo.bar.Baz", """
+            # service implementation of Baz
+            # impl of Baz
+            foo.bar.internal.BazImpl
+            """
+            );
+
+        Path topLevelDir = createTempDir(getTestName());
+        Path outerJar = topLevelDir.resolve("impl.jar");
+        JarUtils.createJarWithEntriesUTF(topLevelDir.resolve("impl.jar"), jarEntries);
+
+        try (FileSystem zipFileSystem = FileSystems.newFileSystem(outerJar, Map.of(), EmbeddedModulePathTests.class.getClassLoader())) {
+            Path jarRoot = zipFileSystem.getPath("/");
+
+            Set<String> serviceFiles = Set.of("META-INF/services/a.b.c.Foo", "META-INF/services/foo.bar.Baz");
+            Map<String, List<String>> services = EmbeddedModulePath.services(serviceFiles, jarRoot);
+            assertThat(services, is(aMapWithSize(2)));
+            assertThat(services, hasEntry(is("a.b.c.Foo"), hasItem("d.e.f.FooImpl")));
+            assertThat(services, hasEntry(is("foo.bar.Baz"), hasItem("foo.bar.internal.BazImpl")));
         }
     }
 

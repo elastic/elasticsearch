@@ -8,30 +8,29 @@
 
 package org.elasticsearch.core.internal.provider;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.lang.module.FindException;
 import java.lang.module.InvalidModuleDescriptorException;
 import java.lang.module.ModuleDescriptor;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-
+/**
+ * Utility methods that support module path functionality in embedded jars.
+ */
 final class EmbeddedModulePath {
 
     private EmbeddedModulePath() {}
@@ -46,11 +45,7 @@ final class EmbeddedModulePath {
     private static final int RUNTIME_VERSION_FEATURE = Runtime.version().feature();
 
     static boolean hasRootModuleInfo(Path path) {
-        Path mi = path.resolve(MODULE_INFO);
-        if (Files.exists(mi)) {
-            return true;
-        }
-        return false;
+        return Files.exists(path.resolve(MODULE_INFO));
     }
 
     static final String MRJAR_PREFIX_PATH = "META-INF/versions";
@@ -58,8 +53,7 @@ final class EmbeddedModulePath {
     static Path maybeRemoveMRJARPrefix(Path path) {
         if (path.startsWith(MRJAR_PREFIX_PATH)) {
             assert path.getNameCount() >= 3;
-            Path p = path.subpath(3, path.getNameCount());
-            return p;
+            return path.subpath(3, path.getNameCount());
         }
         return path;
     }
@@ -79,15 +73,13 @@ final class EmbeddedModulePath {
         }
     }
 
-    static ModuleDescriptor readModuleInfo(Path miPath, Path pkgsRoot) {
+    static ModuleDescriptor readModuleInfo(Path miPath, Path pkgsRoot) throws IOException {
         try (var is = Files.newInputStream(miPath)) {
             return ModuleDescriptor.read(is, () -> explodedPackages(pkgsRoot));
-        } catch (IOException ioe) {
-            throw new UncheckedIOException(ioe);
         }
     }
 
-    static Optional<ModuleDescriptor> getModuleInfoVersioned(Path rootPath) {
+    static Optional<ModuleDescriptor> getModuleInfoVersioned(Path rootPath) throws IOException {
         for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
             Path mi = rootPath.resolve("META-INF").resolve("versions").resolve(Integer.toString(v)).resolve(MODULE_INFO);
             if (Files.exists(mi)) {
@@ -102,14 +94,18 @@ final class EmbeddedModulePath {
      *
      * @throws FindException if not exactly one module is found
      */
-    static ModuleDescriptor descriptorFor(Path path) {
-        Optional<ModuleDescriptor> vmd = getModuleInfoVersioned(path);
-        if (vmd.isPresent()) {
-            return vmd.get();
-        } else if (hasRootModuleInfo(path)) {
-            return readModuleInfo(path.resolve(MODULE_INFO), path);
-        } else {
-            return descriptorForAutomatic(path);
+    static ModuleDescriptor descriptorFor(Path path){
+        try {
+            Optional<ModuleDescriptor> vmd = getModuleInfoVersioned(path);
+            if (vmd.isPresent()) {
+                return vmd.get();
+            } else if (hasRootModuleInfo(path)) {
+                return readModuleInfo(path.resolve(MODULE_INFO), path);
+            } else {
+                return descriptorForAutomatic(path);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -120,7 +116,7 @@ final class EmbeddedModulePath {
      * Generates and returns a module descriptor for an automatic module at the given path.
      * Currently, only automatic modules with a manifest name are supported.
      */
-    static ModuleDescriptor descriptorForAutomatic(Path path) {
+    static ModuleDescriptor descriptorForAutomatic(Path path) throws IOException {
         String moduleName = moduleNameFromManifestOrNull(path);
         if (moduleName == null) {
             throw new FindException("automatic module without a manifest name is not supported, for: " + path);
@@ -132,9 +128,7 @@ final class EmbeddedModulePath {
             throw new FindException(AUTOMATIC_MODULE_NAME + ": " + e.getMessage());
         }
 
-        if (path.getFileName() != null) {
-            version(path.getFileName().toString()).ifPresent(builder::version);
-        }
+        version(path.getFileName().toString()).ifPresent(builder::version);
 
         // scan the names of the entries in the exploded JAR
         var scan = scan(path);
@@ -149,22 +143,21 @@ final class EmbeddedModulePath {
     }
 
     /** Scans a given path for class files and services. */
-    static ScanResult scan(Path path) {
-        try {
-            // scan the names of the entries in the JAR file // TODO: add support for multi-release
-            Map<Boolean, Set<String>> map = Files.walk(path)
-                .filter(p -> Files.isDirectory(p) == false)
-                .map(p -> path.relativize(p).toString())
-                .filter(p -> (p.endsWith(".class") ^ p.startsWith(SERVICES_PREFIX)))
-                .collect(Collectors.partitioningBy(e -> e.startsWith(SERVICES_PREFIX), Collectors.toSet()));
-            return new ScanResult(map.get(Boolean.FALSE), map.get(Boolean.TRUE));
-        } catch (IOException e) {
-            throw new FindException(e);
-        }
+    static ScanResult scan(Path path) throws IOException {
+        Map<Boolean, Set<String>> map = Files.walk(path)
+            .filter(p -> Files.isDirectory(p) == false)
+            .map(p -> path.relativize(p).toString())
+            .filter(p -> (p.endsWith(".class") ^ p.startsWith(SERVICES_PREFIX)))
+            .collect(Collectors.partitioningBy(e -> e.startsWith(SERVICES_PREFIX), Collectors.toSet()));
+        return new ScanResult(map.get(Boolean.FALSE), map.get(Boolean.TRUE));
     }
 
     static final Pattern DASH_VERSION = Pattern.compile("-(\\d+(\\.|$))");
 
+    /**
+     * Determines the module version (of an automatic module), given the jar file name. As per,
+     * https://docs.oracle.com/en/java/javase/18/docs/api/java.base/java/lang/module/ModuleFinder.html#of(java.nio.file.Path...)
+     */
     static Optional<ModuleDescriptor.Version> version(String jarName) {
         if (jarName.endsWith(".jar") == false) {
             throw new IllegalArgumentException("unexpected jar name: " + jarName);
@@ -187,36 +180,35 @@ final class EmbeddedModulePath {
      * Parses a set of given service files, and returns a map of service name to list of provider
      * classes.
      */
-    static Map<String, List<String>> services(Set<String> serviceFiles, Path path) {
+    static Map<String, List<String>> services(Set<String> serviceFiles, Path path) throws IOException {
         // map names of service configuration files to service names
         Set<String> serviceNames = serviceFiles.stream()
             .map(EmbeddedModulePath::toServiceName)
             .flatMap(Optional::stream)
             .collect(Collectors.toSet());
 
-        try {
-            Map<String, List<String>> map = new HashMap<>();
-            // parse each service configuration file
-            for (String sn : serviceNames) {
-                Path se = path.resolve(SERVICES_PREFIX + sn);
-                List<String> providerClasses = new ArrayList<>();
-                try (InputStream in = Files.newInputStream(se)) {
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(in, UTF_8));
-                    String cn;
-                    while ((cn = nextLine(reader)) != null) {
-                        if (cn.isEmpty() == false) {
-                            providerClasses.add(cn);
-                        }
-                    }
-                }
-                if (providerClasses.isEmpty() == false) {
-                    map.put(sn, providerClasses);
-                }
+        Map<String, List<String>> map = new HashMap<>();
+        // parse each service configuration file
+        for (String sn : serviceNames) {
+            Path se = path.resolve(SERVICES_PREFIX + sn);
+            List<String> providerClasses = Files.readAllLines(se).stream()
+                .map(EmbeddedModulePath::dropCommentAndTrim)
+                .filter(Predicate.not(String::isEmpty))
+                .toList();
+            if (providerClasses.isEmpty() == false) {
+                map.put(sn, providerClasses);
             }
-            return map;
-        } catch (IOException e) {
-            throw new FindException(e);
         }
+        return map;
+    }
+
+    /** Drops comments and trims the given string. */
+    static String dropCommentAndTrim(String line) {
+        int ci = line.indexOf('#');
+        if (ci >= 0) {
+            line = line.substring(0, ci);
+        }
+        return line.trim();
     }
 
     /**
@@ -273,32 +265,18 @@ final class EmbeddedModulePath {
      */
     static Optional<String> toServiceName(String cf) {
         if (cf.startsWith(SERVICES_PREFIX) == false) {
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("unexpected service "+ cf);
         }
-        int index = cf.lastIndexOf("/") + 1;
-        if (index < cf.length()) {
-            String prefix = cf.substring(0, index);
+        if (SERVICES_PREFIX.length() < cf.length()) {
+            String prefix = cf.substring(0, SERVICES_PREFIX.length());
             if (prefix.equals(SERVICES_PREFIX)) {
-                String sn = cf.substring(index);
+                String sn = cf.substring(SERVICES_PREFIX.length());
                 if (isClassName(sn)) {
                     return Optional.of(sn);
                 }
             }
         }
         return Optional.empty();
-    }
-
-    /** Returns the next line from the reader, skipping comment lines. */
-    static String nextLine(BufferedReader reader) throws IOException {
-        String ln = reader.readLine();
-        if (ln != null) {
-            int ci = ln.indexOf('#');
-            if (ci >= 0) {
-                ln = ln.substring(0, ci);
-            }
-            ln = ln.trim();
-        }
-        return ln;
     }
 
     static boolean isPackageName(String name) {
@@ -346,16 +324,12 @@ final class EmbeddedModulePath {
 
     private static final String MANIFEST_PATH = "META-INF/MANIFEST.MF";
 
-    static String moduleNameFromManifestOrNull(Path path) {
+    static String moduleNameFromManifestOrNull(Path path) throws IOException {
         Path mp = path.resolve(MANIFEST_PATH);
         if (Files.exists((mp))) {
             try (InputStream is = Files.newInputStream(mp)) {
-                if (is != null) {
-                    Manifest manifest = new Manifest(is);
-                    return manifest.getMainAttributes().getValue(AUTOMATIC_MODULE_NAME);
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+                Manifest manifest = new Manifest(is);
+                return manifest.getMainAttributes().getValue(AUTOMATIC_MODULE_NAME);
             }
         }
         return null;

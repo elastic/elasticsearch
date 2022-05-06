@@ -104,6 +104,11 @@ repositories {
 }
 
 dependencies {
+    constraints {
+        // ensuring brought asm version brought in by spock is up-to-date
+        testFixturesApi 'org.ow2.asm:asm:9.3'
+        integTestImplementation 'org.ow2.asm:asm:9.3'
+    }
     reaper project('reaper')
 
     api localGroovy()
@@ -119,7 +124,7 @@ dependencies {
     testFixturesApi gradleApi()
     testFixturesApi gradleTestKit()
     testFixturesApi 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
-    testFixturesApi platform("org.spockframework:spock-bom:2.0-groovy-3.0")
+    testFixturesApi platform("org.spockframework:spock-bom:2.1-groovy-3.0")
     testFixturesApi("org.spockframework:spock-core") {
         exclude module: "groovy"
         exclude module: "asm"

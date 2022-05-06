@@ -14,7 +14,6 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -1171,7 +1170,7 @@ public class PluginsServiceTests extends ESTestCase {
         TestExtensiblePlugin extensiblePlugin = new TestExtensiblePlugin();
         PluginsService.loadExtensions(
             List.of(
-                Tuple.tuple(
+                new PluginsService.LoadedPlugin(
                     new PluginInfo("extensible", null, null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
                     extensiblePlugin
                 )
@@ -1185,11 +1184,11 @@ public class PluginsServiceTests extends ESTestCase {
         TestPlugin testPlugin = new TestPlugin();
         PluginsService.loadExtensions(
             List.of(
-                Tuple.tuple(
+                new PluginsService.LoadedPlugin(
                     new PluginInfo("extensible", null, null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
                     extensiblePlugin
                 ),
-                Tuple.tuple(
+                new PluginsService.LoadedPlugin(
                     new PluginInfo(
                         "test",
                         null,

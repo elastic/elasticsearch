@@ -10,7 +10,6 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.core.SuppressForbidden;
 
-import javax.tools.JavaCompiler;
 import java.io.FilePermission;
 import java.io.IOException;
 import java.net.URLClassLoader;
@@ -22,6 +21,8 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.security.ProtectionDomain;
 import java.util.function.Supplier;
+
+import javax.tools.JavaCompiler;
 
 /**
  * A small set of privileged operations that can be executed by unprivileged test code.

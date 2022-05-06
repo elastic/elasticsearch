@@ -131,6 +131,11 @@ public class MissingValuesTests extends ESTestCase {
                     return NO_MORE_ORDS;
                 }
             }
+
+            @Override
+            public long docValueCount() {
+                return ords[doc].length;
+            }
         };
 
         final BytesRef existingMissing = RandomPicks.randomFrom(random(), values);
@@ -225,6 +230,11 @@ public class MissingValuesTests extends ESTestCase {
 
             @Override
             public long nextOrd() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long docValueCount() {
                 throw new UnsupportedOperationException();
             }
 

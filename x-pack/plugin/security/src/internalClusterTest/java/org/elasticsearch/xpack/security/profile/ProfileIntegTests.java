@@ -29,10 +29,15 @@ import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesReque
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -51,6 +56,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.hasItems;
@@ -482,6 +488,26 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         final SuggestProfilesResponse.ProfileHit[] profiles1 = doSuggest("");
         assertThat(profiles1, emptyArray());
 
+        // Has privilege returns empty response
+        ProfileHasPrivilegesResponse profileHasPrivilegesResponse = client().execute(
+            ProfileHasPrivilegesAction.INSTANCE,
+            new ProfileHasPrivilegesRequest(
+                randomList(1, 3, () -> randomAlphaOfLength(20)),
+                new PrivilegesToCheck(
+                    new String[] { "monitor" },
+                    new RoleDescriptor.IndicesPrivileges[0],
+                    new RoleDescriptor.ApplicationResourcePrivileges[] {
+                        RoleDescriptor.ApplicationResourcePrivileges.builder()
+                            .application("test-app")
+                            .resources("some/resource")
+                            .privileges("write")
+                            .build() }
+                )
+            )
+        ).actionGet();
+        assertThat(profileHasPrivilegesResponse.hasPrivilegeUids(), emptyIterable());
+        assertThat(profileHasPrivilegesResponse.errorUids(), emptyIterable());
+
         // Ensure index does not exist
         assertThat(getProfileIndexResponse().getIndices(), not(hasItemInArray(INTERNAL_SECURITY_PROFILE_INDEX_8)));
 
@@ -529,6 +555,21 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         final Profile profile2 = getProfile(profile1.uid(), Set.of());
         assertThat(profile2.uid(), equalTo(profile1.uid()));
         assertThat(profile2.enabled(), is(false));
+
+        // but not check privileges
+        ProfileHasPrivilegesResponse profileHasPrivilegesResponse = client().execute(
+            ProfileHasPrivilegesAction.INSTANCE,
+            new ProfileHasPrivilegesRequest(
+                List.of(profile1.uid()),
+                new PrivilegesToCheck(
+                    new String[] { "cluster:monitor/state" },
+                    new RoleDescriptor.IndicesPrivileges[0],
+                    new RoleDescriptor.ApplicationResourcePrivileges[0]
+                )
+            )
+        ).actionGet();
+        assertThat(profileHasPrivilegesResponse.hasPrivilegeUids(), emptyIterable());
+        assertThat(profileHasPrivilegesResponse.errorUids(), emptyIterable());
 
         // Enable again for search
         final SetProfileEnabledRequest setProfileEnabledRequest2 = new SetProfileEnabledRequest(

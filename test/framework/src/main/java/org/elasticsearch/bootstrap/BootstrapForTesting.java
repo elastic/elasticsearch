@@ -25,7 +25,6 @@ import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.test.PrivilegedOperations;
-import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.mockito.SecureMockMaker;
 import org.junit.Assert;
 
@@ -105,10 +104,10 @@ public class BootstrapForTesting {
         // init mockito
         SecureMockMaker.init();
 
-        // init the test in-memory java source code compiler
+        // init the privileged operation
         try {
             MethodHandles.publicLookup().ensureInitialized(PrivilegedOperations.class);
-            MethodHandles.publicLookup().ensureInitialized(InMemoryJavaCompiler.class);
+
         } catch (IllegalAccessException unexpected) {
             throw new AssertionError(unexpected);
         }

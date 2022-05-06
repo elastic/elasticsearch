@@ -141,6 +141,7 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
@@ -189,6 +190,7 @@ import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesA
 import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportActivateProfileAction;
 import org.elasticsearch.xpack.security.action.profile.TransportGetProfileAction;
+import org.elasticsearch.xpack.security.action.profile.TransportProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportSetProfileEnabledAction;
 import org.elasticsearch.xpack.security.action.profile.TransportSuggestProfilesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportUpdateProfileDataAction;
@@ -314,6 +316,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUserPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction;
+import org.elasticsearch.xpack.security.rest.action.user.RestProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
@@ -771,6 +774,7 @@ public class Security extends Plugin
             getClock(),
             client,
             systemIndices.getProfileIndexManager(),
+            clusterService,
             threadPool
         );
         components.add(profileService);
@@ -1187,6 +1191,7 @@ public class Security extends Plugin
             new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
             new ActionHandler<>(SetEnabledAction.INSTANCE, TransportSetEnabledAction.class),
             new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
+            new ActionHandler<>(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
             new ActionHandler<>(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
             new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
             new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
@@ -1278,6 +1283,7 @@ public class Security extends Plugin
             new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
             new RestSetEnabledAction(settings, getLicenseState()),
             new RestHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
+            new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
             new RestGetUserPrivilegesAction(settings, securityContext.get(), getLicenseState()),
             new RestGetRoleMappingsAction(settings, getLicenseState()),
             new RestPutRoleMappingAction(settings, getLicenseState()),

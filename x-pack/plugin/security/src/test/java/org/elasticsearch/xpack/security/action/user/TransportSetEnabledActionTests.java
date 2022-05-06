@@ -114,11 +114,14 @@ public class TransportSetEnabledActionTests extends ESTestCase {
     }
 
     public void testValidUser() throws Exception {
-        testValidUser(randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"), new User(SystemUser.INSTANCE.principal())));
+        testValidUser(
+            randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"), new User(SystemUser.INSTANCE.principal())),
+            defaultAuthentication()
+        );
     }
 
     public void testValidUserWithInternalUsername() throws Exception {
-        testValidUser(new User(AuthenticationTestHelper.randomInternalUsername()));
+        testValidUser(new User(AuthenticationTestHelper.randomInternalUsername()), defaultAuthentication());
     }
 
     public void testUserCanModifySameNameUserFromDifferentRealm() throws Exception {
@@ -126,14 +129,6 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class, RETURNS_DEEP_STUBS);
         when(authentication.getEffectiveSubject().getUser()).thenReturn(user);
         when(authentication.getEffectiveSubject().getRealm().getType()).thenReturn("other_realm");
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
-        testValidUser(user, authentication);
-    }
-
-    private void testValidUser(User user) throws IOException {
-        Authentication authentication = mock(Authentication.class, RETURNS_DEEP_STUBS);
-        when(authentication.getEffectiveSubject().getUser()).thenReturn(new User("the runner"));
-        when(authentication.getEffectiveSubject().getRealm().getType()).thenReturn(NativeRealmSettings.TYPE);
         when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
         testValidUser(user, authentication);
     }
@@ -207,11 +202,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        Authentication authentication = mock(Authentication.class, RETURNS_DEEP_STUBS);
-        when(authentication.getEffectiveSubject().getUser()).thenReturn(new User("the runner"));
-        when(authentication.getEffectiveSubject().getRealm().getType()).thenReturn(NativeRealmSettings.TYPE);
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
-        new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
+        new AuthenticationContextSerializer().writeToContext(defaultAuthentication(), threadContext);
 
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
@@ -327,5 +318,13 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
         assertThat(throwableRef.get().getMessage(), containsString("own account"));
         verifyNoMoreInteractions(usersStore);
+    }
+
+    private Authentication defaultAuthentication() throws IOException {
+        Authentication authentication = mock(Authentication.class, RETURNS_DEEP_STUBS);
+        when(authentication.getEffectiveSubject().getUser()).thenReturn(new User("the runner"));
+        when(authentication.getEffectiveSubject().getRealm().getType()).thenReturn(NativeRealmSettings.TYPE);
+        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
+        return authentication;
     }
 }

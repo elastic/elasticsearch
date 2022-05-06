@@ -10,6 +10,9 @@ package org.elasticsearch.script.field;
 
 import java.util.Locale;
 
+/**
+ * Write operation for documents
+ */
 public enum Op {
     NOOP("noop"),
     INDEX("index"),
@@ -35,5 +38,10 @@ public enum Op {
             case "create" -> CREATE;
             default -> UNKOWN;
         };
+    }
+
+    @Override
+    public String toString() {
+        return name;
     }
 }

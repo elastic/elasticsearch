@@ -98,7 +98,6 @@ public class UpdateHelper {
      */
     Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Map<String, Object> upsertDoc, Script script, LongSupplier nowInMillis) {
         Map<String, Object> ctx = Maps.newMapWithExpectedSize(3);
-        // TODO(stu): Metadata, _update with `"scripted_upsert": true` and doc does not exist
         ctx.put(ContextFields.SOURCE, upsertDoc);
         // Tell the script that this is a create and not an update
         ctx = executeScript(script, new UpsertMetadata(ctx, UpdateOpType.CREATE, nowInMillis.getAsLong()), ctx);
@@ -566,6 +565,7 @@ public class UpdateHelper {
         }
     }
 
+    // This is an _update with scripted_upsert: true and the document does not exist
     private static class UpsertMetadata extends org.elasticsearch.script.field.Metadata {
         private final ZonedDateTime timestamp;
 

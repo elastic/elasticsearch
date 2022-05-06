@@ -132,7 +132,7 @@ public abstract class Metadata {
         if (versionType == null) {
             put(versionTypeKey, null);
         } else {
-            put(versionTypeKey, versionType.name());
+            put(versionTypeKey, VersionType.toString(versionType));
         }
     }
 

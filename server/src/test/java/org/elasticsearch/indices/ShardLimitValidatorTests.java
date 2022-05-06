@@ -77,7 +77,12 @@ public class ShardLimitValidatorTests extends ESTestCase {
             errorMessage.get()
         );
         assertFalse(
-            ShardLimitValidator.canAddShardsToCluster(counts.getFailingIndexShards(), counts.getFailingIndexReplicas(), state, true)
+            ShardLimitValidator.canAddShardsToCluster(
+                counts.getFailingIndexShards(),
+                counts.getFailingIndexReplicas(),
+                state,
+                ShardLimitValidator.FROZEN_GROUP.equals(group)
+            )
         );
     }
 
@@ -106,7 +111,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
         );
 
         assertFalse(errorMessage.isPresent());
-        assertTrue(ShardLimitValidator.canAddShardsToCluster(shardsToAdd, 0, state, true));
+        assertTrue(ShardLimitValidator.canAddShardsToCluster(shardsToAdd, 0, state, ShardLimitValidator.FROZEN_GROUP.equals(group)));
     }
 
     public void testValidateShardLimitOpenIndices() {

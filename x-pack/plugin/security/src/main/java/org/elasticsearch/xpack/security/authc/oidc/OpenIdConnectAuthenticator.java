@@ -432,8 +432,9 @@ public class OpenIdConnectAuthenticator {
     /**
      * Handle the UserInfo Response from the OpenID Connect Provider. If successful, merge the returned claims with the claims
      * of the Id Token and call the provided listener.
+     * (This method is package-protected for testing purposes)
      */
-    private void handleUserinfoResponse(
+    void handleUserinfoResponse(
         HttpResponse httpResponse,
         JWTClaimsSet verifiedIdTokenClaims,
         ActionListener<JWTClaimsSet> claimsListener
@@ -480,11 +481,11 @@ public class OpenIdConnectAuthenticator {
                 }
             } else {
                 final Header wwwAuthenticateHeader = httpResponse.getFirstHeader("WWW-Authenticate");
-                if (Strings.hasText(wwwAuthenticateHeader.getValue())) {
+                if (wwwAuthenticateHeader != null && Strings.hasText(wwwAuthenticateHeader.getValue())) {
                     BearerTokenError error = BearerTokenError.parse(wwwAuthenticateHeader.getValue());
                     claimsListener.onFailure(
                         new ElasticsearchSecurityException(
-                            "Failed to get user information from the UserInfo endpoint. Code=[{}], " + "Description=[{}]",
+                            "Failed to get user information from the UserInfo endpoint. Code=[{}], Description=[{}]",
                             error.getCode(),
                             error.getDescription()
                         )
@@ -492,7 +493,7 @@ public class OpenIdConnectAuthenticator {
                 } else {
                     claimsListener.onFailure(
                         new ElasticsearchSecurityException(
-                            "Failed to get user information from the UserInfo endpoint. Code=[{}], " + "Description=[{}]",
+                            "Failed to get user information from the UserInfo endpoint. Code=[{}], Description=[{}]",
                             httpResponse.getStatusLine().getStatusCode(),
                             httpResponse.getStatusLine().getReasonPhrase()
                         )

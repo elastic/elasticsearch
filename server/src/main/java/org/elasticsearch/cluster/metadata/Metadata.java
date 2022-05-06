@@ -1510,7 +1510,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         public DataStream dataStream(String dataStreamName) {
-            return dataStreams().dataStreams().get(dataStreamName);
+            return dataStreamMetadata().dataStreams().get(dataStreamName);
         }
 
         public Builder dataStreams(Map<String, DataStream> dataStreams, Map<String, DataStreamAlias> dataStreamAliases) {
@@ -1535,18 +1535,18 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             // trigger this validation on each new Metadata creation, even if there are no changes to data streams.
             dataStream.validate(indices::get);
 
-            this.customs.put(DataStreamMetadata.TYPE, dataStreams().withAddedDatastream(dataStream));
+            this.customs.put(DataStreamMetadata.TYPE, dataStreamMetadata().withAddedDatastream(dataStream));
             return this;
         }
 
-        private DataStreamMetadata dataStreams() {
+        private DataStreamMetadata dataStreamMetadata() {
             return (DataStreamMetadata) this.customs.getOrDefault(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
         }
 
         public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
             previousIndicesLookup = null;
 
-            final DataStreamMetadata dataStreamMetadata = dataStreams();
+            final DataStreamMetadata dataStreamMetadata = dataStreamMetadata();
             Map<String, DataStream> existingDataStreams = dataStreamMetadata.dataStreams();
             Map<String, DataStreamAlias> dataStreamAliases = new HashMap<>(dataStreamMetadata.getDataStreamAliases());
             if (existingDataStreams.containsKey(dataStream) == false) {
@@ -1580,7 +1580,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         public Builder removeDataStream(String name) {
             previousIndicesLookup = null;
 
-            final DataStreamMetadata dataStreamMetadata = dataStreams();
+            final DataStreamMetadata dataStreamMetadata = dataStreamMetadata();
             Map<String, DataStream> existingDataStreams = new HashMap<>(dataStreamMetadata.dataStreams());
             Map<String, DataStreamAlias> existingDataStreamAliases = new HashMap<>(dataStreamMetadata.getDataStreamAliases());
             existingDataStreams.remove(name);
@@ -1612,7 +1612,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         public boolean removeDataStreamAlias(String aliasName, String dataStreamName, boolean mustExist) {
             previousIndicesLookup = null;
 
-            final DataStreamMetadata dataStreamMetadata = dataStreams();
+            final DataStreamMetadata dataStreamMetadata = dataStreamMetadata();
             Map<String, DataStreamAlias> dataStreamAliases = new HashMap<>(dataStreamMetadata.getDataStreamAliases());
 
             DataStreamAlias existing = dataStreamAliases.get(aliasName);
@@ -1805,7 +1805,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
                 validateAlias(entry.getKey(), aliasIndices);
             }
-            final DataStreamMetadata dataStreamMetadata = dataStreams();
+            final DataStreamMetadata dataStreamMetadata = dataStreamMetadata();
             ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, allIndices, dataStreamMetadata);
             assert assertDataStreams(indicesMap, dataStreamMetadata);
 

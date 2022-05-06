@@ -21,7 +21,6 @@ import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.external.javadoc.StandardJavadocDocletOptions;
 
 import java.util.Comparator;
-import java.util.List;
 
 // Handle javadoc dependencies across projects. Order matters: the linksOffline for
 // org.elasticsearch:elasticsearch must be the last one or all the links for the
@@ -47,22 +46,30 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
         // Relying on configurations introduced by the java plugin
         this.project.getPlugins().withType(JavaPlugin.class, javaPlugin -> project.afterEvaluate(project1 -> {
             var withShadowPlugin = project1.getPlugins().hasPlugin(ShadowPlugin.class);
-            var configurations = withShadowPlugin
-                ? List.of("compileClasspath", "compileOnly", "shadow")
-                : List.of("compileClasspath", "compileOnly");
-            configurations.forEach(configName -> {
-                Configuration configuration = project1.getConfigurations().getByName(configName);
-                configuration.getAllDependencies()
-                    .stream()
-                    .sorted(Comparator.comparing(Dependency::getGroup))
-                    .filter(d -> d instanceof ProjectDependency)
-                    .map(d -> (ProjectDependency) d)
-                    .filter(p -> p.getDependencyProject() != null)
-                    .forEach(
-                        projectDependency -> configureDependency(withShadowPlugin && (configName == "compileClasspath"), projectDependency)
-                    );
-            });
+            var compileClasspath = project.getConfigurations().getByName("compileClasspath");
+
+            if (withShadowPlugin) {
+                var shadowConfiguration = project.getConfigurations().getByName("shadow");
+                var shadowedDependencies = shadowConfiguration.getAllDependencies();
+                var nonShadowedCompileClasspath = compileClasspath.copyRecursive(
+                    dependency -> shadowedDependencies.contains(dependency) == false
+                );
+                configureJavadocForConfiguration(false, nonShadowedCompileClasspath);
+                configureJavadocForConfiguration(true, shadowConfiguration);
+            } else {
+                configureJavadocForConfiguration(false, compileClasspath);
+            }
         }));
+    }
+
+    private void configureJavadocForConfiguration(boolean shadow, Configuration configuration) {
+        configuration.getAllDependencies()
+            .stream()
+            .sorted(Comparator.comparing(Dependency::getGroup))
+            .filter(d -> d instanceof ProjectDependency)
+            .map(d -> (ProjectDependency) d)
+            .filter(p -> p.getDependencyProject() != null)
+            .forEach(projectDependency -> configureDependency(shadow, projectDependency));
     }
 
     private void configureDependency(boolean shadowed, ProjectDependency dep) {

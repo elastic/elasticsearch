@@ -40,17 +40,20 @@ abstract class AbstractGradleFuncTest extends Specification {
                 "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
     }
 
-    File addSubProject(String subProjectPath) {
+    File subProject(String subProjectPath) {
         def subProjectBuild = file(subProjectPath.replace(":", "/") + "/build.gradle")
-        settingsFile << "include \"${subProjectPath}\"\n"
+        if (subProjectBuild.exists() == false) {
+            settingsFile << "include \"${subProjectPath}\"\n"
+        }
         subProjectBuild
     }
 
-    File addSubProject(String subProjectPath, Closure configAction) {
-        def subProjectBuild = addSubProject(subProjectPath)
+    File subProject(String subProjectPath, Closure configAction) {
+        def subProjectBuild = subProject(subProjectPath)
         configAction.setDelegate(new ProjectConfigurer(subProjectBuild.parentFile))
         configAction.setResolveStrategy(Closure.DELEGATE_ONLY)
         configAction.call()
+        subProjectBuild
     }
 
     GradleRunner gradleRunner(String... arguments) {
@@ -161,7 +164,9 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     def cleanup() {
-        //FileUtils.copyDirectory(testProjectDir.root, new File("build/test-debug/" + testProjectDir.root.name))
+        if (Boolean.getBoolean('test.keep.samplebuild')) {
+            FileUtils.copyDirectory(testProjectDir.root, new File("build/test-debug/" + testProjectDir.root.name))
+        }
     }
 
     static class ProjectConfigurer {

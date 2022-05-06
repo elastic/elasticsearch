@@ -69,13 +69,7 @@ The response will look like this:
 ----
 {
   "persistent": {
-    "cluster": {
-      "routing": {
-        "allocation": {
-          "total_shards_per_node": "300" <1>
-        }
-      }
-    }
+    "cluster.routing.allocation.total_shards_per_node": "300" <1>
   },
   "transient": {}
 }
@@ -168,13 +162,7 @@ The response will look like this:
 ----
 {
   "persistent": {
-    "cluster": {
-      "routing": {
-        "allocation": {
-          "total_shards_per_node": "300" <1>
-        }
-      }
-    }
+    "cluster.routing.allocation.total_shards_per_node": "300" <1>
   },
   "transient": {}
 }

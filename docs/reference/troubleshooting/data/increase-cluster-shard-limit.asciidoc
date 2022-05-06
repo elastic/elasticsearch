@@ -1,5 +1,5 @@
 [[increase-cluster-shard-limit]]
-== Maximum number of collocated primaries and replicas per node has been reached 
+== Maximum number of shards per node has been reached
 
 Elasticsearch tries to take advantage of all the available resources by 
 distributing data (index shards) amongst the cluster nodes.

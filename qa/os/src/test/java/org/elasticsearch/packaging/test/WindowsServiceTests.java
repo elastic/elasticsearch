@@ -68,6 +68,12 @@ public class WindowsServiceTests extends PackagingTestCase {
         return result;
     }
 
+    @Override
+    protected void dumpDebug() {
+        super.dumpDebug();
+        dumpServiceLogs();
+    }
+
     private void dumpServiceLogs() {
         logger.warn("\n");
         try (var logsDir = Files.list(installation.logs)) {
@@ -88,7 +94,6 @@ public class WindowsServiceTests extends PackagingTestCase {
             logger.error(result);
             logger.error("Dumping log files\n");
             dumpDebug();
-            dumpServiceLogs();
             fail();
         } else {
             logger.info("\nscript: " + script + "\nstdout: " + result.stdout() + "\nstderr: " + result.stderr());

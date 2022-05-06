@@ -210,7 +210,7 @@ determined and is given a value of -1 to indicate this.
 
 By default, the `terms` aggregation orders terms by descending document
 `_count`.  This produces bounded error, which elasticsearch can report (see
-<<terms-aggregation-doc-count-error>>.
+<<terms-agg-doc-count-error>>.
 
 You can use the `order` parameter to specify a different sort order.  It is extremely
 easy to create a terms ordering that will just return wrong results, and not

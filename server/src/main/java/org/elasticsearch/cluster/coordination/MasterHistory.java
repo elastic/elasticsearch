@@ -77,7 +77,7 @@ public class MasterHistory implements ClusterStateListener {
             int startIndex = Math.max(0, sizeAfterAddingNewMaster - MAX_HISTORY_SIZE);
             for (int i = startIndex; i < masterHistory.size(); i++) {
                 TimeAndMaster timeAndMaster = masterHistory.get(i);
-                if (timeAndMaster.time >= oldestRelevantHistoryTime) {
+                if (timeAndMaster.startTimeMillis >= oldestRelevantHistoryTime) {
                     newMasterHistory.add(timeAndMaster);
                 }
             }
@@ -188,7 +188,7 @@ public class MasterHistory implements ClusterStateListener {
         return getMostRecentMaster() != null
             || masterHistoryCopy.stream()
                 .filter(timeAndMaster -> timeAndMaster.master != null)
-                .anyMatch(timeAndMaster -> timeAndMaster.time > nSecondsAgo);
+                .anyMatch(timeAndMaster -> timeAndMaster.startTimeMillis > nSecondsAgo);
     }
 
     /*
@@ -203,7 +203,7 @@ public class MasterHistory implements ClusterStateListener {
         long oldestRelevantHistoryTime = now - maxHistoryAge.getMillis();
         TimeAndMaster mostRecent = history.isEmpty() ? null : history.get(history.size() - 1);
         List<TimeAndMaster> filteredHistory = history.stream()
-            .filter(timeAndMaster -> timeAndMaster.time > oldestRelevantHistoryTime)
+            .filter(timeAndMaster -> timeAndMaster.startTimeMillis > oldestRelevantHistoryTime)
             .collect(Collectors.toList());
         if (filteredHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than 30 minutes ago
             filteredHistory.add(mostRecent);

@@ -132,9 +132,9 @@ Other repository types are available through official plugins:
 
 You can also use alternative storage implementations with these repository
 types, as long as the alternative implementation is fully compatible. For
-instance, https://minio.io[MinIO] provides an alternative compatible
-implementation of the AWS S3 API so you can use MinIO with the
-<<repository-s3,`s3` repository type>>.
+instance, https://minio.io[MinIO] provides an alternative implementation of the
+AWS S3 API and you can use MinIO with the <<repository-s3,`s3` repository
+type>>.
 
 Note that some storage systems claim to be compatible with these repository
 types without emulating their behaviour in full. {es} requires full

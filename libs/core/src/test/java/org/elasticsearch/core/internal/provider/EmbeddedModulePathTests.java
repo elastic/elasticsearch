@@ -111,16 +111,16 @@ public class EmbeddedModulePathTests extends ESTestCase {
     }
 
     public void testToPackageNameString() {
-        assertThat(EmbeddedModulePath.toPackageName("a/b/Foo.class").get(), is("a.b"));
-        assertThat(EmbeddedModulePath.toPackageName("a/b/c/Foo$1.class").get(), is("a.b.c"));
-        assertThat(EmbeddedModulePath.toPackageName("a/b/c/d/Foo$Bar.class").get(), is("a.b.c.d"));
+        assertThat(EmbeddedModulePath.toPackageName("a/b/Foo.class", "/").get(), is("a.b"));
+        assertThat(EmbeddedModulePath.toPackageName("a/b/c/Foo$1.class", "/").get(), is("a.b.c"));
+        assertThat(EmbeddedModulePath.toPackageName("a/b/c/d/Foo$Bar.class", "/").get(), is("a.b.c.d"));
 
-        assertThat(EmbeddedModulePath.toPackageName("module-info.class"), isEmpty());
-        assertThat(EmbeddedModulePath.toPackageName("foo.txt"), isEmpty());
-        assertThat(EmbeddedModulePath.toPackageName("META-INF/MANIFEST.MF"), isEmpty());
-        assertThat(EmbeddedModulePath.toPackageName("a/b/c/1d/Foo$Bar.class"), isEmpty());
+        assertThat(EmbeddedModulePath.toPackageName("module-info.class", "/"), isEmpty());
+        assertThat(EmbeddedModulePath.toPackageName("foo.txt", "/"), isEmpty());
+        assertThat(EmbeddedModulePath.toPackageName("META-INF/MANIFEST.MF", "/"), isEmpty());
+        assertThat(EmbeddedModulePath.toPackageName("a/b/c/1d/Foo$Bar.class", "/"), isEmpty());
 
-        expectThrows(IMDE, () -> EmbeddedModulePath.toPackageName("Foo.class"));
+        expectThrows(IMDE, () -> EmbeddedModulePath.toPackageName("Foo.class", "/"));
     }
 
     public void testScanBasic() throws Exception {
@@ -218,8 +218,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
             # service implementation of Baz
             # impl of Baz
             foo.bar.internal.BazImpl
-            """
-            );
+            """);
 
         Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("impl.jar");

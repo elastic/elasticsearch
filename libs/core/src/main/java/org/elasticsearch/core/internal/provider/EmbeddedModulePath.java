@@ -94,7 +94,7 @@ final class EmbeddedModulePath {
      *
      * @throws FindException if not exactly one module is found
      */
-    static ModuleDescriptor descriptorFor(Path path){
+    static ModuleDescriptor descriptorFor(Path path) {
         try {
             Optional<ModuleDescriptor> vmd = getModuleInfoVersioned(path);
             if (vmd.isPresent()) {
@@ -134,8 +134,9 @@ final class EmbeddedModulePath {
         var scan = scan(path);
 
         // all packages are exported and open, since the auto-module bit is set
+        String separator = path.getFileSystem().getSeparator();
         builder.packages(
-            scan.classFiles().stream().map(EmbeddedModulePath::toPackageName).flatMap(Optional::stream).collect(Collectors.toSet())
+            scan.classFiles().stream().map(cf -> toPackageName(cf, separator)).flatMap(Optional::stream).collect(Collectors.toSet())
         );
 
         services(scan.serviceFiles(), path).entrySet().forEach(e -> builder.provides(e.getKey(), e.getValue()));
@@ -191,7 +192,8 @@ final class EmbeddedModulePath {
         // parse each service configuration file
         for (String sn : serviceNames) {
             Path se = path.resolve(SERVICES_PREFIX + sn);
-            List<String> providerClasses = Files.readAllLines(se).stream()
+            List<String> providerClasses = Files.readAllLines(se)
+                .stream()
                 .map(EmbeddedModulePath::dropCommentAndTrim)
                 .filter(Predicate.not(String::isEmpty))
                 .toList();
@@ -239,9 +241,9 @@ final class EmbeddedModulePath {
      * Returns an optional containing the package name from a given binary class path name, or an
      * empty optional if none.
      */
-    static Optional<String> toPackageName(String name) {
-        assert name.endsWith("/") == false;
-        int index = name.lastIndexOf("/");
+    static Optional<String> toPackageName(String name, String separator) {
+        assert name.endsWith(separator) == false;
+        int index = name.lastIndexOf(separator);
         if (index == -1) {
             if (name.endsWith(".class") && name.equals(MODULE_INFO) == false) {
                 String msg = name + " found in top-level directory (unnamed package not allowed in module)";
@@ -250,7 +252,7 @@ final class EmbeddedModulePath {
             return Optional.empty();
         }
 
-        String pn = name.substring(0, index).replace('/', '.');
+        String pn = name.substring(0, index).replace(separator, ".");
         if (isPackageName(pn)) {
             return Optional.of(pn);
         } else {
@@ -265,7 +267,7 @@ final class EmbeddedModulePath {
      */
     static Optional<String> toServiceName(String cf) {
         if (cf.startsWith(SERVICES_PREFIX) == false) {
-            throw new IllegalArgumentException("unexpected service "+ cf);
+            throw new IllegalArgumentException("unexpected service " + cf);
         }
         if (SERVICES_PREFIX.length() < cf.length()) {
             String prefix = cf.substring(0, SERVICES_PREFIX.length());

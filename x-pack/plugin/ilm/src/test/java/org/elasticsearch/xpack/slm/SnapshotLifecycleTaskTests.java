@@ -22,6 +22,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -48,9 +51,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -96,14 +101,22 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             .build();
 
         final ThreadPool threadPool = new TestThreadPool("test");
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(SLM_HISTORY_INDEX_ENABLED_SETTING))
+        );
         try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool);
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, settings);
             VerifyingClient client = new VerifyingClient(threadPool, (a, r, l) -> {
                 fail("should not have tried to take a snapshot");
                 return null;
             })
         ) {
-            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, item -> fail("should not have tried to store an item"));
+            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(
+                null,
+                clusterService,
+                item -> fail("should not have tried to store an item")
+            );
 
             SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService, historyStore);
 
@@ -129,6 +142,10 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             .build();
 
         final ThreadPool threadPool = new TestThreadPool("test");
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(SLM_HISTORY_INDEX_ENABLED_SETTING))
+        );
         final String createSnapResponse = """
             {
                 "snapshot": {
@@ -156,7 +173,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         final AtomicBoolean clientCalled = new AtomicBoolean(false);
         final SetOnce<String> snapshotName = new SetOnce<>();
         try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool);
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, settings);
             // This verifying client will verify that we correctly invoked
             // client.admin().createSnapshot(...) with the appropriate
             // request. It also returns a mock real response
@@ -187,7 +204,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             })
         ) {
             final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);
-            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, item -> {
+            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, clusterService, item -> {
                 assertFalse(historyStoreCalled.getAndSet(true));
                 final SnapshotLifecyclePolicy policy = slpm.getPolicy();
                 assertEquals(policy.getId(), item.getPolicyId());
@@ -223,10 +240,14 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             .build();
 
         final ThreadPool threadPool = new TestThreadPool("test");
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(SLM_HISTORY_INDEX_ENABLED_SETTING))
+        );
         final AtomicBoolean clientCalled = new AtomicBoolean(false);
         final SetOnce<String> snapshotName = new SetOnce<>();
         try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool);
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, settings);
             VerifyingClient client = new VerifyingClient(threadPool, (action, request, listener) -> {
                 assertFalse(clientCalled.getAndSet(true));
                 assertThat(action, instanceOf(CreateSnapshotAction.class));
@@ -266,7 +287,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             })
         ) {
             final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);
-            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, item -> {
+            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, clusterService, item -> {
                 assertFalse(historyStoreCalled.getAndSet(true));
                 final SnapshotLifecyclePolicy policy = slpm.getPolicy();
                 assertEquals(policy.getId(), item.getPolicyId());
@@ -327,8 +348,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
 
         private final Consumer<SnapshotHistoryItem> verifier;
 
-        public VerifyingHistoryStore(Client client, Consumer<SnapshotHistoryItem> verifier) {
-            super(client, null);
+        public VerifyingHistoryStore(Client client, ClusterService clusterService, Consumer<SnapshotHistoryItem> verifier) {
+            super(client, clusterService);
             this.verifier = verifier;
         }
 

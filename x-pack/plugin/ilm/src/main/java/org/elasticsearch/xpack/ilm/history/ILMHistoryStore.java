@@ -63,11 +63,8 @@ public class ILMHistoryStore implements Closeable {
     private final ThreadPool threadPool;
 
     public ILMHistoryStore(Client client, ClusterService clusterService, ThreadPool threadPool) {
-        if (clusterService != null) {
-            this.setIlmHistoryEnabled(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(clusterService.getSettings()));
-            clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING, this::setIlmHistoryEnabled);
-        }
+        this.setIlmHistoryEnabled(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(clusterService.getSettings()));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING, this::setIlmHistoryEnabled);
 
         this.threadPool = threadPool;
 

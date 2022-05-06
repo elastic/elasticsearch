@@ -42,10 +42,8 @@ public class SnapshotHistoryStore {
     public SnapshotHistoryStore(Client client, ClusterService clusterService) {
         this.client = client;
         this.clusterService = clusterService;
-        if (clusterService != null) {
-            this.setSlmHistoryEnabled(SLM_HISTORY_INDEX_ENABLED_SETTING.get(clusterService.getSettings()));
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(SLM_HISTORY_INDEX_ENABLED_SETTING, this::setSlmHistoryEnabled);
-        }
+        this.setSlmHistoryEnabled(SLM_HISTORY_INDEX_ENABLED_SETTING.get(clusterService.getSettings()));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SLM_HISTORY_INDEX_ENABLED_SETTING, this::setSlmHistoryEnabled);
     }
 
     /**

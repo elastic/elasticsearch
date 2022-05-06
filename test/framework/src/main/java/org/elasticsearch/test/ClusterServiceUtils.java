@@ -166,6 +166,12 @@ public class ClusterServiceUtils {
         return clusterService;
     }
 
+    public static ClusterService createClusterService(ClusterState initialState, ThreadPool threadPool, ClusterSettings clusterSettings) {
+        ClusterService clusterService = createClusterService(threadPool, clusterSettings);
+        setState(clusterService, initialState);
+        return clusterService;
+    }
+
     public static void setState(ClusterService clusterService, ClusterState.Builder clusterStateBuilder) {
         setState(clusterService, clusterStateBuilder.build());
     }

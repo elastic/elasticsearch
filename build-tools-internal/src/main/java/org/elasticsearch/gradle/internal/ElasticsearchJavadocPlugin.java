@@ -10,17 +10,22 @@ package org.elasticsearch.gradle.internal;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 
+import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.javadoc.Javadoc;
+import org.gradle.external.javadoc.JavadocOfflineLink;
 import org.gradle.external.javadoc.StandardJavadocDocletOptions;
 
+import java.io.File;
 import java.util.Comparator;
+import java.util.List;
 
 // Handle javadoc dependencies across projects. Order matters: the linksOffline for
 // org.elasticsearch:elasticsearch must be the last one or all the links for the
@@ -101,6 +106,21 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
                     artifactHost(project) + "/javadoc/" + artifactPath,
                     upstreamProject.getBuildDir().getPath() + "/docs/javadoc/"
                 );
+                // some dependent javadoc tasks are explicitly disabled. ignore those external links
+                // using Action here instead of lambda to keep gradle happy and don't trigger deprecation
+                javadoc.doFirst(new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        List<JavadocOfflineLink> existingJavadocOfflineLinks = ((StandardJavadocDocletOptions) javadoc.getOptions())
+                            .getLinksOffline()
+                            .stream()
+                            .filter(javadocOfflineLink -> new File(javadocOfflineLink.getPackagelistLoc()).exists())
+                            .toList();
+                        ((StandardJavadocDocletOptions) javadoc.getOptions()).setLinksOffline(existingJavadocOfflineLinks);
+
+                    }
+                });
+
             });
         }
     }

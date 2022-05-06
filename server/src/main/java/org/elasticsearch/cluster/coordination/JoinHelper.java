@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -251,6 +252,10 @@ public class JoinHelper {
                         new ActionListener<>() {
                             @Override
                             public void onResponse(Void unused) {
+                                assert Thread.currentThread()
+                                    .getName()
+                                    .contains('[' + ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME + ']')
+                                    || Thread.currentThread().getName().startsWith("TEST-") : Thread.currentThread().getName();
                                 pendingJoinInfo.message = PENDING_JOIN_WAITING_RESPONSE;
                                 transportService.sendRequest(
                                     destination,

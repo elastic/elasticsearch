@@ -121,15 +121,28 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         testValidUser(new User(AuthenticationTestHelper.randomInternalUsername()));
     }
 
-    private void testValidUser(User user) throws IOException {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
+    public void testUserCanModifySameNameUserFromDifferentRealm() throws Exception {
+        final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
+        Authentication authentication = mock(Authentication.class, RETURNS_DEEP_STUBS);
+        when(authentication.getEffectiveSubject().getUser()).thenReturn(user);
+        when(authentication.getEffectiveSubject().getRealm().getType()).thenReturn("other_realm");
+        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
+        testValidUser(user, authentication);
+    }
 
+    private void testValidUser(User user) throws IOException {
         Authentication authentication = mock(Authentication.class, RETURNS_DEEP_STUBS);
         when(authentication.getEffectiveSubject().getUser()).thenReturn(new User("the runner"));
         when(authentication.getEffectiveSubject().getRealm().getType()).thenReturn(NativeRealmSettings.TYPE);
         when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
+        testValidUser(user, authentication);
+    }
+
+    private void testValidUser(User user, Authentication authentication) throws IOException {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
@@ -251,76 +264,6 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(notNullValue()));
         assertThat(throwableRef.get(), sameInstance(e));
-        verify(usersStore, times(1)).setEnabled(
-            eq(user.principal()),
-            eq(request.enabled()),
-            eq(request.getRefreshPolicy()),
-            anyActionListener()
-        );
-    }
-
-    public void testUserCanModifySameNameUserFromDifferentRealm() throws Exception {
-        final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
-
-        ThreadPool threadPool = mock(ThreadPool.class);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-
-        Authentication authentication = mock(Authentication.class, RETURNS_DEEP_STUBS);
-        when(authentication.getEffectiveSubject().getUser()).thenReturn(user);
-        when(authentication.getEffectiveSubject().getRealm().getType()).thenReturn("other_realm");
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
-        new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
-
-        NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        SetEnabledRequest request = new SetEnabledRequest();
-        request.username(user.principal());
-        request.enabled(randomBoolean());
-        request.setRefreshPolicy(randomFrom(RefreshPolicy.values()));
-        // mock the setEnabled call on the native users store so that it will invoke the action listener with a response
-        doAnswer(invocation -> {
-            Object[] args = invocation.getArguments();
-            assert args.length == 4;
-            @SuppressWarnings("unchecked")
-            ActionListener<Void> listener = (ActionListener<Void>) args[3];
-            listener.onResponse(null);
-            return null;
-        }).when(usersStore).setEnabled(eq(user.principal()), eq(request.enabled()), eq(request.getRefreshPolicy()), anyActionListener());
-        TransportService transportService = new TransportService(
-            Settings.EMPTY,
-            mock(Transport.class),
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> null,
-            null,
-            Collections.emptySet()
-        );
-        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        TransportSetEnabledAction action = new TransportSetEnabledAction(
-            Settings.EMPTY,
-            transportService,
-            mock(ActionFilters.class),
-            securityContext,
-            usersStore
-        );
-
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<>() {
-            @Override
-            public void onResponse(ActionResponse.Empty setEnabledResponse) {
-                responseRef.set(setEnabledResponse);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throwableRef.set(e);
-            }
-        });
-
-        assertThat(responseRef.get(), is(notNullValue()));
-        assertSame(responseRef.get(), ActionResponse.Empty.INSTANCE);
-        assertThat(throwableRef.get(), is(nullValue()));
         verify(usersStore, times(1)).setEnabled(
             eq(user.principal()),
             eq(request.enabled()),

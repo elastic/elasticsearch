@@ -24,7 +24,7 @@ DELETE my-index-000001
 
 // tag::cloud[]
 In order to get the shards assigned we'll need to increase the number of shards 
-that can be collocated on a node in the cluster in order to get all shards assigned. 
+that can be collocated on a node in the cluster.
 We'll achieve this by inspecting the system-wide `cluster.routing.allocation.total_shards_per_node` 
 <<cluster-get-settings, cluster setting>> and increasing the configured value.
 

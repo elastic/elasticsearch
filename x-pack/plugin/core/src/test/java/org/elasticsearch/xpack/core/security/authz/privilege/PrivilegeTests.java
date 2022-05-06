@@ -7,7 +7,14 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -190,6 +197,46 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_AUTOSCALING, "cluster:admin/autoscaling/get_decision");
     }
 
+    public void testManageUserProfilePrivilege() {
+        verifyClusterActionAllowed(
+            ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
+            "cluster:admin/xpack/security/profile/has_privileges",
+            "cluster:admin/xpack/security/profile/get",
+            "cluster:admin/xpack/security/profile/activate",
+            "cluster:admin/xpack/security/profile/set_enabled",
+            "cluster:admin/xpack/security/profile/suggest",
+            "cluster:admin/xpack/security/profile/put/data"
+        );
+        verifyClusterActionDenied(
+            ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
+            "cluster:admin/xpack/security/role/put",
+            "cluster:admin/xpack/security/role/get",
+            "cluster:admin/xpack/security/role/delete"
+        );
+        verifyClusterActionDenied(
+            ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
+            "cluster:admin/xpack/security/role/put",
+            "cluster:admin/xpack/security/role/get",
+            "cluster:admin/xpack/security/role/delete"
+        );
+        verifyClusterActionDenied(
+            ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
+            "cluster:admin/xpack/security/user/put",
+            "cluster:admin/xpack/security/user/get",
+            "cluster:admin/xpack/security/user/delete"
+        );
+        verifyClusterActionDenied(
+            ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
+            ClusterHealthAction.NAME,
+            ClusterStateAction.NAME,
+            ClusterStatsAction.NAME,
+            PutIndexTemplateAction.NAME,
+            GetIndexTemplatesAction.NAME,
+            ClusterRerouteAction.NAME,
+            ClusterUpdateSettingsAction.NAME
+        );
+    }
+
     public void testManageCcrPrivilege() {
         verifyClusterActionAllowed(
             ClusterPrivilegeResolver.MANAGE_CCR,
@@ -198,7 +245,6 @@ public class PrivilegeTests extends ESTestCase {
             "cluster:admin/xpack/ccr/brand_new_api"
         );
         verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_CCR, "cluster:admin/xpack/whatever");
-
     }
 
     public void testManageEnrichPrivilege() {

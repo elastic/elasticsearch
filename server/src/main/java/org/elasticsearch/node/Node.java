@@ -98,6 +98,7 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -1025,7 +1026,7 @@ public class Node implements Closeable {
             this.namedXContentRegistry = xContentRegistry;
 
             logger.debug("initializing HTTP handlers ...");
-            actionModule.initRestHandlers(() -> clusterService.state().nodes());
+            actionModule.initRestHandlers(() -> clusterService.state().nodesIfRecovered());
             logger.info("initialized");
 
             success = true;
@@ -1039,8 +1040,10 @@ public class Node implements Closeable {
     }
 
     private HealthService createHealthService(ClusterService clusterService, ClusterModule clusterModule) {
+        List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
+            new InstanceHasMasterHealthIndicatorService(clusterService)
+        );
         var serverHealthIndicatorServices = List.of(
-            new InstanceHasMasterHealthIndicatorService(clusterService),
             new RepositoryIntegrityHealthIndicatorService(clusterService),
             new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService())
         );
@@ -1048,7 +1051,11 @@ public class Node implements Closeable {
             .stream()
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
             .toList();
-        return new HealthService(concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices));
+        return new HealthService(
+            preflightHealthIndicatorServices,
+            concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices),
+            clusterService
+        );
     }
 
     private RecoveryPlannerService getRecoveryPlannerService(

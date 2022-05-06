@@ -415,7 +415,14 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             JwtRealmGenerateTests.printIssuerSettings(jwtIssuer)
                 + JwtRealmGenerateTests.printRealmSettings(config)
                 + "\n===\nRequest Headers\n===\n"
-                + (Strings.hasText(clientSecret) ? JwtRealm.HEADER_CLIENT_AUTHENTICATION + ": " + clientSecret + "\n" : "")
+                + (Strings.hasText(clientSecret)
+                    ? JwtRealm.HEADER_CLIENT_AUTHENTICATION
+                        + ": "
+                        + JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME
+                        + " "
+                        + clientSecret
+                        + "\n"
+                    : "")
                 + JwtRealm.HEADER_END_USER_AUTHENTICATION
                 + ": "
                 + jwt

@@ -66,7 +66,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
      *        jar:file:///x/y/impl.jar!/a/b/foo.jar/p/Foo.class
      */
     public void testAutoModuleEmbeddedJar() throws Exception {
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Map<String, String> entries = new HashMap<>();
         entries.put("/a/b/foo.jar/META-INF/MANIFEST.MF", "Automatic-Module-Name: foo\n");
         entries.put("/a/b/foo.jar/p/Foo.class", "<empty>");
@@ -128,7 +128,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
             jarEntries.put("/a/b/m.jar/module-info.class", "bad".getBytes(UTF_8));
         }
 
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(topLevelDir.resolve("impl.jar"), jarEntries);
 
@@ -151,7 +151,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
      *         file:///x/y/impl/a/b/foo.jar/p/Foo.class
      */
     public void testAutoModuleExplodedPath() throws Exception {
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path fooRoot = topLevelDir.resolve("a").resolve("b").resolve("foo.jar");
         Files.createDirectories(fooRoot);
         Files.createDirectories(fooRoot.resolve("META-INF"));
@@ -174,7 +174,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
         sources.put("q.Bar", "package q; public class Bar { }");
         var classToBytes = InMemoryJavaCompiler.compile(sources);
 
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path mRoot = topLevelDir.resolve("a").resolve("b").resolve("m.jar");
         Files.createDirectories(mRoot);
         Files.write(mRoot.resolve("module-info.class"), classToBytes.get("module-info"));

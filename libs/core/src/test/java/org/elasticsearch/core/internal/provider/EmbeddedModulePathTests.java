@@ -81,7 +81,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
         jarEntries.put("/a/b/m.jar/q/Bar.class", classToBytes.get("q.Bar"));
         jarEntries.put("/a/b/m.jar/r/R.class", "<empty>".getBytes(UTF_8));
 
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(topLevelDir.resolve("impl.jar"), jarEntries);
 
@@ -124,7 +124,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
     }
 
     public void testScanBasic() throws Exception {
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJar(topLevelDir, "impl.jar", null, "module-info.class", "p/Foo.class", "q/Bar.class", "META-INF/services/a.b.c.Foo");
 
@@ -140,7 +140,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
     }
 
     public void testExplodedPackages() throws Exception {
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path jarPath = JarUtils.createJar(
             topLevelDir,
             "impl.jar",
@@ -162,7 +162,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
     }
 
     public void testExplodedPackagesMultiRelease() throws Exception {
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Manifest manifest = new Manifest(new ByteArrayInputStream("Multi-Release: true\n".getBytes(UTF_8)));
         Path jarPath = JarUtils.createJar(
             topLevelDir,
@@ -190,7 +190,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
             d.e.f.FooImpl
             """);
 
-        Path topLevelDir = createTempDir();
+        Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntriesUTF(topLevelDir.resolve("impl.jar"), jarEntries);
 
@@ -261,7 +261,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
     }
 
     public void testModuleNameFromManifestOrNull() throws Exception {
-        Path dir = createTempDir();
+        Path dir = createTempDir(getTestName());
         Files.createDirectories(dir.resolve("META-INF"));
         Path manifest = dir.resolve("META-INF").resolve("MANIFEST.MF");
 

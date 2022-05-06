@@ -8,8 +8,6 @@
 
 package org.elasticsearch.xcontent;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -216,7 +214,7 @@ public class XContentParserTests extends ESTestCase {
             if (token.equals(XContentParser.Token.VALUE_STRING)) {
                 expectThrows(IllegalArgumentException.class, parser::booleanValue);
             } else {
-                expectThrows(JsonParseException.class, parser::booleanValue);
+                expectThrows(XContentParseException.class, parser::booleanValue);
             }
 
             token = parser.nextToken();
@@ -228,7 +226,7 @@ public class XContentParserTests extends ESTestCase {
             if (token.equals(XContentParser.Token.VALUE_STRING)) {
                 expectThrows(IllegalArgumentException.class, parser::booleanValue);
             } else {
-                expectThrows(JsonParseException.class, parser::booleanValue);
+                expectThrows(XContentParseException.class, parser::booleanValue);
             }
         }
     }

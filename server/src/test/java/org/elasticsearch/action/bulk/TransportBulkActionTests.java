@@ -294,16 +294,16 @@ public class TransportBulkActionTests extends ESTestCase {
             Map.of("plugin", new SystemIndices.Feature("plugin", "test feature", List.of(new SystemIndexDescriptor(".test*", ""))))
         );
         List<String> onlySystem = List.of(".foo", ".bar");
-        assertTrue(bulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
+        assertTrue(TransportBulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
 
         onlySystem = List.of(".foo", ".bar", ".test");
-        assertTrue(bulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
+        assertTrue(TransportBulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
 
         List<String> nonSystem = List.of("foo", "bar");
-        assertFalse(bulkAction.isOnlySystem(buildBulkRequest(nonSystem), indicesLookup, systemIndices));
+        assertFalse(TransportBulkAction.isOnlySystem(buildBulkRequest(nonSystem), indicesLookup, systemIndices));
 
         List<String> mixed = List.of(".foo", ".test", "other");
-        assertFalse(bulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
+        assertFalse(TransportBulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
     }
 
     public void testRejectCoordination() throws Exception {

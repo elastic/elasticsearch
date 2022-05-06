@@ -40,6 +40,11 @@ public class ChangelogEntry {
 
     private static final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
+    /**
+     * Create a new instance by parsing the supplied file
+     * @param file the YAML file to parse
+     * @return a new instance
+     */
     public static ChangelogEntry parse(File file) {
         try {
             return yamlMapper.readValue(file, ChangelogEntry.class);
@@ -209,7 +214,11 @@ public class ChangelogEntry {
         }
     }
 
-    public static class Breaking {
+    public static class Breaking extends CompatibilityChange {}
+
+    public static class Deprecation extends CompatibilityChange {}
+
+    abstract static class CompatibilityChange {
         private String area;
         private String title;
         private String details;
@@ -277,13 +286,13 @@ public class ChangelogEntry {
             if (o == null || getClass() != o.getClass()) {
                 return false;
             }
-            Breaking breaking = (Breaking) o;
-            return notable == breaking.notable
-                && Objects.equals(area, breaking.area)
-                && Objects.equals(title, breaking.title)
-                && Objects.equals(details, breaking.details)
-                && Objects.equals(impact, breaking.impact)
-                && Objects.equals(essSettingChange, breaking.essSettingChange);
+            CompatibilityChange breaking = (CompatibilityChange) o;
+            return notable == breaking.isNotable()
+                && Objects.equals(area, breaking.getArea())
+                && Objects.equals(title, breaking.getTitle())
+                && Objects.equals(details, breaking.getDetails())
+                && Objects.equals(impact, breaking.getImpact())
+                && Objects.equals(essSettingChange, breaking.isEssSettingChange());
         }
 
         @Override
@@ -294,7 +303,8 @@ public class ChangelogEntry {
         @Override
         public String toString() {
             return String.format(
-                "Breaking{area='%s', title='%s', details='%s', impact='%s', notable=%s, essSettingChange=%s}",
+                "%s{area='%s', title='%s', details='%s', impact='%s', notable=%s, essSettingChange=%s}",
+                this.getClass().getSimpleName(),
                 area,
                 title,
                 details,
@@ -305,66 +315,11 @@ public class ChangelogEntry {
         }
     }
 
-    public static class Deprecation {
-        private String area;
-        private String title;
-        private String body;
-
-        public String getArea() {
-            return area;
-        }
-
-        public void setArea(String area) {
-            this.area = area;
-        }
-
-        public String getTitle() {
-            return title;
-        }
-
-        public void setTitle(String title) {
-            this.title = title;
-        }
-
-        public String getBody() {
-            return body;
-        }
-
-        public void setBody(String body) {
-            this.body = body;
-        }
-
-        public String getAnchor() {
-            return generatedAnchor(this.title);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Deprecation that = (Deprecation) o;
-            return Objects.equals(area, that.area) && Objects.equals(title, that.title) && Objects.equals(body, that.body);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(area, title, body);
-        }
-
-        @Override
-        public String toString() {
-            return String.format("Deprecation{area='%s', title='%s', body='%s'}", area, title, body);
-        }
-    }
-
     private static String generatedAnchor(String input) {
-        final List<String> excludes = List.of("the", "is", "a", "and");
+        final List<String> excludes = List.of("the", "is", "a", "and", "now", "that");
 
         final String[] words = input.toLowerCase(Locale.ROOT)
+            .replaceAll("'", "")
             .replaceAll("[^\\w]+", "_")
             .replaceFirst("^_+", "")
             .replaceFirst("_+$", "")

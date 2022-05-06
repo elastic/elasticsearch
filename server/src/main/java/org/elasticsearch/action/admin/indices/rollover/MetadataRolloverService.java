@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -41,7 +42,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM;
@@ -61,7 +61,6 @@ public class MetadataRolloverService {
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;
     private final MetadataIndexAliasesService indexAliasesService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
 
     @Inject
@@ -69,26 +68,15 @@ public class MetadataRolloverService {
         ThreadPool threadPool,
         MetadataCreateIndexService createIndexService,
         MetadataIndexAliasesService indexAliasesService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices
     ) {
         this.threadPool = threadPool;
         this.createIndexService = createIndexService;
         this.indexAliasesService = indexAliasesService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
     }
 
-    public static class RolloverResult {
-        public final String rolloverIndexName;
-        public final String sourceIndexName;
-        public final ClusterState clusterState;
-
-        private RolloverResult(String rolloverIndexName, String sourceIndexName, ClusterState clusterState) {
-            this.rolloverIndexName = rolloverIndexName;
-            this.sourceIndexName = sourceIndexName;
-            this.clusterState = clusterState;
-        }
+    public record RolloverResult(String rolloverIndexName, String sourceIndexName, ClusterState clusterState) {
 
         @Override
         public String toString() {
@@ -141,14 +129,14 @@ public class MetadataRolloverService {
         };
     }
 
-    public void validateIndexName(ClusterState state, String index) {
-        createIndexService.validateIndexName(index, state);
+    public static void validateIndexName(ClusterState state, String index) {
+        MetadataCreateIndexService.validateIndexName(index, state);
     }
 
     /**
      * Returns the names that rollover would use, but does not perform the actual rollover
      */
-    public NameResolution resolveRolloverNames(
+    public static NameResolution resolveRolloverNames(
         ClusterState currentState,
         String rolloverTarget,
         String newIndexName,
@@ -165,32 +153,19 @@ public class MetadataRolloverService {
         };
     }
 
-    public static class NameResolution {
-        final String sourceName;
-        @Nullable
-        final String unresolvedName;
-        final String rolloverName;
+    public record NameResolution(String sourceName, @Nullable String unresolvedName, String rolloverName) {}
 
-        NameResolution(String sourceName, String unresolvedName, String rolloverName) {
-            this.sourceName = sourceName;
-            this.unresolvedName = unresolvedName;
-            this.rolloverName = rolloverName;
-        }
-    }
-
-    private NameResolution resolveAliasRolloverNames(Metadata metadata, IndexAbstraction alias, String newIndexName) {
+    private static NameResolution resolveAliasRolloverNames(Metadata metadata, IndexAbstraction alias, String newIndexName) {
         final IndexMetadata writeIndex = metadata.index(alias.getWriteIndex());
         final String sourceProvidedName = writeIndex.getSettings()
             .get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, writeIndex.getIndex().getName());
         final String sourceIndexName = writeIndex.getIndex().getName();
-        final String unresolvedName = (newIndexName != null)
-            ? newIndexName
-            : generateRolloverIndexName(sourceProvidedName, indexNameExpressionResolver);
-        final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
+        final String unresolvedName = (newIndexName != null) ? newIndexName : generateRolloverIndexName(sourceProvidedName);
+        final String rolloverIndexName = IndexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
         return new NameResolution(sourceIndexName, unresolvedName, rolloverIndexName);
     }
 
-    private NameResolution resolveDataStreamRolloverNames(Metadata metadata, IndexAbstraction.DataStream dataStream) {
+    private static NameResolution resolveDataStreamRolloverNames(Metadata metadata, IndexAbstraction.DataStream dataStream) {
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = metadata.index(dataStream.getWriteIndex());
         return new NameResolution(originalWriteIndex.getIndex().getName(), null, ds.nextWriteIndexAndGeneration(metadata).v1());
@@ -217,7 +192,7 @@ public class MetadataRolloverService {
         final Boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.exists(createIndexRequest.settings())
             ? IndexMetadata.INDEX_HIDDEN_SETTING.get(createIndexRequest.settings())
             : null;
-        createIndexService.validateIndexName(rolloverIndexName, currentState); // fails if the index already exists
+        MetadataCreateIndexService.validateIndexName(rolloverIndexName, currentState); // fails if the index already exists
         checkNoDuplicatedAliasInIndexTemplate(metadata, rolloverIndexName, aliasName, isHidden);
         if (onlyValidate) {
             return new RolloverResult(rolloverIndexName, sourceIndexName, currentState);
@@ -267,15 +242,18 @@ public class MetadataRolloverService {
             );
         }
 
+        final Metadata metadata = currentState.getMetadata();
+        final ComposableIndexTemplate templateV2;
         final SystemDataStreamDescriptor systemDataStreamDescriptor;
         if (dataStream.isSystem() == false) {
             systemDataStreamDescriptor = null;
-            lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+            templateV2 = lookupTemplateForDataStream(dataStreamName, metadata);
         } else {
             systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
             if (systemDataStreamDescriptor == null) {
                 throw new IllegalArgumentException("no system data stream descriptor found for data stream [" + dataStreamName + "]");
             }
+            templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
         }
 
         final DataStream ds = dataStream.getDataStream();
@@ -283,7 +261,7 @@ public class MetadataRolloverService {
         final Tuple<String, Long> nextIndexAndGeneration = ds.nextWriteIndexAndGeneration(currentState.metadata());
         final String newWriteIndexName = nextIndexAndGeneration.v1();
         final long newGeneration = nextIndexAndGeneration.v2();
-        createIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
+        MetadataCreateIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
         if (onlyValidate) {
             return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), currentState);
         }
@@ -295,11 +273,14 @@ public class MetadataRolloverService {
             systemDataStreamDescriptor,
             now
         );
+        createIndexClusterStateRequest.setMatchingTemplate(templateV2);
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             currentState,
             createIndexClusterStateRequest,
             silent,
-            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndex(), newGeneration))
+            (builder, indexMetadata) -> builder.put(
+                ds.rollover(indexMetadata.getIndex(), newGeneration, metadata.isTimeSeriesTemplate(templateV2))
+            )
         );
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
@@ -313,8 +294,8 @@ public class MetadataRolloverService {
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
     }
 
-    static String generateRolloverIndexName(String sourceIndexName, IndexNameExpressionResolver indexNameExpressionResolver) {
-        String resolvedName = indexNameExpressionResolver.resolveDateMathExpression(sourceIndexName);
+    static String generateRolloverIndexName(String sourceIndexName) {
+        String resolvedName = IndexNameExpressionResolver.resolveDateMathExpression(sourceIndexName);
         final boolean isDateMath = sourceIndexName.equals(resolvedName) == false;
         if (INDEX_NAME_PATTERN.matcher(resolvedName).matches()) {
             int numberIndex = sourceIndexName.lastIndexOf("-");
@@ -437,7 +418,7 @@ public class MetadataRolloverService {
                         Locale.ROOT,
                         "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
                         rolloverRequestAlias,
-                        template.aliases().keys(),
+                        template.aliases().keySet(),
                         template.name()
                     )
                 );
@@ -456,7 +437,7 @@ public class MetadataRolloverService {
                     + indexAbstraction.getType().getDisplayName()
                     + "] but one of ["
                     + Strings.collectionToCommaDelimitedString(
-                        VALID_ROLLOVER_TARGETS.stream().map(IndexAbstraction.Type::getDisplayName).collect(Collectors.toList())
+                        VALID_ROLLOVER_TARGETS.stream().map(IndexAbstraction.Type::getDisplayName).toList()
                     )
                     + "] was expected"
             );

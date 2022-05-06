@@ -57,6 +57,14 @@ import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
 public class PluginsService implements ReportingService<PluginsAndModules> {
 
+    /**
+     * A loaded plugin is one for which Elasticsearch has successfully constructed an instance of the plugin's class
+     * @param info Metadata about the plugin, usually loaded from plugin properties
+     * @param instance The constructed instance of the plugin's main class
+     * @param loader   The classloader for the plugin
+     */
+    record LoadedPlugin(PluginInfo info, Plugin instance, ClassLoader loader) {}
+
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
 
     private final Settings settings;
@@ -65,7 +73,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     /**
      * We keep around a list of plugins and modules
      */
-    private final List<Tuple<PluginInfo, Plugin>> plugins;
+    private final List<LoadedPlugin> plugins;
     private final PluginsAndModules info;
 
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting(
@@ -76,11 +84,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     );
 
     public List<Setting<?>> getPluginSettings() {
-        return plugins.stream().flatMap(p -> p.v2().getSettings().stream()).collect(Collectors.toList());
+        return plugins.stream().flatMap(p -> p.instance().getSettings().stream()).toList();
     }
 
     public List<String> getPluginSettingsFilter() {
-        return plugins.stream().flatMap(p -> p.v2().getSettingsFilter().stream()).collect(Collectors.toList());
+        return plugins.stream().flatMap(p -> p.instance().getSettingsFilter().stream()).toList();
     }
 
     /**
@@ -100,7 +108,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         this.settings = settings;
         this.configPath = configPath;
 
-        List<Tuple<PluginInfo, Plugin>> pluginsLoaded = new ArrayList<>();
+        List<LoadedPlugin> pluginsLoaded = new ArrayList<>();
         List<PluginInfo> pluginsList = new ArrayList<>();
         // we need to build a List of plugins for checking mandatory plugins
         final List<String> pluginsNames = new ArrayList<>();
@@ -115,6 +123,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 Version.CURRENT,
                 "1.8",
                 pluginClass.getName(),
+                null,
                 Collections.emptyList(),
                 false,
                 PluginType.ISOLATED,
@@ -124,7 +133,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
-            pluginsLoaded.add(new Tuple<>(pluginInfo, plugin));
+            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, null));
             pluginsList.add(pluginInfo);
             pluginsNames.add(pluginInfo.getName());
         }
@@ -162,7 +171,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
         }
 
-        List<Tuple<PluginInfo, Plugin>> loaded = loadBundles(seenBundles);
+        Collection<LoadedPlugin> loaded = loadBundles(seenBundles);
         pluginsLoaded.addAll(loaded);
 
         this.info = new PluginsAndModules(pluginsList, modulesList);
@@ -199,7 +208,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (pluginInfos.isEmpty()) {
             logger.info("no " + type + "s loaded");
         } else {
-            for (final String name : pluginInfos.stream().map(PluginInfo::getName).sorted().collect(Collectors.toList())) {
+            for (final String name : pluginInfos.stream().map(PluginInfo::getName).sorted().toList()) {
                 logger.info("loaded " + type + " [" + name + "]");
             }
         }
@@ -208,17 +217,17 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     public Settings updatedSettings() {
         Map<String, String> foundSettings = new HashMap<>();
         final Settings.Builder builder = Settings.builder();
-        for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            Settings settings = plugin.v2().additionalSettings();
+        for (LoadedPlugin plugin : plugins) {
+            Settings settings = plugin.instance().additionalSettings();
             for (String setting : settings.keySet()) {
-                String oldPlugin = foundSettings.put(setting, plugin.v1().getName());
+                String oldPlugin = foundSettings.put(setting, plugin.info().getName());
                 if (oldPlugin != null) {
                     throw new IllegalArgumentException(
                         "Cannot have additional setting ["
                             + setting
                             + "] "
                             + "in plugin ["
-                            + plugin.v1().getName()
+                            + plugin.info().getName()
                             + "], already added in plugin ["
                             + oldPlugin
                             + "]"
@@ -232,15 +241,15 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         final ArrayList<ExecutorBuilder<?>> builders = new ArrayList<>();
-        for (final Tuple<PluginInfo, Plugin> plugin : plugins) {
-            builders.addAll(plugin.v2().getExecutorBuilders(settings));
+        for (final LoadedPlugin plugin : plugins) {
+            builders.addAll(plugin.instance().getExecutorBuilders(settings));
         }
         return builders;
     }
 
     public void onIndexModule(IndexModule indexModule) {
-        for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            plugin.v2().onIndexModule(indexModule);
+        for (LoadedPlugin plugin : plugins) {
+            plugin.instance().onIndexModule(indexModule);
         }
     }
 
@@ -401,12 +410,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
         }
 
-        logger.trace(
-            () -> "findBundles("
-                + type
-                + ") returning: "
-                + bundles.stream().map(b -> b.plugin.getName()).sorted().collect(Collectors.toList())
-        );
+        logger.trace(() -> "findBundles(" + type + ") returning: " + bundles.stream().map(b -> b.plugin.getName()).sorted().toList());
 
         return bundles;
     }
@@ -480,34 +484,32 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         sortedBundles.add(bundle);
     }
 
-    private List<Tuple<PluginInfo, Plugin>> loadBundles(Set<Bundle> bundles) {
-        List<Tuple<PluginInfo, Plugin>> plugins = new ArrayList<>();
-        Map<String, Tuple<Plugin, ClassLoader>> loaded = new HashMap<>();
+    private Collection<LoadedPlugin> loadBundles(Set<Bundle> bundles) {
+        Map<String, LoadedPlugin> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<Bundle> sortedBundles = sortBundles(bundles);
         for (Bundle bundle : sortedBundles) {
             if (bundle.plugin.getType() != PluginType.BOOTSTRAP) {
                 checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls);
-
-                final Plugin plugin = loadBundle(bundle, loaded);
-                plugins.add(new Tuple<>(bundle.plugin, plugin));
+                loadBundle(bundle, loaded);
             }
         }
 
-        loadExtensions(plugins);
-        return Collections.unmodifiableList(plugins);
+        loadExtensions(loaded.values());
+        return loaded.values();
     }
 
     // package-private for test visibility
-    static void loadExtensions(List<Tuple<PluginInfo, Plugin>> plugins) {
+    static void loadExtensions(Collection<LoadedPlugin> plugins) {
+
         Map<String, List<Plugin>> extendingPluginsByName = plugins.stream()
-            .flatMap(t -> t.v1().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.v2())))
+            .flatMap(t -> t.info().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.instance())))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
-        for (Tuple<PluginInfo, Plugin> pluginTuple : plugins) {
-            if (pluginTuple.v2() instanceof ExtensiblePlugin) {
+        for (LoadedPlugin pluginTuple : plugins) {
+            if (pluginTuple.instance() instanceof ExtensiblePlugin) {
                 loadExtensionsForPlugin(
-                    (ExtensiblePlugin) pluginTuple.v2(),
-                    extendingPluginsByName.getOrDefault(pluginTuple.v1().getName(), List.of())
+                    (ExtensiblePlugin) pluginTuple.instance(),
+                    extendingPluginsByName.getOrDefault(pluginTuple.info().getName(), List.of())
                 );
             }
         }
@@ -653,7 +655,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private Plugin loadBundle(Bundle bundle, Map<String, Tuple<Plugin, ClassLoader>> loaded) {
+    private Plugin loadBundle(Bundle bundle, Map<String, LoadedPlugin> loaded) {
         String name = bundle.plugin.getName();
 
         verifyCompatibility(bundle.plugin);
@@ -661,12 +663,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         // collect loaders of extended plugins
         List<ClassLoader> extendedLoaders = new ArrayList<>();
         for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
-            Tuple<Plugin, ClassLoader> extendedPlugin = loaded.get(extendedPluginName);
+            LoadedPlugin extendedPlugin = loaded.get(extendedPluginName);
             assert extendedPlugin != null;
-            if (ExtensiblePlugin.class.isInstance(extendedPlugin.v1()) == false) {
+            if (ExtensiblePlugin.class.isInstance(extendedPlugin.instance()) == false) {
                 throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
             }
-            extendedLoaders.add(extendedPlugin.v2());
+            assert extendedPlugin.loader() != null : "All non-classpath plugins should be loaded with a classloader";
+            extendedLoaders.add(extendedPlugin.loader());
         }
 
         ClassLoader parentLoader = PluginLoaderIndirection.createLoader(getClass().getClassLoader(), extendedLoaders);
@@ -707,7 +710,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 );
             }
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            loaded.put(name, Tuple.tuple(plugin, spiLoader));
+            loaded.put(name, new LoadedPlugin(bundle.plugin, plugin, spiLoader));
             return plugin;
         } finally {
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
@@ -731,7 +734,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         Codec.reloadCodecs(loader);
     }
 
-    private Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {
+    private static Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {
         try {
             return Class.forName(className, false, loader).asSubclass(Plugin.class);
         } catch (ClassNotFoundException e) {
@@ -739,7 +742,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings, Path configPath) {
+    private static Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings, Path configPath) {
         final Constructor<?>[] constructors = pluginClass.getConstructors();
         if (constructors.length == 0) {
             throw new IllegalStateException("no public constructor for [" + pluginClass.getName() + "]");
@@ -770,7 +773,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private String signatureMessage(final Class<? extends Plugin> clazz) {
+    private static String signatureMessage(final Class<? extends Plugin> clazz) {
         return String.format(
             Locale.ROOT,
             "no public constructor of correct signature for [%s]; must be [%s], [%s], or [%s]",
@@ -783,6 +786,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     @SuppressWarnings("unchecked")
     public <T> List<T> filterPlugins(Class<T> type) {
-        return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass())).map(p -> ((T) p.v2())).collect(Collectors.toList());
+        return plugins.stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance())).toList();
     }
 }

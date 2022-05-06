@@ -92,7 +92,7 @@ import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
-import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAllocationAction;
+import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
@@ -104,7 +104,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
-import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAllocationAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
@@ -131,11 +131,12 @@ import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
+import org.elasticsearch.xpack.core.ml.action.MlMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
@@ -161,6 +162,7 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.TrainedModelCacheInfoAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
@@ -168,7 +170,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentStateAction;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
@@ -187,7 +189,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
-import org.elasticsearch.xpack.ml.action.TransportCreateTrainedModelAllocationAction;
+import org.elasticsearch.xpack.ml.action.TransportCreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarEventAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteDataFrameAnalyticsAction;
@@ -199,10 +201,11 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAliasAction;
-import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAllocationAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.ml.action.TransportEstimateModelMemoryAction;
 import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.action.TransportExternalInferModelAction;
 import org.elasticsearch.xpack.ml.action.TransportFinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.TransportFlushJobAction;
 import org.elasticsearch.xpack.ml.action.TransportForecastJobAction;
@@ -231,6 +234,7 @@ import org.elasticsearch.xpack.ml.action.TransportInternalInferModelAction;
 import org.elasticsearch.xpack.ml.action.TransportIsolateDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportKillProcessAction;
 import org.elasticsearch.xpack.ml.action.TransportMlInfoAction;
+import org.elasticsearch.xpack.ml.action.TransportMlMemoryAction;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction;
 import org.elasticsearch.xpack.ml.action.TransportPersistJobAction;
 import org.elasticsearch.xpack.ml.action.TransportPostCalendarEventsAction;
@@ -256,6 +260,7 @@ import org.elasticsearch.xpack.ml.action.TransportStartTrainedModelDeploymentAct
 import org.elasticsearch.xpack.ml.action.TransportStopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportStopDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportStopTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.ml.action.TransportTrainedModelCacheInfoAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateDatafeedAction;
@@ -263,12 +268,14 @@ import org.elasticsearch.xpack.ml.action.TransportUpdateFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
-import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelAllocationStateAction;
+import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelAssignmentStateAction;
 import org.elasticsearch.xpack.ml.action.TransportUpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
+import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
@@ -277,6 +284,7 @@ import org.elasticsearch.xpack.ml.aggs.kstest.BucketCountKSTestAggregationBuilde
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
+import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
@@ -294,14 +302,15 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationClusterService;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
+import org.elasticsearch.xpack.ml.inference.pytorch.process.BlackHolePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.job.JobManager;
@@ -342,6 +351,7 @@ import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
+import org.elasticsearch.xpack.ml.rest.RestMlMemoryAction;
 import org.elasticsearch.xpack.ml.rest.RestSetUpgradeModeAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarEventAction;
@@ -381,6 +391,7 @@ import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAliasAction;
@@ -428,7 +439,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -628,6 +638,14 @@ public class MachineLearning extends Plugin
         Setting.Property.NodeScope
     );
 
+    /**
+     * Each model deployment results in one or more entries in the cluster state
+     * for the model allocations. In order to prevent the cluster state from
+     * potentially growing uncontrollably we impose a limit on the number of
+     * trained model deployments.
+     */
+    public static final int MAX_TRAINED_MODEL_DEPLOYMENTS = 100;
+
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 
     private final Settings settings;
@@ -645,7 +663,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<ModelLoadingService> modelLoadingService = new SetOnce<>();
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
-    private final SetOnce<TrainedModelAllocationClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
+    private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
 
     public MachineLearning(Settings settings) {
         this.settings = settings;
@@ -786,7 +804,7 @@ public class MachineLearning extends Plugin
             anomalyDetectionAuditor
         );
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
-        DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
+        DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry, clusterService);
         this.datafeedConfigProvider.set(datafeedConfigProvider);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
         JobManager jobManager = new JobManager(
@@ -876,7 +894,7 @@ public class MachineLearning extends Plugin
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
             analyticsProcessFactory = (jobId, analyticsProcessConfig, hasState, executorService, onProcessCrash) -> null;
             memoryEstimationProcessFactory = (jobId, analyticsProcessConfig, hasState, executorService, onProcessCrash) -> null;
-            pyTorchProcessFactory = (task, executorService, onProcessCrash) -> null;
+            pyTorchProcessFactory = (task, executorService, onProcessCrash) -> new BlackHolePyTorchProcess();
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(
             normalizerProcessFactory,
@@ -969,7 +987,8 @@ public class MachineLearning extends Plugin
         DataFrameAnalyticsConfigProvider dataFrameAnalyticsConfigProvider = new DataFrameAnalyticsConfigProvider(
             client,
             xContentRegistry,
-            dataFrameAnalyticsAuditor
+            dataFrameAnalyticsAuditor,
+            clusterService
         );
         assert client instanceof NodeClient;
         DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager(
@@ -1029,17 +1048,25 @@ public class MachineLearning extends Plugin
         // Perform node startup operations
         nativeStorageProvider.cleanupLocalTmpStorageInCaseOfUncleanShutdown();
 
+        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(
+            settings,
+            clusterService.getClusterSettings()
+        );
+        clusterService.addListener(nodeAvailabilityZoneMapper);
+
         // allocation service objects
-        final TrainedModelAllocationService trainedModelAllocationService = new TrainedModelAllocationService(
+        final TrainedModelAssignmentService trainedModelAssignmentService = new TrainedModelAssignmentService(
             client,
             clusterService,
             threadPool
         );
         trainedModelAllocationClusterServiceSetOnce.set(
-            new TrainedModelAllocationClusterService(settings, clusterService, new NodeLoadDetector(memoryTracker))
+            new TrainedModelAssignmentClusterService(settings, clusterService, new NodeLoadDetector(memoryTracker))
         );
 
-        mlAutoscalingDeciderService.set(new MlAutoscalingDeciderService(memoryTracker, settings, clusterService));
+        mlAutoscalingDeciderService.set(
+            new MlAutoscalingDeciderService(memoryTracker, settings, nodeAvailabilityZoneMapper, clusterService)
+        );
 
         return Arrays.asList(
             mlLifeCycleService,
@@ -1067,9 +1094,10 @@ public class MachineLearning extends Plugin
             nativeStorageProvider,
             modelLoadingService,
             trainedModelProvider,
-            trainedModelAllocationService,
+            trainedModelAssignmentService,
             trainedModelAllocationClusterServiceSetOnce.get(),
-            deploymentManager.get()
+            deploymentManager.get(),
+            nodeAvailabilityZoneMapper
         );
     }
 
@@ -1136,6 +1164,7 @@ public class MachineLearning extends Plugin
             new RestGetJobsAction(),
             new RestGetJobStatsAction(),
             new RestMlInfoAction(),
+            new RestMlMemoryAction(),
             new RestPutJobAction(),
             new RestPostJobUpdateAction(),
             new RestDeleteJobAction(),
@@ -1203,6 +1232,7 @@ public class MachineLearning extends Plugin
             new RestInferTrainedModelDeploymentAction(),
             new RestPutTrainedModelDefinitionPartAction(),
             new RestPutTrainedModelVocabularyAction(),
+            new RestInferTrainedModelAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
@@ -1222,6 +1252,7 @@ public class MachineLearning extends Plugin
             new ActionHandler<>(GetJobsAction.INSTANCE, TransportGetJobsAction.class),
             new ActionHandler<>(GetJobsStatsAction.INSTANCE, TransportGetJobsStatsAction.class),
             new ActionHandler<>(MlInfoAction.INSTANCE, TransportMlInfoAction.class),
+            new ActionHandler<>(MlMemoryAction.INSTANCE, TransportMlMemoryAction.class),
             new ActionHandler<>(PutJobAction.INSTANCE, TransportPutJobAction.class),
             new ActionHandler<>(UpdateJobAction.INSTANCE, TransportUpdateJobAction.class),
             new ActionHandler<>(DeleteJobAction.INSTANCE, TransportDeleteJobAction.class),
@@ -1279,7 +1310,9 @@ public class MachineLearning extends Plugin
             new ActionHandler<>(StopDataFrameAnalyticsAction.INSTANCE, TransportStopDataFrameAnalyticsAction.class),
             new ActionHandler<>(EvaluateDataFrameAction.INSTANCE, TransportEvaluateDataFrameAction.class),
             new ActionHandler<>(ExplainDataFrameAnalyticsAction.INSTANCE, TransportExplainDataFrameAnalyticsAction.class),
-            new ActionHandler<>(InternalInferModelAction.INSTANCE, TransportInternalInferModelAction.class),
+            new ActionHandler<>(InferModelAction.INSTANCE, TransportInternalInferModelAction.class),
+            new ActionHandler<>(InferModelAction.EXTERNAL_INSTANCE, TransportExternalInferModelAction.class),
+            new ActionHandler<>(TrainedModelCacheInfoAction.INSTANCE, TransportTrainedModelCacheInfoAction.class),
             new ActionHandler<>(GetTrainedModelsAction.INSTANCE, TransportGetTrainedModelsAction.class),
             new ActionHandler<>(DeleteTrainedModelAction.INSTANCE, TransportDeleteTrainedModelAction.class),
             new ActionHandler<>(GetTrainedModelsStatsAction.INSTANCE, TransportGetTrainedModelsStatsAction.class),
@@ -1296,11 +1329,11 @@ public class MachineLearning extends Plugin
             new ActionHandler<>(InferTrainedModelDeploymentAction.INSTANCE, TransportInferTrainedModelDeploymentAction.class),
             new ActionHandler<>(GetDeploymentStatsAction.INSTANCE, TransportGetDeploymentStatsAction.class),
             new ActionHandler<>(GetDatafeedRunningStateAction.INSTANCE, TransportGetDatafeedRunningStateAction.class),
-            new ActionHandler<>(CreateTrainedModelAllocationAction.INSTANCE, TransportCreateTrainedModelAllocationAction.class),
-            new ActionHandler<>(DeleteTrainedModelAllocationAction.INSTANCE, TransportDeleteTrainedModelAllocationAction.class),
+            new ActionHandler<>(CreateTrainedModelAssignmentAction.INSTANCE, TransportCreateTrainedModelAssignmentAction.class),
+            new ActionHandler<>(DeleteTrainedModelAssignmentAction.INSTANCE, TransportDeleteTrainedModelAssignmentAction.class),
             new ActionHandler<>(PutTrainedModelDefinitionPartAction.INSTANCE, TransportPutTrainedModelDefinitionPartAction.class),
             new ActionHandler<>(PutTrainedModelVocabularyAction.INSTANCE, TransportPutTrainedModelVocabularyAction.class),
-            new ActionHandler<>(UpdateTrainedModelAllocationStateAction.INSTANCE, TransportUpdateTrainedModelAllocationStateAction.class),
+            new ActionHandler<>(UpdateTrainedModelAssignmentStateAction.INSTANCE, TransportUpdateTrainedModelAssignmentStateAction.class),
             usageAction,
             infoAction
         );
@@ -1335,6 +1368,7 @@ public class MachineLearning extends Plugin
             4,
             MAX_MAX_OPEN_JOBS_PER_NODE * 4,
             TimeValue.timeValueMinutes(1),
+            false,
             "xpack.ml.job_comms_thread_pool"
         );
 
@@ -1345,6 +1379,7 @@ public class MachineLearning extends Plugin
             1,
             MAX_MAX_OPEN_JOBS_PER_NODE * 4,
             TimeValue.timeValueMinutes(10),
+            false,
             "xpack.ml.utility_thread_pool"
         );
 
@@ -1353,6 +1388,7 @@ public class MachineLearning extends Plugin
             1,
             MAX_MAX_OPEN_JOBS_PER_NODE,
             TimeValue.timeValueMinutes(1),
+            false,
             "xpack.ml.datafeed_thread_pool"
         );
 
@@ -1377,7 +1413,8 @@ public class MachineLearning extends Plugin
         return Arrays.asList(
             InferencePipelineAggregationBuilder.buildSpec(modelLoadingService, getLicenseState(), settings),
             BucketCorrelationAggregationBuilder.buildSpec(),
-            BucketCountKSTestAggregationBuilder.buildSpec()
+            BucketCountKSTestAggregationBuilder.buildSpec(),
+            ChangePointAggregationBuilder.buildSpec()
         );
     }
 
@@ -1394,7 +1431,16 @@ public class MachineLearning extends Plugin
                 CategorizeTextAggregationBuilder::new,
                 CategorizeTextAggregationBuilder.PARSER
             ).addResultReader(InternalCategorizationAggregation::new)
-                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME))
+                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME)),
+            // TODO: in the long term only keep one or other of these categorization aggregations
+            new AggregationSpec(
+                org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder.NAME,
+                org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder::new,
+                org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder.PARSER
+            ).addResultReader(org.elasticsearch.xpack.ml.aggs.categorization2.InternalCategorizationAggregation::new)
+                .setAggregatorRegistrar(
+                    s -> s.registerUsage(org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder.NAME)
+                )
         );
     }
 
@@ -1428,8 +1474,17 @@ public class MachineLearning extends Plugin
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 Metadata.Custom.class,
-                new ParseField(TrainedModelAllocationMetadata.NAME),
-                TrainedModelAllocationMetadata::fromXContent
+                new ParseField(TrainedModelAssignmentMetadata.NAME),
+                TrainedModelAssignmentMetadata::fromXContent
+            )
+        );
+        // This is so old cluster state can be read on a new node. We are not making it a deprecated parse field as the user
+        // has no control over this. So, simply read it without logging a deprecation warning
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(TrainedModelAssignmentMetadata.DEPRECATED_NAME),
+                TrainedModelAssignmentMetadata::fromXContent
             )
         );
         namedXContent.addAll(new CorrelationNamedContentProvider().getNamedXContentParsers());
@@ -1448,15 +1503,29 @@ public class MachineLearning extends Plugin
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 Metadata.Custom.class,
-                TrainedModelAllocationMetadata.NAME,
-                TrainedModelAllocationMetadata::new
+                TrainedModelAssignmentMetadata.NAME,
+                TrainedModelAssignmentMetadata::fromStream
             )
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 NamedDiff.class,
-                TrainedModelAllocationMetadata.NAME,
-                TrainedModelAllocationMetadata::readDiffFrom
+                TrainedModelAssignmentMetadata.NAME,
+                TrainedModelAssignmentMetadata::readDiffFrom
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                Metadata.Custom.class,
+                TrainedModelAssignmentMetadata.DEPRECATED_NAME,
+                TrainedModelAssignmentMetadata::fromStreamOld
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                NamedDiff.class,
+                TrainedModelAssignmentMetadata.DEPRECATED_NAME,
+                TrainedModelAssignmentMetadata::readDiffFromOld
             )
         );
 
@@ -1502,6 +1571,7 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         namedWriteables.addAll(MlAutoscalingNamedWritableProvider.getNamedWriteables());
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
+        namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
         return namedWriteables;
     }
 
@@ -1699,7 +1769,7 @@ public class MachineLearning extends Plugin
                     .stream()
                     .filter(result -> result.getValue() == false)
                     .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
+                    .toList();
                 unsetResetModeListener.onFailure(
                     new RuntimeException("Some machine learning components failed to reset: " + failedComponents)
                 );
@@ -1732,7 +1802,7 @@ public class MachineLearning extends Plugin
                     .stream()
                     .filter(result -> result.getValue() == false)
                     .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
+                    .toList();
                 unsetResetModeListener.onFailure(
                     new RuntimeException("Some machine learning components failed to reset: " + failedComponents)
                 );
@@ -1817,7 +1887,7 @@ public class MachineLearning extends Plugin
                 stopDeploymentsListener.onResponse(AcknowledgedResponse.TRUE);
                 return;
             }
-            trainedModelAllocationClusterServiceSetOnce.get().removeAllModelAllocations(stopDeploymentsListener);
+            trainedModelAllocationClusterServiceSetOnce.get().removeAllModelAssignments(stopDeploymentsListener);
         }, unsetResetModeListener::onFailure);
 
         // validate no pipelines are using machine learning models

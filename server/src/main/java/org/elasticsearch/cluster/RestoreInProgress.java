@@ -61,7 +61,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder("RestoreInProgress[");
-        entries.forEach(entry -> builder.append("{").append(entry.key).append("}{").append(entry.value.snapshot).append("},"));
+        entries.entrySet()
+            .forEach(entry -> builder.append("{").append(entry.getKey()).append("}{").append(entry.getValue().snapshot).append("},"));
         builder.setCharAt(builder.length() - 1, ']');
         return builder.toString();
     }
@@ -76,7 +77,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     @Override
     public Iterator<Entry> iterator() {
-        return entries.valuesIt();
+        return entries.values().iterator();
     }
 
     public static final class Builder {
@@ -86,7 +87,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         public Builder() {}
 
         public Builder(RestoreInProgress restoreInProgress) {
-            entries.putAll(restoreInProgress.entries);
+            entries.putAllFromMap(restoreInProgress.entries);
         }
 
         public Builder add(Entry entry) {
@@ -102,21 +103,21 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     /**
      * Restore metadata
      */
-    public static class Entry {
-        private final String uuid;
-        private final State state;
-        private final Snapshot snapshot;
-        private final ImmutableOpenMap<ShardId, ShardRestoreStatus> shards;
-        private final List<String> indices;
-
+    public record Entry(
+        String uuid,
+        Snapshot snapshot,
+        State state,
+        List<String> indices,
+        ImmutableOpenMap<ShardId, ShardRestoreStatus> shards
+    ) {
         /**
          * Creates new restore metadata
          *
-         * @param uuid       uuid of the restore
-         * @param snapshot   snapshot
-         * @param state      current state of the restore process
-         * @param indices    list of indices being restored
-         * @param shards     map of shards being restored to their current restore status
+         * @param uuid     uuid of the restore
+         * @param snapshot snapshot
+         * @param state    current state of the restore process
+         * @param indices  list of indices being restored
+         * @param shards   map of shards being restored to their current restore status
          */
         public Entry(
             String uuid,
@@ -134,71 +135,6 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                 this.shards = shards;
             }
             this.uuid = Objects.requireNonNull(uuid);
-        }
-
-        /**
-         * Returns restore uuid
-         * @return restore uuid
-         */
-        public String uuid() {
-            return uuid;
-        }
-
-        /**
-         * Returns snapshot
-         *
-         * @return snapshot
-         */
-        public Snapshot snapshot() {
-            return this.snapshot;
-        }
-
-        /**
-         * Returns list of shards that being restore and their status
-         *
-         * @return list of shards
-         */
-        public ImmutableOpenMap<ShardId, ShardRestoreStatus> shards() {
-            return this.shards;
-        }
-
-        /**
-         * Returns current restore state
-         *
-         * @return restore state
-         */
-        public State state() {
-            return state;
-        }
-
-        /**
-         * Returns list of indices
-         *
-         * @return list of indices
-         */
-        public List<String> indices() {
-            return indices;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Entry entry = (Entry) o;
-            return uuid.equals(entry.uuid)
-                && snapshot.equals(entry.snapshot)
-                && state == entry.state
-                && indices.equals(entry.indices)
-                && shards.equals(entry.shards);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(uuid, snapshot, state, indices, shards);
         }
     }
 
@@ -425,7 +361,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                     snapshot,
                     state,
                     Collections.unmodifiableList(indexBuilder),
-                    in.readImmutableMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)
+                    in.readImmutableOpenMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)
                 )
             );
         }
@@ -460,7 +396,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
      * @param entry   restore operation metadata
      * @param builder XContent builder
      */
-    public void toXContent(Entry entry, XContentBuilder builder) throws IOException {
+    public static void toXContent(Entry entry, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field("snapshot", entry.snapshot().getSnapshotId().getName());
         builder.field("repository", entry.snapshot().getRepository());

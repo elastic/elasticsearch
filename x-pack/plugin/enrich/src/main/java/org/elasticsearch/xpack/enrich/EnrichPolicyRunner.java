@@ -268,6 +268,15 @@ public class EnrichPolicyRunner implements Runnable {
         Set<String> types = matchFieldMappings.stream().map(map -> map.get("type")).collect(Collectors.toSet());
         if (types.size() == 1) {
             String type = types.iterator().next();
+            if (type == null) {
+                // when no type is defined in a field mapping then it is of type object:
+                throw new ElasticsearchException(
+                    "Field '{}' has type [object] which doesn't appear to be a range type",
+                    enrichPolicy.getMatchField(),
+                    type
+                );
+            }
+
             switch (type) {
                 case "integer_range":
                 case "float_range":
@@ -514,7 +523,7 @@ public class EnrichPolicyRunner implements Runnable {
                     }
                     Map<Integer, IndexShardSegments> indexShards = indexSegments.getShards();
                     assert indexShards.size() == 1 : "Expected enrich index to contain only one shard";
-                    ShardSegments[] shardSegments = indexShards.get(0).getShards();
+                    ShardSegments[] shardSegments = indexShards.get(0).shards();
                     assert shardSegments.length == 1 : "Expected enrich index to contain no replicas at this point";
                     ShardSegments primarySegments = shardSegments[0];
                     if (primarySegments.getSegments().size() > 1) {
@@ -570,7 +579,7 @@ public class EnrichPolicyRunner implements Runnable {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(clusterState, aliasRequest);
         String[] aliases = aliasRequest.aliases();
         IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
-        String[] indices = clusterState.metadata().findAliases(aliases, concreteIndices).keys().toArray(String.class);
+        String[] indices = clusterState.metadata().findAliases(aliases, concreteIndices).keySet().toArray(new String[0]);
         if (indices.length > 0) {
             aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().indices(indices).alias(enrichIndexBase));
         }

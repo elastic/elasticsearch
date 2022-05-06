@@ -11,7 +11,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.cluster.service.ClusterService;
 
 /**
- * A listener to be notified when a cluster state changes. The {@link #clusterChanged} method is called before the cluster state becomes
+ * A listener to be notified when a cluster state changes. The {@link #clusterChanged} method is called after the cluster state becomes
  * visible via {@link ClusterService#state()}. See also {@link ClusterStateApplier}.
  */
 public interface ClusterStateListener {

@@ -56,6 +56,7 @@ import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.smile.SmileXContent;
@@ -1951,6 +1952,47 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(exception.get().getMessage(), containsString("cancelled policy execution [test1], status ["));
     }
 
+    public void testRunRangePolicyWithObjectFieldAsMatchField() throws Exception {
+        final String sourceIndex = "source-index";
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("field1");
+        if (randomBoolean()) {
+            mapping.field("type", "object");
+        }
+        mapping.startObject("properties")
+            .startObject("sub")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("field3")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(sourceIndex, Settings.EMPTY, mapping);
+
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.RANGE_TYPE, null, List.of(sourceIndex), "field1", List.of("field2"));
+        String policyName = "test1";
+
+        final long createTime = randomNonNegativeLong();
+        final AtomicReference<Exception> exception = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<ExecuteEnrichPolicyStatus> listener = createTestListener(latch, exception::set);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
+
+        logger.info("Starting policy run");
+        enrichPolicyRunner.run();
+        latch.await();
+        Exception e = exception.get();
+        assertThat(e, notNullValue());
+        assertThat(e.getMessage(), equalTo("Field 'field1' has type [object] which doesn't appear to be a range type"));
+    }
+
     private EnrichPolicyRunner createPolicyRunner(
         String policyName,
         EnrichPolicy policy,
@@ -2046,8 +2088,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(indexSegments.getShards().size(), is(equalTo(1)));
         IndexShardSegments shardSegments = indexSegments.getShards().get(0);
         assertNotNull(shardSegments);
-        assertThat(shardSegments.getShards().length, is(equalTo(1)));
-        ShardSegments shard = shardSegments.getShards()[0];
+        assertThat(shardSegments.shards().length, is(equalTo(1)));
+        ShardSegments shard = shardSegments.shards()[0];
         assertThat(shard.getSegments().size(), is(equalTo(1)));
         Segment segment = shard.getSegments().iterator().next();
         assertThat(segment.getNumDocs(), is(equalTo(expectedDocs)));

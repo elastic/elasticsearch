@@ -21,9 +21,9 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -85,7 +85,7 @@ public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
         return "xpack_security_invalidate_api_key";
     }
 
-    private ConstructingObjectParser<InvalidateApiKeyRequest, Void> getObjectParser(RestRequest request) {
+    private static ConstructingObjectParser<InvalidateApiKeyRequest, Void> getObjectParser(RestRequest request) {
         if (request.getRestApiVersion() == RestApiVersion.V_7) {
             final ConstructingObjectParser<InvalidateApiKeyRequest, Void> objectParser = new ConstructingObjectParser<>(
                 "invalidate_api_key_v7",

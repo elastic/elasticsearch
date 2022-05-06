@@ -7,11 +7,13 @@
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.apache.lucene.util.Counter;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexCompatibility;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -153,12 +155,14 @@ public class SysColumns extends Command {
             tableCat = cluster;
         }
 
+        Version version = Version.fromId(session.configuration().version().id);
         // special case for '%' (translated to *)
         if ("*".equals(idx)) {
             session.indexResolver()
                 .resolveAsSeparateMappings(indexPattern, regex, includeFrozen, emptyMap(), ActionListener.wrap(esIndices -> {
                     List<List<?>> rows = new ArrayList<>();
                     for (EsIndex esIndex : esIndices) {
+                        IndexCompatibility.compatible(esIndex, version);
                         fillInRows(tableCat, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
                     }
                     listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
@@ -170,8 +174,15 @@ public class SysColumns extends Command {
                 List<List<?>> rows = new ArrayList<>();
                 // populate the data only when a target is found
                 if (r.isValid()) {
-                    EsIndex esIndex = r.get();
-                    fillInRows(tableCat, indexName, esIndex.mapping(), null, rows, columnMatcher, mode);
+                    fillInRows(
+                        tableCat,
+                        indexName,
+                        IndexCompatibility.compatible(r, version).get().mapping(),
+                        null,
+                        rows,
+                        columnMatcher,
+                        mode
+                    );
                 }
                 listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
             }, listener::onFailure));

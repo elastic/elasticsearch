@@ -10,7 +10,7 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
+import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -29,7 +29,7 @@ import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.transport.Compression;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -226,7 +226,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testSearchTimeSeriesMode() throws Exception {
-        assumeTrue("time series index sort by _tsid introduced in 8.1.0", getOldClusterVersion().onOrAfter(Version.V_8_1_0));
+        assumeTrue("indexing time series indices changed in 8.2.0", getOldClusterVersion().onOrAfter(Version.V_8_2_0));
         int numDocs;
         if (isRunningAgainstOldCluster()) {
             numDocs = createTimeSeriesModeIndex(1);
@@ -268,7 +268,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testNewReplicasTimeSeriesMode() throws Exception {
-        assumeTrue("time series index sort by _tsid introduced in 8.1.0", getOldClusterVersion().onOrAfter(Version.V_8_1_0));
+        assumeTrue("indexing time series indices changed in 8.2.0", getOldClusterVersion().onOrAfter(Version.V_8_2_0));
         if (isRunningAgainstOldCluster()) {
             createTimeSeriesModeIndex(0);
         } else {
@@ -1591,8 +1591,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/81409")
     public void testSystemIndexMetadataIsUpgraded() throws Exception {
+        assumeTrue(".tasks became a system index in 7.10.0", getOldClusterVersion().onOrAfter(Version.V_7_10_0));
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
             + "access to system indices will be prevented by default";
         if (isRunningAgainstOldCluster()) {
@@ -1849,8 +1849,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             final Request getSettingsRequest = new Request("GET", "/_cluster/settings");
             final Response getSettingsResponse = client().performRequest(getSettingsRequest);
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, getSettingsResponse.getEntity().getContent())) {
-                final ClusterGetSettingsResponse clusterGetSettingsResponse = ClusterGetSettingsResponse.fromXContent(parser);
-                final Settings settings = clusterGetSettingsResponse.getPersistentSettings();
+                final Settings settings = RestClusterGetSettingsResponse.fromXContent(parser).getPersistentSettings();
                 assertThat(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("foo").get(settings), equalTo(Compression.Enabled.TRUE));
             }
         }

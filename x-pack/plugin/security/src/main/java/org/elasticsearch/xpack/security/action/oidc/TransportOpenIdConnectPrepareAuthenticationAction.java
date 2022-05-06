@@ -89,7 +89,7 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
         }
     }
 
-    private void prepareAuthenticationResponse(
+    private static void prepareAuthenticationResponse(
         OpenIdConnectRealm realm,
         String state,
         String nonce,

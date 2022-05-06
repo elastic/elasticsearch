@@ -1,0 +1,99 @@
+[role="xpack"]
+[[security-api-suggest-user-profile]]
+=== Suggest user profile API
+++++
+<titleabbrev>Suggest user profile</titleabbrev>
+++++
+
+beta::[]
+
+Get suggestions for user profiles that match specified search criteria.
+
+[[security-api-suggest-user-profile-request]]
+==== {api-request-title}
+
+`GET /_security/profile/_suggest`
+
+`POST /_security/profile/_suggest`
+
+[[security-api-suggest-user-profile-prereqs]]
+==== {api-prereq-title}
+
+To use this API, you must have the `manage_user_profile` cluster privilege.
+
+[[security-api-suggest-user-profile-query-params]]
+==== {api-query-parms-title}
+
+`data`::
+(Optional, string) Comma-separated list of filters for the `data` field of
+the profile document. To return all content, use `data=*`. To return a
+subset of content, use `data=<key>` to retrieve the content nested under the
+specified `<key>`. Defaults to returning no content.
+
+[[security-api-suggest-user-profile-request-body]]
+==== {api-request-body-title}
+
+`name`::
+(Optional, string)
+Query string used to match name-related fields in <<security-api-activate-user-profile-desc,user profile documents>>. Name-related fields are the user's `username`, `full_name` and `email`.
+
+`size`::
+(Optional, integer)
+Number of profiles to return. Defaults to `10`.
+
+[[security-api-suggest-user-profile-response-body]]
+==== {api-response-body-title}
+
+
+`total`::
+(object)
+Metadata about the number of matching profiles.
+
+`took`::
+(integer)
+Milliseconds it took {es} to execute the request.
+
+`profiles`::
+(array of objects)
+List of profile documents, ordered by relevance, that match the search criteria.
+
+[[security-api-suggest-user-profile-example]]
+==== {api-examples-title}
+
+The following request get suggestions for profile documents with name-related fields
+matching `jack`:
+
+[source,console]
+----
+POST /_security/profile/_suggest
+{
+  "name": "jack"
+}
+----
+// TEST[skip:TODO setup and tests will be possible once the profile uid is predictable]
+
+The API returns:
+
+[source,js]
+----
+{
+  "total": {
+    "value": 1,
+    "relation": "eq"
+  },
+  "took": 42,
+  "profiles": [
+    {
+      "uid": "u_kd2JMqwUQwSCCOxMv7M1vw",
+      "user": {
+        "username": "jacknich",
+        "full_name": "Jack Nicholson",
+        "email": "jacknich@example.org",
+        "roles": [ "admin", "other_role1" ],
+        "realm_name": "native1"
+      }
+    }
+  ]
+}
+----
+// NOTCONSOLE

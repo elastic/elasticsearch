@@ -2,6 +2,7 @@
     "properties" : {
         "bool" : { "type" : "boolean" },
         "int" : { "type" : "integer" },
+        "unsigned_long" : { "type" : "unsigned_long" },
         "text" : { "type" : "text" },
         "keyword" : { "type" : "keyword" },
         "unsupported" : { "type" : "ip_range" },

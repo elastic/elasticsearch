@@ -9,12 +9,11 @@
 package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -321,6 +320,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.singletonList("foo"),
             false,
             PluginType.ISOLATED,
@@ -345,6 +345,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Arrays.asList("bar", "other"),
             false,
             PluginType.ISOLATED,
@@ -359,6 +360,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.singletonList("baz"),
             false,
             PluginType.ISOLATED,
@@ -373,6 +375,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.singletonList("foo"),
             false,
             PluginType.ISOLATED,
@@ -387,6 +390,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.emptyList(),
             false,
             PluginType.ISOLATED,
@@ -408,6 +412,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.emptyList(),
             false,
             PluginType.ISOLATED,
@@ -429,6 +434,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.emptyList(),
             false,
             PluginType.ISOLATED,
@@ -444,6 +450,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.emptyList(),
             false,
             PluginType.ISOLATED,
@@ -459,6 +466,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.emptyList(),
             false,
             PluginType.ISOLATED,
@@ -480,6 +488,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.singletonList("dne"),
             false,
             PluginType.ISOLATED,
@@ -504,6 +513,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.emptyList(),
             false,
             PluginType.ISOLATED,
@@ -519,6 +529,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.singletonList("common"),
             false,
             PluginType.ISOLATED,
@@ -534,6 +545,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.singletonList("common"),
             false,
             PluginType.ISOLATED,
@@ -549,6 +561,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.singletonList("grandparent"),
             false,
             PluginType.ISOLATED,
@@ -571,6 +584,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.emptyList(),
             false,
             PluginType.ISOLATED,
@@ -586,6 +600,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.singletonList("dep"),
             false,
             PluginType.ISOLATED,
@@ -656,6 +671,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.singletonList("dep"),
             false,
             PluginType.ISOLATED,
@@ -688,6 +704,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Arrays.asList("dep1", "dep2"),
             false,
             PluginType.ISOLATED,
@@ -718,6 +735,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.emptyList(),
             false,
             PluginType.ISOLATED,
@@ -748,6 +766,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "Dummy",
+            null,
             Arrays.asList("extendedPlugin"),
             false,
             PluginType.ISOLATED,
@@ -783,6 +802,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.singletonList("dep"),
             false,
             PluginType.ISOLATED,
@@ -819,6 +839,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Arrays.asList("dep1", "dep2"),
             false,
             PluginType.ISOLATED,
@@ -855,6 +876,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Arrays.asList("dep1", "dep2"),
             false,
             PluginType.ISOLATED,
@@ -888,6 +910,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.singletonList("dep"),
             false,
             PluginType.ISOLATED,
@@ -920,6 +943,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.CURRENT,
             "1.8",
             "MyPlugin",
+            null,
             Collections.singletonList("dep"),
             false,
             PluginType.ISOLATED,
@@ -998,6 +1022,7 @@ public class PluginsServiceTests extends ESTestCase {
             Version.fromId(6000099),
             "1.8",
             "FakePlugin",
+            null,
             Collections.emptyList(),
             false,
             PluginType.ISOLATED,
@@ -1014,8 +1039,9 @@ public class PluginsServiceTests extends ESTestCase {
             "desc",
             "1.0",
             Version.CURRENT,
-            "1000000.0",
+            "1000",
             "FakePlugin",
+            null,
             Collections.emptyList(),
             false,
             PluginType.ISOLATED,
@@ -1144,9 +1170,10 @@ public class PluginsServiceTests extends ESTestCase {
         TestExtensiblePlugin extensiblePlugin = new TestExtensiblePlugin();
         PluginsService.loadExtensions(
             List.of(
-                Tuple.tuple(
-                    new PluginInfo("extensible", null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
-                    extensiblePlugin
+                new PluginsService.LoadedPlugin(
+                    new PluginInfo("extensible", null, null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
+                    extensiblePlugin,
+                    null
                 )
             )
         );
@@ -1158,13 +1185,28 @@ public class PluginsServiceTests extends ESTestCase {
         TestPlugin testPlugin = new TestPlugin();
         PluginsService.loadExtensions(
             List.of(
-                Tuple.tuple(
-                    new PluginInfo("extensible", null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
-                    extensiblePlugin
+                new PluginsService.LoadedPlugin(
+                    new PluginInfo("extensible", null, null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
+                    extensiblePlugin,
+                    null
                 ),
-                Tuple.tuple(
-                    new PluginInfo("test", null, null, null, null, null, List.of("extensible"), false, PluginType.ISOLATED, "", false),
-                    testPlugin
+                new PluginsService.LoadedPlugin(
+                    new PluginInfo(
+                        "test",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        List.of("extensible"),
+                        false,
+                        PluginType.ISOLATED,
+                        "",
+                        false
+                    ),
+                    testPlugin,
+                    null
                 )
             )
         );

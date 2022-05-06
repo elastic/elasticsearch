@@ -13,7 +13,9 @@ import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -476,7 +478,7 @@ public final class IndexSettings {
      */
     public static final Setting<Instant> TIME_SERIES_START_TIME = Setting.dateSetting(
         "index.time_series.start_time",
-        Instant.ofEpochMilli(0),
+        Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999),
         v -> {},
         Property.IndexScope,
         Property.Final
@@ -518,7 +520,7 @@ public final class IndexSettings {
         IndexMode.class,
         "index.mode",
         IndexMode.STANDARD,
-        new Setting.Validator<IndexMode>() {
+        new Setting.Validator<>() {
             @Override
             public void validate(IndexMode value) {}
 
@@ -634,6 +636,8 @@ public final class IndexSettings {
      */
     private volatile int maxRegexLength;
 
+    private final IndexRouting indexRouting;
+
     /**
      * Returns the default search fields for this index.
      */
@@ -702,7 +706,7 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
-        this.timestampBounds = TIME_SERIES_START_TIME.exists(settings) ? new TimestampBounds(scopedSettings) : null;
+        this.timestampBounds = mode.getTimestampBound(scopedSettings);
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -745,6 +749,7 @@ public final class IndexSettings {
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
+        indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(
@@ -938,6 +943,16 @@ public final class IndexSettings {
         if (version.equals(newIndexVersion) == false) {
             throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + newIndexVersion);
         }
+        Version newCompatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(newSettings);
+        Version compatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
+        if (compatibilityVersion.equals(newCompatibilityVersion) == false) {
+            throw new IllegalArgumentException(
+                "compatibility version mismatch on settings update expected: "
+                    + compatibilityVersion
+                    + " but was: "
+                    + newCompatibilityVersion
+            );
+        }
         final String newUUID = newSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
         if (newUUID.equals(getUUID()) == false) {
             throw new IllegalArgumentException("uuid mismatch on settings update expected: " + getUUID() + " but was: " + newUUID);
@@ -969,7 +984,9 @@ public final class IndexSettings {
         if (left.equals(right)) {
             return true;
         }
-        return left.getByPrefix(IndexMetadata.INDEX_SETTING_PREFIX).equals(right.getByPrefix(IndexMetadata.INDEX_SETTING_PREFIX));
+        return left.getByPrefix(IndexMetadata.INDEX_SETTING_PREFIX).equals(right.getByPrefix(IndexMetadata.INDEX_SETTING_PREFIX))
+            && left.getByPrefix(AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX)
+                .equals(right.getByPrefix(AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX));
     }
 
     /**
@@ -1333,5 +1350,13 @@ public final class IndexSettings {
      */
     public TimestampBounds getTimestampBounds() {
         return timestampBounds;
+    }
+
+    /**
+     * The way that documents are routed on the coordinating
+     * node when being sent to shards of this index.
+     */
+    public IndexRouting getIndexRouting() {
+        return indexRouting;
     }
 }

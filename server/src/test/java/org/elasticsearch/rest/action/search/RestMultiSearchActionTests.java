@@ -21,7 +21,6 @@ import org.mockito.Mockito;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -62,9 +61,4 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
         assertCriticalWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
 
-    private Map<String, List<String>> headersWith(String accept, List<String> value) {
-        Map<String, List<String>> headers = new HashMap<>();
-        headers.put(accept, value);
-        return headers;
-    }
 }

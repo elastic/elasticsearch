@@ -51,20 +51,18 @@ import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.junit.Before;
@@ -82,8 +80,8 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -97,6 +95,7 @@ import static org.mockito.Mockito.mock;
  */
 public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
+    private static final RestrictedIndices EMPTY_RESTRICTED_INDICES = new RestrictedIndices(Automatons.EMPTY);
     private static boolean anonymousEnabled;
     private static Hasher hasher;
 
@@ -267,7 +266,24 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertFalse("role should not exist after being deleted", resp2.hasRoles());
     }
 
-    public void testAddUserAndRoleThenAuth() throws Exception {
+    public void testAddUserAndRoleThenAuth() {
+        testAddUserAndRoleThenAuth("joe");
+    }
+
+    public void testAddUserWithInternalUsernameAndRoleThenAuth() {
+        testAddUserAndRoleThenAuth(AuthenticationTestHelper.randomInternalUsername());
+    }
+
+    public void testAuthWithInternalUsernameFailsWithoutCorrespondingUser() {
+        String token = basicAuthHeaderValue(AuthenticationTestHelper.randomInternalUsername(), new SecureString("s3krit-password"));
+        ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get()
+        );
+        assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
+    }
+
+    private void testAddUserAndRoleThenAuth(String username) {
         logger.error("--> creating role");
         preparePutRole("test_role").cluster("all")
             .addIndices(
@@ -280,11 +296,11 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             )
             .get();
         logger.error("--> creating user");
-        preparePutUser("joe", "s3krit-password", hasher, "test_role").get();
+        preparePutUser(username, "s3krit-password", hasher, "test_role").get();
         logger.error("--> waiting for .security index");
         ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("--> retrieving user");
-        GetUsersResponse resp = new GetUsersRequestBuilder(client()).usernames("joe").get();
+        GetUsersResponse resp = new GetUsersRequestBuilder(client()).usernames(username).get();
         assertTrue("user should exist", resp.hasUsers());
 
         createIndex("idx");
@@ -292,7 +308,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         // Index a document with the default test user
         client().prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
 
-        String token = basicAuthHeaderValue("joe", new SecureString("s3krit-password"));
+        String token = basicAuthHeaderValue(username, new SecureString("s3krit-password"));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
         assertEquals(1L, searchResp.getHits().getTotalHits().value);
@@ -420,7 +436,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
             assertTrue(
                 "any cluster permission should be authorized",
-                Role.builder(getRolesResponse.roles()[0], null, Automatons.EMPTY)
+                Role.builder(getRolesResponse.roles()[0], null, EMPTY_RESTRICTED_INDICES)
                     .build()
                     .cluster()
                     .check("cluster:admin/foo", request, authentication)
@@ -441,7 +457,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
             assertFalse(
                 "no cluster permission should be authorized",
-                Role.builder(getRolesResponse.roles()[0], null, Automatons.EMPTY)
+                Role.builder(getRolesResponse.roles()[0], null, EMPTY_RESTRICTED_INDICES)
                     .build()
                     .cluster()
                     .check("cluster:admin/bar", request, authentication)
@@ -511,7 +527,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             .setFeatureStates(SECURITY_FEATURE_NAME)
             .get();
         assertThat(response.status(), equalTo(RestStatus.OK));
-        assertThat(response.getRestoreInfo().indices(), contains(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7));
+        assertThat(response.getRestoreInfo().indices(), contains(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7));
         // the realm cache should clear itself but we don't wish to race it
         new ClearRealmCacheRequestBuilder(client()).get();
         // users and roles are retrievable
@@ -681,10 +697,10 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         IndicesStatsResponse response = client().admin().indices().prepareStats("foo", SECURITY_MAIN_ALIAS).get();
         assertThat(response.getFailedShards(), is(0));
         assertThat(response.getIndices().size(), is(2));
-        assertThat(response.getIndices().get(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7), notNullValue());
+        assertThat(response.getIndices().get(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7), notNullValue());
         assertThat(
-            response.getIndices().get(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex(),
-            is(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
+            response.getIndices().get(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex(),
+            is(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7)
         );
     }
 
@@ -718,19 +734,6 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             () -> preparePutUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar-password", hasher).get()
         );
         assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
-
-        final String internalUser = randomFrom(SystemUser.NAME, XPackUser.NAME, XPackSecurityUser.NAME, AsyncSearchUser.NAME);
-        exception = expectThrows(IllegalArgumentException.class, () -> preparePutUser(internalUser, "foobar-password", hasher).get());
-        assertThat(exception.getMessage(), containsString("user [" + internalUser + "] is internal"));
-
-        exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new ChangePasswordRequestBuilder(client()).username(internalUser).password("foobar-password".toCharArray(), hasher).get()
-        );
-        assertThat(exception.getMessage(), containsString("user [" + internalUser + "] is internal"));
-
-        exception = expectThrows(IllegalArgumentException.class, () -> new DeleteUserRequestBuilder(client()).username(internalUser).get());
-        assertThat(exception.getMessage(), containsString("user [" + internalUser + "] is internal"));
 
         // get should work
         GetUsersResponse response = new GetUsersRequestBuilder(client()).usernames(username).get();
@@ -987,4 +990,5 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     private PutRoleRequestBuilder preparePutRole(String name) {
         return new PutRoleRequestBuilder(client()).name(name);
     }
+
 }

@@ -14,6 +14,7 @@ dependencies {
   compileOnly project(path: ':modules:legacy-geo')
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
+  api project(":libs:elasticsearch-h3")
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('vector-tile'))
 }

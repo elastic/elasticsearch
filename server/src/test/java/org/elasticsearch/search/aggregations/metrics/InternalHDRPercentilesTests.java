@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<InternalHDRPercentiles> {
 
@@ -46,6 +48,20 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
             totalCount += ranks.state.getTotalCount();
         }
         assertEquals(totalCount, reduced.state.getTotalCount());
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalHDRPercentiles sampled, InternalHDRPercentiles reduced, SamplingContext samplingContext) {
+        Iterator<Percentile> it1 = sampled.iterator();
+        Iterator<Percentile> it2 = reduced.iterator();
+        while (it1.hasNext() && it2.hasNext()) {
+            assertThat(it1.next(), equalTo(it2.next()));
+        }
     }
 
     @Override

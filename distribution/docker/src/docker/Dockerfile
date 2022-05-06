@@ -26,32 +26,6 @@ ARG BASE_TAG=8.5
 <% } %>
 
 ################################################################################
-# Build stage 0 `zlib`:
-# Compile zlib for the current architecture
-################################################################################
-
-FROM ${base_image} AS zlib
-
-<% if (docker_base == 'default' || docker_base == 'cloud') { %>
-RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEND=noninteractive ${package_manager} install -y curl gcc make") %>
-<% } else { %>
-RUN <%= retry.loop(package_manager, "${package_manager} install -y curl gcc make tar gzip") %>
-<% } %>
-
-<%
-// Fetch the zlib source.  Keep this command on one line - it is replaced
-// with a `COPY` during local builds.
-%>
-WORKDIR /tmp
-RUN curl --retry 10 -S -L -o zlib-${zlib_version}.tar.gz https://github.com/cloudflare/zlib/archive/refs/tags/v${zlib_version}.tar.gz
-RUN echo "7e393976368975446b263ae4143fb404bc33bf3b436e72007700b5b88e5be332cd461cdec42d31a4b6dffdca2368550f01b9fa1165d81c0aa818bbf2b1ac191e zlib-${zlib_version}.tar.gz" \\
-      | sha512sum --check -
-RUN tar xf zlib-${zlib_version}.tar.gz
-
-WORKDIR /tmp/zlib-${zlib_version}
-RUN ./configure --prefix=/usr/local/cloudflare-zlib && make && make install
-
-################################################################################
 # Build stage 1 `builder`:
 # Extract Elasticsearch artifact
 ################################################################################
@@ -162,7 +136,6 @@ RUN chmod -R 0555 /opt/plugins
 ################################################################################
 # Build stage 2 (the actual Elasticsearch image):
 #
-# Copy zlib from stage 2
 # Copy elasticsearch from stage 1
 # Add entrypoint
 ################################################################################
@@ -224,14 +197,12 @@ WORKDIR /usr/share/elasticsearch
 
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
-COPY --from=zlib --chown=0:0 /usr/local/cloudflare-zlib /usr/local/cloudflare-zlib
 
 <% if (docker_base == 'cloud') { %>
 COPY --from=builder --chown=0:0 /opt /opt
 <% } %>
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
-ENV ES_ZLIB_PATH /usr/local/cloudflare-zlib/lib
 
 COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 

@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.NotMasterException;
@@ -32,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
@@ -112,7 +112,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.local()) {
             new LocalMasterServiceTask(request.waitForEvents()) {
                 @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                protected void onPublicationComplete() {
                     final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());
                     final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
                     request.timeout(newTimeout);
@@ -133,7 +133,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             }.submit(clusterService.getMasterService(), source);
         } else {
             final TimeValue taskTimeout = TimeValue.timeValueMillis(Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis()));
-            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(request.waitForEvents(), taskTimeout) {
+            submitUnbatchedTask(source, new ClusterStateUpdateTask(request.waitForEvents(), taskTimeout) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return currentState;
@@ -174,8 +174,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                         listener.onFailure(e);
                     }
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            });
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private void executeHealth(

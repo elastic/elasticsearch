@@ -21,11 +21,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
@@ -44,7 +44,6 @@ import org.opensaml.xmlsec.signature.support.SignatureConstants;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -463,8 +462,8 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         return Base64.getEncoder().encodeToString(bytes);
     }
 
-    private static String urlEncode(String param) throws UnsupportedEncodingException {
-        return URLEncoder.encode(param, StandardCharsets.UTF_8.name());
+    private static String urlEncode(String param) {
+        return URLEncoder.encode(param, StandardCharsets.UTF_8);
     }
 
     private String deflateAndBase64Encode(SAMLObject message) throws Exception {

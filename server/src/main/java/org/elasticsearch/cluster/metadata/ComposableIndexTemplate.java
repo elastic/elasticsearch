@@ -9,8 +9,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,7 +37,7 @@ import static org.elasticsearch.cluster.metadata.DataStream.TimestampField.FIXED
  * ids corresponding to component templates that should be composed in order when creating a new
  * index.
  */
-public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTemplate> implements ToXContentObject {
+public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTemplate>, ToXContentObject {
     private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField PRIORITY = new ParseField("priority");
@@ -91,7 +91,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     private final Boolean allowAutoCreate;
 
     static Diff<ComposableIndexTemplate> readITV2DiffFrom(StreamInput in) throws IOException {
-        return AbstractDiffable.readDiffFrom(ComposableIndexTemplate::new, in);
+        return SimpleDiffable.readDiffFrom(ComposableIndexTemplate::new, in);
     }
 
     public static ComposableIndexTemplate parse(XContentParser parser) throws IOException {
@@ -216,7 +216,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         out.writeOptionalStringCollection(this.componentTemplates);
         out.writeOptionalVLong(this.priority);
         out.writeOptionalVLong(this.version);
-        out.writeMap(this.metadata);
+        out.writeGenericMap(this.metadata);
         out.writeOptionalWriteable(dataStreamTemplate);
         out.writeOptionalBoolean(allowAutoCreate);
     }
@@ -309,7 +309,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
-            a -> new DataStreamTemplate(a[0] != null && (boolean) a[0], a[1] != null && (boolean) a[1])
+            args -> new DataStreamTemplate(args[0] != null && (boolean) args[0], args[1] != null && (boolean) args[1])
         );
 
         static {
@@ -336,9 +336,17 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             } else {
                 allowCustomRouting = false;
             }
+            if (in.getVersion().onOrAfter(Version.V_8_1_0) && in.getVersion().before(Version.V_8_3_0)) {
+                // Accidentally included index_mode to binary node to node protocol in previous releases.
+                // (index_mode is removed and was part of code based when tsdb was behind a feature flag)
+                // (index_mode was behind a feature in the xcontent parser, so it could never actually used)
+                // (this used to be an optional enum, so just need to (de-)serialize a false boolean value here)
+                boolean value = in.readBoolean();
+                assert value == false : "expected false, because this used to be an optional enum that never got set";
+            }
         }
 
-        public String getTimestampField() {
+        public static String getTimestampField() {
             return FIXED_TIMESTAMP_FIELD;
         }
 
@@ -373,6 +381,10 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             out.writeBoolean(hidden);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
                 out.writeBoolean(allowCustomRouting);
+            }
+            if (out.getVersion().onOrAfter(Version.V_8_1_0) && out.getVersion().before(Version.V_8_3_0)) {
+                // See comment in constructor.
+                out.writeBoolean(false);
             }
         }
 

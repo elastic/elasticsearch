@@ -1,0 +1,56 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0; you may not use this file except in compliance with the Elastic License
+# 2.0.
+#
+class org.elasticsearch.xpack.vectors.query.DenseVectorScriptDocValues {
+    float[] getVectorValue()
+    float getMagnitude()
+}
+class org.elasticsearch.script.ScoreScript @no_import {
+}
+
+class org.elasticsearch.xpack.vectors.query.DenseVector {
+    DenseVector EMPTY
+    float getMagnitude()
+
+    # handle List<Number> and float[] arguments
+    double dotProduct(Object)
+    double l1Norm(Object)
+    double l2Norm(Object)
+    double cosineSimilarity(Object)
+
+    float[] getVector()
+    boolean isEmpty()
+    int getDims()
+    int size()
+}
+
+# implementation of DenseVector
+class org.elasticsearch.xpack.vectors.query.BinaryDenseVector {
+}
+
+# implementation of DenseVector
+class org.elasticsearch.xpack.vectors.query.KnnDenseVector {
+}
+
+class org.elasticsearch.xpack.vectors.query.DenseVectorDocValuesField {
+    DenseVector get()
+    DenseVector get(DenseVector)
+}
+
+# implementation of DenseVectorDocValuesField
+class org.elasticsearch.xpack.vectors.query.KnnDenseVectorDocValuesField {
+}
+
+# implementation of DenseVectorDocValuesField
+class org.elasticsearch.xpack.vectors.query.BinaryDenseVectorDocValuesField {
+}
+
+static_import {
+    double l1norm(org.elasticsearch.script.ScoreScript, List, String) bound_to org.elasticsearch.xpack.vectors.query.ScoreScriptUtils$L1Norm
+    double l2norm(org.elasticsearch.script.ScoreScript, List, String) bound_to org.elasticsearch.xpack.vectors.query.ScoreScriptUtils$L2Norm
+    double cosineSimilarity(org.elasticsearch.script.ScoreScript, List, String) bound_to org.elasticsearch.xpack.vectors.query.ScoreScriptUtils$CosineSimilarity
+    double dotProduct(org.elasticsearch.script.ScoreScript, List, String) bound_to org.elasticsearch.xpack.vectors.query.ScoreScriptUtils$DotProduct
+}

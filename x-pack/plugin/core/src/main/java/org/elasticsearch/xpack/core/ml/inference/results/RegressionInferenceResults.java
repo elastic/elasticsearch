@@ -69,7 +69,7 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
         return featureImportances.stream()
             .sorted((l, r) -> Double.compare(Math.abs(r.getImportance()), Math.abs(l.getImportance())))
             .limit(numTopFeatures)
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
     }
 
     public RegressionInferenceResults(StreamInput in) throws IOException {

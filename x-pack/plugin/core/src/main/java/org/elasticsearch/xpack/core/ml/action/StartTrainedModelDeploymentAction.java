@@ -27,7 +27,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
@@ -36,9 +36,9 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.ml.MlTasks.trainedModelAllocationTaskDescription;
+import static org.elasticsearch.xpack.core.ml.MlTasks.trainedModelAssignmentTaskDescription;
 
-public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedModelAllocationAction.Response> {
+public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedModelAssignmentAction.Response> {
 
     public static final StartTrainedModelDeploymentAction INSTANCE = new StartTrainedModelDeploymentAction();
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/start";
@@ -47,13 +47,17 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
     /**
      * This has been found to be approximately 300MB on linux by manual testing.
-     * We also subtract 30MB that we always add as overhead (see MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD).
+     * 30MB of this is accounted for via the space set aside to load the code into memory
+     * that we always add as overhead (see MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD).
+     * That would result in 270MB here, although the problem with this is that it would
+     * mean few models would fit on a 2GB ML node in Cloud with logging and metrics enabled.
+     * Therefore we push the boundary a bit and require a 240MB per-model overhead.
      * TODO Check if it is substantially different in other platforms.
      */
-    private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(270);
+    private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(240);
 
     public StartTrainedModelDeploymentAction() {
-        super(NAME, CreateTrainedModelAllocationAction.Response::new);
+        super(NAME, CreateTrainedModelAssignmentAction.Response::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -242,9 +246,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     public static class TaskParams implements MlTaskParams, Writeable, ToXContentObject {
 
         // TODO add support for other roles? If so, it may have to be an instance method...
-        // NOTE, whatever determines allocation should not be dynamically set on the node
-        // Otherwise allocation logic might fail
-        public static boolean mayAllocateToNode(DiscoveryNode node) {
+        // NOTE, whatever determines assignment should not be dynamically set on the node
+        // Otherwise assignment logic might fail
+        public static boolean mayAssignToNode(DiscoveryNode node) {
             return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE) && node.getVersion().onOrAfter(VERSION_INTRODUCED);
         }
 
@@ -381,7 +385,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 if (Strings.isAllOrWildcard(expectedId)) {
                     return true;
                 }
-                String expectedDescription = trainedModelAllocationTaskDescription(expectedId);
+                String expectedDescription = trainedModelAssignmentTaskDescription(expectedId);
                 return expectedDescription.equals(task.getDescription());
             }
             return false;

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -15,7 +15,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-public interface InferenceConfigUpdate extends NamedWriteable {
+public interface InferenceConfigUpdate extends VersionedNamedWriteable {
     Set<String> RESERVED_ML_FIELD_NAMES = new HashSet<>(
         Arrays.asList(WarningInferenceResults.WARNING.getPreferredName(), TrainedModelConfig.MODEL_ID.getPreferredName())
     );

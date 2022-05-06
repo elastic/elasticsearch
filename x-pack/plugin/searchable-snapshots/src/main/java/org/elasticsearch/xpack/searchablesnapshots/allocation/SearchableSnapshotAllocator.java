@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -44,7 +45,6 @@ import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.ReplicaShardAllocator;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction;
@@ -109,8 +109,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     public void beforeAllocation(RoutingAllocation allocation) {
         boolean hasPartialIndices = false;
         for (IndexMetadata indexMetadata : allocation.metadata()) {
-            final Settings indexSettings = indexMetadata.getSettings();
-            if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(indexSettings)) {
+            if (indexMetadata.isPartialSearchableSnapshot()) {
                 hasPartialIndices = true;
                 break;
             }
@@ -343,9 +342,24 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 );
                 return AllocateUnassignedDecision.yes(nodeWithHighestMatch.node(), null, nodeDecisions, true);
             }
+        } else if (isDelayedDueToNodeRestart(allocation, shardRouting)) {
+            return ReplicaShardAllocator.delayedDecision(shardRouting, allocation, logger, nodeDecisions);
         }
+
         // TODO: do we need handling of delayed allocation for leaving replicas here?
         return AllocateUnassignedDecision.NOT_TAKEN;
+    }
+
+    private boolean isDelayedDueToNodeRestart(RoutingAllocation allocation, ShardRouting shardRouting) {
+        if (shardRouting.unassignedInfo().isDelayed()) {
+            String lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
+            if (lastAllocatedNodeId != null) {
+                SingleNodeShutdownMetadata nodeShutdownMetadata = allocation.nodeShutdowns().get(lastAllocatedNodeId);
+                return nodeShutdownMetadata != null && nodeShutdownMetadata.getType() == SingleNodeShutdownMetadata.Type.RESTART;
+            }
+        }
+
+        return false;
     }
 
     @Override
@@ -371,7 +385,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     @Override
     public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
         for (FailedShard failedShard : failedShards) {
-            asyncFetchStore.remove(failedShard.getRoutingEntry().shardId());
+            asyncFetchStore.remove(failedShard.routingEntry().shardId());
         }
     }
 
@@ -462,7 +476,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         return augmented;
     }
 
-    private MatchingNodes findMatchingNodes(
+    private static MatchingNodes findMatchingNodes(
         ShardRouting shard,
         RoutingAllocation allocation,
         AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> data,

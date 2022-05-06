@@ -59,7 +59,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -164,7 +163,7 @@ public class WatcherService {
                 || (watcherIndexMetadata.getState() == IndexMetadata.State.OPEN
                     && state.routingTable().index(watcherIndexMetadata.getIndex()).allPrimaryShardsActive());
         } catch (IllegalStateException e) {
-            logger.debug("error validating to start watcher", e);
+            logger.warn("Validation error: cannot start watcher", e);
             return false;
         }
     }
@@ -209,7 +208,7 @@ public class WatcherService {
             logger.warn("missing watcher index templates");
         }
         // this method contains the only async code block, being called by the cluster state listener
-        // the reason for this is, that loading he watches is done in a sync manner and thus cannot be done on the cluster state listener
+        // the reason for this is that loading the watches is done in a sync manner and thus cannot be done on the cluster state listener
         // thread
         //
         // this method itself is called by the cluster state listener, so will never be called in parallel
@@ -355,7 +354,7 @@ public class WatcherService {
                     .map(AllocationId::getId)
                     .filter(Objects::nonNull)
                     .sorted()
-                    .collect(Collectors.toList());
+                    .toList();
 
                 sortedShards.put(localShardRouting.getId(), sortedAllocationIds);
             }
@@ -385,13 +384,7 @@ public class WatcherService {
                             watches.add(watch);
                         }
                     } catch (Exception e) {
-                        logger.error(
-                            (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                "couldn't load watch [{}], ignoring it...",
-                                id
-                            ),
-                            e
-                        );
+                        logger.error(new ParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);
                     }
                 }
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());

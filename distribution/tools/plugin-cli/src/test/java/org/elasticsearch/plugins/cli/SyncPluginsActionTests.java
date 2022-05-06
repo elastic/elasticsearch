@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.plugins.cli;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
@@ -57,7 +57,7 @@ public class SyncPluginsActionTests extends ESTestCase {
         Files.createDirectories(env.configFile());
         Files.createDirectories(env.pluginsFile());
 
-        terminal = new MockTerminal();
+        terminal = MockTerminal.create();
         action = new SyncPluginsAction(terminal, env);
         config = new PluginsConfig();
     }

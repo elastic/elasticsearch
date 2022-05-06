@@ -15,8 +15,7 @@ apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 ext.docsFileTree = fileTree(projectDir) {
-  // No snippets in here!
-  exclude 'build.gradle'
+  include '**/*.asciidoc'
   // That is where the snippets go, not where they come from!
   exclude 'build/**'
   exclude 'build-idea/**'

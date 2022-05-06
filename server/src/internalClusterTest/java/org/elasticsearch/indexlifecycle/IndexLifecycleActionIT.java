@@ -25,7 +25,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.client.internal.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.internal.Requests.createIndexRequest;
@@ -239,9 +238,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
     }
 
     private void assertNodesPresent(RoutingNodes routingNodes, String... nodes) {
-        final Set<String> keySet = StreamSupport.stream(routingNodes.spliterator(), false)
-            .map(RoutingNode::nodeId)
-            .collect(Collectors.toSet());
+        final Set<String> keySet = routingNodes.stream().map(RoutingNode::nodeId).collect(Collectors.toSet());
         assertThat(keySet, containsInAnyOrder(nodes));
     }
 }

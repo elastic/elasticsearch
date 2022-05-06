@@ -13,8 +13,11 @@ import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
@@ -42,7 +45,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
 
     // visible for testing
     Elasticsearch() {
-        super("Starts Elasticsearch", () -> {}); // we configure logging later so we override the base class from configuring logging
+        super("Starts Elasticsearch"); // we configure logging later so we override the base class from configuring logging
         versionOption = parser.acceptsAll(Arrays.asList("V", "version"), "Prints Elasticsearch version information and exits");
         daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"), "Starts Elasticsearch in the background")
             .availableUnless(versionOption);
@@ -58,7 +61,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
     /**
      * Main entry point for starting elasticsearch
      */
-    public static void main(final String[] args) throws Exception {
+    public static void main(final String[] args) {
         overrideDnsCachePolicyProperties();
         org.elasticsearch.bootstrap.Security.prepopulateSecurityCaller();
 
@@ -77,9 +80,23 @@ class Elasticsearch extends EnvironmentAwareCommand {
         });
         LogConfigurator.registerErrorListener();
         final Elasticsearch elasticsearch = new Elasticsearch();
-        int status = main(args, elasticsearch, Terminal.DEFAULT);
+        final Terminal terminal = Terminal.DEFAULT;
+        int status;
+        try {
+            status = main(args, elasticsearch, terminal);
+        } catch (Exception e) {
+            status = 1; // mimic JDK exit code on exception
+            if (System.getProperty("es.logs.base_path") != null) {
+                // this is a horrible hack to see if logging has been initialized
+                // we need to find a better way!
+                Logger logger = LogManager.getLogger(Elasticsearch.class);
+                logger.error("fatal exception while booting Elasticsearch", e);
+            }
+            e.printStackTrace(terminal.getErrorWriter());
+        }
         if (status != ExitCodes.OK) {
             printLogsSuggestion();
+            terminal.flush();
             exit(status);
         }
     }
@@ -119,20 +136,19 @@ class Elasticsearch extends EnvironmentAwareCommand {
     }
 
     static int main(final String[] args, final Elasticsearch elasticsearch, final Terminal terminal) throws Exception {
-        return elasticsearch.main(args, terminal);
+        return elasticsearch.main(args, terminal, ProcessInfo.fromSystem());
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws UserException {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws UserException {
         if (options.nonOptionArguments().isEmpty() == false) {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }
         if (options.has(versionOption)) {
             final String versionOutput = String.format(
                 Locale.ROOT,
-                "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
-                Build.CURRENT.getQualifiedVersion(),
-                Build.CURRENT.flavor().displayName(),
+                "Version: %s, Build: %s/%s/%s, JVM: %s",
+                Build.CURRENT.qualifiedVersion(),
                 Build.CURRENT.type().displayName(),
                 Build.CURRENT.hash(),
                 Build.CURRENT.date(),

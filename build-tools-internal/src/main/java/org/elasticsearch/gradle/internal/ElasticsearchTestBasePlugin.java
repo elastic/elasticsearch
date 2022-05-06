@@ -187,7 +187,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
                     FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getRuntimeClasspath();
                     // Add any "shadow" dependencies. These are dependencies that are *not* bundled into the shadow JAR
-                    Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME());
+                    Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.CONFIGURATION_NAME);
                     // Add the shadow JAR artifact itself
                     FileCollection shadowJar = project.files(project.getTasks().named("shadowJar"));
                     FileCollection testRuntime = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();

@@ -8,6 +8,10 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -17,6 +21,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -56,15 +61,52 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
     }
 
     public void testDatePrepareRoundingWithQuery() throws IOException {
+        datePrepareRoundingWithQueryFoundCase(Function.identity());
+    }
+
+    public void testDatePrepareRoundingWithQueryWrappedInBoost() throws IOException {
+        datePrepareRoundingWithQueryFoundCase(q -> new BoostQuery(q, 1.0F));
+    }
+
+    public void testDatePrepareRoundingWithQueryWrappedInConstantScore() throws IOException {
+        datePrepareRoundingWithQueryFoundCase(q -> new ConstantScoreQuery(q));
+    }
+
+    private void datePrepareRoundingWithQueryFoundCase(Function<Query, Query> wrap) throws IOException {
         long min = randomLongBetween(100000, 1000000);   // The minimum has to be fairly large or we might accidentally think its a year....
         long max = randomLongBetween(min + 10, 100000000000L);
         MapperService mapperService = dateMapperService();
-        Query query = mapperService.fieldType("field")
-            .rangeQuery(min, max, true, true, ShapeRelation.CONTAINS, null, null, createSearchExecutionContext(mapperService));
+        Query query = wrap.apply(
+            mapperService.fieldType("field")
+                .rangeQuery(min, max, true, true, ShapeRelation.CONTAINS, null, null, createSearchExecutionContext(mapperService))
+        );
         withAggregationContext(null, mapperService, List.of(), query, context -> {
             Rounding rounding = mock(Rounding.class);
             CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
             verify(rounding).prepare(min, max);
+        });
+    }
+
+    public void testDatePrepareRoundingWithQueryWrappedInMustNot() throws IOException {
+        datePrepareRoundingWithQueryNotFoundCase(q -> new BooleanQuery.Builder().add(q, Occur.MUST_NOT).build());
+    }
+
+    public void testDatePrepareRoundingWithQueryWrappedInShould() throws IOException {
+        datePrepareRoundingWithQueryNotFoundCase(q -> new BooleanQuery.Builder().add(q, Occur.MUST_NOT).build());
+    }
+
+    private void datePrepareRoundingWithQueryNotFoundCase(Function<Query, Query> wrap) throws IOException {
+        long min = randomLongBetween(100000, 1000000);   // The minimum has to be fairly large or we might accidentally think its a year....
+        long max = randomLongBetween(min + 10, 100000000000L);
+        MapperService mapperService = dateMapperService();
+        Query query = wrap.apply(
+            mapperService.fieldType("field")
+                .rangeQuery(min, max, true, true, ShapeRelation.CONTAINS, null, null, createSearchExecutionContext(mapperService))
+        );
+        withAggregationContext(null, mapperService, List.of(), query, context -> {
+            Rounding rounding = mock(Rounding.class);
+            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
+            verify(rounding).prepareForUnknown();
         });
     }
 

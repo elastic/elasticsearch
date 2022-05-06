@@ -26,13 +26,13 @@ import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
@@ -211,6 +211,16 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     }
 
     /**
+     * Has the information in this object ever been refreshed?
+     * This method is intended for use when it's not essential to
+     * have the most up-to-date information, but having <em>some</em>
+     * information is necessary, for example in telemetry.
+     */
+    public boolean isEverRefreshed() {
+        return isMaster && lastUpdateTime != null;
+    }
+
+    /**
      * Get the memory requirement for an anomaly detector job.
      * This method only works on the master node.
      * @param jobId The job ID.
@@ -239,13 +249,13 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      * @return The memory requirement of the trained model task specified by {@code modelId},
      *         or <code>null</code> if it cannot be found.
      */
-    public Long getTrainedModelAllocationMemoryRequirement(String modelId) {
+    public Long getTrainedModelAssignmentMemoryRequirement(String modelId) {
         if (isMaster == false) {
             return null;
         }
 
-        return Optional.ofNullable(TrainedModelAllocationMetadata.fromState(clusterService.state()).modelAllocations().get(modelId))
-            .map(TrainedModelAllocation::getTaskParams)
+        return Optional.ofNullable(TrainedModelAssignmentMetadata.fromState(clusterService.state()).modelAssignments().get(modelId))
+            .map(TrainedModelAssignment::getTaskParams)
             .map(StartTrainedModelDeploymentAction.TaskParams::estimateMemoryUsageBytes)
             .orElse(null);
     }

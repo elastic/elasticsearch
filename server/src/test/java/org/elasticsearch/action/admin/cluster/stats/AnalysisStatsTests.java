@@ -232,13 +232,39 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .build();
-        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(settings).putMapping(mapping);
-        Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
-        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
-        IndexFeatureStats expectedStats = new IndexFeatureStats("german");
-        expectedStats.count = 1;
-        expectedStats.indexCount = 1;
-        assertEquals(Collections.singleton(expectedStats), analysisStats.getUsedBuiltInAnalyzers());
+        Metadata metadata = new Metadata.Builder().put(new IndexMetadata.Builder("foo").settings(settings).putMapping(mapping)).build();
+        {
+            AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
+            IndexFeatureStats expectedStats = new IndexFeatureStats("german");
+            expectedStats.count = 1;
+            expectedStats.indexCount = 1;
+            assertEquals(Collections.singleton(expectedStats), analysisStats.getUsedBuiltInAnalyzers());
+        }
+
+        Metadata metadata2 = Metadata.builder(metadata)
+            .put(new IndexMetadata.Builder("bar").settings(settings).putMapping(mapping))
+            .build();
+        {
+            AnalysisStats analysisStats = AnalysisStats.of(metadata2, () -> {});
+            IndexFeatureStats expectedStats = new IndexFeatureStats("german");
+            expectedStats.count = 2;
+            expectedStats.indexCount = 2;
+            assertEquals(Collections.singleton(expectedStats), analysisStats.getUsedBuiltInAnalyzers());
+        }
+
+        Metadata metadata3 = Metadata.builder(metadata2).put(new IndexMetadata.Builder("baz").settings(settings).putMapping("""
+            {"properties":{"bar1":{"type":"text","analyzer":"french"},
+            "bar2":{"type":"text","analyzer":"french"},"bar3":{"type":"text","analyzer":"french"}}}""")).build();
+        {
+            AnalysisStats analysisStats = AnalysisStats.of(metadata3, () -> {});
+            IndexFeatureStats expectedStatsGerman = new IndexFeatureStats("german");
+            expectedStatsGerman.count = 2;
+            expectedStatsGerman.indexCount = 2;
+            IndexFeatureStats expectedStatsFrench = new IndexFeatureStats("french");
+            expectedStatsFrench.count = 3;
+            expectedStatsFrench.indexCount = 1;
+            assertEquals(Set.of(expectedStatsGerman, expectedStatsFrench), analysisStats.getUsedBuiltInAnalyzers());
+        }
     }
 
     public void testIgnoreSystemIndices() {

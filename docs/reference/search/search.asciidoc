@@ -408,10 +408,11 @@ http://www.geojson.org[GeoJSON]
 `wkt`:::
 {wikipedia}/Well-known_text_representation_of_geometry[Well Known Text]
 
-`mvt(<zoom>/<x>/<y>@<extent>)` or `mvt(<zoom>/<x>/<y>)`:::
+`mvt(<spec>)`:::
 Binary
 https://docs.mapbox.com/vector-tiles/specification[Mapbox vector tile]. The API
 returns the tile as a base64-encoded string.
+The `<spec>` has the format `<zoom>/<x>/<y>` with two optional suffixes: `@<extent>` and/or `:<buffer>`. For example, `2/0/1` or `2/0/1@4096:5`.
 +
 .`mvt` parameters
 [%collapsible%open]
@@ -428,6 +429,10 @@ returns the tile as a base64-encoded string.
 `<extent>`::
 (Optional, integer) Size, in pixels, of a side of the tile. Vector tiles are
 square with equal sides. Defaults to `4096`.
+
+`<buffer>`::
+(Optional, integer) Size, in pixels, of a clipping buffer outside the tile.
+This allows renderers to avoid outline artifacts from geometries that extend past the extent of the tile. Defaults to `5`.
 ========
 --
 // end::fields-param-props[]

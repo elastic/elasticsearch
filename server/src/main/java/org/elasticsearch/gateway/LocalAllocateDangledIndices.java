@@ -15,7 +15,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -105,7 +105,7 @@ public class LocalAllocateDangledIndices {
                 indexNames[i] = request.indices[i].getIndex().getName();
             }
             final String source = "allocation dangled indices " + Arrays.toString(indexNames);
-            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
+            submitUnbatchedTask(source, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     if (currentState.blocks().disableStatePersistence()) {
@@ -120,24 +120,24 @@ public class LocalAllocateDangledIndices {
                     boolean importNeeded = false;
                     StringBuilder sb = new StringBuilder();
                     for (IndexMetadata indexMetadata : request.indices) {
-                        if (indexMetadata.getCreationVersion().before(minIndexCompatibilityVersion)) {
+                        if (indexMetadata.getCompatibilityVersion().before(minIndexCompatibilityVersion)) {
                             logger.warn(
-                                "ignoring dangled index [{}] on node [{}] since it's created version [{}] is not supported by at "
-                                    + "least one node in the cluster minVersion [{}]",
+                                "ignoring dangled index [{}] on node [{}] since it's current compatibility version [{}] "
+                                    + "is not supported by at least one node in the cluster minVersion [{}]",
                                 indexMetadata.getIndex(),
                                 request.fromNode,
-                                indexMetadata.getCreationVersion(),
+                                indexMetadata.getCompatibilityVersion(),
                                 minIndexCompatibilityVersion
                             );
                             continue;
                         }
-                        if (currentState.nodes().getMinNodeVersion().before(indexMetadata.getCreationVersion())) {
+                        if (currentState.nodes().getMinNodeVersion().before(indexMetadata.getCompatibilityVersion())) {
                             logger.warn(
-                                "ignoring dangled index [{}] on node [{}]"
-                                    + " since its created version [{}] is later than the oldest versioned node in the cluster [{}]",
+                                "ignoring dangled index [{}] on node [{}] since its current compatibility version [{}] "
+                                    + "is later than the oldest versioned node in the cluster [{}]",
                                 indexMetadata.getIndex(),
                                 request.fromNode,
-                                indexMetadata.getCreationVersion(),
+                                indexMetadata.getCompatibilityVersion(),
                                 currentState.getNodes().getMasterNode().getVersion()
                             );
                             continue;
@@ -236,8 +236,13 @@ public class LocalAllocateDangledIndices {
                         logger.warn("failed send response for allocating dangled", e);
                     }
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            });
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     public static class AllocateDangledRequest extends TransportRequest {

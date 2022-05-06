@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.sql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -58,15 +61,26 @@ import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 abstract class LogicalPlanBuilder extends ExpressionBuilder {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(CommandBuilder.class);
+
+    private static final String FROZEN_DEPRECATION_WARNING = "[{}] syntax is deprecated because frozen indices have been deprecated. "
+        + "Consider cold or frozen tiers in place of frozen indices.";
+
+    protected void maybeWarnDeprecatedFrozenSyntax(boolean includeFrozen, String syntax) {
+        if (includeFrozen) {
+            DEPRECATION_LOGGER.warn(DeprecationCategory.PARSING, "include_frozen_syntax", format(null, FROZEN_DEPRECATION_WARNING, syntax));
+        }
+    }
 
     protected LogicalPlanBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
         super(params, zoneId);
@@ -79,7 +93,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         List<SubQueryAlias> namedQueries = visitList(this, ctx.namedQuery(), SubQueryAlias.class);
 
         // unwrap query (and validate while at it)
-        Map<String, SubQueryAlias> cteRelations = new LinkedHashMap<>(namedQueries.size());
+        Map<String, SubQueryAlias> cteRelations = Maps.newLinkedHashMapWithExpectedSize(namedQueries.size());
         for (SubQueryAlias namedQuery : namedQueries) {
             if (cteRelations.put(namedQuery.alias(), namedQuery) != null) {
                 throw new ParsingException(namedQuery.source(), "Duplicate alias {}", namedQuery.alias());
@@ -267,7 +281,9 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitTableName(TableNameContext ctx) {
         String alias = visitQualifiedName(ctx.qualifiedName());
         TableIdentifier tableIdentifier = visitTableIdentifier(ctx.tableIdentifier());
-        return new UnresolvedRelation(source(ctx), tableIdentifier, alias, ctx.FROZEN() != null);
+        boolean includeFrozen = ctx.FROZEN() != null;
+        maybeWarnDeprecatedFrozenSyntax(includeFrozen, "FROZEN");
+        return new UnresolvedRelation(source(ctx), tableIdentifier, alias, includeFrozen);
     }
 
     private Limit limit(LogicalPlan plan, Source source, Token limit) {

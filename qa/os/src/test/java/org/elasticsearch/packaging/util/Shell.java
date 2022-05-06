@@ -140,7 +140,7 @@ public class Shell {
         logger.warn("Running command with env: " + env);
         Result result = runScriptIgnoreExitCode(command);
         if (result.isSuccess() == false) {
-            throw new ShellException("Command was not successful: [" + String.join(" ", command) + "]\n   result: " + result.toString());
+            throw new ShellException("Command was not successful: [" + String.join(" ", command) + "]\n   result: " + result);
         }
         return result;
     }

@@ -72,10 +72,10 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         Answer<Object> answer = invocationOnMock -> {
             AckedClusterStateUpdateTask updateTask = (AckedClusterStateUpdateTask) invocationOnMock.getArguments()[1];
-            updateTask.onAllNodesAcked(null);
+            updateTask.onAllNodesAcked();
             return null;
         };
-        doAnswer(answer).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
+        doAnswer(answer).when(clusterService).submitUnbatchedStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
         watcherService = mock(WatcherService.class);
         lifeCycleService = new WatcherLifeCycleService(clusterService, watcherService);
     }
@@ -104,7 +104,15 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     public void testStartWithStateNotRecoveredBlock() {
-        DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
+        DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().add(
+            new DiscoveryNode(
+                "id1",
+                ESTestCase.buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                new HashSet<>(DiscoveryNodeRole.roles()),
+                Version.CURRENT
+            )
+        ).masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
             .nodes(nodes)
@@ -135,7 +143,9 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     public void testManualStartStop() {
         Index index = new Index(Watch.INDEX, "uuid");
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-        indexRoutingTableBuilder.addShard(TestShardRouting.newShardRouting(Watch.INDEX, 0, "node_1", true, ShardRoutingState.STARTED));
+        indexRoutingTableBuilder.addShard(
+            TestShardRouting.newShardRouting(new ShardId(index, 0), "node_1", true, ShardRoutingState.STARTED)
+        );
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX)
             .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format, required
             .numberOfShards(1)
@@ -565,7 +575,9 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     private void startWatcher() {
         Index index = new Index(Watch.INDEX, "uuid");
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-        indexRoutingTableBuilder.addShard(TestShardRouting.newShardRouting(Watch.INDEX, 0, "node_1", true, ShardRoutingState.STARTED));
+        indexRoutingTableBuilder.addShard(
+            TestShardRouting.newShardRouting(new ShardId(index, 0), "node_1", true, ShardRoutingState.STARTED)
+        );
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX)
             .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format, required
             .numberOfShards(1)

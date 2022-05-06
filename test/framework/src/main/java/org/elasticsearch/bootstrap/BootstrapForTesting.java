@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.RandomizedRunner;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -24,10 +24,12 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.secure_sm.SecureSM;
+import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.mockito.SecureMockMaker;
 import org.junit.Assert;
 
 import java.io.InputStream;
+import java.lang.invoke.MethodHandles;
 import java.net.SocketPermission;
 import java.net.URL;
 import java.nio.file.Files;
@@ -102,6 +104,13 @@ public class BootstrapForTesting {
         // init mockito
         SecureMockMaker.init();
 
+        // init the privileged operation
+        try {
+            MethodHandles.publicLookup().ensureInitialized(PrivilegedOperations.class);
+        } catch (IllegalAccessException unexpected) {
+            throw new AssertionError(unexpected);
+        }
+
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
 
@@ -155,7 +164,13 @@ public class BootstrapForTesting {
                 Permissions fastPathPermissions = new Permissions();
                 addDirectoryPath(fastPathPermissions, "java.io.tmpdir-fastpath", javaTmpDir, "read,readlink,write,delete", true);
 
-                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true, fastPathPermissions);
+                final Policy esPolicy = new ESPolicy(
+                    codebases,
+                    perms,
+                    getPluginPermissions(),
+                    true,
+                    Security.toFilePermissions(fastPathPermissions)
+                );
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {
@@ -195,6 +210,8 @@ public class BootstrapForTesting {
         addClassCodebase(codebases, "elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
         addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
         addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
+        addClassCodebase(codebases, "elasticsearch-core", "org.elasticsearch.core.Booleans");
+        addClassCodebase(codebases, "elasticsearch-cli", "org.elasticsearch.cli.Command");
         return codebases;
     }
 

@@ -4,6 +4,13 @@
 <titleabbrev>cat indices</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<indices-get-index,get index API>>.
+====
+
 Returns high-level information about indices in a cluster, including backing
 indices for data streams.
 

@@ -9,21 +9,19 @@ package org.elasticsearch.gradle.internal.precommit;
 
 import groovy.lang.Closure;
 
-import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.NamedDomainObjectContainer;
-import org.gradle.api.Task;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,32 +54,34 @@ public class TestingConventionsTasks extends DefaultTask {
 
     private Map<String, File> testClassNames;
 
-    private final NamedDomainObjectContainer<TestingConventionRule> naming;
+    private NamedDomainObjectContainer<TestingConventionRule> naming;
     private ProjectLayout projectLayout;
 
+    private SourceSetContainer sourceSets;
+    private Provider<Map<String, Set<File>>> candidateClassFilesProvider;
+    private Map<String, Set<File>> candidateClassFiles;
+
+    public void setCandidateClassFilesProvider(Provider<Map<String, Set<File>>> candidateClassFilesProvider) {
+        this.candidateClassFilesProvider = candidateClassFilesProvider;
+    }
+
     @Inject
-    public TestingConventionsTasks(ProjectLayout projectLayout) {
+    public TestingConventionsTasks(ProjectLayout projectLayout, ObjectFactory objectFactory) {
         this.projectLayout = projectLayout;
+        this.naming = objectFactory.domainObjectContainer(TestingConventionRule.class);
         setDescription("Tests various testing conventions");
-        // Run only after everything is compiled
-        GradleUtils.getJavaSourceSets(getProject()).all(sourceSet -> dependsOn(sourceSet.getOutput().getClassesDirs()));
-        naming = getProject().container(TestingConventionRule.class);
     }
 
     @Input
     public Map<String, Set<File>> getClassFilesPerEnabledTask() {
-        return getProject().getTasks()
-            .withType(Test.class)
-            .stream()
-            .filter(Task::getEnabled)
-            .collect(Collectors.toMap(Task::getPath, task -> task.getCandidateClassFiles().getFiles()));
+        candidateClassFiles = candidateClassFilesProvider.get();
+        return candidateClassFiles;
     }
 
     @Input
     public Map<String, File> getTestClassNames() {
         if (testClassNames == null) {
-            testClassNames = Util.getJavaTestSourceSet(getProject())
-                .get()
+            testClassNames = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME)
                 .getOutput()
                 .getClassesDirs()
                 .getFiles()
@@ -100,7 +100,7 @@ public class TestingConventionsTasks extends DefaultTask {
 
     @OutputFile
     public File getSuccessMarker() {
-        return new File(getProject().getBuildDir(), "markers/" + getName());
+        return new File(projectLayout.getBuildDirectory().getAsFile().get(), "markers/" + getName());
     }
 
     public void naming(Closure<?> action) {
@@ -109,12 +109,11 @@ public class TestingConventionsTasks extends DefaultTask {
 
     @Input
     public Set<String> getMainClassNamedLikeTests() {
-        SourceSetContainer javaSourceSets = GradleUtils.getJavaSourceSets(getProject());
-        if (javaSourceSets.findByName(SourceSet.MAIN_SOURCE_SET_NAME) == null) {
+        if (sourceSets.findByName(SourceSet.MAIN_SOURCE_SET_NAME) == null) {
             // some test projects don't have a main source set
             return Collections.emptySet();
         }
-        return javaSourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME)
+        return sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME)
             .getOutput()
             .getClassesDirs()
             .getAsFileTree()
@@ -154,9 +153,9 @@ public class TestingConventionsTasks extends DefaultTask {
                     .collect(Collectors.toList())
             ).getAsFileTree();
 
-            final Map<String, Set<File>> classFilesPerTask = getClassFilesPerEnabledTask();
+            final Map<String, Set<File>> classFilesPerTask = candidateClassFiles;
 
-            final Set<File> testSourceSetFiles = Util.getJavaTestSourceSet(getProject()).get().getRuntimeClasspath().getFiles();
+            final Set<File> testSourceSetFiles = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath().getFiles();
             final Map<String, Set<Class<?>>> testClassesPerTask = classFilesPerTask.entrySet()
                 .stream()
                 .filter(entry -> testSourceSetFiles.containsAll(entry.getValue()))
@@ -347,7 +346,7 @@ public class TestingConventionsTasks extends DefaultTask {
 
     @Classpath
     public FileCollection getTestsClassPath() {
-        return Util.getJavaTestSourceSet(getProject()).get().getRuntimeClasspath();
+        return sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();
     }
 
     private Map<String, File> walkPathAndLoadClasses(File testRoot) {
@@ -417,4 +416,7 @@ public class TestingConventionsTasks extends DefaultTask {
         }
     }
 
+    public void setSourceSets(SourceSetContainer sourceSets) {
+        this.sourceSets = sourceSets;
+    }
 }

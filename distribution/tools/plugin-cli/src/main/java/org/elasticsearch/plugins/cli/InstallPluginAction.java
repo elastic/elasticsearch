@@ -32,10 +32,10 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.Platforms;
@@ -80,6 +80,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -223,7 +225,7 @@ public class InstallPluginAction implements Closeable {
             terminal.println(logPrefix + "Installing " + pluginId);
             try {
                 if ("x-pack".equals(pluginId)) {
-                    handleInstallXPack(buildFlavor());
+                    throw new UserException(ExitCodes.CONFIG, "this distribution of Elasticsearch contains X-Pack by default");
                 }
 
                 if (PLUGINS_CONVERTED_TO_MODULES.contains(pluginId)) {
@@ -271,21 +273,6 @@ public class InstallPluginAction implements Closeable {
         }
         if (terminal.isHeadless() == false) {
             terminal.println("-> Please restart Elasticsearch to activate any plugins installed");
-        }
-    }
-
-    Build.Flavor buildFlavor() {
-        return Build.CURRENT.flavor();
-    }
-
-    private static void handleInstallXPack(final Build.Flavor flavor) throws UserException {
-        switch (flavor) {
-            case DEFAULT -> throw new UserException(ExitCodes.CONFIG, "this distribution of Elasticsearch contains X-Pack by default");
-            case OSS -> throw new UserException(
-                ExitCodes.CONFIG,
-                "X-Pack is not available with the oss distribution; to use X-Pack features use the default distribution"
-            );
-            case UNKNOWN -> throw new IllegalStateException("your distribution is broken");
         }
     }
 
@@ -391,12 +378,12 @@ public class InstallPluginAction implements Closeable {
             baseUrl,
             pluginId,
             platform,
-            Build.CURRENT.getQualifiedVersion()
+            Build.CURRENT.qualifiedVersion()
         );
         if (urlExists(platformUrl)) {
             return platformUrl;
         }
-        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Build.CURRENT.getQualifiedVersion());
+        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Build.CURRENT.qualifiedVersion());
     }
 
     private String nonReleaseUrl(final String hostname, final Version version, final String stagingHash, final String pluginId) {
@@ -667,21 +654,61 @@ public class InstallPluginAction implements Closeable {
                 throw new IllegalStateException("key id [" + keyId + "] does not match expected key id [" + getPublicKeyId() + "]");
             }
 
-            // compute the signature of the downloaded plugin zip
-            final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
-            final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
-            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleFipsProvider()), key);
-            final byte[] buffer = new byte[1024];
-            int read;
-            while ((read = fin.read(buffer)) != -1) {
-                signature.update(buffer, 0, read);
-            }
+            // compute the signature of the downloaded plugin zip, wrapped with long execution warning
+            timedComputeSignatureForDownloadedPlugin(fin, ain, signature);
 
             // finally we verify the signature of the downloaded plugin zip matches the expected signature
             if (signature.verify() == false) {
                 throw new IllegalStateException("signature verification for [" + urlString + "] failed");
             }
         }
+    }
+
+    private void timedComputeSignatureForDownloadedPlugin(InputStream fin, InputStream ain, PGPSignature signature) throws PGPException,
+        IOException {
+        final Timer timer = new Timer();
+
+        try {
+            timer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    reportLongSignatureVerification();
+                }
+            }, acceptableSignatureVerificationDelay());
+
+            computeSignatureForDownloadedPlugin(fin, ain, signature);
+        } finally {
+            timer.cancel();
+        }
+    }
+
+    // package private for testing
+    void computeSignatureForDownloadedPlugin(InputStream fin, InputStream ain, PGPSignature signature) throws PGPException, IOException {
+        final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
+        final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
+        signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleFipsProvider()), key);
+        final byte[] buffer = new byte[1024];
+        int read;
+        while ((read = fin.read(buffer)) != -1) {
+            signature.update(buffer, 0, read);
+        }
+    }
+
+    // package private for testing
+    void reportLongSignatureVerification() {
+        terminal.println(
+            "The plugin installer is trying to verify the signature of the downloaded plugin "
+                + "but this verification is taking longer than expected. This is often because the "
+                + "plugin installer is waiting for your system to supply it with random numbers. "
+                + ((System.getProperty("os.name").startsWith("Windows") == false)
+                    ? "Ensure that your system has sufficient entropy so that reads from /dev/random do not block."
+                    : "")
+        );
+    }
+
+    // package private for testing
+    long acceptableSignatureVerificationDelay() {
+        return 5_000;
     }
 
     /**
@@ -881,7 +908,6 @@ public class InstallPluginAction implements Closeable {
      */
     private PluginInfo installPlugin(PluginDescriptor descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
         final PluginInfo info = loadPluginInfo(tmpRoot);
-        checkCanInstallationProceed(terminal, Build.CURRENT.flavor(), info);
         PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpFile());
         if (pluginPolicy != null) {
             Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpFile());
@@ -1049,26 +1075,5 @@ public class InstallPluginAction implements Closeable {
     @Override
     public void close() throws IOException {
         IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[0]));
-    }
-
-    public static void checkCanInstallationProceed(Terminal terminal, Build.Flavor flavor, PluginInfo info) throws Exception {
-        if (info.isLicensed() == false) {
-            return;
-        }
-
-        if (flavor == Build.Flavor.DEFAULT) {
-            return;
-        }
-
-        List.of(
-            "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-            "@            ERROR: This is a licensed plugin             @",
-            "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-            "",
-            "This plugin is covered by the Elastic license, but this",
-            "installation of Elasticsearch is: [" + flavor + "]."
-        ).forEach(terminal::errorPrintln);
-
-        throw new UserException(ExitCodes.NOPERM, "Plugin license is incompatible with [" + flavor + "] installation");
     }
 }

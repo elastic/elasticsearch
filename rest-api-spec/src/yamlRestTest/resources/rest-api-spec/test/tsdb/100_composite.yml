@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       indices.create:
@@ -63,8 +63,8 @@ setup:
 ---
 composite aggregation on tsid:
   - skip:
-      version: " - 8.0.99"
-      reason: _tsid introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -113,8 +113,8 @@ composite aggregation on tsid:
 ---
 composite aggregation on tsid with after:
   - skip:
-      version: " - 8.0.99"
-      reason: _tsid introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:

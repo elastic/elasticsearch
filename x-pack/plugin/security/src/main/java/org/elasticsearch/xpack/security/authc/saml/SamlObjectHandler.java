@@ -13,8 +13,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
 import org.opensaml.core.xml.XMLObject;
@@ -148,7 +148,11 @@ public class SamlObjectHandler {
     }
 
     protected String describe(X509Certificate certificate) {
-        return "X509Certificate{Subject=" + certificate.getSubjectDN() + "; SerialNo=" + certificate.getSerialNumber().toString(16) + "}";
+        return "X509Certificate{Subject="
+            + certificate.getSubjectX500Principal()
+            + "; SerialNo="
+            + certificate.getSerialNumber().toString(16)
+            + "}";
     }
 
     protected String describe(Collection<X509Credential> credentials) {

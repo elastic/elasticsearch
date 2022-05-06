@@ -127,8 +127,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
@@ -376,7 +374,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        if (isSearchableSnapshotStore(indexModule.getSettings())) {
+        if (indexModule.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
             indexModule.addIndexEventListener(
                 new SearchableSnapshotIndexEventListener(settings, cacheService.get(), frozenCacheService.get())
             );
@@ -449,9 +447,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (isSearchableSnapshotStore(indexSettings.getSettings())) {
+        if (indexSettings.getIndexMetadata().isSearchableSnapshot()) {
             final Boolean frozen = indexSettings.getSettings().getAsBoolean("index.frozen", null);
-            final boolean useFrozenEngine = isPartialSearchableSnapshotIndex(indexSettings.getSettings())
+            final boolean useFrozenEngine = indexSettings.getIndexMetadata().isPartialSearchableSnapshot()
                 && (frozen == null || frozen.equals(Boolean.TRUE));
 
             if (useFrozenEngine) {
@@ -561,12 +559,17 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     public static ScalingExecutorBuilder[] executorBuilders(Settings settings) {
         final int processors = EsExecutors.allocatedProcessors(settings);
+        // searchable snapshots cache thread pools should always reject tasks once they are shutting down, otherwise some threads might be
+        // waiting for some cache file regions to be populated but this will never happen once the thread pool is shutting down. In order to
+        // prevent these threads to be blocked the cache thread pools will reject after shutdown.
+        final boolean rejectAfterShutdown = true;
         return new ScalingExecutorBuilder[] {
             new ScalingExecutorBuilder(
                 CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
                 0,
                 Math.min(processors * 3, 50),
                 TimeValue.timeValueSeconds(30L),
+                rejectAfterShutdown,
                 CACHE_FETCH_ASYNC_THREAD_POOL_SETTING
             ),
             new ScalingExecutorBuilder(
@@ -574,11 +577,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 0,
                 16,
                 TimeValue.timeValueSeconds(30L),
+                rejectAfterShutdown,
                 CACHE_PREWARMING_THREAD_POOL_SETTING
             ) };
     }
 
-    private Settings getIndexSettings() {
+    private static Settings getIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
@@ -588,7 +592,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             .build();
     }
 
-    private XContentBuilder getIndexMappings() {
+    private static XContentBuilder getIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
             {
@@ -746,7 +750,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 .filter(s -> s.equals(RepositoryData.MISSING_UUID) == false)
                 .collect(Collectors.toSet());
             if (knownUuids.addAll(newUuids)) {
-                rerouteService.reroute("repository UUIDs changed", Priority.NORMAL, ActionListener.wrap((() -> {})));
+                rerouteService.reroute("repository UUIDs changed", Priority.NORMAL, ActionListener.noop());
             }
             knownUuids.retainAll(newUuids);
             assert knownUuids.equals(newUuids) : knownUuids + " vs " + newUuids;

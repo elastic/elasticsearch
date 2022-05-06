@@ -76,7 +76,7 @@ public class IndexAbstractionResolver {
             }
 
             // we always need to check for date math expressions
-            final String dateMathName = indexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
+            final String dateMathName = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
             if (dateMathName != indexAbstraction) {
                 assert dateMathName.equals(indexAbstraction) == false;
                 if (replaceWildcards && Regex.isSimpleMatchPattern(dateMathName)) {

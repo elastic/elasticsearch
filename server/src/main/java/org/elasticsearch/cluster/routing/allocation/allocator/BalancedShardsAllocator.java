@@ -619,7 +619,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * to the nodes we relocated them from.
          */
         private String[] buildWeightOrderedIndices() {
-            final String[] indices = allocation.routingTable().indicesRouting().keys().toArray(String.class);
+            final String[] indices = allocation.routingTable().indicesRouting().keySet().toArray(new String[0]);
             final float[] deltas = new float[indices.length];
             for (int i = 0; i < deltas.length; i++) {
                 sorter.reset(indices[i]);
@@ -1102,8 +1102,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.routingNode = routingNode;
         }
 
-        public ModelIndex getIndex(String indexId) {
-            return indices.get(indexId);
+        public ModelIndex getIndex(String indexName) {
+            return indices.get(indexName);
         }
 
         public String getNodeId() {
@@ -1132,12 +1132,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public void addShard(ShardRouting shard) {
-            ModelIndex index = indices.get(shard.getIndexName());
-            if (index == null) {
-                index = new ModelIndex(shard.getIndexName());
-                indices.put(index.getIndexId(), index);
-            }
-            index.addShard(shard);
+            indices.computeIfAbsent(shard.getIndexName(), t -> new ModelIndex()).addShard(shard);
             numShards++;
         }
 
@@ -1172,13 +1167,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     static final class ModelIndex implements Iterable<ShardRouting> {
-        private final String id;
         private final Set<ShardRouting> shards = new HashSet<>(4); // expect few shards of same index to be allocated on same node
         private int highestPrimary = -1;
 
-        ModelIndex(String id) {
-            this.id = id;
-        }
+        ModelIndex() {}
 
         public int highestPrimary() {
             if (highestPrimary == -1) {
@@ -1191,10 +1183,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return highestPrimary = maxId;
             }
             return highestPrimary;
-        }
-
-        public String getIndexId() {
-            return id;
         }
 
         public int numShards() {

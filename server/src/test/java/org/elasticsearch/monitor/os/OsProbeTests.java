@@ -17,7 +17,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -208,7 +207,7 @@ public class OsProbeTests extends ESTestCase {
         // This cgroup data is missing a line about cpuacct
         List<String> procSelfCgroupLines = getProcSelfGroupLines(1, hierarchy).stream()
             .map(line -> line.replaceFirst(",cpuacct", ""))
-            .collect(Collectors.toList());
+            .toList();
 
         final OsProbe probe = buildStubOsProbe(1, hierarchy, procSelfCgroupLines);
 
@@ -223,7 +222,7 @@ public class OsProbeTests extends ESTestCase {
         // This cgroup data is missing a line about cpu
         List<String> procSelfCgroupLines = getProcSelfGroupLines(1, hierarchy).stream()
             .map(line -> line.replaceFirst(":cpu,", ":"))
-            .collect(Collectors.toList());
+            .toList();
 
         final OsProbe probe = buildStubOsProbe(1, hierarchy, procSelfCgroupLines);
 
@@ -238,7 +237,7 @@ public class OsProbeTests extends ESTestCase {
         // This cgroup data is missing a line about memory
         List<String> procSelfCgroupLines = getProcSelfGroupLines(1, hierarchy).stream()
             .filter(line -> line.contains(":memory:") == false)
-            .collect(Collectors.toList());
+            .toList();
 
         final OsProbe probe = buildStubOsProbe(1, hierarchy, procSelfCgroupLines);
 

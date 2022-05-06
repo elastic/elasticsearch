@@ -71,6 +71,11 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected InternalDateHistogram createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         return createTestInstance(name, metadata, aggregations, format);
     }

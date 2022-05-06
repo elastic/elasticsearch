@@ -207,8 +207,7 @@ public class EvilLoggerTests extends ESTestCase {
                 deprecationEvents.get(0),
                 DeprecationLogger.CRITICAL,
                 "org.elasticsearch.common.logging.DeprecationLogger.lambda\\$doPrivilegedLog\\$0",
-                "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version."
+                "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release."
             );
         }
     }
@@ -323,7 +322,7 @@ public class EvilLoggerTests extends ESTestCase {
             .build();
         // need to use custom config path so we can use a custom log4j2.properties file for the test
         final Environment environment = new Environment(mergedSettings, configDir);
-        LogConfigurator.configure(environment);
+        LogConfigurator.configure(environment, true);
     }
 
     private void assertLogLine(final String logLine, final Level level, final String location, final String message) {

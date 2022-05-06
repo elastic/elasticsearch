@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -105,6 +106,15 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
         public int hashCode() {
             return Objects.hash(getClass(), key, docCount, aggregations);
         }
+
+        InternalBucket finalizeSampling(SamplingContext samplingContext) {
+            return new InternalBucket(
+                key,
+                samplingContext.scaleUp(docCount),
+                InternalAggregations.finalizeSampling(aggregations, samplingContext)
+            );
+        }
+
     }
 
     private final List<InternalBucket> buckets;
@@ -196,6 +206,11 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
         InternalAdjacencyMatrix reduced = new InternalAdjacencyMatrix(name, reducedBuckets, getMetadata());
 
         return reduced;
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalAdjacencyMatrix(name, buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(), getMetadata());
     }
 
     @Override

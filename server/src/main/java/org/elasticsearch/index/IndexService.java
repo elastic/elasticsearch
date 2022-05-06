@@ -32,9 +32,9 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -784,9 +784,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             final long currentSettingsVersion = currentIndexMetadata.getSettingsVersion();
             final long newSettingsVersion = newIndexMetadata.getSettingsVersion();
             if (currentSettingsVersion == newSettingsVersion) {
-                assert updateIndexSettings == false;
+                assert updateIndexSettings == false : "No index updates are expected as index settings version has not changed";
             } else {
-                assert updateIndexSettings;
+                assert updateIndexSettings : "Index updates are expected as index settings version has changed";
                 assert currentSettingsVersion < newSettingsVersion
                     : "expected current settings version ["
                         + currentSettingsVersion
@@ -862,12 +862,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    public Function<String, String> dateMathExpressionResolverAt() {
-        return expression -> expressionResolver.resolveDateMathExpression(expression, System.currentTimeMillis());
+    public static Function<String, String> dateMathExpressionResolverAt() {
+        return expression -> IndexNameExpressionResolver.resolveDateMathExpression(expression, System.currentTimeMillis());
     }
 
-    public Function<String, String> dateMathExpressionResolverAt(long instant) {
-        return expression -> expressionResolver.resolveDateMathExpression(expression, instant);
+    public static Function<String, String> dateMathExpressionResolverAt(long instant) {
+        return expression -> IndexNameExpressionResolver.resolveDateMathExpression(expression, instant);
     }
 
     public interface ShardStoreDeleter {

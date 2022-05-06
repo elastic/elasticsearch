@@ -157,10 +157,15 @@ The `runtime` section can be any of these data types:
 * `ip`
 * `keyword`
 * `long`
+* <<lookup-runtime-fields, `lookup`>>
 // end::runtime-data-types[]
 
 Runtime fields with a `type` of `date` can accept the
 <<mapping-date-format,`format`>> parameter exactly as the `date` field type.
+
+Runtime fields with a `type` of `lookup` allow retrieving fields from
+related indices. See <<lookup-runtime-fields, `retrieve fields from related indices`>>.
+
 
 If <<dynamic-field-mapping,dynamic field mapping>> is enabled where the
 `dynamic` parameter is set to `runtime`, new fields are automatically added to
@@ -802,6 +807,118 @@ address.
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 // TESTRESPONSE[s/"_id" : "oWs5KXYB-XyJbifr9mrz"/"_id": $body.hits.hits.0._id/]
 // TESTRESPONSE[s/"day_of_week" : \[\n\s+"Sunday"\n\s\]/"day_of_week": $body.hits.hits.0.fields.day_of_week/]
+
+
+[[lookup-runtime-fields]]
+==== Retrieve fields from related indices
+
+experimental[]
+
+The <<search-fields,`fields`>> parameter on the `_search` API can also be used to retrieve fields from
+the related indices via runtime fields with a type of `lookup`.
+
+[source,console]
+----
+POST ip_location/_doc?refresh
+{
+  "ip": "192.168.1.1",
+  "country": "Canada",
+  "city": "Montreal"
+}
+
+PUT logs/_doc/1?refresh
+{
+  "host": "192.168.1.1",
+  "message": "the first message"
+}
+
+PUT logs/_doc/2?refresh
+{
+  "host": "192.168.1.2",
+  "message": "the second message"
+}
+
+POST logs/_search
+{
+  "runtime_mappings": {
+    "location": {
+        "type": "lookup", <1>
+        "target_index": "ip_location", <2>
+        "input_field": "host", <3>
+        "target_field": "ip", <4>
+        "fetch_fields": ["country", "city"] <5>
+    }
+  },
+  "fields": [
+    "host",
+    "message",
+    "location"
+  ],
+  "_source": false
+}
+----
+<1> Define a runtime field in the main search request with a type of `lookup` that retrieves fields from the target index using the <<query-dsl-term-query, `term`>> queries.
+<2> The target index where the lookup query executes against
+<3> A field on the main index whose values are used as the input values of the lookup term query
+<4> A field on the lookup index which the lookup query searches against
+<5> A list of fields to retrieve from the lookup index. See the <<search-fields, `fields`>> parameter of a search request.
+
+The above search returns the country and city from the `ip_location` index
+for each ip address of the returned search hits.
+
+[source,console-result]
+----
+{
+  "took": 3,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 2,
+      "relation": "eq"
+    },
+    "max_score": 1.0,
+    "hits": [
+      {
+        "_index": "logs",
+        "_id": "1",
+        "_score": 1.0,
+        "fields": {
+          "host": [ "192.168.1.1" ],
+          "location": [
+            {
+              "city": [ "Montreal" ],
+              "country": [ "Canada" ]
+            }
+          ],
+          "message": [ "the first message" ]
+        }
+      },
+      {
+        "_index": "logs",
+        "_id": "2",
+        "_score": 1.0,
+        "fields": {
+          "host": [ "192.168.1.2" ],
+          "message": [ "the second message" ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 3/"took": $body.took/]
+
+The response of lookup fields are grouped to maintain the independence
+of each document from the lookup index. The lookup query for each input
+value is expected to match at most one document on the lookup index.
+If the lookup query matches more than one documents, then a random document
+will be selected.
 
 [[runtime-indexed]]
 === Index a runtime field

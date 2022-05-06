@@ -31,10 +31,9 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
     private String[] keys;
 
     public InternalBucketMetricValue(String name, String[] keys, double value, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.keys = keys;
         this.value = value;
-        this.format = formatter;
     }
 
     /**
@@ -42,7 +41,6 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
      */
     public InternalBucketMetricValue(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         value = in.readDouble();
         keys = in.readStringArray();
     }

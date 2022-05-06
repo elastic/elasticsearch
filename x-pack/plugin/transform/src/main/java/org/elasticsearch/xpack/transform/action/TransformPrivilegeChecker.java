@@ -18,13 +18,14 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.transform.transforms.NullRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
 /**
@@ -83,13 +84,17 @@ final class TransformPrivilegeChecker {
                 destIndex
             );
 
-            List<String> destPrivileges = new ArrayList<>(3);
+            List<String> destPrivileges = new ArrayList<>(4);
             destPrivileges.add("read");
             destPrivileges.add("index");
             // If the destination index does not exist, we can assume that we may have to create it on start.
             // We should check that the creating user has the privileges to create the index.
             if (concreteDest.length == 0) {
                 destPrivileges.add("create_index");
+            }
+            if (config.getRetentionPolicyConfig() != null
+                && config.getRetentionPolicyConfig() instanceof NullRetentionPolicyConfig == false) {
+                destPrivileges.add("delete");
             }
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(destIndex)
@@ -116,14 +121,24 @@ final class TransformPrivilegeChecker {
         if (privilegesResponse.isCompleteMatch()) {
             listener.onResponse(null);
         } else {
-            List<String> indices = privilegesResponse.getIndexPrivileges().stream().map(ResourcePrivileges::getResource).collect(toList());
+            List<String> missingPrivileges = privilegesResponse.getIndexPrivileges()
+                .stream()
+                .map(
+                    indexPrivileges -> indexPrivileges.getPrivileges()
+                        .entrySet()
+                        .stream()
+                        .filter(e -> Boolean.TRUE.equals(e.getValue()) == false)
+                        .map(e -> e.getKey())
+                        .collect(joining(", ", indexPrivileges.getResource() + ":[", "]"))
+                )
+                .collect(toList());
             listener.onFailure(
                 Exceptions.authorizationError(
-                    "Cannot {} transform [{}] because user {} lacks all the required permissions for indices: {}",
+                    "Cannot {} transform [{}] because user {} lacks the required permissions {}",
                     operationName,
                     transformId,
                     username,
-                    indices
+                    missingPrivileges
                 )
             );
         }

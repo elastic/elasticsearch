@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -187,6 +188,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      *    "long/integer/short/byte_field": {
      *       "type": "long/integer/short/byte"
      *    }
+     *    Note: no unsigned_long tested -- the mapper for it won't accept float formats.
      */
     public void testFractionsForNonFloatingPointTypes() throws IOException {
         String floatingPointNumber = "123.456";
@@ -279,6 +281,17 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         // Use Integer as the json parser that is used to read the values from the response will create
         // Integers for short and byte values
         testField("byte", ((Number) randomByte()).intValue());
+    }
+
+    /*
+     *    "unsigned_long_field": {
+     *       "type": "unsigned_long",
+     *       "ignore_malformed": true/false
+     *    }
+     */
+    public void testUnsignedLongFieldType() throws IOException {
+        // randomBigInteger() can produce a value that fits into a Long, which is what testField() will then recover
+        testField("unsigned_long", BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(randomNonNegativeLong())));
     }
 
     private void testField(String fieldType, Object value) throws IOException {
@@ -1602,6 +1615,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             case "half_float" -> JDBCType.FLOAT;
             case "scaled_float" -> JDBCType.DOUBLE;
             case "ip" -> JDBCType.VARCHAR;
+            case "unsigned_long" -> JDBCType.BIGINT;
             default -> throw new AssertionError("Illegal value [" + esType + "] for data type");
         };
     }

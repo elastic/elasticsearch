@@ -120,30 +120,47 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
 
         client.multiSearch(msearch, ActionListener.wrap(msearchResponse -> {
-            AggregationReduceContext context = new AggregationReduceContext.ForPartial(
-                bigArrays,
-                scriptService,
-                ((CancellableTask) task)::isCancelled
-            );
-            listener.onResponse(processResponses(rollupSearchContext, msearchResponse, context));
+            AggregationReduceContext.Builder reduceContextBuilder = new AggregationReduceContext.Builder() {
+                @Override
+                public AggregationReduceContext forPartialReduction() {
+                    return new AggregationReduceContext.ForPartial(
+                        bigArrays,
+                        scriptService,
+                        ((CancellableTask) task)::isCancelled,
+                        request.source().aggregations()
+                    );
+                }
+
+                @Override
+                public AggregationReduceContext forFinalReduction() {
+                    return new AggregationReduceContext.ForFinal(
+                        bigArrays,
+                        scriptService,
+                        ((CancellableTask) task)::isCancelled,
+                        request.source().aggregations(),
+                        b -> {}
+                    );
+                }
+            };
+            listener.onResponse(processResponses(rollupSearchContext, msearchResponse, reduceContextBuilder));
         }, listener::onFailure));
     }
 
     static SearchResponse processResponses(
         RollupSearchContext rollupContext,
         MultiSearchResponse msearchResponse,
-        AggregationReduceContext reduceContext
+        AggregationReduceContext.Builder reduceContextBuilder
     ) throws Exception {
         if (rollupContext.hasLiveIndices() && rollupContext.hasRollupIndices()) {
             // Both
-            return RollupResponseTranslator.combineResponses(msearchResponse.getResponses(), reduceContext);
+            return RollupResponseTranslator.combineResponses(msearchResponse.getResponses(), reduceContextBuilder);
         } else if (rollupContext.hasLiveIndices()) {
             // Only live
             assert msearchResponse.getResponses().length == 1;
             return RollupResponseTranslator.verifyResponse(msearchResponse.getResponses()[0]);
         } else if (rollupContext.hasRollupIndices()) {
             // Only rollup
-            return RollupResponseTranslator.translateResponse(msearchResponse.getResponses(), reduceContext);
+            return RollupResponseTranslator.translateResponse(msearchResponse.getResponses(), reduceContextBuilder);
         }
         throw new RuntimeException("MSearch response was empty, cannot unroll RollupSearch results");
     }

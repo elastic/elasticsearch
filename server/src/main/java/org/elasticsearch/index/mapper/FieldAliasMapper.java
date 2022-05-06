@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -94,8 +95,8 @@ public final class FieldAliasMapper extends Mapper {
                 "Invalid [path] value [" + path + "] for field alias [" + name() + "]: an alias cannot refer to another alias."
             );
         }
-        String aliasScope = mappers.getNestedParent(name);
-        String pathScope = mappers.getNestedParent(path);
+        String aliasScope = mappers.nestedLookup().getNestedParent(name);
+        String pathScope = mappers.nestedLookup().getNestedParent(path);
 
         if (Objects.equals(aliasScope, pathScope) == false) {
             StringBuilder message = new StringBuilder(
@@ -123,6 +124,11 @@ public final class FieldAliasMapper extends Mapper {
                 throw new MapperParsingException("The [path] property must be specified for field [" + name + "].");
             }
             return builder.path(path);
+        }
+
+        @Override
+        public boolean supportsVersion(Version indexCreatedVersion) {
+            return true;
         }
     }
 

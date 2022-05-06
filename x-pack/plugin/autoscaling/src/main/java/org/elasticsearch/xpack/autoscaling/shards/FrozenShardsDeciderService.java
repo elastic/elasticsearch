@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.autoscaling.util.FrozenUtils;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.StreamSupport;
 
 /**
  * This decider enforces that on a 64GB memory node (31GB heap) we can max have 2000 shards. We arrive at 2000 because our current limit is
@@ -58,7 +57,7 @@ public class FrozenShardsDeciderService implements AutoscalingDeciderService {
     }
 
     static int countFrozenShards(Metadata metadata) {
-        return StreamSupport.stream(metadata.spliterator(), false)
+        return metadata.stream()
             .filter(imd -> FrozenUtils.isFrozenIndex(imd.getSettings()))
             .mapToInt(IndexMetadata::getTotalNumberOfShards)
             .sum();

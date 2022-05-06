@@ -26,9 +26,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -232,7 +232,7 @@ public final class MockTransportService extends TransportService {
             localNodeFactory,
             clusterSettings,
             taskHeaders,
-            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport))
+            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()))
         );
         this.original = transport.getDelegate();
     }

@@ -21,6 +21,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
@@ -138,7 +139,11 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         assertThat(e.getMessage(), equalTo("[nested] requires 'score_mode' field"));
     }
 
-    public void testFromJson() throws IOException {
+    public void testParseDefaultsRemoved() throws IOException {
+        /*
+         * This json includes many defaults. When we parse the query and then
+         * call toString on it all of the defaults are removed.
+         */
         String json = """
             {
               "nested" : {
@@ -177,7 +182,34 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             }""";
 
         NestedQueryBuilder parsed = (NestedQueryBuilder) parseQuery(json);
-        checkGeneratedJson(json, parsed);
+        checkGeneratedJson("""
+              {
+              "nested" : {
+                "query" : {
+                  "bool" : {
+                    "must" : [ {
+                      "match" : {
+                        "obj1.name" : {
+                          "query" : "blue"
+                        }
+                      }
+                    }, {
+                      "range" : {
+                        "obj1.count" : {
+                          "gt" : 5,
+                          "boost" : 1.0
+                        }
+                      }
+                    } ],
+                    "boost" : 1.0
+                  }
+                },
+                "path" : "obj1",
+                "ignore_unmapped" : false,
+                "score_mode" : "avg",
+                "boost" : 1.0
+              }
+            }""", parsed);
 
         assertEquals(json, ScoreMode.Avg, parsed.scoreMode());
     }
@@ -330,9 +362,9 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     public void testBuildIgnoreUnmappedNestQuery() throws Exception {
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(searchExecutionContext.getObjectMapper("path")).thenReturn(null);
         IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
         when(searchExecutionContext.getIndexSettings()).thenReturn(settings);
+        when(searchExecutionContext.nestedLookup()).thenReturn(NestedLookup.EMPTY);
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.getSearchExecutionContext()).thenReturn(searchExecutionContext);
         InnerHitBuilder leafInnerHits = randomNestedInnerHits();

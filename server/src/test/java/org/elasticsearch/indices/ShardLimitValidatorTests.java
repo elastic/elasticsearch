@@ -48,6 +48,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             nodesInCluster,
             counts.getFirstIndexShards(),
             counts.getFirstIndexReplicas(),
+            counts.getShardsPerNode(),
             group
         );
 
@@ -76,6 +77,14 @@ public class ShardLimitValidatorTests extends ESTestCase {
                 + " shards open",
             errorMessage.get()
         );
+        assertFalse(
+            ShardLimitValidator.canAddShardsToCluster(
+                counts.getFailingIndexShards(),
+                counts.getFailingIndexReplicas(),
+                state,
+                ShardLimitValidator.FROZEN_GROUP.equals(group)
+            )
+        );
     }
 
     public void testUnderShardLimit() {
@@ -88,6 +97,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             nodesInCluster,
             counts.getFirstIndexShards(),
             counts.getFirstIndexReplicas(),
+            counts.getShardsPerNode(),
             group
         );
 
@@ -102,6 +112,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
         );
 
         assertFalse(errorMessage.isPresent());
+        assertTrue(ShardLimitValidator.canAddShardsToCluster(shardsToAdd, 0, state, ShardLimitValidator.FROZEN_GROUP.equals(group)));
     }
 
     public void testValidateShardLimitOpenIndices() {
@@ -189,7 +200,13 @@ public class ShardLimitValidatorTests extends ESTestCase {
         return state;
     }
 
-    public static ClusterState createClusterForShardLimitTest(int nodesInCluster, int shardsInIndex, int replicas, String group) {
+    public static ClusterState createClusterForShardLimitTest(
+        int nodesInCluster,
+        int shardsInIndex,
+        int replicas,
+        int maxShardsPerNode,
+        String group
+    ) {
         DiscoveryNodes nodes = createDiscoveryNodes(nodesInCluster, group);
 
         Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
@@ -202,10 +219,15 @@ public class ShardLimitValidatorTests extends ESTestCase {
             .numberOfShards(shardsInIndex)
             .numberOfReplicas(replicas);
         Metadata.Builder metadata = Metadata.builder().put(indexMetadata);
+        Settings.Builder clusterSettings = Settings.builder()
+            .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey(), maxShardsPerNode)
+            .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode);
         if (randomBoolean()) {
             metadata.transientSettings(Settings.EMPTY);
+            metadata.persistentSettings(clusterSettings.build());
         } else {
             metadata.persistentSettings(Settings.EMPTY);
+            metadata.transientSettings(clusterSettings.build());
         }
 
         return ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).nodes(nodes).build();

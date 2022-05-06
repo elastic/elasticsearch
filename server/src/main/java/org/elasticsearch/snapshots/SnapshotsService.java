@@ -2452,7 +2452,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                                     @Override
                                     public void onFailure(Exception e) {
-                                        assert false : "impossible";
+                                        // this should never be called, once updated repository metadata has been written to the
+                                        // repository and the delete been removed from the cluster state, we ignore any further failures
+                                        // and always complete the delete successfully
+                                        assert false : e;
                                     }
                                 })
                             );

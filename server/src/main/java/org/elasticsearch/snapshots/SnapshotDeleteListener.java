@@ -11,9 +11,23 @@ import org.elasticsearch.repositories.RepositoryData;
 
 public interface SnapshotDeleteListener {
 
+    /**
+     * Invoked once a snapshot has been fully deleted from the repository.
+     */
     void onDone();
 
+    /**
+     * Invoked once the updated {@link RepositoryData} has been written to the repository.
+     *
+     * @param repositoryData updated repository data
+     */
     void onMetaUpdated(RepositoryData repositoryData);
 
+    /**
+     * Invoked if writing updated {@link RepositoryData} to the repository failed. Once {@link #onMetaUpdated(RepositoryData)} has been
+     * invoked this method will never be invoked.
+     *
+     * @param e exception during metadata steps of snapshot delete
+     */
     void onFailure(Exception e);
 }

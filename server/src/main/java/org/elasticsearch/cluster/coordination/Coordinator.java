@@ -197,6 +197,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.joinHelper = new JoinHelper(
             allocationService,
             masterService,
+            clusterApplier,
             transportService,
             this::getCurrentTerm,
             this::handleJoinRequest,

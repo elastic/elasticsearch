@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.fixtures
 
+import org.apache.commons.io.FileUtils
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.gradle.testkit.runner.GradleRunner
@@ -36,7 +37,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         buildFile = testProjectDir.newFile('build.gradle')
         propertiesFile = testProjectDir.newFile('gradle.properties')
         propertiesFile <<
-            "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
+                "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
     }
 
     File addSubProject(String subProjectPath) {
@@ -45,20 +46,27 @@ abstract class AbstractGradleFuncTest extends Specification {
         subProjectBuild
     }
 
+    File addSubProject(String subProjectPath, Closure configAction) {
+        def subProjectBuild = addSubProject(subProjectPath)
+        configAction.setDelegate(new ProjectConfigurer(subProjectBuild.parentFile))
+        configAction.setResolveStrategy(Closure.DELEGATE_ONLY)
+        configAction.call()
+    }
+
     GradleRunner gradleRunner(String... arguments) {
         return gradleRunner(testProjectDir.root, arguments)
     }
 
     GradleRunner gradleRunner(File projectDir, String... arguments) {
         return new NormalizeOutputGradleRunner(
-            new InternalAwareGradleRunner(
-                GradleRunner.create()
-                    .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
-                    .withProjectDir(projectDir)
-                    .withPluginClasspath()
-                    .forwardOutput()
-            ),
-            projectDir
+                new InternalAwareGradleRunner(
+                        GradleRunner.create()
+                                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
+                                .withProjectDir(projectDir)
+                                .withPluginClasspath()
+                                .forwardOutput()
+                ),
+                projectDir
         ).withArguments(arguments)
     }
 
@@ -103,17 +111,17 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     File internalBuild(
-        List<String> extraPlugins = [],
-        String bugfix = "7.15.2",
-        String bugfixLucene = "8.9.0",
-        String staged = "7.16.0",
-        String stagedLucene = "8.10.0",
-        String minor = "8.0.0",
-        String minorLucene = "9.0.0"
+            List<String> extraPlugins = [],
+            String bugfix = "7.15.2",
+            String bugfixLucene = "8.9.0",
+            String staged = "7.16.0",
+            String stagedLucene = "8.10.0",
+            String minor = "8.0.0",
+            String minorLucene = "9.0.0"
     ) {
         buildFile << """plugins {
           id 'elasticsearch.global-build-info'
-          ${extraPlugins.collect {p -> "id '$p'" }.join('\n')}
+          ${extraPlugins.collect { p -> "id '$p'" }.join('\n')}
         }
         import org.elasticsearch.gradle.Architecture
         import org.elasticsearch.gradle.internal.info.BuildParams
@@ -150,5 +158,28 @@ abstract class AbstractGradleFuncTest extends Specification {
             System.err.println("Error running command ${command}:")
             System.err.println("Syserr: " + proc.errorStream.text)
         }
+    }
+
+    def cleanup() {
+        //FileUtils.copyDirectory(testProjectDir.root, new File("build/test-debug/" + testProjectDir.root.name))
+    }
+
+    static class ProjectConfigurer {
+        private File projectDir
+
+        ProjectConfigurer(File projectDir) {
+            this.projectDir = projectDir
+        }
+
+        File classFile(String fullQualifiedName) {
+            File sourceRoot = new File(projectDir, 'src/main/java');
+            File file = new File(sourceRoot, fullQualifiedName.replace('.', '/') + '.java')
+            file.getParentFile().mkdirs()
+            file
+        }
+
+        File getBuildFile() {
+            return new File(projectDir, 'build.gradle')
+        };
     }
 }

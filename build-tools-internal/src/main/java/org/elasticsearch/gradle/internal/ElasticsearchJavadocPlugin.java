@@ -10,13 +10,13 @@ package org.elasticsearch.gradle.internal;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 
-import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.BasePluginExtension;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.external.javadoc.StandardJavadocDocletOptions;
 
@@ -33,7 +33,6 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         this.project = project;
-
         // ignore missing javadocs
         project.getTasks().withType(Javadoc.class).configureEach(javadoc -> {
             // the -quiet here is because of a bug in gradle, in that adding a string option
@@ -45,23 +44,25 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
             ((StandardJavadocDocletOptions) javadoc.getOptions()).addStringOption("Xdoclint:all,-missing", "-quiet");
         });
 
-        // TODO revert the dependency and just apply the javadoc plugin in the build plugin later on
-        project.afterEvaluate(project1 -> {
+        // Relying on configurations introduced by the java plugin
+        this.project.getPlugins().withType(JavaPlugin.class, javaPlugin -> project.afterEvaluate(project1 -> {
             var withShadowPlugin = project1.getPlugins().hasPlugin(ShadowPlugin.class);
             var configurations = withShadowPlugin
                 ? List.of("compileClasspath", "compileOnly", "shadow")
                 : List.of("compileClasspath", "compileOnly");
             configurations.forEach(configName -> {
                 Configuration configuration = project1.getConfigurations().getByName(configName);
-                configuration.getDependencies()
+                configuration.getAllDependencies()
                     .stream()
                     .sorted(Comparator.comparing(Dependency::getGroup))
                     .filter(d -> d instanceof ProjectDependency)
                     .map(d -> (ProjectDependency) d)
                     .filter(p -> p.getDependencyProject() != null)
-                    .forEach(projectDependency -> configureDependency(withShadowPlugin, projectDependency));
+                    .forEach(
+                        projectDependency -> configureDependency(withShadowPlugin && (configName == "compileClasspath"), projectDependency)
+                    );
             });
-        });
+        }));
     }
 
     private void configureDependency(boolean shadowed, ProjectDependency dep) {
@@ -89,13 +90,15 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
                 String artifactPath = dep.getGroup().replaceAll("\\.", "/") + '/' + externalLinkName.replaceAll("\\.", "/") + '/' + dep
                     .getVersion();
                 var options = (StandardJavadocDocletOptions) javadoc.getOptions();
-                options.linksOffline(artifactHost() + "/javadoc/" + artifactPath,
-                        upstreamProject.getBuildDir().getPath() + "/docs/javadoc/");
+                options.linksOffline(
+                    artifactHost(project) + "/javadoc/" + artifactPath,
+                    upstreamProject.getBuildDir().getPath() + "/docs/javadoc/"
+                );
             });
         }
     }
 
-    private String artifactHost() {
-        return VersionProperties.getElasticsearch().endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co";
+    private String artifactHost(Project project) {
+        return project.getVersion().toString().endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co";
     }
 }

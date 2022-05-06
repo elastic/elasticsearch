@@ -123,15 +123,7 @@ public class ProviderLocatorTests extends ESTestCase {
 
         try {
             // test scenario
-            ProviderLocator<IntSupplier> locator = new ProviderLocator<>(
-                this.getClass().getModule(),
-                "x-foo",
-                IntSupplier.class,
-                parent,
-                "x.foo.impl",
-                Set.of(),
-                true
-            );
+            ProviderLocator<IntSupplier> locator = new ProviderLocator<>("x-foo", IntSupplier.class, parent, "x.foo.impl", Set.of(), true);
             IntSupplier impl = locator.get();
             assertThat(impl.getAsInt(), is(12));
             assertThat(impl.toString(), equalTo("Hello from FooIntSupplier - modular!"));
@@ -186,15 +178,7 @@ public class ProviderLocatorTests extends ESTestCase {
 
         try {
             // test scenario
-            ProviderLocator<LongSupplier> locator = new ProviderLocator<>(
-                this.getClass().getModule(),
-                "x-foo",
-                LongSupplier.class,
-                parent,
-                "",
-                Set.of(),
-                false
-            );
+            ProviderLocator<LongSupplier> locator = new ProviderLocator<>("x-foo", LongSupplier.class, parent, "", Set.of(), false);
             LongSupplier impl = locator.get();
             assertThat(impl.getAsLong(), is(55L));
             assertThat(impl.toString(), equalTo("Hello from FooLongSupplier - non-modular!"));
@@ -237,15 +221,7 @@ public class ProviderLocatorTests extends ESTestCase {
 
         try {
             // test scenario
-            ProviderLocator<IntSupplier> locator = new ProviderLocator<>(
-                this.getClass().getModule(),
-                "y-bar",
-                IntSupplier.class,
-                parent,
-                "",
-                Set.of(),
-                false
-            );
+            ProviderLocator<IntSupplier> locator = new ProviderLocator<>("y-bar", IntSupplier.class, parent, "", Set.of(), false);
             IntSupplier impl = locator.get();
             assertThat(impl.getAsInt(), is(42));
             assertThat(impl.toString(), equalTo("Hello from BarIntSupplier - exploded non-modular!"));

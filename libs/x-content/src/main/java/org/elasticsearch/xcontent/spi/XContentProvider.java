@@ -88,7 +88,6 @@ public interface XContentProvider {
         private static final Set<String> MISSING_MODULES = Set.of("com.fasterxml.jackson.databind");
 
         private static final XContentProvider INSTANCE = (new ProviderLocator<>(
-            XContentProvider.class.getModule(),
             PROVIDER_NAME,
             XContentProvider.class,
             PROVIDER_MODULE_NAME,

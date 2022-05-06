@@ -45,17 +45,19 @@ public final class ProviderLocator<T> implements Supplier<T> {
     // whether to load the provider implementation as a module or not
     private final boolean loadAsProviderModule;
 
-    public ProviderLocator(
-        Module caller,
-        String providerName,
-        Class<T> providerType,
-        String providerModuleName,
-        Set<String> missingModules
-    ) {
+    /** Checks that the module of the given type declares that it uses said type. */
+    static <P> Class<P> checkUses(Class<P> providerType) {
+        Module caller = providerType.getModule();
+        if (caller.isNamed() && caller.getDescriptor().uses().stream().anyMatch(providerType.getName()::equals) == false) {
+            throw new ServiceConfigurationError("%s: module does not declare uses %s".formatted(caller, providerType));
+        }
+        return providerType;
+    }
+
+    public ProviderLocator(String providerName, Class<T> providerType, String providerModuleName, Set<String> missingModules) {
         this(
-            caller,
             providerName,
-            providerType,
+            checkUses(providerType),
             ProviderLocator.class.getClassLoader(),
             providerModuleName,
             missingModules,
@@ -63,9 +65,8 @@ public final class ProviderLocator<T> implements Supplier<T> {
         );
     }
 
-    // package-private for tests
+    // package-private for testing
     ProviderLocator(
-        Module caller,
         String providerName,
         Class<T> providerType,
         ClassLoader parentLoader,
@@ -78,9 +79,7 @@ public final class ProviderLocator<T> implements Supplier<T> {
         Objects.requireNonNull(parentLoader);
         Objects.requireNonNull(providerModuleName);
         Objects.requireNonNull(missingModules);
-        if (caller.isNamed() && caller.getDescriptor().uses().stream().anyMatch(providerType.getName()::equals) == false) {
-            throw new ServiceConfigurationError("%s: module does not declare uses %s".formatted(caller, providerType));
-        }
+
         this.providerName = providerName;
         this.providerType = providerType;
         this.providerModuleName = providerModuleName;
@@ -124,7 +123,7 @@ public final class ProviderLocator<T> implements Supplier<T> {
         return sl.findFirst().orElseThrow(newIllegalStateException(providerName));
     }
 
-    Supplier<IllegalStateException> newIllegalStateException(String providerName) {
+    static Supplier<IllegalStateException> newIllegalStateException(String providerName) {
         return () -> new IllegalStateException("cannot locate %s provider".formatted(providerName));
     }
 }

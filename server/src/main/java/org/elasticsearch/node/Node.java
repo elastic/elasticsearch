@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.InstanceHasMasterHealthIndicatorService;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
+import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -1029,7 +1030,7 @@ public class Node implements Closeable {
             this.namedXContentRegistry = xContentRegistry;
 
             logger.debug("initializing HTTP handlers ...");
-            actionModule.initRestHandlers(() -> clusterService.state().nodesIfRecovered());
+            actionModule.initRestHandlers(() -> clusterService.state().nodes());
             logger.info("initialized");
 
             success = true;
@@ -1052,7 +1053,8 @@ public class Node implements Closeable {
         );
         var serverHealthIndicatorServices = List.of(
             new RepositoryIntegrityHealthIndicatorService(clusterService),
-            new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService())
+            new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService()),
+            new StableMasterHealthIndicatorService(clusterService, masterHistoryService)
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()

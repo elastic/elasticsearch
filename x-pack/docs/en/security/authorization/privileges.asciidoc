@@ -218,10 +218,11 @@ privilege for an alternative.
 Privilege to index documents.
 However, it does not enable a user to update existing documents.
 +
-deprecated:[8.2] Also grants the permission to update the index mapping (but not
-the data stream mapping), using the update mapping action, or relying on
-{ref}/dynamic-mapping.html[dynamic mappings]. In the next major release,
-this privilege will not grant any mapping update permission.
+deprecated:[8.2] Also grants the permission to update the index mapping (but
+not the data streams mapping), using
+the {ref}/indices-put-mapping.html[updating mapping API] or by relying on
+{ref}/dynamic-mapping.html[dynamic field mapping]. In a future major release,
+this privilege will not grant any mapping update permissions.
 +
 --
 [NOTE]

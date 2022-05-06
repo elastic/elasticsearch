@@ -14,24 +14,11 @@ import spock.lang.Unroll
 
 class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
 
-    def setup() {
-        addSubProject("some-lib") {
-            buildFile << """
-                plugins {
-                    id 'elasticsearch.java-doc'
-                    id 'java'
-                }
-                group = 'org.acme'
-                """
-
-            classFile('org.acme.Something') << """
-                package org.acme;
-                
-                public class Something {
-                }
-            """
-        }
-        addSubProject("some-depending-lib") {
+    @Unroll
+    def "#versionType created javadoc with inter project linking"() {
+        given:
+        someLibProject()
+        subProject("some-depending-lib") {
             buildFile << """               
                 plugins {
                     id 'elasticsearch.java-doc'
@@ -55,11 +42,6 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
                 }
             """
         }
-    }
-
-    @Unroll
-    def "#versionType created javadoc with inter project linking"() {
-        given:
         buildFile << """
             allprojects {
                 version = '$version'
@@ -80,5 +62,100 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         version        | versionType | expectedLink
         '1.0'          | 'release'   | "https://artifacts.elastic.co/javadoc/org/acme/some-lib/$version"
         '1.0-SNAPSHOT' | 'snapshot'  | "https://snapshots.elastic.co/javadoc/org/acme/some-lib/$version"
+    }
+
+    def "sources of shadowed dependencies are added to projects javadoc"() {
+        given:
+        someLibProject() << """version = 1.0"""
+        subProject("some-depending-lib") {
+            buildFile << """               
+                plugins {
+                    id 'elasticsearch.java-doc'
+                    id 'com.github.johnrengelman.shadow' version '7.1.2'
+                    id 'java'
+                }
+                group = 'org.acme.depending'
+                
+                dependencies {
+                    implementation project(':some-lib')
+                    shadow project(':some-shadowed-lib')
+                }
+            """
+            classFile('org.acme.depending.SomeDepending') << """
+                package org.acme.depending;
+                
+                import org.acme.Something;
+                
+                public class SomeDepending {
+                    public Something createSomething() {
+                        return new Something();
+                    }
+                }
+            """
+            classFile('org.acme.depending.SomeShadowedDepending') << """
+                package org.acme.depending;
+                
+                import org.acme.shadowed.Shadowed;
+                
+                public class SomeShadowedDepending {
+                    public Shadowed createShadowed() {
+                        return new Shadowed();
+                    }
+                }
+            """
+        }
+        subProject("some-shadowed-lib") {
+            buildFile << """
+                plugins {
+                    id 'elasticsearch.java-doc'
+                    id 'java'
+                }
+                group = 'org.acme.shadowed'
+            """
+            classFile('org.acme.shadowed.Shadowed') << """
+                package org.acme.shadowed;
+                
+                public class Shadowed {
+                }
+            """
+        }
+        when:
+        def result = gradleRunner(':some-depending-lib:javadoc').build()
+
+        then:
+
+        def options = file('some-depending-lib/build/tmp/javadoc/javadoc.options').text
+        options.contains('-notimestamp')
+        options.contains('-quiet')
+
+        // normal dependencies handles as usual
+        result.task(":some-lib:javadoc").outcome == TaskOutcome.SUCCESS
+        options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' '${file('some-lib/build/docs/javadoc/').canonicalPath}/'")
+        file('some-depending-lib/build/docs/javadoc/org/acme/Something.html').exists() == false
+
+        // source of shadowed dependencies are inlined
+        result.task(":some-shadowed-lib:javadoc") == null
+        file('some-depending-lib/build/docs/javadoc/org/acme/shadowed/Shadowed.html').exists()
+        normalized(file('some-depending-lib/build/docs/javadoc/element-list').text) == 'org.acme.depending\norg.acme.shadowed'
+    }
+
+
+    private File someLibProject() {
+        subProject("some-lib") {
+            buildFile << """
+                plugins {
+                    id 'elasticsearch.java-doc'
+                    id 'java'
+                }
+                group = 'org.acme'
+                """
+
+            classFile('org.acme.Something') << """
+                package org.acme;
+                
+                public class Something {
+                }
+            """
+        }
     }
 }

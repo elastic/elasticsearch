@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 import java.text.ParseException;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * An {@link AuthenticationToken} to hold JWT authentication related content.
@@ -34,7 +36,11 @@ public class JwtAuthenticationToken implements AuthenticationToken {
      * @param endUserSignedJwt Base64Url-encoded JWT for End-user authentication. Required by all JWT realms.
      * @param clientAuthenticationSharedSecret URL-safe Shared Secret for Client authentication. Required by some JWT realms.
      */
-    public JwtAuthenticationToken(final SecureString endUserSignedJwt, @Nullable final SecureString clientAuthenticationSharedSecret) {
+    public JwtAuthenticationToken(
+        final SecureString endUserSignedJwt,
+        final List<String> userIdClaims,
+        @Nullable final SecureString clientAuthenticationSharedSecret
+    ) {
         if (endUserSignedJwt.isEmpty()) {
             throw new IllegalArgumentException("JWT bearer token must be non-empty");
         } else if ((clientAuthenticationSharedSecret != null) && (clientAuthenticationSharedSecret.isEmpty())) {
@@ -51,16 +57,40 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         }
         final String issuer = jwtClaimsSet.getIssuer();
         final List<String> audiences = jwtClaimsSet.getAudience();
-        final String subject = jwtClaimsSet.getSubject();
 
         if (Strings.hasText(issuer) == false) {
             throw new IllegalArgumentException("Issuer claim 'iss' is missing.");
         } else if ((audiences == null) || (audiences.isEmpty())) {
             throw new IllegalArgumentException("Audiences claim 'aud' is missing.");
-        } else if (Strings.hasText(subject) == false) {
-            throw new IllegalArgumentException("Subject claim 'sub' is missing.");
         }
-        this.principal = issuer + "/" + String.join(",", new TreeSet<>(audiences)) + "/" + subject;
+
+        final String userId = resolveUserId(jwtClaimsSet, userIdClaims);
+        this.principal = issuer + "/" + String.join(",", new TreeSet<>(audiences)) + "/" + userId;
+    }
+
+    private String resolveUserId(JWTClaimsSet jwtClaimsSet, List<String> userIdClaims) {
+        for (String claim : userIdClaims) {
+            final Object value = jwtClaimsSet.getClaim(claim);
+            if (value instanceof String userid) {
+                return userid;
+            } else if (value != null) {
+                throw new IllegalArgumentException("User identifier claim '" + claim + "' exists but is not a string");
+            }
+        }
+
+        final String stringClaimNames = jwtClaimsSet.getClaims()
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue() instanceof String)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.joining(","));
+        throw new IllegalArgumentException(
+            "None of the user identifier claims ["
+                + String.join(",", userIdClaims)
+                + "] exist - available claims are ["
+                + stringClaimNames
+                + "]"
+        );
     }
 
     @Override

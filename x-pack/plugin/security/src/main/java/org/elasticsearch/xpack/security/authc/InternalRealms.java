@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
+import org.elasticsearch.xpack.security.authc.jwt.JwtAuthenticationTokenFactory;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
@@ -130,13 +131,14 @@ public final class InternalRealms {
      */
     public static Map<String, Realm.Factory> getFactories(
         ThreadPool threadPool,
+        Settings settings,
         ResourceWatcherService resourceWatcherService,
         SSLService sslService,
         NativeUsersStore nativeUsersStore,
         NativeRoleMappingStore nativeRoleMappingStore,
         SecurityIndexManager securityIndex
     ) {
-
+        var jwtFactory = new JwtAuthenticationTokenFactory(settings);
         return Map.of(
             // file realm
             FileRealmSettings.TYPE,
@@ -168,7 +170,7 @@ public final class InternalRealms {
             config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService),
             // JWT realm
             JwtRealmSettings.TYPE,
-            config -> new JwtRealm(config, sslService, nativeRoleMappingStore)
+            config -> new JwtRealm(config, jwtFactory, sslService, nativeRoleMappingStore)
         );
     }
 

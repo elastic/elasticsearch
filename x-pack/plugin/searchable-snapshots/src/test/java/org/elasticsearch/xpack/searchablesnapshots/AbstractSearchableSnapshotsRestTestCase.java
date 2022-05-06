@@ -285,12 +285,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                 String sourceOnlySnapshot = "source-only-snap-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
                 final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + WRITE_REPOSITORY_NAME + '/' + sourceOnlySnapshot);
                 request.addParameter("wait_for_completion", "true");
-                request.setJsonEntity("""
-                    {
-                        "include_global_state": false,
-                        "indices" : "%s"
-                    }
-                    """.formatted(indexName));
+                request.setJsonEntity("{\"include_global_state\": false, \"indices\": \"" + indexName + "\"}");
 
                 final Response response = adminClient().performRequest(request);
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));

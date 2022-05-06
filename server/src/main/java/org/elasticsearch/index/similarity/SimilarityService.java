@@ -159,8 +159,8 @@ public final class SimilarityService {
         @Override
         public Similarity get(String name) {
             MappedFieldType fieldType = fieldTypeLookup.apply(name);
-            return (fieldType != null && fieldType.getTextSearchInfo().getSimilarity() != null)
-                ? fieldType.getTextSearchInfo().getSimilarity().get()
+            return (fieldType != null && fieldType.getTextSearchInfo().similarity() != null)
+                ? fieldType.getTextSearchInfo().similarity().get()
                 : defaultSimilarity;
         }
     }

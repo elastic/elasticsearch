@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.security.rest.action.profile;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -84,7 +86,12 @@ public class RestSuggestProfilesAction extends SecurityBaseRestHandler {
             payload.size(),
             payload.hint() == null ? null : new SuggestProfilesRequest.Hint(payload.hint().uids(), payload.hint().labels())
         );
-        return channel -> client.execute(SuggestProfilesAction.INSTANCE, suggestProfilesRequest, new RestToXContentListener<>(channel));
+        final HttpChannel httpChannel = request.getHttpChannel();
+        return channel -> new RestCancellableNodeClient(client, httpChannel).execute(
+            SuggestProfilesAction.INSTANCE,
+            suggestProfilesRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 
     record Payload(String name, Integer size, PayloadHint hint, String data) {

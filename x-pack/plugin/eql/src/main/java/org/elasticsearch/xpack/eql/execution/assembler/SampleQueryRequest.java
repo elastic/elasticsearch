@@ -18,7 +18,6 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
@@ -29,8 +28,6 @@ import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 import org.elasticsearch.xpack.eql.expression.OptionalMissingAttribute;
 import org.elasticsearch.xpack.eql.expression.OptionalResolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.io.IOException;
@@ -190,12 +187,7 @@ public class SampleQueryRequest implements QueryRequest {
             String key = keys.get(i);
             Attribute field = keyFields.get(i);
             boolean isOptionalKey = isOptionalAttribute(field);
-            compositeAggSources.add(
-                new TermsValuesSourceBuilder(key).field(key)
-                    .missingBucket(isOptionalKey)
-                    // Temporary workaround for https://github.com/elastic/elasticsearch/issues/85928
-                    .userValuetypeHint(aggregationValueType(field.dataType()))
-            );
+            compositeAggSources.add(new TermsValuesSourceBuilder(key).field(key).missingBucket(isOptionalKey));
         }
         agg = new CompositeAggregationBuilder(COMPOSITE_AGG_NAME, compositeAggSources);
         agg.size(SampleIterator.MAX_PAGE_SIZE);
@@ -204,21 +196,6 @@ public class SampleQueryRequest implements QueryRequest {
 
     private boolean isOptionalAttribute(Attribute a) {
         return a instanceof OptionalMissingAttribute || a instanceof OptionalResolvedAttribute;
-    }
-
-    private ValueType aggregationValueType(DataType qlDataType) {
-        if (DataTypes.isNullOrNumeric(qlDataType)) {
-            return ValueType.NUMBER;
-        } else if (DataTypes.isString(qlDataType)) {
-            return ValueType.STRING;
-        } else if (DataTypes.isDateTime(qlDataType)) {
-            return ValueType.DATE;
-        } else if (qlDataType == DataTypes.IP) {
-            return ValueType.IP;
-        } else if (qlDataType == DataTypes.BOOLEAN) {
-            return ValueType.BOOLEAN;
-        }
-        return ValueType.STRING;
     }
 
     /*

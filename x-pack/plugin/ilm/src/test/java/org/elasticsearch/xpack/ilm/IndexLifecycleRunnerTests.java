@@ -22,7 +22,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -74,6 +76,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -86,6 +89,7 @@ import java.util.function.BiFunction;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -114,7 +118,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void prepare() {
         threadPool = new TestThreadPool("test");
         noopClient = new NoOpClient(threadPool);
-        historyStore = new NoOpHistoryStore(noopClient);
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING))
+        );
+        historyStore = new NoOpHistoryStore(noopClient, ClusterServiceUtils.createClusterService(threadPool, settings));
     }
 
     @After
@@ -1259,8 +1267,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         private final List<ILMHistoryItem> items = new CopyOnWriteArrayList<>();
 
-        NoOpHistoryStore(Client noopClient) {
-            super(Settings.EMPTY, noopClient, null, null);
+        NoOpHistoryStore(Client noopClient, ClusterService clusterService) {
+            super(noopClient, clusterService, null);
         }
 
         public List<ILMHistoryItem> getItems() {

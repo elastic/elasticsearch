@@ -126,20 +126,20 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
     public static class Request extends ActionRequest {
         private final String componentName;
         private final String indicatorName;
-        private final boolean includeDetails;
+        private final boolean explain;
 
-        public Request(boolean includeDetails) {
+        public Request(boolean explain) {
             // We never compute details if no component name is given because of the runtime cost:
             this.componentName = null;
             this.indicatorName = null;
-            this.includeDetails = includeDetails;
+            this.explain = explain;
         }
 
-        public Request(String componentName, String indicatorName, boolean includeDetails) {
+        public Request(String componentName, String indicatorName, boolean explain) {
             assert componentName != null;
             this.componentName = componentName;
             this.indicatorName = indicatorName;
-            this.includeDetails = includeDetails;
+            this.explain = explain;
         }
 
         @Override
@@ -170,7 +170,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             listener.onResponse(
                 new Response(
                     clusterService.getClusterName(),
-                    healthService.getHealth(request.componentName, request.indicatorName, request.includeDetails),
+                    healthService.getHealth(request.componentName, request.indicatorName, request.explain),
                     request.componentName == null
                 )
             );

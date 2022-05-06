@@ -40,18 +40,18 @@ public class HealthService {
      * the given indicatorName.
      * @param componentName If not null, only the component with this name is returned
      * @param indicatorName If not null, the returned component will only have this indicator
-     * @param computeDetails Whether to compute the details portion of the component results
+     * @param explain Whether to compute the details portion of the component results
      * @return A list of all HealthComponentResults if componentName is null, or one HealthComponentResult if componentName is not null
      * @throws ResourceNotFoundException if a component name is given and the component or indicator are not found
      */
-    public List<HealthComponentResult> getHealth(@Nullable String componentName, @Nullable String indicatorName, boolean computeDetails) {
+    public List<HealthComponentResult> getHealth(@Nullable String componentName, @Nullable String indicatorName, boolean explain) {
         final boolean shouldDrillDownToIndicatorLevel = indicatorName != null;
         final boolean showRolledUpComponentStatus = shouldDrillDownToIndicatorLevel == false;
         List<HealthComponentResult> components = List.copyOf(
             healthIndicatorServices.stream()
                 .filter(service -> componentName == null || service.component().equals(componentName))
                 .filter(service -> indicatorName == null || service.name().equals(indicatorName))
-                .map(service -> service.calculate(computeDetails))
+                .map(service -> service.calculate(explain))
                 .collect(
                     groupingBy(
                         HealthIndicatorResult::component,

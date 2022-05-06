@@ -111,7 +111,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean includeDetails) {
+    public HealthIndicatorResult calculate(boolean explain) {
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = new ShardAllocationStatus(state.getMetadata());
@@ -119,18 +119,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
             for (int i = 0; i < indexShardRouting.size(); i++) {
                 IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
-                status.addPrimary(shardRouting.primaryShard(), state, shutdown, includeDetails);
+                status.addPrimary(shardRouting.primaryShard(), state, shutdown, explain);
                 for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                    status.addReplica(replicaShard, state, shutdown, includeDetails);
+                    status.addReplica(replicaShard, state, shutdown, explain);
                 }
             }
         }
         return createIndicator(
             status.getStatus(),
             status.getSummary(),
-            status.getDetails(includeDetails),
+            status.getDetails(explain),
             status.getImpacts(),
-            status.getUserActions(includeDetails)
+            status.getUserActions(explain)
         );
     }
 

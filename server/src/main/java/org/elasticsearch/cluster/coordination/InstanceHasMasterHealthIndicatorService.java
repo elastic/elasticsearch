@@ -45,7 +45,7 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean includeDetails) {
+    public HealthIndicatorResult calculate(boolean explain) {
 
         DiscoveryNode coordinatingNode = clusterService.localNode();
         ClusterState clusterState = clusterService.state();
@@ -55,7 +55,7 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
         HealthStatus instanceHasMasterStatus = masterNode == null ? HealthStatus.RED : HealthStatus.GREEN;
         String instanceHasMasterSummary = masterNode == null ? INSTANCE_HAS_MASTER_RED_SUMMARY : INSTANCE_HAS_MASTER_GREEN_SUMMARY;
 
-        return createIndicator(instanceHasMasterStatus, instanceHasMasterSummary, includeDetails ? (builder, params) -> {
+        return createIndicator(instanceHasMasterStatus, instanceHasMasterSummary, explain ? (builder, params) -> {
             builder.startObject();
             builder.object("coordinating_node", xContentBuilder -> {
                 builder.field("node_id", coordinatingNode.getId());

@@ -150,12 +150,12 @@ public class GetHealthActionIT extends ESIntegTestCase {
         }
 
         @Override
-        public HealthIndicatorResult calculate(boolean includeDetails) {
+        public HealthIndicatorResult calculate(boolean explain) {
             var status = clusterService.getClusterSettings().get(statusSetting);
             return createIndicator(
                 status,
                 "Health is set to [" + status + "] by test plugin",
-                new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
+                new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
@@ -263,7 +263,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             DATA_COMPONENT_NAME,
                             ilmIndicatorStatus,
                             "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
-                            new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
+                            new SimpleHealthIndicatorDetails(Map.of("explain", includeDetails)),
                             Collections.emptyList(),
                             Collections.emptyList()
                         ),
@@ -272,7 +272,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             DATA_COMPONENT_NAME,
                             slmIndicatorStatus,
                             "Health is set to [" + slmIndicatorStatus + "] by test plugin",
-                            new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
+                            new SimpleHealthIndicatorDetails(Map.of("explain", includeDetails)),
                             Collections.emptyList(),
                             Collections.emptyList()
                         )
@@ -292,7 +292,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             CLUSTER_COORDINATION_COMPONENT_NAME,
                             clusterCoordinationIndicatorStatus,
                             "Health is set to [" + clusterCoordinationIndicatorStatus + "] by test plugin",
-                            new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
+                            new SimpleHealthIndicatorDetails(Map.of("explain", includeDetails)),
                             Collections.emptyList(),
                             Collections.emptyList()
                         )
@@ -321,7 +321,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             DATA_COMPONENT_NAME,
                             ilmIndicatorStatus,
                             "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
-                            new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
+                            new SimpleHealthIndicatorDetails(Map.of("explain", includeDetails)),
                             Collections.emptyList(),
                             Collections.emptyList()
                         )
@@ -354,7 +354,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             DATA_COMPONENT_NAME,
                             ilmIndicatorStatus,
                             "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
-                            new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
+                            new SimpleHealthIndicatorDetails(Map.of("explain", includeDetails)),
                             Collections.emptyList(),
                             Collections.emptyList()
                         ),
@@ -363,7 +363,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             DATA_COMPONENT_NAME,
                             slmIndicatorStatus,
                             "Health is set to [" + slmIndicatorStatus + "] by test plugin",
-                            new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
+                            new SimpleHealthIndicatorDetails(Map.of("explain", includeDetails)),
                             Collections.emptyList(),
                             Collections.emptyList()
                         )

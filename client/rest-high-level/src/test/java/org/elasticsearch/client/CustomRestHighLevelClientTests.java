@@ -147,7 +147,8 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
      * Mocks the synchronous request execution like if it was executed by Elasticsearch.
      */
     private Response mockPerformRequest(Request request) throws IOException {
-        assertThat(request.getOptions().getHeaders(), hasSize(1));
+        // Headers contain 'node_name' set by optionsForNodeName and 'Accept' from HLRC compatibility mode
+        assertThat(request.getOptions().getHeaders(), hasSize(2));
         Header httpHeader = request.getOptions().getHeaders().get(0);
         final Response mockResponse = mock(Response.class);
         when(mockResponse.getHost()).thenReturn(new HttpHost("localhost", 9200));

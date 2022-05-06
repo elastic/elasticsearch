@@ -48,6 +48,11 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         }
 
         @Override
+        public long docValueCount() {
+            return ords.length;
+        }
+
+        @Override
         public BytesRef lookupOrd(long ord) {
             return terms[(int) ord];
         }

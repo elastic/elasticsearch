@@ -36,7 +36,8 @@ public class MasterHistoryActionTests extends ESTestCase {
         MasterHistoryAction.Response response = new MasterHistoryAction.Response(masterHistory);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             response,
-            history -> copyWriteable(history, writableRegistry(), MasterHistoryAction.Response::new)
+            history -> copyWriteable(history, writableRegistry(), MasterHistoryAction.Response::new),
+            this::mutateMasterHistoryResponse
         );
 
         MasterHistoryAction.Request request = new MasterHistoryAction.Request();
@@ -44,6 +45,35 @@ public class MasterHistoryActionTests extends ESTestCase {
             request,
             history -> copyWriteable(history, writableRegistry(), MasterHistoryAction.Request::new)
         );
+    }
+
+    private MasterHistoryAction.Response mutateMasterHistoryResponse(MasterHistoryAction.Response originalResponse) {
+        List<DiscoveryNode> nodes = originalResponse.getMasterHistory();
+        switch (randomIntBetween(1, 4)) {
+            case 1 -> {
+                List<DiscoveryNode> newNodes = new ArrayList<>(nodes);
+                newNodes.add(new DiscoveryNode("_id3", buildNewFakeTransportAddress(), Version.CURRENT));
+                return new MasterHistoryAction.Response(newNodes);
+            }
+            case 2 -> {
+                List<DiscoveryNode> newNodes = new ArrayList<>(nodes);
+                newNodes.remove(0);
+                return new MasterHistoryAction.Response(newNodes);
+            }
+            case 3 -> {
+                List<DiscoveryNode> newNodes = new ArrayList<>(nodes);
+                newNodes.remove(0);
+                newNodes.add(0, new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT));
+                return new MasterHistoryAction.Response(newNodes);
+            }
+            case 4 -> {
+                List<DiscoveryNode> newNodes = new ArrayList<>(nodes);
+                newNodes.remove(0);
+                newNodes.add(0, null);
+                return new MasterHistoryAction.Response(newNodes);
+            }
+            default -> throw new IllegalStateException();
+        }
     }
 
     public void testTransportDoExecute() {

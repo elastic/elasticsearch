@@ -114,7 +114,15 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("can't fetch values on place holder field type");
+            // ignore format parameter
+            return new SourceValueFetcher(name(), context) {
+
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    // preserve as is, we can't really do anything smarter than that here
+                    return value;
+                }
+            };
         }
 
         @Override

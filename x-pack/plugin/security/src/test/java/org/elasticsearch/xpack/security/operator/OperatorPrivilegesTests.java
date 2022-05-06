@@ -21,11 +21,8 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.DefaultOperatorPrivilegesService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
@@ -65,8 +62,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(randomBoolean());
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(new User(randomAlphaOfLengthBetween(3, 8)));
+        final Authentication authentication = AuthenticationTestHelper.builder().realm().build(false);
         operatorPrivilegesService.maybeMarkOperatorUser(authentication, threadContext);
         verify(fileOperatorUsersStore, times(1)).isOperatorUser(authentication);
         assertThat(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY), notNullValue());
@@ -76,7 +72,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(false);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final ElasticsearchSecurityException e = operatorPrivilegesService.check(
-            mock(Authentication.class),
+            AuthenticationTestHelper.builder().build(),
             "cluster:action",
             mock(TransportRequest.class),
             threadContext
@@ -88,11 +84,9 @@ public class OperatorPrivilegesTests extends ESTestCase {
     public void testMarkOperatorUser() throws IllegalAccessException {
         final Settings settings = Settings.builder().put("xpack.security.operator_privileges.enabled", true).build();
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
-        final Authentication operatorAuth = mock(Authentication.class);
-        final Authentication nonOperatorAuth = mock(Authentication.class);
         final User operatorUser = new User("operator_user");
-        when(operatorAuth.getUser()).thenReturn(operatorUser);
-        when(nonOperatorAuth.getUser()).thenReturn(new User("non_operator_user"));
+        final Authentication operatorAuth = AuthenticationTestHelper.builder().user(operatorUser).build(false);
+        final Authentication nonOperatorAuth = AuthenticationTestHelper.builder().user(new User("non_operator_user")).build();
         when(fileOperatorUsersStore.isOperatorUser(operatorAuth)).thenReturn(true);
         when(fileOperatorUsersStore.isOperatorUser(nonOperatorAuth)).thenReturn(false);
         ThreadContext threadContext = new ThreadContext(settings);
@@ -134,8 +128,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         );
 
         // Will mark empty for run_as user
-        final Authentication runAsAuth = mock(Authentication.class);
-        when(runAsAuth.getUser()).thenReturn(new User(operatorUser, operatorUser));
+        final Authentication runAsAuth = AuthenticationTestHelper.builder().user(operatorUser).runAs().user(operatorUser).build();
         Mockito.reset(fileOperatorUsersStore);
         when(fileOperatorUsersStore.isOperatorUser(runAsAuth)).thenReturn(true);
         threadContext = new ThreadContext(settings);
@@ -147,10 +140,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         verify(fileOperatorUsersStore, never()).isOperatorUser(any());
 
         // Will not mark for internal users
-        final Authentication internalAuth = mock(Authentication.class);
-        when(internalAuth.getUser()).thenReturn(
-            randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE)
-        );
+        final Authentication internalAuth = AuthenticationTestHelper.builder().internal().build();
         threadContext = new ThreadContext(settings);
         operatorPrivilegesService.maybeMarkOperatorUser(internalAuth, threadContext);
         assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
@@ -165,6 +155,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         verify(fileOperatorUsersStore, never()).isOperatorUser(any());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86530")
     public void testCheck() {
         final Settings settings = Settings.builder().put("xpack.security.operator_privileges.enabled", true).build();
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
@@ -175,8 +166,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         when(operatorOnlyRegistry.check(eq(operatorAction), any())).thenReturn(() -> message);
         when(operatorOnlyRegistry.check(eq(nonOperatorAction), any())).thenReturn(null);
         ThreadContext threadContext = new ThreadContext(settings);
-        final Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(new User(randomAlphaOfLengthBetween(3, 8)));
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         if (randomBoolean()) {
             threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
@@ -197,10 +187,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
 
     public void testCheckWillPassForInternalUsers() {
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
-        final Authentication internalAuth = mock(Authentication.class);
-        when(internalAuth.getUser()).thenReturn(
-            randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE)
-        );
+        final Authentication internalAuth = AuthenticationTestHelper.builder().internal().build();
         assertNull(
             operatorPrivilegesService.check(
                 internalAuth,
@@ -249,15 +236,19 @@ public class OperatorPrivilegesTests extends ESTestCase {
     }
 
     public void testNoOpService() {
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         NOOP_OPERATOR_PRIVILEGES_SERVICE.maybeMarkOperatorUser(authentication, threadContext);
-        verifyNoMoreInteractions(authentication);
         assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
 
         final TransportRequest request = mock(TransportRequest.class);
         assertNull(
-            NOOP_OPERATOR_PRIVILEGES_SERVICE.check(mock(Authentication.class), randomAlphaOfLengthBetween(10, 20), request, threadContext)
+            NOOP_OPERATOR_PRIVILEGES_SERVICE.check(
+                AuthenticationTestHelper.builder().build(),
+                randomAlphaOfLengthBetween(10, 20),
+                request,
+                threadContext
+            )
         );
         verifyNoMoreInteractions(request);
     }

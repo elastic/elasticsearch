@@ -21,8 +21,8 @@ public class PyTorchBuilder {
     private static final String PROCESS_PATH = "./" + PROCESS_NAME;
 
     private static final String LICENSE_KEY_VALIDATED_ARG = "--validElasticLicenseKeyConfirmed=";
-    private static final String INFERENCE_THREADS_ARG = "--inferenceThreads=";
-    private static final String MODEL_THREADS_ARG = "--modelThreads=";
+    private static final String NUM_THREADS_PER_ALLOCATION_ARG = "--numThreadsPerAllocation=";
+    private static final String NUM_ALLOCATIONS_ARG = "--numAllocations=";
 
     private final NativeController nativeController;
     private final ProcessPipes processPipes;
@@ -49,8 +49,8 @@ public class PyTorchBuilder {
         // License was validated when the trained model was started
         command.add(LICENSE_KEY_VALIDATED_ARG + true);
 
-        command.add(INFERENCE_THREADS_ARG + inferenceThreads);
-        command.add(MODEL_THREADS_ARG + modelThreads);
+        command.add(NUM_THREADS_PER_ALLOCATION_ARG + inferenceThreads);
+        command.add(NUM_ALLOCATIONS_ARG + modelThreads);
 
         return command;
     }

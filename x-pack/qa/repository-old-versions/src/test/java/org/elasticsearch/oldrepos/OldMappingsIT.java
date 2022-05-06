@@ -98,6 +98,7 @@ public class OldMappingsIT extends ESRestTestCase {
                 .startObject("apache2")
                 .startObject("access")
                 .field("url", "myurl1")
+                .field("agent", "agent1")
                 .endObject()
                 .endObject()
                 .endObject();
@@ -111,6 +112,7 @@ public class OldMappingsIT extends ESRestTestCase {
                 .startObject("apache2")
                 .startObject("access")
                 .field("url", "myurl2")
+                .field("agent", "agent2")
                 .endObject()
                 .endObject()
                 .endObject();
@@ -226,6 +228,30 @@ public class OldMappingsIT extends ESRestTestCase {
         search.setJsonEntity(Strings.toString(query));
         ResponseException re = expectThrows(ResponseException.class, () -> entityAsMap(client().performRequest(search)));
         assertThat(re.getMessage(), containsString("can't run aggregation or sorts on field type text of legacy index"));
+    }
+
+    public void testSearchFieldsOnPlaceholderField() throws IOException {
+        Request search = new Request("POST", "/" + "filebeat" + "/_search");
+        XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
+            .startObject()
+            .startObject("query")
+            .startObject("match")
+            .startObject("apache2.access.url")
+            .field("query", "myurl2")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startArray("fields")
+            .value("apache2.access.agent")
+            .endArray()
+            .endObject();
+        search.setJsonEntity(Strings.toString(query));
+        Map<String, Object> response = entityAsMap(client().performRequest(search));
+        List<?> hits = (List<?>) (XContentMapValues.extractValue("hits.hits", response));
+        assertThat(hits, hasSize(1));
+        logger.info(hits);
+        Map<?, ?> fields = (Map<?, ?>) (XContentMapValues.extractValue("fields", (Map<?, ?>) hits.get(0)));
+        assertEquals(List.of("agent2"), fields.get("apache2.access.agent"));
     }
 
 }

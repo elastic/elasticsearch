@@ -26,7 +26,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
@@ -64,7 +63,6 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
             });
 
             IndicesService indicesService = mock(IndicesService.class);
-            when(indicesService.getAllMetadataFields()).thenReturn(Collections.singleton("_index"));
             ClusterService clusterService = new ClusterService(
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),

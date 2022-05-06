@@ -35,7 +35,6 @@ class WindowsServiceCli extends MultiCommand {
             addArg(args, "--StartClass", "org.elasticsearch.launcher.CliToolLauncher");
             addArg(args, "--StartMethod", "main");
             addArg(args, "++StartParams", "--daemonize");
-            addArg(args, "++StartParams", "--quiet");
             addArg(args, "--StopClass", "org.elasticsearch.launcher.CliToolLauncher");
             addArg(args, "--StopMethod", "close");
             addArg(args, "--Classpath", pinfo.sysprops().get("java.class.path"));

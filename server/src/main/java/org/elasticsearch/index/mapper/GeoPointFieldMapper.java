@@ -17,7 +17,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
@@ -110,8 +110,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (nullValue == null) {
                 return null;
             }
-            GeoPoint point = new GeoPoint();
-            GeoUtils.parseGeoPoint(nullValue, point, ignoreZValue);
+            GeoPoint point = GeoUtils.parseGeoPoint(nullValue, ignoreZValue);
             if (ignoreMalformed == false) {
                 if (point.lat() > 90.0 || point.lat() < -90.0) {
                     throw new IllegalArgumentException("illegal latitude value [" + point.lat() + "]");
@@ -139,10 +138,13 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         @Override
         public FieldMapper build(MapperBuilderContext context) {
-            Parser<GeoPoint> geoParser = new GeoPointParser(name, GeoPoint::new, (parser, point) -> {
-                GeoUtils.parseGeoPoint(parser, point, ignoreZValue.get().value());
-                return point;
-            }, nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
+            Parser<GeoPoint> geoParser = new GeoPointParser(
+                name,
+                (parser) -> GeoUtils.parseGeoPoint(parser, ignoreZValue.get().value()),
+                nullValue.get(),
+                ignoreZValue.get().value(),
+                ignoreMalformed.get().value()
+            );
             GeoPointFieldType ft = new GeoPointFieldType(
                 context.buildFullName(name),
                 indexed.get() && indexCreatedVersion.isLegacyIndexVersion() == false,
@@ -160,8 +162,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     }
 
+    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
+
     public static TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated())
+        (n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated()),
+        MINIMUM_COMPATIBILITY_VERSION
     );
 
     private final Builder builder;
@@ -396,13 +401,12 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         GeoPointParser(
             String field,
-            Supplier<GeoPoint> pointSupplier,
-            CheckedBiFunction<XContentParser, GeoPoint, GeoPoint, IOException> objectParser,
+            CheckedFunction<XContentParser, GeoPoint, IOException> objectParser,
             GeoPoint nullValue,
             boolean ignoreZValue,
             boolean ignoreMalformed
         ) {
-            super(field, pointSupplier, objectParser, nullValue, ignoreZValue, ignoreMalformed);
+            super(field, objectParser, nullValue, ignoreZValue, ignoreMalformed);
         }
 
         protected GeoPoint validate(GeoPoint in) {
@@ -428,8 +432,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        protected void reset(GeoPoint in, double x, double y) {
-            in.reset(y, x);
+        protected GeoPoint createPoint(double x, double y) {
+            return new GeoPoint(y, x);
         }
 
         @Override

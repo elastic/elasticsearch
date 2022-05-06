@@ -52,7 +52,7 @@ grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
   permission java.lang.RuntimePermission "createClassLoader";
 };
 
-grant codeBase "${codebase.elasticsearch-x-content}" {
+grant codeBase "${codebase.elasticsearch-core}" {
   permission java.lang.RuntimePermission "createClassLoader";
 };
 

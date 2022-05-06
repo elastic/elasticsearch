@@ -2,7 +2,7 @@
 == The configured maximum number of shards that can be allocated to a single node has been reached
 
 Elasticsearch tries to take advantage of all the available resources by 
-distributing data (index shards) amongst the cluster nodes.
+distributing data (index shards) among nodes in the cluster.
 
 Users might want to influece this data distribution by configuring the <<total-shards-per-node, index.routing.allocation.total_shards_per_node>> 
 index setting to a custom value (for e.g. `1` in case of a highly trafficked index).

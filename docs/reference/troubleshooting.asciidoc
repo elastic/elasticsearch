@@ -3,8 +3,8 @@
 
 [partintro]
 --
-This section provides a series of troubleshooting guides aimed at helping the users
-fix various problems an Elasticsearch deployment might encounter.
+This section provides a series of troubleshooting guides aimed at helping users
+fix problems an Elasticsearch deployment might encounter.
 
 Reporting and diagnosing the problems presented in this section is normally assisted
 by the health API.

@@ -79,7 +79,6 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
-import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
@@ -141,6 +140,7 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
@@ -189,6 +189,7 @@ import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesA
 import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportActivateProfileAction;
 import org.elasticsearch.xpack.security.action.profile.TransportGetProfileAction;
+import org.elasticsearch.xpack.security.action.profile.TransportProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportSetProfileEnabledAction;
 import org.elasticsearch.xpack.security.action.profile.TransportSuggestProfilesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportUpdateProfileDataAction;
@@ -314,6 +315,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUserPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction;
+import org.elasticsearch.xpack.security.rest.action.user.RestProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
@@ -324,8 +326,6 @@ import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterce
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
-import org.elasticsearch.xpack.security.transport.nio.SecurityNioHttpServerTransport;
-import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -477,7 +477,6 @@ public class Security extends Plugin
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
 
     private final SetOnce<SharedGroupFactory> sharedGroupFactory = new SetOnce<>();
-    private final SetOnce<NioGroupFactory> nioGroupFactory = new SetOnce<>();
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
     private final SetOnce<List<BootstrapCheck>> bootstrapChecks = new SetOnce<>();
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
@@ -773,6 +772,7 @@ public class Security extends Plugin
             getClock(),
             client,
             systemIndices.getProfileIndexManager(),
+            clusterService,
             threadPool
         );
         components.add(profileService);
@@ -1004,15 +1004,14 @@ public class Security extends Plugin
 
             if (NetworkModule.HTTP_TYPE_SETTING.exists(settings)) {
                 final String httpType = NetworkModule.HTTP_TYPE_SETTING.get(settings);
-                if (httpType.equals(SecurityField.NAME4) || httpType.equals(SecurityField.NIO)) {
+                if (httpType.equals(SecurityField.NAME4)) {
                     SecurityHttpSettings.overrideSettings(builder, settings);
                 } else {
                     final String message = String.format(
                         Locale.ROOT,
-                        "http type setting [%s] must be [%s] or [%s] but is [%s]",
+                        "http type setting [%s] must be [%s] but is [%s]",
                         NetworkModule.HTTP_TYPE_KEY,
                         SecurityField.NAME4,
-                        SecurityField.NIO,
                         httpType
                     );
                     throw new IllegalArgumentException(message);
@@ -1190,6 +1189,7 @@ public class Security extends Plugin
             new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
             new ActionHandler<>(SetEnabledAction.INSTANCE, TransportSetEnabledAction.class),
             new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
+            new ActionHandler<>(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
             new ActionHandler<>(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
             new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
             new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
@@ -1281,6 +1281,7 @@ public class Security extends Plugin
             new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
             new RestSetEnabledAction(settings, getLicenseState()),
             new RestHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
+            new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
             new RestGetUserPrivilegesAction(settings, securityContext.get(), getLicenseState()),
             new RestGetRoleMappingsAction(settings, getLicenseState()),
             new RestPutRoleMappingAction(settings, getLicenseState()),
@@ -1484,25 +1485,6 @@ public class Security extends Plugin
                     )
                 );
                 return transportReference.get();
-            },
-            // security based on NIO
-            SecurityField.NIO,
-            () -> {
-                transportReference.set(
-                    new SecurityNioTransport(
-                        settings,
-                        Version.CURRENT,
-                        threadPool,
-                        networkService,
-                        pageCacheRecycler,
-                        namedWriteableRegistry,
-                        circuitBreakerService,
-                        ipFilter,
-                        getSslService(),
-                        getNioGroupFactory(settings)
-                    )
-                );
-                return transportReference.get();
             }
         );
     }
@@ -1537,22 +1519,6 @@ public class Security extends Plugin
                 dispatcher,
                 clusterSettings,
                 getNettySharedGroupFactory(settings)
-            )
-        );
-        httpTransports.put(
-            SecurityField.NIO,
-            () -> new SecurityNioHttpServerTransport(
-                settings,
-                networkService,
-                bigArrays,
-                pageCacheRecycler,
-                threadPool,
-                xContentRegistry,
-                dispatcher,
-                ipFilter.get(),
-                getSslService(),
-                getNioGroupFactory(settings),
-                clusterSettings
             )
         );
 
@@ -1673,16 +1639,6 @@ public class Security extends Plugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
-    }
-
-    private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {
-        if (nioGroupFactory.get() != null) {
-            assert nioGroupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
-            return nioGroupFactory.get();
-        } else {
-            nioGroupFactory.set(new NioGroupFactory(settings, logger));
-            return nioGroupFactory.get();
-        }
     }
 
     private synchronized SharedGroupFactory getNettySharedGroupFactory(Settings settings) {

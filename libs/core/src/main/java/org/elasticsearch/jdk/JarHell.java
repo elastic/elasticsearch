@@ -235,7 +235,7 @@ public class JarHell {
      */
     public static void checkJavaVersion(String resource, String targetVersion) {
         Version version = Version.parse(targetVersion);
-        if (Runtime.version().compareTo(version) < 0) {
+        if (Runtime.version().feature() < version.feature()) {
             throw new IllegalStateException(
                 String.format(Locale.ROOT, "%s requires Java %s:, your system: %s", resource, targetVersion, Runtime.version().toString())
             );
@@ -250,9 +250,6 @@ public class JarHell {
         Path previous = clazzes.put(clazz, jarpath);
         if (previous != null) {
             if (previous.equals(jarpath)) {
-                if (clazz.startsWith("org.apache.xmlbeans")) {
-                    return; // https://issues.apache.org/jira/browse/XMLBEANS-499
-                }
                 // throw a better exception in this ridiculous case.
                 // unfortunately the zip file format allows this buggy possibility
                 // UweSays: It can, but should be considered as bug :-)

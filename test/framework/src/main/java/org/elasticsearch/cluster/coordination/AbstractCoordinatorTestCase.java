@@ -578,6 +578,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             );
             assertThat(leaderId + " has applied its state ", leader.getLastAppliedClusterState().getVersion(), isEqualToLeaderVersion);
 
+            final var clusterUuid = leader.getLastAppliedClusterState().metadata().clusterUUID();
+
             for (final ClusterNode clusterNode : clusterNodes) {
                 final String nodeId = clusterNode.getId();
                 assertFalse(nodeId + " should not have an active publication", clusterNode.coordinator.publicationInProgress());
@@ -630,6 +632,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         nodeId + " has no STATE_NOT_RECOVERED_BLOCK",
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK),
                         equalTo(false)
+                    );
+                    assertTrue(
+                        nodeId + " has locked into the cluster",
+                        clusterNode.getLastAppliedClusterState().metadata().clusterUUIDCommitted()
+                    );
+                    assertThat(
+                        nodeId + " has the correct cluster UUID",
+                        clusterNode.getLastAppliedClusterState().metadata().clusterUUID(),
+                        equalTo(clusterUuid)
                     );
 
                     for (final ClusterNode otherNode : clusterNodes) {

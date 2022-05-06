@@ -11,6 +11,7 @@ package org.elasticsearch.launcher;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -62,7 +63,9 @@ class CliToolLauncher {
 
         int exitCode = command.main(args, terminal, pinfo);
         terminal.flush(); // make sure nothing is left in buffers
-        exit(exitCode);
+        if (exitCode != ExitCodes.OK) {
+            exit(exitCode);
+        }
     }
 
     // package private for tests

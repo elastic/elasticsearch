@@ -34,6 +34,7 @@ class WindowsServiceCli extends MultiCommand {
             addArg(args, "--StopTimeout", pinfo.envVars().getOrDefault("ES_STOP_TIMEOUT", "0"));
             addArg(args, "--StartClass", "org.elasticsearch.launcher.CliToolLauncher");
             addArg(args, "--StartMethod", "main");
+            addArg(args, "++StartParams", "--daemonize");
             addArg(args, "++StartParams", "--quiet");
             addArg(args, "--StopClass", "org.elasticsearch.launcher.CliToolLauncher");
             addArg(args, "--StopMethod", "close");

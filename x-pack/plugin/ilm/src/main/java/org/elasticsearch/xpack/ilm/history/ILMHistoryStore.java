@@ -58,7 +58,7 @@ public class ILMHistoryStore implements Closeable {
         ).getBytes()
     );
 
-    private boolean ilmHistoryEnabled = true;
+    private volatile boolean ilmHistoryEnabled = true;
     private final BulkProcessor processor;
     private final ThreadPool threadPool;
 

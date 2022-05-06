@@ -37,7 +37,7 @@ public class SnapshotHistoryStore {
 
     private final Client client;
     private final ClusterService clusterService;
-    private boolean slmHistoryEnabled = true;
+    private volatile boolean slmHistoryEnabled = true;
 
     public SnapshotHistoryStore(Client client, ClusterService clusterService) {
         this.client = client;

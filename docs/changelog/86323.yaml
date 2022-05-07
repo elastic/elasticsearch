@@ -1,5 +1,5 @@
 pr: 86323
-summary: Speed up merging field-caps responses from single mapping
+summary: Bulk merge field-caps responses using mapping hash
 area: Search
 type: enhancement
 issues: []

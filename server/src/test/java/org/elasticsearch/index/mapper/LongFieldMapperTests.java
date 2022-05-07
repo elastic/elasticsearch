@@ -11,13 +11,14 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.Optional;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -118,21 +119,34 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         assertFetch(randomFetchTestMapper(), "field", 3.783147882954537E18, randomFetchTestFormat());
     }
 
-    @Override
-    protected final Optional<LongFieldScript.Factory> emptyFieldScript() {
-        return Optional.of((fieldName, params, searchLookup) -> ctx -> new LongFieldScript(fieldName, params, searchLookup, ctx) {
+    protected IngestScriptSupport ingestScriptSupport() {
+        return new IngestScriptSupport() {
             @Override
-            public void execute() {}
-        });
-    }
-
-    @Override
-    protected final Optional<LongFieldScript.Factory> nonEmptyFieldScript() {
-        return Optional.of((fieldName, params, searchLookup) -> ctx -> new LongFieldScript(fieldName, params, searchLookup, ctx) {
-            @Override
-            public void execute() {
-                emit(1);
+            @SuppressWarnings("unchecked")
+            protected <T> T compileOtherScript(Script script, ScriptContext<T> context) {
+                if (context == LongFieldScript.CONTEXT) {
+                    return (T) LongFieldScript.PARSE_FROM_SOURCE;
+                }
+                throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
             }
-        });
+
+            @Override
+            protected LongFieldScript.Factory emptyFieldScript() {
+                return (fieldName, params, searchLookup) -> ctx -> new LongFieldScript(fieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {}
+                };
+            }
+
+            @Override
+            protected LongFieldScript.Factory nonEmptyFieldScript() {
+                return (fieldName, params, searchLookup) -> ctx -> new LongFieldScript(fieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {
+                        emit(1);
+                    }
+                };
+            }
+        };
     }
 }

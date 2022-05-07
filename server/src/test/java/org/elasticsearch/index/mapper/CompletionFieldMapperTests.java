@@ -36,7 +36,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
-import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -55,7 +54,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -948,22 +946,12 @@ public class CompletionFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         throw new AssumptionViolatedException("not supported");
     }
 
     @Override
-    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+    protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
-    }
-
-    @Override
-    protected Optional<ScriptFactory> emptyFieldScript() {
-        return Optional.empty();
-    }
-
-    @Override
-    protected Optional<? extends ScriptFactory> nonEmptyFieldScript() {
-        return Optional.empty();
     }
 }

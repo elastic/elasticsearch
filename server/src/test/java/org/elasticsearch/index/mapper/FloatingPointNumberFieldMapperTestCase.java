@@ -8,11 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.io.IOException;
-
 public abstract class FloatingPointNumberFieldMapperTestCase extends NumberFieldMapperTests {
-    @Override
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        return new SyntheticSourceExampleHelper().example(Number::doubleValue);
-    }
+
 }

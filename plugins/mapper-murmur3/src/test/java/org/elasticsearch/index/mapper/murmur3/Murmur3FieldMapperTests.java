@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugin.mapper.MapperMurmur3Plugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -25,7 +24,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 
 public class Murmur3FieldMapperTests extends MapperTestCase {
 
@@ -67,22 +65,12 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         throw new AssumptionViolatedException("not supported");
     }
 
     @Override
-    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+    protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
-    }
-
-    @Override
-    protected Optional<ScriptFactory> emptyFieldScript() {
-        return Optional.empty();
-    }
-
-    @Override
-    protected Optional<ScriptFactory> nonEmptyFieldScript() {
-        return Optional.empty();
     }
 }

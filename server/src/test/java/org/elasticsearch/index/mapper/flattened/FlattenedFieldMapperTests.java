@@ -24,16 +24,13 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
-import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
@@ -427,22 +424,12 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         throw new AssumptionViolatedException("not supported");
     }
 
     @Override
-    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+    protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
-    }
-
-    @Override
-    protected Optional<ScriptFactory> emptyFieldScript() {
-        return Optional.empty();
-    }
-
-    @Override
-    protected Optional<ScriptFactory> nonEmptyFieldScript() {
-        return Optional.empty();
     }
 }

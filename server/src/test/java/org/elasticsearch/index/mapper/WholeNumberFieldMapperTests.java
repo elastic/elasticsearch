@@ -101,7 +101,7 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
     }
 
     @Override
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        return new SyntheticSourceExampleHelper().example(Number::longValue);
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new NumberSyntheticSourceSupport(Number::longValue);
     }
 }

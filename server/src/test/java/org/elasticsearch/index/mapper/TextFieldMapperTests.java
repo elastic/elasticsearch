@@ -61,11 +61,11 @@ import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.QueryStringQueryParser;
-import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matcher;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -73,7 +73,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1095,66 +1094,71 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        SyntheticSourceExample delegate = new KeywordFieldMapperTests.SyntheticSourceExampleHelper().example();
-        return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), b -> {
-            b.field("type", "text");
-            b.startObject("fields");
-            {
-                b.startObject(randomAlphaOfLength(4));
-                delegate.mapping().accept(b);
-                b.endObject();
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        SyntheticSourceExample delegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport().example();
+        return new SyntheticSourceSupport() {
+            @Override
+            public SyntheticSourceExample example() throws IOException {
+                return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), b -> {
+                    b.field("type", "text");
+                    b.startObject("fields");
+                    {
+                        b.startObject(randomAlphaOfLength(4));
+                        delegate.mapping().accept(b);
+                        b.endObject();
+                    }
+                    b.endObject();
+                });
             }
-            b.endObject();
-        });
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                Matcher<String> err = equalTo(
+                    "field [field] of type [text] doesn't support synthetic source "
+                        + "unless it has a sub-field of type [keyword] with doc values enabled and without ignore_above or a normalizer"
+                );
+                return List.of(
+                    new SyntheticSourceInvalidExample(err, TextFieldMapperTests.this::minimalMapping),
+                    new SyntheticSourceInvalidExample(err, b -> {
+                        b.field("type", "text");
+                        b.startObject("fields");
+                        {
+                            b.startObject("l");
+                            b.field("type", "long");
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }),
+                    new SyntheticSourceInvalidExample(err, b -> {
+                        b.field("type", "text");
+                        b.startObject("fields");
+                        {
+                            b.startObject("kwd");
+                            b.field("type", "keyword");
+                            b.field("ignore_above", 10);
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }),
+                    new SyntheticSourceInvalidExample(err, b -> {
+                        b.field("type", "text");
+                        b.startObject("fields");
+                        {
+                            b.startObject("kwd");
+                            b.field("type", "keyword");
+                            b.field("normalizer", "lowercase");
+                            b.endObject();
+                        }
+                        b.endObject();
+                    })
+                );
+            }
+        };
     }
 
     @Override
-    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
-        Matcher<String> err = equalTo(
-            "field [field] of type [text] doesn't support synthetic source "
-                + "unless it has a sub-field of type [keyword] with doc values enabled and without ignore_above or a normalizer"
-        );
-        return List.of(new SyntheticSourceInvalidExample(err, this::minimalMapping), new SyntheticSourceInvalidExample(err, b -> {
-            b.field("type", "text");
-            b.startObject("fields");
-            {
-                b.startObject("l");
-                b.field("type", "long");
-                b.endObject();
-            }
-            b.endObject();
-        }), new SyntheticSourceInvalidExample(err, b -> {
-            b.field("type", "text");
-            b.startObject("fields");
-            {
-                b.startObject("kwd");
-                b.field("type", "keyword");
-                b.field("ignore_above", 10);
-                b.endObject();
-            }
-            b.endObject();
-        }), new SyntheticSourceInvalidExample(err, b -> {
-            b.field("type", "text");
-            b.startObject("fields");
-            {
-                b.startObject("kwd");
-                b.field("type", "keyword");
-                b.field("normalizer", "lowercase");
-                b.endObject();
-            }
-            b.endObject();
-        }));
-    }
-
-    @Override
-    protected Optional<ScriptFactory> emptyFieldScript() {
-        return Optional.empty();
-    }
-
-    @Override
-    protected Optional<ScriptFactory> nonEmptyFieldScript() {
-        return Optional.empty();
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 
     @Override

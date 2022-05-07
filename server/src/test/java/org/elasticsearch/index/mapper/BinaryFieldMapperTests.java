@@ -15,7 +15,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -23,8 +22,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.List;
-import java.util.Optional;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -142,22 +139,12 @@ public class BinaryFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         throw new AssumptionViolatedException("not supported");
     }
 
     @Override
-    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+    protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
-    }
-
-    @Override
-    protected Optional<ScriptFactory> emptyFieldScript() {
-        return Optional.empty();
-    }
-
-    @Override
-    protected Optional<? extends ScriptFactory> nonEmptyFieldScript() {
-        return Optional.empty();
     }
 }

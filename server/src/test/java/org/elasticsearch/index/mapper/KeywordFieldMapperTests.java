@@ -48,7 +48,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
@@ -624,13 +623,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        return new SyntheticSourceExampleHelper().example();
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new KeywordSyntheticSourceSupport();
     }
 
-    static class SyntheticSourceExampleHelper {
+    static class KeywordSyntheticSourceSupport implements SyntheticSourceSupport {
         private final String nullValue = usually() ? null : randomAlphaOfLength(2);
 
+        @Override
         public SyntheticSourceExample example() {
             if (randomBoolean()) {
                 Tuple<String, String> v = generateValue();
@@ -657,42 +657,47 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 b.field("null_value", nullValue);
             }
         }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of(
+                new SyntheticSourceInvalidExample(
+                    equalTo("field [field] of type [keyword] doesn't support synthetic source because it doesn't have doc values"),
+                    b -> b.field("type", "keyword").field("doc_values", false)
+                ),
+                new SyntheticSourceInvalidExample(
+                    equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares ignore_above"),
+                    b -> b.field("type", "keyword").field("ignore_above", 10)
+                ),
+                new SyntheticSourceInvalidExample(
+                    equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares a normalizer"),
+                    b -> b.field("type", "keyword").field("normalizer", "lowercase")
+                )
+            );
+        }
     }
 
     @Override
-    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
-        return List.of(
-            new SyntheticSourceInvalidExample(
-                equalTo("field [field] of type [keyword] doesn't support synthetic source because it doesn't have doc values"),
-                b -> b.field("type", "keyword").field("doc_values", false)
-            ),
-            new SyntheticSourceInvalidExample(
-                equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares ignore_above"),
-                b -> b.field("type", "keyword").field("ignore_above", 10)
-            ),
-            new SyntheticSourceInvalidExample(
-                equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares a normalizer"),
-                b -> b.field("type", "keyword").field("normalizer", "lowercase")
-            )
-        );
-    }
-
-    @Override
-    protected final Optional<StringFieldScript.Factory> emptyFieldScript() {
-        return Optional.of((fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
+    protected IngestScriptSupport ingestScriptSupport() {
+        return new IngestScriptSupport() {
             @Override
-            public void execute() {}
-        });
-    }
-
-    @Override
-    protected final Optional<StringFieldScript.Factory> nonEmptyFieldScript() {
-        return Optional.of((fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
-            @Override
-            public void execute() {
-                emit("foo");
+            protected StringFieldScript.Factory emptyFieldScript() {
+                return (fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {}
+                };
             }
-        });
+
+            @Override
+            protected StringFieldScript.Factory nonEmptyFieldScript() {
+                return (fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {
+                        emit("foo");
+                    }
+                };
+            }
+        };
     }
 
     public void testLegacyField() throws Exception {

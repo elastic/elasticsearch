@@ -9,12 +9,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
-import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 
 public class FloatFieldMapperTests extends FloatingPointNumberFieldMapperTestCase {
 
@@ -51,23 +50,12 @@ public class FloatFieldMapperTests extends FloatingPointNumberFieldMapperTestCas
     }
 
     @Override
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        if (randomBoolean()) {
-            Number n = randomNumber();
-            return new SyntheticSourceExample(n, n.floatValue(), this::minimalMapping);
-        }
-        List<Number> in = randomList(1, 5, this::randomNumber);
-        Object out = in.size() == 1 ? in.get(0).floatValue() : in.stream().map(n -> n.floatValue()).sorted().toList();
-        return new SyntheticSourceExample(in, out, this::minimalMapping);
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new NumberSyntheticSourceSupport(Number::floatValue);
     }
 
     @Override
-    protected Optional<ScriptFactory> emptyFieldScript() {
-        return Optional.empty();
-    }
-
-    @Override
-    protected Optional<ScriptFactory> nonEmptyFieldScript() {
-        return Optional.empty();
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

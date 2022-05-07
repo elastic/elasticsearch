@@ -17,20 +17,19 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.CoreMatchers;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.TreeMap;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
@@ -469,104 +468,98 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        return new SyntheticSourceExampleHelper().example();
-    }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new SyntheticSourceSupport() {
+            private final boolean ignoreZValue = usually();
+            private final GeoPoint nullValue = usually() ? null : randomGeoPoint();
 
-    static class SyntheticSourceExampleHelper {
-        private final boolean ignoreZValue = usually();
-        private final GeoPoint nullValue = usually() ? null : randomGeoPoint();
-
-        public SyntheticSourceExample example() {
-            if (randomBoolean()) {
-                Tuple<Object, GeoPoint> v = generateValue();
-                return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), this::mapping);
+            @Override
+            public SyntheticSourceExample example() {
+                if (randomBoolean()) {
+                    Tuple<Object, GeoPoint> v = generateValue();
+                    return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), this::mapping);
+                }
+                List<Tuple<Object, GeoPoint>> values = randomList(1, 5, this::generateValue);
+                List<Object> in = values.stream().map(Tuple::v1).toList();
+                List<Map<String, Object>> outList = values.stream().map(t -> encode(t.v2())).sorted().map(this::decode).toList();
+                Object out = outList.size() == 1 ? outList.get(0) : outList;
+                return new SyntheticSourceExample(in, out, this::mapping);
             }
-            List<Tuple<Object, GeoPoint>> values = randomList(1, 5, this::generateValue);
-            List<Object> in = values.stream().map(Tuple::v1).toList();
-            List<Map<String, Object>> outList = values.stream().map(t -> encode(t.v2())).sorted().map(this::decode).toList();
-            Object out = outList.size() == 1 ? outList.get(0) : outList;
-            return new SyntheticSourceExample(in, out, this::mapping);
-        }
 
-        private Tuple<Object, GeoPoint> generateValue() {
-            if (nullValue != null && randomBoolean()) {
-                return Tuple.tuple(null, nullValue);
+            private Tuple<Object, GeoPoint> generateValue() {
+                if (nullValue != null && randomBoolean()) {
+                    return Tuple.tuple(null, nullValue);
+                }
+                GeoPoint point = randomGeoPoint();
+                return Tuple.tuple(randomGeoPointInput(point), point);
             }
-            GeoPoint point = randomGeoPoint();
-            return Tuple.tuple(randomGeoPointInput(point), point);
-        }
 
-        private GeoPoint randomGeoPoint() {
-            Point point = GeometryTestUtils.randomPoint(false);
-            return new GeoPoint(point.getLat(), point.getLon());
-        }
-
-        private Object randomGeoPointInput(GeoPoint point) {
-            if (randomBoolean()) {
-                return Map.of("lat", point.lat(), "lon", point.lon());
+            private GeoPoint randomGeoPoint() {
+                Point point = GeometryTestUtils.randomPoint(false);
+                return new GeoPoint(point.getLat(), point.getLon());
             }
-            List<Double> coords = new ArrayList<>();
-            coords.add(point.lon());
-            coords.add(point.lat());
-            if (ignoreZValue) {
-                coords.add(randomDouble());
-            }
-            return Map.of("coordinates", coords, "type", "point");
-        }
 
-        private long encode(GeoPoint point) {
-            return new LatLonDocValuesField("f", point.lat(), point.lon()).numericValue().longValue();
-        }
-
-        private Map<String, Object> decode(long point) {
-            double lat = GeoEncodingUtils.decodeLatitude((int) (point >> 32));
-            double lon = GeoEncodingUtils.decodeLongitude((int) (point & 0xFFFFFFFF));
-            return new TreeMap<>(Map.of("lat", lat, "lon", lon));
-        }
-
-        private void mapping(XContentBuilder b) throws IOException {
-            b.field("type", "geo_point");
-            if (ignoreZValue == false || rarely()) {
-                b.field("ignore_z_value", ignoreZValue);
+            private Object randomGeoPointInput(GeoPoint point) {
+                if (randomBoolean()) {
+                    return Map.of("lat", point.lat(), "lon", point.lon());
+                }
+                List<Double> coords = new ArrayList<>();
+                coords.add(point.lon());
+                coords.add(point.lat());
+                if (ignoreZValue) {
+                    coords.add(randomDouble());
+                }
+                return Map.of("coordinates", coords, "type", "point");
             }
-            if (nullValue != null) {
-                b.field("null_value", randomGeoPointInput(nullValue));
-            }
-            if (rarely()) {
-                b.field("index", false);
-            }
-            if (rarely()) {
-                b.field("store", false);
-            }
-        }
-    }
 
-    @Override
-    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
-        return List.of(
-            new SyntheticSourceInvalidExample(
-                equalTo("field [field] of type [geo_point] doesn't support synthetic source because it doesn't have doc values"),
-                b -> b.field("type", "geo_point").field("doc_values", false)
-            ),
-            new SyntheticSourceInvalidExample(
-                equalTo("field [field] of type [geo_point] doesn't support synthetic source because it declares copy_to"),
-                b -> b.field("type", "geo_point").field("copy_to", "foo")
-            ),
-            new SyntheticSourceInvalidExample(
-                equalTo("field [field] of type [geo_point] doesn't support synthetic source because it ignores malformed points"),
-                b -> b.field("type", "geo_point").field("ignore_malformed", true)
-            )
-        );
-    }
+            private long encode(GeoPoint point) {
+                return new LatLonDocValuesField("f", point.lat(), point.lon()).numericValue().longValue();
+            }
 
-    @Override
-    protected Optional<ScriptFactory> emptyFieldScript() {
-        return Optional.empty();
+            private Map<String, Object> decode(long point) {
+                double lat = GeoEncodingUtils.decodeLatitude((int) (point >> 32));
+                double lon = GeoEncodingUtils.decodeLongitude((int) (point & 0xFFFFFFFF));
+                return new TreeMap<>(Map.of("lat", lat, "lon", lon));
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", "geo_point");
+                if (ignoreZValue == false || rarely()) {
+                    b.field("ignore_z_value", ignoreZValue);
+                }
+                if (nullValue != null) {
+                    b.field("null_value", randomGeoPointInput(nullValue));
+                }
+                if (rarely()) {
+                    b.field("index", false);
+                }
+                if (rarely()) {
+                    b.field("store", false);
+                }
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of(
+                    new SyntheticSourceInvalidExample(
+                        equalTo("field [field] of type [geo_point] doesn't support synthetic source because it doesn't have doc values"),
+                        b -> b.field("type", "geo_point").field("doc_values", false)
+                    ),
+                    new SyntheticSourceInvalidExample(
+                        equalTo("field [field] of type [geo_point] doesn't support synthetic source because it declares copy_to"),
+                        b -> b.field("type", "geo_point").field("copy_to", "foo")
+                    ),
+                    new SyntheticSourceInvalidExample(
+                        equalTo("field [field] of type [geo_point] doesn't support synthetic source because it ignores malformed points"),
+                        b -> b.field("type", "geo_point").field("ignore_malformed", true)
+                    )
+                );
+            }
+        };
     }
 
     @Override
-    protected Optional<ScriptFactory> nonEmptyFieldScript() {
-        return Optional.empty();
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -196,61 +195,70 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        switch (randomInt(3)) {
-            case 0:
-                boolean v = randomBoolean();
-                return new SyntheticSourceExample(v, v, this::minimalMapping);
-            case 1:
-                List<Boolean> in = randomList(1, 5, ESTestCase::randomBoolean);
-                Object out = in.size() == 1 ? in.get(0) : in.stream().sorted().toList();
-                return new SyntheticSourceExample(in, out, this::minimalMapping);
-            case 2:
-                v = randomBoolean();
-                return new SyntheticSourceExample(null, v, b -> {
-                    minimalMapping(b);
-                    b.field("null_value", v);
-                });
-            case 3:
-                boolean nullValue = randomBoolean();
-                List<Boolean> vals = randomList(1, 5, ESTestCase::randomBoolean);
-                in = vals.stream().map(b -> b == nullValue ? null : b).toList();
-                out = vals.size() == 1 ? vals.get(0) : vals.stream().sorted().toList();
-                return new SyntheticSourceExample(in, out, b -> {
-                    minimalMapping(b);
-                    b.field("null_value", nullValue);
-                });
-            default:
-                throw new IllegalArgumentException();
-        }
-    }
-
-    @Override
-    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
-        return List.of(
-            new SyntheticSourceInvalidExample(
-                equalTo("field [field] of type [boolean] doesn't support synthetic source because it doesn't have doc values"),
-                b -> b.field("type", "boolean").field("doc_values", false)
-            )
-            // If boolean had ignore_malformed we'd fail to index here
-        );
-    }
-
-    @Override
-    protected Optional<BooleanFieldScript.Factory> emptyFieldScript() {
-        return Optional.of((fieldName, params, searchLookup) -> ctx -> new BooleanFieldScript(fieldName, params, searchLookup, ctx) {
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new SyntheticSourceSupport() {
             @Override
-            public void execute() {}
-        });
-    }
-
-    @Override
-    protected Optional<BooleanFieldScript.Factory> nonEmptyFieldScript() {
-        return Optional.of((fieldName, params, searchLookup) -> ctx -> new BooleanFieldScript(fieldName, params, searchLookup, ctx) {
-            @Override
-            public void execute() {
-                emit(true);
+            public SyntheticSourceExample example() throws IOException {
+                switch (randomInt(3)) {
+                    case 0:
+                        boolean v = randomBoolean();
+                        return new SyntheticSourceExample(v, v, BooleanFieldMapperTests.this::minimalMapping);
+                    case 1:
+                        List<Boolean> in = randomList(1, 5, ESTestCase::randomBoolean);
+                        Object out = in.size() == 1 ? in.get(0) : in.stream().sorted().toList();
+                        return new SyntheticSourceExample(in, out, BooleanFieldMapperTests.this::minimalMapping);
+                    case 2:
+                        v = randomBoolean();
+                        return new SyntheticSourceExample(null, v, b -> {
+                            minimalMapping(b);
+                            b.field("null_value", v);
+                        });
+                    case 3:
+                        boolean nullValue = randomBoolean();
+                        List<Boolean> vals = randomList(1, 5, ESTestCase::randomBoolean);
+                        in = vals.stream().map(b -> b == nullValue ? null : b).toList();
+                        out = vals.size() == 1 ? vals.get(0) : vals.stream().sorted().toList();
+                        return new SyntheticSourceExample(in, out, b -> {
+                            minimalMapping(b);
+                            b.field("null_value", nullValue);
+                        });
+                    default:
+                        throw new IllegalArgumentException();
+                }
             }
-        });
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of(
+                    new SyntheticSourceInvalidExample(
+                        equalTo("field [field] of type [boolean] doesn't support synthetic source because it doesn't have doc values"),
+                        b -> b.field("type", "boolean").field("doc_values", false)
+                    )
+                // If boolean had ignore_malformed we'd fail to index here
+                );
+            }
+        };
+    }
+
+    protected IngestScriptSupport ingestScriptSupport() {
+        return new IngestScriptSupport() {
+            @Override
+            protected BooleanFieldScript.Factory emptyFieldScript() {
+                return (fieldName, params, searchLookup) -> ctx -> new BooleanFieldScript(fieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {}
+                };
+            }
+
+            @Override
+            protected BooleanFieldScript.Factory nonEmptyFieldScript() {
+                return (fieldName, params, searchLookup) -> ctx -> new BooleanFieldScript(fieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {
+                        emit(true);
+                    }
+                };
+            }
+        };
     }
 }

@@ -26,7 +26,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -304,83 +303,86 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        return new SyntheticSourceExampleHelper().example();
-    }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new SyntheticSourceSupport() {
+            private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
 
-    static class SyntheticSourceExampleHelper {
-        private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
-
-        public SyntheticSourceExample example() {
-            if (randomBoolean()) {
-                Tuple<String, InetAddress> v = generateValue();
-                return new SyntheticSourceExample(v.v1(), NetworkAddress.format(v.v2()), this::mapping);
-            }
-            List<Tuple<String, InetAddress>> values = randomList(1, 5, this::generateValue);
-            List<String> in = values.stream().map(Tuple::v1).toList();
-            List<String> outList = values.stream()
-                .map(v -> new BytesRef(InetAddressPoint.encode(v.v2())))
-                .collect(Collectors.toSet())
-                .stream()
-                .sorted()
-                .map(v -> InetAddressPoint.decode(v.bytes))
-                .map(NetworkAddress::format)
-                .toList();
-            Object out = outList.size() == 1 ? outList.get(0) : outList;
-            return new SyntheticSourceExample(in, out, this::mapping);
-        }
-
-        private Tuple<String, InetAddress> generateValue() {
-            if (nullValue != null && randomBoolean()) {
-                return Tuple.tuple(null, nullValue);
-            }
-            InetAddress addr = randomIp(randomBoolean());
-            return Tuple.tuple(NetworkAddress.format(addr), addr);
-        }
-
-        private void mapping(XContentBuilder b) throws IOException {
-            b.field("type", "ip");
-            if (nullValue != null) {
-                b.field("null_value", NetworkAddress.format(nullValue));
-            }
-            if (rarely()) {
-                b.field("index", false);
-            }
-            if (rarely()) {
-                b.field("store", false);
-            }
-        }
-    }
-
-    @Override
-    protected final List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
-        return List.of(
-            new SyntheticSourceInvalidExample(
-                equalTo("field [field] of type [ip] doesn't support synthetic source because it doesn't have doc values"),
-                b -> b.field("type", "ip").field("doc_values", false)
-            ),
-            new SyntheticSourceInvalidExample(
-                equalTo("field [field] of type [ip] doesn't support synthetic source because it ignores malformed ips"),
-                b -> b.field("type", "ip").field("ignore_malformed", true)
-            )
-        );
-    }
-
-    @Override
-    protected final Optional<IpFieldScript.Factory> emptyFieldScript() {
-        return Optional.of((fieldName, params, searchLookup) -> ctx -> new IpFieldScript(fieldName, params, searchLookup, ctx) {
             @Override
-            public void execute() {}
-        });
+            public SyntheticSourceExample example() {
+                if (randomBoolean()) {
+                    Tuple<String, InetAddress> v = generateValue();
+                    return new SyntheticSourceExample(v.v1(), NetworkAddress.format(v.v2()), this::mapping);
+                }
+                List<Tuple<String, InetAddress>> values = randomList(1, 5, this::generateValue);
+                List<String> in = values.stream().map(Tuple::v1).toList();
+                List<String> outList = values.stream()
+                    .map(v -> new BytesRef(InetAddressPoint.encode(v.v2())))
+                    .collect(Collectors.toSet())
+                    .stream()
+                    .sorted()
+                    .map(v -> InetAddressPoint.decode(v.bytes))
+                    .map(NetworkAddress::format)
+                    .toList();
+                Object out = outList.size() == 1 ? outList.get(0) : outList;
+                return new SyntheticSourceExample(in, out, this::mapping);
+            }
+
+            private Tuple<String, InetAddress> generateValue() {
+                if (nullValue != null && randomBoolean()) {
+                    return Tuple.tuple(null, nullValue);
+                }
+                InetAddress addr = randomIp(randomBoolean());
+                return Tuple.tuple(NetworkAddress.format(addr), addr);
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", "ip");
+                if (nullValue != null) {
+                    b.field("null_value", NetworkAddress.format(nullValue));
+                }
+                if (rarely()) {
+                    b.field("index", false);
+                }
+                if (rarely()) {
+                    b.field("store", false);
+                }
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of(
+                    new SyntheticSourceInvalidExample(
+                        equalTo("field [field] of type [ip] doesn't support synthetic source because it doesn't have doc values"),
+                        b -> b.field("type", "ip").field("doc_values", false)
+                    ),
+                    new SyntheticSourceInvalidExample(
+                        equalTo("field [field] of type [ip] doesn't support synthetic source because it ignores malformed ips"),
+                        b -> b.field("type", "ip").field("ignore_malformed", true)
+                    )
+                );
+            }
+        };
     }
 
-    @Override
-    protected final Optional<IpFieldScript.Factory> nonEmptyFieldScript() {
-        return Optional.of((fieldName, params, searchLookup) -> ctx -> new IpFieldScript(fieldName, params, searchLookup, ctx) {
+    protected IngestScriptSupport ingestScriptSupport() {
+        return new IngestScriptSupport() {
             @Override
-            public void execute() {
-                emit("192.168.0.1");
+            protected IpFieldScript.Factory emptyFieldScript() {
+                return (fieldName, params, searchLookup) -> ctx -> new IpFieldScript(fieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {}
+                };
             }
-        });
+
+            @Override
+            protected IpFieldScript.Factory nonEmptyFieldScript() {
+                return (fieldName, params, searchLookup) -> ctx -> new IpFieldScript(fieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {
+                        emit("192.168.0.1");
+                    }
+                };
+            }
+        };
     }
 }

@@ -770,8 +770,27 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             + "].";
     }
 
+    public record SyntheticSourceExample(Object inputValue, Object result, CheckedConsumer<XContentBuilder, IOException> mapping) {}
+
+    public record SyntheticSourceInvalidExample(Matcher<String> error, CheckedConsumer<XContentBuilder, IOException> mapping) {}
+
+    public interface SyntheticSourceSupport {
+        /**
+         * Examples that should work when source is generated from doc values.
+         */
+        SyntheticSourceExample example() throws IOException;
+
+        /**
+         * Examples of mappings that should be rejected when source is configured to
+         * be loaded from doc values.
+         */
+        List<SyntheticSourceInvalidExample> invalidExample() throws IOException;
+    }
+
+    protected abstract SyntheticSourceSupport syntheticSourceSupport();
+
     public final void testSyntheticSource() throws IOException {
-        SyntheticSourceExample syntheticSourceExample = syntheticSourceExample();
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example();
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
             syntheticSourceExample.mapping().accept(b);
@@ -784,8 +803,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testNoSyntheticSourceForScript() throws IOException {
-        assumeTrue("Field doesn't support value scripts anyway", emptyFieldScript().isPresent());
-        assumeTrue("Field doesn't support value scripts anyway", nonEmptyFieldScript().isPresent());
+        // Fetch the ingest script support to eagerly assumeFalse if the mapper doesn't support ingest scripts
+        ingestScriptSupport();
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
             minimalMapping(b);
@@ -796,7 +815,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticSourceInObject() throws IOException {
-        SyntheticSourceExample syntheticSourceExample = syntheticSourceExample();
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example();
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("obj").startObject("properties").startObject("field");
             syntheticSourceExample.mapping().accept(b);
@@ -816,15 +835,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         );
     }
 
-    public static record SyntheticSourceExample(Object inputValue, Object result, CheckedConsumer<XContentBuilder, IOException> mapping) {}
-
-    /**
-     * Examples that should work when source is generated from doc values.
-     */
-    protected abstract SyntheticSourceExample syntheticSourceExample() throws IOException;
-
     public final void testSyntheticEmptyList() throws IOException {
-        SyntheticSourceExample syntheticSourceExample = syntheticSourceExample();
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example();
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
             syntheticSourceExample.mapping().accept(b);
@@ -834,12 +846,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticSourceInvalid() throws IOException {
-        List<SyntheticSourceInvalidExample> examples = new ArrayList<>(syntheticSourceInvalidExamples());
+        List<SyntheticSourceInvalidExample> examples = new ArrayList<>(syntheticSourceSupport().invalidExample());
         examples.add(
             new SyntheticSourceInvalidExample(
                 matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it declares copy_to"),
                 b -> {
-                    syntheticSourceExample().mapping().accept(b);
+                    syntheticSourceSupport().example().mapping().accept(b);
                     b.field("copy_to", "bar");
                 }
             )
@@ -858,49 +870,41 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    public static record SyntheticSourceInvalidExample(Matcher<String> error, CheckedConsumer<XContentBuilder, IOException> mapping) {}
-
-    /**
-     * Examples of mappings that should be rejected when source is configured to
-     * be loaded from doc values.
-     */
-    protected abstract List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException;
-
     @Override
     protected final <T> T compileScript(Script script, ScriptContext<T> context) {
-        switch (script.getIdOrCode()) {
-            case "empty":
-                return context.factoryClazz.cast(
-                    emptyFieldScript().orElseThrow(
-                        () -> new IllegalStateException("test claimed not to support value scripts but ran anyway")
-                    )
-                );
-            case "non-empty":
-                return context.factoryClazz.cast(
-                    nonEmptyFieldScript().orElseThrow(
-                        () -> new IllegalStateException("test claimed not to support value scripts but ran anyway")
-                    )
-                );
-            default:
-                return compileOtherScript(script, context);
+        return ingestScriptSupport().compileScript(script, context);
+    }
+
+    protected abstract IngestScriptSupport ingestScriptSupport();
+
+    protected abstract class IngestScriptSupport {
+        private <T> T compileScript(Script script, ScriptContext<T> context) {
+            switch (script.getIdOrCode()) {
+                case "empty":
+                    return context.factoryClazz.cast(emptyFieldScript());
+                case "non-empty":
+                    return context.factoryClazz.cast(nonEmptyFieldScript());
+                default:
+                    return compileOtherScript(script, context);
+            }
         }
+
+        protected <T> T compileOtherScript(Script script, ScriptContext<T> context) {
+            throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+        }
+
+        /**
+         * Create a script that can be run to produce no values for this
+         * field or return {@link Optional#empty()} to signal that this
+         * field doesn't support fields scripts.
+         */
+        abstract ScriptFactory emptyFieldScript();
+
+        /**
+         * Create a script that can be run to produce some value value for this
+         * field or return {@link Optional#empty()} to signal that this
+         * field doesn't support fields scripts.
+         */
+        abstract ScriptFactory nonEmptyFieldScript();
     }
-
-    protected <T> T compileOtherScript(Script script, ScriptContext<T> context) {
-        throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
-    }
-
-    /**
-     * Create a script that can be run to produce no values for this
-     * field or return {@link Optional#empty()} to signal that this
-     * field doesn't support fields scripts.
-     */
-    protected abstract Optional<? extends ScriptFactory> emptyFieldScript();
-
-    /**
-     * Create a script that can be run to produce some value value for this
-     * field or return {@link Optional#empty()} to signal that this
-     * field doesn't support fields scripts.
-     */
-    protected abstract Optional<? extends ScriptFactory> nonEmptyFieldScript();
 }

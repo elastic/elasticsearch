@@ -18,6 +18,7 @@ import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -306,15 +307,30 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    protected <T> T compileOtherScript(Script script, ScriptContext<T> context) {
-        if (context == LongFieldScript.CONTEXT) {
-            return (T) LongFieldScript.PARSE_FROM_SOURCE;
-        }
-        if (context == DoubleFieldScript.CONTEXT) {
-            return (T) DoubleFieldScript.PARSE_FROM_SOURCE;
-        }
-        throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+    protected IngestScriptSupport ingestScriptSupport() {
+        return new IngestScriptSupport() {
+            @Override
+            @SuppressWarnings("unchecked")
+            protected <T> T compileOtherScript(Script script, ScriptContext<T> context) {
+                if (context == LongFieldScript.CONTEXT) {
+                    return (T) LongFieldScript.PARSE_FROM_SOURCE;
+                }
+                if (context == DoubleFieldScript.CONTEXT) {
+                    return (T) DoubleFieldScript.PARSE_FROM_SOURCE;
+                }
+                throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+            }
+
+            @Override
+            ScriptFactory emptyFieldScript() {
+                return null;
+            }
+
+            @Override
+            ScriptFactory nonEmptyFieldScript() {
+                return null;
+            }
+        };
     }
 
     public void testScriptableTypes() throws IOException {
@@ -334,31 +350,17 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
     protected abstract Number randomNumber();
 
-    @Override
-    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
-        return List.of(
-            new SyntheticSourceInvalidExample(
-                matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it doesn't have doc values"),
-                b -> {
-                    minimalMapping(b);
-                    b.field("doc_values", false);
-                }
-            ),
-            new SyntheticSourceInvalidExample(
-                matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it ignores malformed numbers"),
-                b -> {
-                    minimalMapping(b);
-                    b.field("ignore_malformed", true);
-                }
-            )
-        );
-    }
-
-    protected final class SyntheticSourceExampleHelper {
+    protected final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final Function<Number, Number> round;
         private final Long nullValue = usually() ? null : randomNumber().longValue();
         private final boolean coerce = rarely();
 
-        public SyntheticSourceExample example(Function<Number, Number> round) {
+        protected NumberSyntheticSourceSupport(Function<Number, Number> round) {
+            this.round = round;
+        }
+
+        @Override
+        public SyntheticSourceExample example() {
             if (randomBoolean()) {
                 Tuple<Object, Number> v = generateValue();
                 return new SyntheticSourceExample(v.v1(), round.apply(v.v2()), this::mapping);
@@ -391,6 +393,26 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             if (nullValue != null) {
                 b.field("null_value", nullValue);
             }
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of(
+                new SyntheticSourceInvalidExample(
+                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it doesn't have doc values"),
+                    b -> {
+                        minimalMapping(b);
+                        b.field("doc_values", false);
+                    }
+                ),
+                new SyntheticSourceInvalidExample(
+                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it ignores malformed numbers"),
+                    b -> {
+                        minimalMapping(b);
+                        b.field("ignore_malformed", true);
+                    }
+                )
+            );
         }
     }
 }

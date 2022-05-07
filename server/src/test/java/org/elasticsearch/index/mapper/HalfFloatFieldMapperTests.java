@@ -11,12 +11,11 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
-import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 
 public class HalfFloatFieldMapperTests extends FloatingPointNumberFieldMapperTestCase {
 
@@ -48,27 +47,14 @@ public class HalfFloatFieldMapperTests extends FloatingPointNumberFieldMapperTes
     }
 
     @Override
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        if (randomBoolean()) {
-            Number n = randomNumber();
-            return new SyntheticSourceExample(n, round(n), this::minimalMapping);
-        }
-        List<Number> in = randomList(1, 5, this::randomNumber);
-        Object out = in.size() == 1 ? round(in.get(0)) : in.stream().map(n -> round(n)).sorted().toList();
-        return new SyntheticSourceExample(in, out, this::minimalMapping);
-    }
-
-    private float round(Number n) {
-        return HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(n.floatValue()));
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new NumberSyntheticSourceSupport(
+            n -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(n.floatValue()))
+        );
     }
 
     @Override
-    protected Optional<ScriptFactory> emptyFieldScript() {
-        return Optional.empty();
-    }
-
-    @Override
-    protected Optional<ScriptFactory> nonEmptyFieldScript() {
-        return Optional.empty();
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

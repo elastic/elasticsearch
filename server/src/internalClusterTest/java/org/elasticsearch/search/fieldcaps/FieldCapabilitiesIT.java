@@ -56,6 +56,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
@@ -580,40 +581,58 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                  }
              }
             """;
-        String[] indices = IntStream.range(1, between(1, 9)).mapToObj(n -> "test_many_index_" + n).toArray(String[]::new);
+        String[] indices = IntStream.range(0, between(1, 9)).mapToObj(n -> "test_many_index_" + n).toArray(String[]::new);
         for (String index : indices) {
             assertAcked(client().admin().indices().prepareCreate(index).setMapping(mapping).get());
         }
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.indices("test_many_index_*");
         request.fields("*");
-        if (randomBoolean()) {
-            request.includeUnmapped(randomBoolean());
-        }
         boolean excludeMultiField = randomBoolean();
         if (excludeMultiField) {
             request.filters("-multifield");
         }
-        FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
-        assertThat(response.getIndices(), equalTo(indices));
-        assertThat(response.get().get("message_field"), hasKey("text"));
-        assertThat(response.get().get("message_field").get("text").indices(), nullValue());
-        assertTrue(response.get().get("message_field").get("text").isSearchable());
-        assertFalse(response.get().get("message_field").get("text").isAggregatable());
+        Consumer<FieldCapabilitiesResponse> verifyResponse = resp -> {
+            assertThat(resp.getIndices(), equalTo(indices));
+            assertThat(resp.getField("message_field"), hasKey("text"));
+            assertThat(resp.getField("message_field").get("text").indices(), nullValue());
+            assertTrue(resp.getField("message_field").get("text").isSearchable());
+            assertFalse(resp.getField("message_field").get("text").isAggregatable());
 
-        assertThat(response.get().get("value_field"), hasKey("long"));
-        assertThat(response.get().get("value_field").get("long").indices(), nullValue());
-        assertTrue(response.get().get("value_field").get("long").isSearchable());
-        assertTrue(response.get().get("value_field").get("long").isAggregatable());
+            assertThat(resp.getField("value_field"), hasKey("long"));
+            assertThat(resp.getField("value_field").get("long").indices(), nullValue());
+            assertTrue(resp.getField("value_field").get("long").isSearchable());
+            assertTrue(resp.getField("value_field").get("long").isAggregatable());
 
-        assertThat(response.get().get("timestamp"), hasKey("date"));
+            assertThat(resp.getField("timestamp"), hasKey("date"));
 
-        assertThat(response.get().get("multi_field"), hasKey("ip"));
-        if (excludeMultiField) {
-            assertThat(response.get().get("multi_field.keyword"), not(hasKey("keyword")));
-        } else {
-            assertThat(response.get().get("multi_field.keyword"), hasKey("keyword"));
+            assertThat(resp.getField("multi_field"), hasKey("ip"));
+            if (excludeMultiField) {
+                assertThat(resp.getField("multi_field.keyword"), not(hasKey("keyword")));
+            } else {
+                assertThat(resp.getField("multi_field.keyword"), hasKey("keyword"));
+            }
+        };
+        // Single mapping
+        verifyResponse.accept(client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet());
+
+        // add an extra field for some indices
+        String[] indicesWithExtraField = randomSubsetOf(between(1, indices.length), indices).stream().sorted().toArray(String[]::new);
+        ensureGreen(indices);
+        assertAcked(client().admin().indices().preparePutMapping(indicesWithExtraField).setSource("extra_field", "type=integer").get());
+        for (String index : indicesWithExtraField) {
+            client().prepareIndex(index).setSource("extra_field", randomIntBetween(1, 1000)).get();
         }
+        FieldCapabilitiesResponse resp = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+        verifyResponse.accept(resp);
+        assertThat(resp.getField("extra_field"), hasKey("integer"));
+        assertThat(
+            "extra_indices " + Arrays.toString(indicesWithExtraField),
+            resp.getField("extra_field").get("integer").indices(),
+            nullValue()
+        );
+        assertTrue(resp.getField("extra_field").get("integer").isSearchable());
+        assertTrue(resp.getField("extra_field").get("integer").isAggregatable());
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {

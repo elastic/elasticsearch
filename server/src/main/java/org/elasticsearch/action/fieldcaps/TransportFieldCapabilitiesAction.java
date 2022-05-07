@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -35,6 +36,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -234,44 +236,26 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             .sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName))
             .toList();
         final String[] indices = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).toArray(String[]::new);
-
-        if (isFromSingleMapping(indexResponses)) {
-            FieldCapabilitiesIndexResponse firstResponse = indexResponses.get(0);
-            final Map<String, IndexFieldCapabilities> fields = ResponseRewriter.rewriteOldResponses(
-                firstResponse.getOriginVersion(),
-                firstResponse.get(),
-                request.filters(),
-                request.types(),
-                metadataFieldPred
-            );
-            final Map<String, Map<String, FieldCapabilities>> responseMap = fields.entrySet()
-                .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> {
-                    final IndexFieldCapabilities cap = e.getValue();
-                    return Map.of(
-                        cap.getType(),
-                        new FieldCapabilities(
-                            cap.getName(),
-                            cap.getType(),
-                            cap.isMetadatafield(),
-                            cap.isSearchable(),
-                            cap.isAggregatable(),
-                            cap.isDimension(),
-                            cap.getMetricType(),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            cap.meta().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, v -> Set.of(v.getValue())))
-                        )
-                    );
-                }));
-            return new FieldCapabilitiesResponse(indices, responseMap, failures);
-        }
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
-        for (FieldCapabilitiesIndexResponse response : indexResponses) {
-            innerMerge(responseMapBuilder, request, response);
+        int lastPendingIndex = 0;
+        for (int i = 1; i < indexResponses.size(); i++) {
+            if (indexResponses.get(lastPendingIndex).get() != indexResponses.get(i).get()) {
+                innerMerge(
+                    ArrayUtil.copyOfSubArray(indices, lastPendingIndex, i),
+                    responseMapBuilder,
+                    request,
+                    indexResponses.get(lastPendingIndex)
+                );
+                lastPendingIndex = i;
+            }
+        }
+        if (lastPendingIndex < indexResponses.size()) {
+            innerMerge(
+                ArrayUtil.copyOfSubArray(indices, lastPendingIndex, indexResponses.size()),
+                responseMapBuilder,
+                request,
+                indexResponses.get(lastPendingIndex)
+            );
         }
         final Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
@@ -294,31 +278,18 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         typeMap.values().forEach(t -> t.getIndices(mappedIndices));
         if (mappedIndices.size() != indices.length) {
             final FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
-            for (String index : indices) {
-                if (mappedIndices.contains(index) == false) {
-                    unmapped.add(index, false, false, false, false, null, Collections.emptyMap());
-                }
+            final String[] unmappedIndices = Arrays.stream(indices)
+                .filter(index -> mappedIndices.contains(index) == false)
+                .toArray(String[]::new);
+            if (unmappedIndices.length > 0) {
+                unmapped.add(unmappedIndices, false, false, false, false, null, Collections.emptyMap());
             }
             typeMap.put("unmapped", unmapped);
         }
     }
 
-    private boolean isFromSingleMapping(List<FieldCapabilitiesIndexResponse> indexResponses) {
-        String sharedMappingHash = null;
-        for (FieldCapabilitiesIndexResponse resp : indexResponses) {
-            if (resp.getIndexMappingHash() == null) {
-                return false;
-            }
-            if (sharedMappingHash == null) {
-                sharedMappingHash = resp.getIndexMappingHash();
-            } else if (sharedMappingHash.equals(resp.getIndexMappingHash()) == false) {
-                return false;
-            }
-        }
-        return sharedMappingHash != null;
-    }
-
     private void innerMerge(
+        String[] groupedIndices,
         Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
         FieldCapabilitiesRequest request,
         FieldCapabilitiesIndexResponse response
@@ -338,7 +309,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 key -> new FieldCapabilities.Builder(field, key)
             );
             builder.add(
-                response.getIndexName(),
+                groupedIndices,
                 fieldCap.isMetadatafield(),
                 fieldCap.isSearchable(),
                 fieldCap.isAggregatable(),

@@ -113,19 +113,22 @@ class ServerCli extends EnvironmentAwareCommand {
         // if we are daemonized and we got the all-clear signal, we can exit cleanly
         if (errorPump.ready && options.has(daemonizeOption)) {
             logger.info("Subprocess is ready and we are daemonized, exiting...");
-            if (processInfo.envVars().get("os.name").startsWith("Windows") == false) {
-                this.process = null; // clear the process handle, we don't want to shut it down now that we are started
-                closeStreams(process);
-            }
+            this.process = null; // clear the process handle, we don't want to shut it down now that we are started
+            closeStreams(process);
             return;
         }
+        // TODO: need a better sysprop name...
+        boolean shouldWait = Boolean.parseBoolean(processInfo.sysprops().getOrDefault("cli.wait", "true"));
 
-        // We pass any ES error code through UserException. If the message was set,
-        // then it is a real UserException, otherwise it is just the error code and a null message.
-        int code = process.waitFor();
-        logger.info("Subprocess exited [" + code + "]");
-        if (code != ExitCodes.OK) {
-            throw new UserException(code, errorPump.userExceptionMsg);
+        if (errorPump.userExceptionMsg != null || shouldWait) {
+
+            // We pass any ES error code through UserException. If the message was set,
+            // then it is a real UserException, otherwise it is just the error code and a null message.
+            int code = process.waitFor();
+            logger.info("Subprocess exited [" + code + "]");
+            if (code != ExitCodes.OK) {
+                throw new UserException(code, errorPump.userExceptionMsg);
+            }
         }
     }
 
@@ -212,7 +215,8 @@ class ServerCli extends EnvironmentAwareCommand {
         final Path pidFile = pidfileOption.value(options);
         final var args = new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());
 
-        try (var out = new OutputStreamStreamOutput(processStdin)) {
+        var out = new OutputStreamStreamOutput(processStdin);
+        try {
             args.writeTo(out);
         } catch (IOException ignore) {
             // A failure to write here means the process has problems, and it will die anyways. We let this fall through

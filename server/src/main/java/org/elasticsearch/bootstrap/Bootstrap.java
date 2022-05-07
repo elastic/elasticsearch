@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -306,11 +305,6 @@ final class Bootstrap {
 
         BootstrapInfo.setConsole(getConsole(environment));
 
-        // the LogConfigurator will replace System.out and System.err with redirects to our logfile, so we need to capture
-        // the stream objects before calling LogConfigurator to be able to close them when appropriate
-        final Runnable sysOutCloser = getSysOutCloser();
-        final Runnable sysErrorCloser = getSysErrorCloser();
-
         LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
         try {
             LogConfigurator.configure(environment, quiet == false);
@@ -361,8 +355,6 @@ final class Bootstrap {
 
             if (foreground == false) {
                 LogConfigurator.removeConsoleAppender();
-                sysOutCloser.run();
-                sysErrorCloser.run();
             }
 
         } catch (NodeValidationException | RuntimeException e) {
@@ -390,20 +382,6 @@ final class Bootstrap {
 
     private static ConsoleLoader.Console getConsole(Environment environment) {
         return ConsoleLoader.loadConsole(environment);
-    }
-
-    @SuppressForbidden(reason = "System#out")
-    private static Runnable getSysOutCloser() {
-        return System.out::close;
-    }
-
-    @SuppressForbidden(reason = "System#err")
-    private static Runnable getSysErrorCloser() {
-        final PrintStream err = System.err;
-        return () -> {
-            err.println(BootstrapInfo.SERVER_READY_MARKER);
-            err.close();
-        };
     }
 
     private static void checkLucene() {

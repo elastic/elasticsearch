@@ -56,7 +56,6 @@ class Elasticsearch {
         final Elasticsearch elasticsearch = new Elasticsearch();
         PrintStream out = getStdout();
         PrintStream err = getStderr();
-        int exitCode = 0;
         try {
             err.println("Reading args from server-cli");
             final var in = new InputStreamStreamInput(System.in);
@@ -69,40 +68,44 @@ class Elasticsearch {
                 new Environment(serverArgs.nodeSettings(), serverArgs.configDir()),
                 serverArgs.keystorePassword()
             );
+
+            err.println(BootstrapInfo.SERVER_READY_MARKER);
+            if (serverArgs.daemonize()) {
+                out.close();
+                err.close();
+            }
+
         } catch (NodeValidationException e) {
-            exitCode = ExitCodes.CONFIG;
-            err.print(USER_EXCEPTION_MARKER);
-            err.println(e.getMessage());
-            if (e.getMessage() != null) {
-                out.println(e.getMessage());
-            }
+            exitWithUserException(err, ExitCodes.CONFIG, e);
         } catch (UserException e) {
-            exitCode = e.exitCode;
-            err.print(USER_EXCEPTION_MARKER);
-            if (e.getMessage() != null) {
-                err.println(e.getMessage());
-                out.println(e.getMessage());
-            } else {
-                err.println();
-            }
+            exitWithUserException(err, e.exitCode, e);
         } catch (Exception e) {
-            exitCode = 1; // mimic JDK exit code on exception
-            if (System.getProperty("es.logs.base_path") != null) {
-                // this is a horrible hack to see if logging has been initialized
-                // we need to find a better way!
-                Logger logger = LogManager.getLogger(Elasticsearch.class);
-                logger.error("fatal exception while booting Elasticsearch", e);
-            }
-            e.printStackTrace(err);
-            e.printStackTrace(out);
+            exitWithUnknownException(err, e);
         }
-        if (exitCode != ExitCodes.OK) {
-            out.println("EXITING with non-zero status: " + exitCode);
-            printLogsSuggestion(err);
-            err.flush();
-            out.flush();
-            exit(exitCode);
+    }
+
+    private static void exitWithUserException(PrintStream err, int exitCode, Exception e) {
+        err.print(USER_EXCEPTION_MARKER);
+        err.println(e.getMessage());
+        gracefullyExit(err, exitCode);
+    }
+
+    private static void exitWithUnknownException(PrintStream err, Exception e) {
+        if (System.getProperty("es.logs.base_path") != null) {
+            // this is a horrible hack to see if logging has been initialized
+            // we need to find a better way!
+            Logger logger = LogManager.getLogger(Elasticsearch.class);
+            logger.error("fatal exception while booting Elasticsearch", e);
         }
+        e.printStackTrace(err);
+        gracefullyExit(err, 1); // mimic JDK exit code on exception
+    }
+
+    private static void gracefullyExit(PrintStream err, int exitCode) {
+        err.println("EXITING with non-zero status: " + exitCode);
+        printLogsSuggestion(err);
+        err.flush();
+        exit(exitCode);
     }
 
     @SuppressForbidden(reason = "grab stderr for communication with server-cli")

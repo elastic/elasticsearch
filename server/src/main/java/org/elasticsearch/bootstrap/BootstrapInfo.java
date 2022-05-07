@@ -64,10 +64,10 @@ public final class BootstrapInfo {
     public static final String UNTRUSTED_CODEBASE = "/untrusted";
 
     // TODO: document
-    public static final char USER_EXCEPTION_MARKER = '\24';
+    public static final char USER_EXCEPTION_MARKER = '\u0015';
 
     // TODO: document
-    public static final char SERVER_READY_MARKER = '\21';
+    public static final char SERVER_READY_MARKER = '\u0018';
 
     // create a view of sysprops map that does not allow modifications
     // this must be done this way (e.g. versus an actual typed map), because

@@ -187,11 +187,11 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             if (aggregatable == false) {
                 nonAggregatableIndices.addAll(Arrays.asList(groupIndices));
             }
-            final boolean hasDimension = randomBoolean();
-            if (hasDimension == false) {
+            final boolean isDimension = randomBoolean();
+            if (isDimension == false) {
                 nonDimensionIndices.addAll(Arrays.asList(groupIndices));
             }
-            builder.add(groupIndices, false, searchable, aggregatable, hasDimension, null, Map.of());
+            builder.add(groupIndices, false, searchable, aggregatable, isDimension, null, Map.of());
             i += bulkSize;
         }
         boolean withIndices = randomBoolean();

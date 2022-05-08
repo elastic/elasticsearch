@@ -598,7 +598,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
 
             // Collect all indices that have dimension == false if this field is marked as a dimension in at least one index
-            final boolean isDimension = dimensionIndices == indicesList.size();
+            final boolean isDimension = dimensionIndices == totalIndices;
             final String[] nonDimensionIndices;
             if (isDimension || dimensionIndices == 0) {
                 nonDimensionIndices = null;

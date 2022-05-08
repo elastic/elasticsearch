@@ -106,7 +106,7 @@ collocated on one node in the system.
 
 // tag::self-managed[]
 In order to get the shards assigned you can add more nodes to your {es} cluster 
-and assing the index's target tier <<assign-data-tier, node role>> to the new 
+and assign the index's target tier <<assign-data-tier, node role>> to the new 
 nodes. 
 
 To inspect which tier is an index targeting for assignment, use the <<indices-get-settings, get index setting>>

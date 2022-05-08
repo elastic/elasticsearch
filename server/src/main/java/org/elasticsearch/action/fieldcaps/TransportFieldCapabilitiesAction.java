@@ -277,14 +277,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Set<String> mappedIndices = new HashSet<>();
         typeMap.values().forEach(t -> t.getIndices(mappedIndices));
         if (mappedIndices.size() != indices.length) {
-            final FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
             final String[] unmappedIndices = Arrays.stream(indices)
                 .filter(index -> mappedIndices.contains(index) == false)
                 .toArray(String[]::new);
             if (unmappedIndices.length > 0) {
+                final FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
                 unmapped.add(unmappedIndices, false, false, false, false, null, Collections.emptyMap());
+                typeMap.put("unmapped", unmapped);
             }
-            typeMap.put("unmapped", unmapped);
         }
     }
 

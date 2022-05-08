@@ -626,11 +626,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         FieldCapabilitiesResponse resp = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
         verifyResponse.accept(resp);
         assertThat(resp.getField("extra_field"), hasKey("integer"));
-        assertThat(
-            "extra_indices " + Arrays.toString(indicesWithExtraField),
-            resp.getField("extra_field").get("integer").indices(),
-            nullValue()
-        );
+        assertThat(resp.getField("extra_field").get("integer").indices(), nullValue());
         assertTrue(resp.getField("extra_field").get("integer").isSearchable());
         assertTrue(resp.getField("extra_field").get("integer").isAggregatable());
     }

@@ -4,7 +4,7 @@
 Elasticsearch tries to take advantage of all the available resources by 
 distributing data (index shards) amongst the cluster nodes.
 
-Users might want to influece this data distribution by configuring the 
+Users might want to influence this data distribution by configuring the 
 <<cluster-total-shards-per-node,`cluster.routing.allocation.total_shards_per_node`>>
 system setting to restrict the number of shards that can be hosted on a single
 node in the system, regardless of the index.

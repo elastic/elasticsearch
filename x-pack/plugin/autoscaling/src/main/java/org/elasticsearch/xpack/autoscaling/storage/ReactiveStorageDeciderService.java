@@ -182,9 +182,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
     }
 
-    record UnassignedBytesUnassignedShards(long unassignedBytes, Collection<ShardRouting> unassignedShards) {}
+    record UnassignedBytesUnassignedShards(long unassignedBytes, Set<ShardId> unassignedShards) {}
 
-    record AssignedBytesUnmovableShards(long assignedBytes, Collection<ShardRouting> unmovableShards) {}
+    record AssignedBytesUnmovableShards(long assignedBytes, Set<ShardId> unmovableShards) {}
 
     // todo: move this to top level class.
     public static class AllocationState {
@@ -244,7 +244,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .filter(shard -> canAllocate(shard, allocation) == false)
                 .filter(shard -> cannotAllocateDueToStorage(shard, allocation))
                 .toList();
-            return new UnassignedBytesUnassignedShards(unassignedShards.stream().mapToLong(this::sizeOf).sum(), unassignedShards);
+            return new UnassignedBytesUnassignedShards(
+                unassignedShards.stream().mapToLong(this::sizeOf).sum(),
+                unassignedShards.stream().map(ShardRouting::shardId).collect(Collectors.toSet())
+            );
         }
 
         public long storagePreventsRemainOrMove() {
@@ -283,7 +286,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .mapToLong(this::sizeOf)
                 .sum();
 
-            return new AssignedBytesUnmovableShards(unallocatableBytes + unmovableBytes, unmovableShards);
+            return new AssignedBytesUnmovableShards(
+                unallocatableBytes + unmovableBytes,
+                unmovableShards.stream().map(ShardRouting::shardId).collect(Collectors.toSet())
+            );
         }
 
         /**
@@ -711,22 +717,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         public ReactiveReason(String reason, long unassigned, long assigned) {
             this(reason, unassigned, assigned, Set.<ShardId>of(), Set.<ShardId>of());
-        }
-
-        public ReactiveReason(
-            String reason,
-            long unassigned,
-            long assigned,
-            Collection<ShardRouting> unassignedShardIds,
-            Collection<ShardRouting> assignedShardIds
-        ) {
-            this(
-                reason,
-                unassigned,
-                assigned,
-                unassignedShardIds.stream().map(ShardRouting::shardId).collect(Collectors.toSet()),
-                assignedShardIds.stream().map(ShardRouting::shardId).collect(Collectors.toSet())
-            );
         }
 
         ReactiveReason(String reason, long unassigned, long assigned, Set<ShardId> unassignedShardIds, Set<ShardId> assignedShardIds) {

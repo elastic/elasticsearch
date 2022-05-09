@@ -14,7 +14,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -188,8 +187,7 @@ public class JoinHelper {
         static Level getLogLevel(TransportException e) {
             Throwable cause = e.unwrapCause();
             if (cause instanceof CoordinationStateRejectedException
-                || cause instanceof FailedToCommitClusterStateException
-                || cause instanceof NotMasterException) {
+                || (cause instanceof Exception causeException && MasterService.isPublishFailureException(causeException))) {
                 return Level.DEBUG;
             }
             return Level.INFO;

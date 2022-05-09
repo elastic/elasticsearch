@@ -17,18 +17,25 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ReactiveReasonTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testXContent() throws IOException {
         String reason = randomAlphaOfLength(10);
         long unassigned = randomNonNegativeLong();
         long assigned = randomNonNegativeLong();
-        Set<ShardId> unassignedShardIds = randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8);
-        Set<ShardId> assignedShardIds = randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 600);
+        String indexUUID = UUIDs.randomBase64UUID();
+        SortedSet<ShardId> unassignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId("index", indexUUID, randomInt(1000)), 8));
+        SortedSet<ShardId> assignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId("index", indexUUID, randomInt(1000)), 600));
         var reactiveReason = new ReactiveStorageDeciderService.ReactiveReason(
             reason,
             unassigned,
@@ -48,8 +55,23 @@ public class ReactiveReasonTests extends ESTestCase {
             assertEquals(unassigned, map.get("unassigned"));
             assertEquals(assigned, map.get("assigned"));
             assertEquals(unassignedShardIds.stream().map(ShardId::toString).collect(Collectors.toList()), map.get("unassigned_shard_ids"));
-            assertEquals(assignedShardIds.stream().map(ShardId::toString).limit(512).collect(Collectors.toList()), map.get("assigned_shard_ids"));
+            List<String> xContentAssignedShardIds = (List<String>) map.get("assigned_shard_ids");
+            assertEquals(
+                assignedShardIds.stream().map(ShardId::toString).limit(512).collect(Collectors.toList()),
+                xContentAssignedShardIds
+            );
+            assertSorted(xContentAssignedShardIds.stream().map(ShardId::fromString).collect(Collectors.toList()));
             assertEquals(assignedShardIds.size(), map.get("amount_of_assigned_shards"));
+        }
+    }
+
+    private static void assertSorted(Collection<ShardId> collection) {
+        ShardId previous = null;
+        for (ShardId e : collection) {
+            if (previous != null) {
+                assertThat(e, greaterThan(previous));
+            }
+            previous = e;
         }
     }
 }

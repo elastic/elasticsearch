@@ -35,10 +35,12 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -48,6 +50,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VER
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
@@ -331,6 +334,62 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
         terminate(threadPool);
         assertThat(listenersCalled.get(), equalTo(1));
+    }
+
+    public void testConcurrency() {
+
+        var createdIndices = new CopyOnWriteArraySet<String>();
+        var reroutedIndices = new CopyOnWriteArraySet<String>();
+
+        var threadPool = new TestThreadPool(getTestName());
+        RerouteService rerouteService = (r, p, l) -> threadPool.executor(ThreadPool.Names.CLUSTER_COORDINATION).submit(() -> {
+            // if (randomBoolean()) {
+            //     Thread.yield();// TODO make it slower occasionally?
+            // }
+            reroutedIndices.addAll(createdIndices);
+            l.onResponse(null);
+        });
+        var allocator = new ShardsAllocator() {
+            @Override
+            public void allocate(RoutingAllocation allocation) {// TODO attempt to count up-to-date allocations
+                final var dataNodeId = allocation.nodes().getDataNodes().values().iterator().next().getId();
+                final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
+                while (unassignedIterator.hasNext()) {
+                    unassignedIterator.next();
+                    unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
+                }
+            }
+
+            @Override
+            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                throw new AssertionError("only used for allocation explain");
+            }
+        };
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(allocator, threadPool, () -> rerouteService);
+        var discoveryNode = createDiscoveryNode();
+
+        var indexNameGenerator = 0;
+        var listenersCalled = new AtomicInteger();
+
+        var iterations = 1_000;
+        for (int i = 0; i < iterations; i++) {
+            if (randomInt(9) == 0) {
+                indexNameGenerator++;
+            }
+            var indexName = "index-" + indexNameGenerator;
+            createdIndices.add(indexName);
+            var index = createIndex(indexName);
+            desiredBalanceShardsAllocator.allocate(
+                createAllocationFrom(createClusterState(discoveryNode, index)),
+                ActionListener.wrap(() -> {
+                    assertThat("Listener should be called after index is rerouted", reroutedIndices, hasItem(indexName));
+                    listenersCalled.incrementAndGet();
+                })
+            );
+        }
+
+        terminate(threadPool);
+        assertThat(listenersCalled.get(), equalTo(iterations));
     }
 
     private static RoutingAllocation createAllocationFrom(ClusterState clusterState) {

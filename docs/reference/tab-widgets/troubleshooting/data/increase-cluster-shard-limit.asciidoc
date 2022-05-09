@@ -28,12 +28,6 @@ that can be collocated on a node in the cluster.
 We'll achieve this by inspecting the system-wide `cluster.routing.allocation.total_shards_per_node` 
 <<cluster-get-settings, cluster setting>> and increasing the configured value.
 
-Note that this requires the current data nodes to have enough disk space to host 
-all the data.
-If the current deployment configuration doesn't have enough capacity to store
-all the data, including the unassigned shards, please contact 
-https://support.elastic.co[Elastic Support] to discuss available options.
-
 **Use {kib}**
 
 //tag::kibana-api-ex[]

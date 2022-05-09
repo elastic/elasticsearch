@@ -130,7 +130,7 @@ dependencies {
         exclude module: "groovy"
     }
 
-    integTestImplementation(buildLibs.spock.junit) {
+    integTestImplementation(buildLibs.spock.junit4) {
         because 'required as we rely on junit4 rules'
     }
 

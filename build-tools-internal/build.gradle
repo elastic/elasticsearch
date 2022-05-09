@@ -240,22 +240,21 @@ dependencies {
   api buildLibs.idea.ext
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
   api buildLibs.forbiddenApis
-  api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.13'
-  api 'org.apache.maven:maven-model:3.6.2'
+  api buildLibs.docker.compose
+  api buildLibs.maven.model
   // needs to match the jackson minor version in use
-  api 'com.networknt:json-schema-validator:1.0.49'
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.getProperty('jackson')}"
-  api 'org.ow2.asm:asm:9.2'
-  api 'org.ow2.asm:asm-tree:9.2'
-  api "org.apache.httpcomponents:httpclient:${versions.getProperty('httpclient')}"
-  api "org.apache.httpcomponents:httpcore:${versions.getProperty('httpcore')}"
+  api buildLibs.json.schema.validator
+  api buildLibs.jackson.dataformat.yaml
+  api buildLibs.asm
+  api buildLibs.asm.tree
+  api buildLibs.httpclient
+  api buildLibs.httpcore
   compileOnly buildLibs.checkstyle
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation buildLibs.checkstyle
   testImplementation buildLibs.wiremock
-  testImplementation 'org.mockito:mockito-core:1.9.5'
-  testImplementation "org.hamcrest:hamcrest:${versions.getProperty('hamcrest')}"
-
+  testImplementation buildLibs.mockito.core
+  testImplementation buildLibs.hamcrest
   testImplementation testFixtures("org.elasticsearch.gradle:build-tools:$version")
 
   testImplementation(platform(buildLibs.junit5.platform))
@@ -266,7 +265,7 @@ dependencies {
   integTestImplementation("org.junit.jupiter:junit-jupiter") {
     because 'allows to write and run Jupiter tests'
   }
-  integTestImplementation("net.bytebuddy:byte-buddy:1.12.9") {
+  integTestImplementation(buildLibs.bytebuddy) {
     because 'Generating dynamic mocks of internal libraries like JdkJarHell'
   }
   testRuntimeOnly("org.junit.vintage:junit-vintage-engine") {
@@ -276,20 +275,20 @@ dependencies {
     because 'allows tests to run from IDEs that bundle older version of launcher'
   }
 
-  testImplementation platform("org.spockframework:spock-bom:2.1-groovy-3.0")
-  testImplementation("org.spockframework:spock-core") {
+  testImplementation platform(buildLibs.spock.platform)
+  testImplementation(buildLibs.spock.core) {
     exclude module: "groovy"
   }
-  integTestImplementation platform("org.spockframework:spock-bom:2.1-groovy-3.0")
-  integTestImplementation("org.spockframework:spock-core") {
+  integTestImplementation platform(buildLibs.spock.platform)
+  integTestImplementation(buildLibs.spock.core) {
     exclude module: "groovy"
   }
   // required as we rely on junit4 rules
-  integTestImplementation("org.spockframework:spock-junit4") {
+  integTestImplementation(buildLibs.spock.junit4) {
     exclude module: "groovy"
   }
-  testImplementation "org.spockframework:spock-junit4"
-  integTestImplementation "org.xmlunit:xmlunit-core:2.8.2"
+  testImplementation buildLibs.spock.junit4
+  integTestImplementation buildLibs.xmlunit.core
 }
 
 tasks.named('test').configure {

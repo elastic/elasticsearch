@@ -99,6 +99,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   // 2 new tika metadata fields are returned in v8
   task.replaceValueInLength("_source.attachment", 8, "Test ingest attachment processor with .doc file")
   task.replaceValueInLength("_source.attachment", 8, "Test ingest attachment processor with .docx file")
+  task.replaceValueInMatch("_source.attachment.content_length", 20, "Test ingest attachment processor with .docx file")
 }
 
 tasks.named("thirdPartyAudit").configure {

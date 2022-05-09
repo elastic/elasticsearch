@@ -6,9 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index;
+package org.elasticsearch.script;
 
-public interface IndexComponent {
+import org.apache.lucene.util.BytesRef;
 
-    Index index();
+/**
+ * used by {@link org.elasticsearch.search.sort.ScriptSortBuilder} to refer to classes in x-pack
+ * (eg. org.elasticsearch.xpack.versionfield.Version) that need a custom FieldComparatorSource
+ */
+public interface BytesRefProducer {
+
+    BytesRef toBytesRef();
 }

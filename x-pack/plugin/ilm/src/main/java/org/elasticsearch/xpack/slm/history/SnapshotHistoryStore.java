@@ -16,7 +16,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -38,12 +37,13 @@ public class SnapshotHistoryStore {
 
     private final Client client;
     private final ClusterService clusterService;
-    private final boolean slmHistoryEnabled;
+    private volatile boolean slmHistoryEnabled = true;
 
-    public SnapshotHistoryStore(Settings nodeSettings, Client client, ClusterService clusterService) {
+    public SnapshotHistoryStore(Client client, ClusterService clusterService) {
         this.client = client;
         this.clusterService = clusterService;
-        slmHistoryEnabled = SLM_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
+        this.setSlmHistoryEnabled(SLM_HISTORY_INDEX_ENABLED_SETTING.get(clusterService.getSettings()));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SLM_HISTORY_INDEX_ENABLED_SETTING, this::setSlmHistoryEnabled);
     }
 
     /**
@@ -99,5 +99,9 @@ public class SnapshotHistoryStore {
                 exception
             );
         }
+    }
+
+    public void setSlmHistoryEnabled(boolean slmHistoryEnabled) {
+        this.slmHistoryEnabled = slmHistoryEnabled;
     }
 }

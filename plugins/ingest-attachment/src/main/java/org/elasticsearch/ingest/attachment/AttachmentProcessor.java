@@ -8,8 +8,6 @@
 
 package org.elasticsearch.ingest.attachment;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.tika.exception.ZeroByteFileException;
 import org.apache.tika.langdetect.tika.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
@@ -41,7 +39,6 @@ public final class AttachmentProcessor extends AbstractProcessor {
     public static final String TYPE = "attachment";
 
     private static final int NUMBER_OF_CHARS_INDEXED = 100000;
-    private static final Logger LOGGER = LogManager.getLogger(AttachmentProcessor.class);
 
     private final String field;
     private final String targetField;
@@ -87,6 +84,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) {
         Map<String, Object> additionalFields = new HashMap<>();
+
         byte[] input = ingestDocument.getFieldValueAsBytes(field, ignoreMissing);
         String resourceNameInput = null;
         if (resourceName != null) {
@@ -129,6 +127,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
+            // TODO: stop using LanguageIdentifier...
             LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
             String language = identifier.getLanguage();
             additionalFields.put(Property.LANGUAGE.toLowerCase(), language);

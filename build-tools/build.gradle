@@ -122,7 +122,6 @@ dependencies {
     testFixturesApi gradleApi()
     testFixturesApi gradleTestKit()
     testFixturesApi buildLibs.junit
-    testFixturesApi buildLibs.junit
     testFixturesApi buildLibs.randomized.runner
     testFixturesApi buildLibs.wiremock
     testFixturesApi platform(buildLibs.spock.platform)

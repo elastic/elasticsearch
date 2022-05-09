@@ -91,7 +91,7 @@ PUT /my-index-000001/_settings
 <1> The new value for the `total_shards_per_node` configuration for the `my-index-000001` index
 is increased from the previous value of `1` to `2`. 
 The `total_shards_per_node` configuration can also be set to `-1`, which 
-represents no upper bound with regards to how many primary shards of the same 
+represents no upper bound with regards to how many shards of the same 
 index can reside on one node.
 
 //end::kibana-api-ex[]

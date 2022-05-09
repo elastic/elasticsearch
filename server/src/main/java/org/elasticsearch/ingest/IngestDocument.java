@@ -882,8 +882,8 @@ public final class IngestDocument {
 
         IngestDocumentMetadata(String index, String id, String routing, Long version, VersionType versionType, ZonedDateTime timestamp) {
             this(timestamp);
-            setIndex(Objects.requireNonNull(index));
-            setId(Objects.requireNonNull(id));
+            setIndex(index);
+            setId(id);
             if (routing != null) {
                 setRouting(routing);
             }

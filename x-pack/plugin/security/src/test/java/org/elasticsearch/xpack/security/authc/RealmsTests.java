@@ -207,7 +207,7 @@ public class RealmsTests extends ESTestCase {
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
         verify(licenseState, times(1)).addListener(Mockito.any(LicenseStateListener.class));
         verify(licenseState, times(1)).copyCurrentLicenseState();
-        verify(licenseState, times(1)).getOperationMode();
+        verify(licenseState, times(0)).getOperationMode();
 
         // Verify that we recorded licensed-feature use for each realm (this is trigger on license load during node startup)
         verify(licenseState, Mockito.atLeast(randomRealmTypesCount)).isAllowed(Security.CUSTOM_REALMS_FEATURE);
@@ -757,7 +757,8 @@ public class RealmsTests extends ESTestCase {
         verify(licenseState, times(1)).addListener(Mockito.any(LicenseStateListener.class));
         // each time the license state changes
         verify(licenseState, times(1)).copyCurrentLicenseState();
-        verify(licenseState, times(1)).getOperationMode();
+        // During init we do not log license state, hence operation mode should not be called.
+        verify(licenseState, times(0)).getOperationMode();
 
         // Verify that we recorded licensed-feature use for each licensed realm (this is trigger on license load/change)
         verify(licenseState, times(1)).isAllowed(Security.LDAP_REALM_FEATURE);
@@ -767,7 +768,7 @@ public class RealmsTests extends ESTestCase {
         allowOnlyNativeRealms();
         // because the license state changed ...
         verify(licenseState, times(2)).copyCurrentLicenseState();
-        verify(licenseState, times(2)).getOperationMode();
+        verify(licenseState, times(1)).getOperationMode();
 
         iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));

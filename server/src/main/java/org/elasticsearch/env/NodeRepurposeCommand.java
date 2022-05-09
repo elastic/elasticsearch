@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 
@@ -48,7 +48,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     }
 
     void testExecute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        execute(terminal, options, env);
+        execute(terminal, options, env, null);
     }
 
     @Override

@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -262,7 +261,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         SetOnce<Exception> failure = new SetOnce<>();
         CountDownLatch clusterStateUpdated = new CountDownLatch(1);
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-            .submitStateUpdateTask(this.getTestName(), new ClusterStateUpdateTask() {
+            .submitUnbatchedStateUpdateTask(this.getTestName(), new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     FeatureMigrationResults newResults = new FeatureMigrationResults(
@@ -287,7 +286,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
                     failure.set(e);
                     clusterStateUpdated.countDown();
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            });
 
         clusterStateUpdated.await(10, TimeUnit.SECONDS); // Should be basically instantaneous
         if (failure.get() != null) {

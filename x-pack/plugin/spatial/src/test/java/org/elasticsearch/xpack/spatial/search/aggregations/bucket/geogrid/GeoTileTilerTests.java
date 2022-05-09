@@ -17,6 +17,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
@@ -163,34 +164,8 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
         if (bbox == null) {
             return true;
         }
-        final int tiles = 1 << precision;
-        int minX = GeoTileUtils.getXTile(bbox.left(), tiles);
-        int minY = GeoTileUtils.getYTile(bbox.top(), tiles);
-        final Rectangle minTile = GeoTileUtils.toBoundingBox(minX, minY, precision);
-        if (minTile.getMaxX() == bbox.left()) {
-            minX++;
-        }
-        if (minTile.getMinY() == bbox.top()) {
-            minY++;
-        }
-        // compute maxX, maxY
-        int maxX = GeoTileUtils.getXTile(bbox.right(), tiles);
-        int maxY = GeoTileUtils.getYTile(bbox.bottom(), tiles);
-        final Rectangle maxTile = GeoTileUtils.toBoundingBox(maxX, maxY, precision);
-        if (maxTile.getMinX() == bbox.right()) {
-            maxX--;
-        }
-        if (maxTile.getMaxY() == bbox.bottom()) {
-            maxY--;
-        }
-        if (maxY >= y && minY <= y) {
-            if (bbox.left() > bbox.right()) {
-                return maxX >= x || minX <= x;
-            } else {
-                return maxX >= x && minX <= x;
-            }
-        }
-        return false;
+        GeoTileBoundedPredicate predicate = new GeoTileBoundedPredicate(precision, bbox);
+        return predicate.validTile(x, y, precision);
     }
 
     public void testGeoTile() throws Exception {

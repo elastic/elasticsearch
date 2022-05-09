@@ -74,7 +74,7 @@ public class MoveToErrorStepUpdateTask extends IndexLifecycleClusterStateUpdateT
     }
 
     @Override
-    public void onClusterStateProcessed(ClusterState oldState, ClusterState newState) {
+    public void onClusterStateProcessed(ClusterState newState) {
         stateChangeConsumer.accept(newState);
     }
 

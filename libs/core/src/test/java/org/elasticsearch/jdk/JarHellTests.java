@@ -129,11 +129,6 @@ public class JarHellTests extends ESTestCase {
         }
     }
 
-    public void testXmlBeansLeniency() throws Exception {
-        Set<URL> jars = Collections.singleton(JarHellTests.class.getResource("duplicate-xmlbeans-classes.jar"));
-        JarHell.checkJarHell(jars, logger::debug);
-    }
-
     public void testRequiredJDKVersionTooOld() throws Exception {
         Path dir = createTempDir();
         List<Integer> current = Runtime.version().version();

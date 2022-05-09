@@ -1,5 +1,5 @@
 [[increase-shard-limit]]
-== Maximum number of shards for an index on a single node exceeded 
+== Total number of shards for an index on a single node exceeded 
 
 Elasticsearch tries to take advantage of all the available resources by 
 distributing data (index shards) among nodes in the cluster.

@@ -132,31 +132,31 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean includeDetails) {
+    public HealthIndicatorResult calculate(boolean explain) {
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         if (hasSeenMasterInVeryRecentPast()) {
-            return calculateWhenHaveSeenMasterRecently(localMasterHistory, includeDetails);
+            return calculateWhenHaveSeenMasterRecently(localMasterHistory, explain);
         } else {
-            return calculateWhenHaveNotSeenMasterRecently(localMasterHistory, includeDetails);
+            return calculateWhenHaveNotSeenMasterRecently(localMasterHistory, explain);
         }
     }
 
     /**
      * Returns the health result for the case when we have seen a master recently (at some point in the last 30 seconds).
      * @param localMasterHistory The master history as seen from the local machine
-     * @param includeDetails Whether to calculate and include the details in the result
+     * @param explain Whether to calculate and include the details in the result
      * @return The HealthIndicatorResult for the given localMasterHistory
      */
-    private HealthIndicatorResult calculateWhenHaveSeenMasterRecently(MasterHistory localMasterHistory, boolean includeDetails) {
+    private HealthIndicatorResult calculateWhenHaveSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
         int masterChanges = MasterHistory.getNumberOfMasterIdentityChanges(localMasterHistory.getNodes());
         logger.trace("Have seen a master in the last {}): {}", veryRecentPast, localMasterHistory.getMostRecentNonNullMaster());
         final HealthIndicatorResult result;
         if (masterChanges > acceptableIdentityChanges) {
-            result = calculateWhenMasterHasChangedIdentity(localMasterHistory, masterChanges, includeDetails);
+            result = calculateWhenMasterHasChangedIdentity(localMasterHistory, masterChanges, explain);
         } else if (localMasterHistory.hasMasterGoneNullAtLeastNTimes(acceptableNullTransitions + 1)) {
-            result = calculateWhenMasterHasFlappedNull(localMasterHistory, includeDetails);
+            result = calculateWhenMasterHasFlappedNull(localMasterHistory, explain);
         } else {
-            result = getMasterIsStableResult();
+            result = getMasterIsStableResult(explain, localMasterHistory);
         }
         return result;
     }
@@ -166,13 +166,13 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * last 30 minutes)
      * @param localMasterHistory The master history as seen from the local machine
      * @param masterChanges The number of times that the local machine has seen the master identity change in the last 30 minutes
-     * @param includeDetails Whether to calculate and include the details in the result
+     * @param explain Whether to calculate and include the details in the result
      * @return The HealthIndicatorResult for the given localMasterHistory
      */
     private HealthIndicatorResult calculateWhenMasterHasChangedIdentity(
         MasterHistory localMasterHistory,
         int masterChanges,
-        boolean includeDetails
+        boolean explain
     ) {
         logger.trace("Have seen {} master changes in the last {}}", masterChanges, localMasterHistory.getMaxHistoryAge());
         HealthStatus stableMasterStatus = HealthStatus.YELLOW;
@@ -193,7 +193,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 List.of(ImpactArea.INGEST)
             )
         );
-        if (includeDetails) {
+        if (explain) {
             List<DiscoveryNode> recentMasters = localMasterHistory.getNodes();
             details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
             // Having the nulls in the recent masters xcontent list is not helpful, so we filter them out:
@@ -202,7 +202,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         return createIndicator(
             stableMasterStatus,
             summary,
-            includeDetails ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
+            explain ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
             impacts,
             userActions
         );
@@ -216,10 +216,10 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * and a GREEN status is returned (the problems with this node will be covered in a different health indicator). If there had been
      * problems fetching the remote master history, the exception seen will be included in the details of the result.
      * @param localMasterHistory The master history as seen from the local machine
-     * @param includeDetails Whether to calculate and include the details in the result
+     * @param explain Whether to calculate and include the details in the result
      * @return The HealthIndicatorResult for the given localMasterHistory
      */
-    private HealthIndicatorResult calculateWhenMasterHasFlappedNull(MasterHistory localMasterHistory, boolean includeDetails) {
+    private HealthIndicatorResult calculateWhenMasterHasFlappedNull(MasterHistory localMasterHistory, boolean explain) {
         HealthStatus stableMasterStatus;
         String summary;
         Map<String, Object> details = new HashMap<>();
@@ -263,7 +263,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     List.of(ImpactArea.INGEST)
                 )
             );
-            if (includeDetails) {
+            if (explain) {
                 details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
                 if (remoteHistoryException != null) {
                     details.put("exception_fetching_history", remoteHistoryException.getMessage());
@@ -281,7 +281,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         return createIndicator(
             stableMasterStatus,
             summary,
-            includeDetails ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
+            explain ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
             impacts,
             userActions
         );
@@ -291,22 +291,29 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * Returns a HealthIndicatorResult for the case when the master is seen as stable
      * @return A HealthIndicatorResult for the case when the master is seen as stable (GREEN status, no impacts or details)
      */
-    private HealthIndicatorResult getMasterIsStableResult() {
+    private HealthIndicatorResult getMasterIsStableResult(boolean explain, MasterHistory localMasterHistory) {
         HealthStatus stableMasterStatus = HealthStatus.GREEN;
         String summary = "The cluster has a stable master node";
         Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
         List<UserAction> userActions = new ArrayList<>();
         logger.trace("The cluster has a stable master node");
-        return createIndicator(stableMasterStatus, summary, HealthIndicatorDetails.EMPTY, impacts, userActions);
+        Map<String, Object> details = new HashMap<>();
+        if (explain) {
+            List<DiscoveryNode> recentMasters = localMasterHistory.getNodes();
+            details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
+            // Having the nulls in the recent masters xcontent list is not helpful, so we filter them out:
+            details.put("recent_masters", recentMasters.stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList());
+        }
+        return createIndicator(stableMasterStatus, summary, new SimpleHealthIndicatorDetails(details), impacts, userActions);
     }
 
     /**
      * Returns the health result for the case when we have NOT seen a master recently (at some point in the last 30 seconds).
      * @param localMasterHistory The master history as seen from the local machine
-     * @param includeDetails Whether to calculate and include the details in the result
+     * @param explain Whether to calculate and include the details in the result
      * @return The HealthIndicatorResult for the given localMasterHistory
      */
-    private HealthIndicatorResult calculateWhenHaveNotSeenMasterRecently(MasterHistory localMasterHistory, boolean includeDetails) {
+    private HealthIndicatorResult calculateWhenHaveNotSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
         // NOTE: The logic in this method will be implemented in a future PR
         HealthStatus stableMasterStatus = HealthStatus.RED;
         String summary = "Placeholder summary";
@@ -316,7 +323,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         return createIndicator(
             stableMasterStatus,
             summary,
-            includeDetails ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
+            explain ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
             impacts,
             userActions
         );

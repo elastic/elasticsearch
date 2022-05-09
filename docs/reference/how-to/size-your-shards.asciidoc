@@ -68,7 +68,17 @@ This decreases the number of segments, which means less metadata is kept in
 heap memory.
 
 Every mapped field also carries some overhead in terms of memory usage and disk
-space. By default {es} will automatically create a mapping for every field in
+space. While the exact amount resource usage of each additional field depends
+on the type of field, an additional 512 bytes in memory use  for each additional
+mapped field on data nodes is a good approximation in most cases.
+As a result, the more fields the mappings in your indices contain, the fewer
+indices and shards will each individual data node be able to hold,
+all other things being equal. In addition to the per field overhead you should
+at least have an additional 512Mb of heap available per data node.
+For example, holding 1000 indices that each contain 4000 fields will require
+1000 x 4000 x 512b = 2Gb for the fields and another 512Mb for a total of
+at least 2.5Gb on the data node.
+By default {es} will automatically create a mapping for every field in
 every document it indexes, but you can switch off this behaviour to
 <<explicit-mapping,take control of your mappings>>.
 
@@ -175,35 +185,15 @@ index                                 prirep shard store
 
 [discrete]
 [[shard-count-recommendation]]
-==== Aim for 20 shards or fewer per GB of heap memory
+==== Aim for 3000 indices or fewer per GB of heap memory on master nodes
 
-The number of shards a data node can hold is proportional to the node's heap
-memory. For example, a node with 30GB of heap memory should have at most 600
-shards. The further below this limit you can keep your nodes, the better. If
-you find your nodes exceeding more than 20 shards per GB, consider adding
-another node.
-
-Some system indices for {enterprise-search-ref}/index.html[Enterprise Search]
-are nearly empty and rarely used. Due to their low overhead, you shouldn't
-count shards for these indices toward a node's shard limit.
-
-To check the current size of each node's heap, use the <<cat-nodes,cat nodes
-API>>.
-
-[source,console]
-----
-GET _cat/nodes?v=true&h=heap.current
-----
-// TEST[setup:my_index]
-
-You can use the <<cat-shards,cat shards API>> to check the number of shards per
-node.
-
-[source,console]
-----
-GET _cat/shards?v=true
-----
-// TEST[setup:my_index]
+The number of indices a master node can manage is proportional to the node's
+heap memory. The exact amount of heap memory each additional index requires
+depends on various factors. The include but are not limited to the size of its mapping,
+the number of shards per index or whether its mapping is shared with other indices.
+A good rule of thumb is to aim for 3000 indices or fewer per GB of heap on master nodes.
+For example, if your cluster contains 12,000 indices and each master node should have
+at least 4GB of heap available.
 
 [discrete]
 [[avoid-node-hotspots]]

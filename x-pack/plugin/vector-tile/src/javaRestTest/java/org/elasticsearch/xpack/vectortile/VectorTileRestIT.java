@@ -328,30 +328,39 @@ public class VectorTileRestIT extends ESRestTestCase {
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             // CHeck that double the points are returned (one extra label position for each point)
             assertLayer(tile, HITS_LAYER, 4096, 66, 4, "_id", "_index", "__EsIsLabelFeature", "_mvt_label_positions");
-            assertLayer(tile, AGGS_LAYER, 4096, 1, 2);
+            assertLayer(tile, AGGS_LAYER, 4096, 2, 3);
             assertLayer(tile, META_LAYER, 4096, 1, 13);
             // Check that features exist for label positions
-            assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index");
+            assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index", "_mvt_label_positions");
             assertFeatureTags(tile, HITS_LAYER, 1, "_id", "__EsIsLabelFeature");
-            assertFeatureTags(tile, HITS_LAYER, 64, "_id", "_index");
+            assertFeatureTags(tile, HITS_LAYER, 64, "_id", "_index", "_mvt_label_positions");
             assertFeatureTags(tile, HITS_LAYER, 65, "_id", "__EsIsLabelFeature");
+            // Check that aggs layer also has label position features
+            assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count");
+            assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "__EsIsLabelFeature");
         }
     }
 
     public void testBasicShapeWithLabels() throws Exception {
         final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
         mvtRequest.setJsonEntity("{\"with_labels\": true }");
+        final int numAggsFeatures = 2 * 256 * 256; // Twice as many due to additional label position features
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         // Check that there is an extra feature returned, a point label position
         assertLayer(tile, HITS_LAYER, 4096, 2, 4, "_id", "_index", "__EsIsLabelFeature", "_mvt_label_positions");
-        assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
+        assertLayer(tile, AGGS_LAYER, 4096, numAggsFeatures, 3);
         assertLayer(tile, META_LAYER, 4096, 1, 13);
         assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", INDEX_POLYGON);
         assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_id", "polygon");
         // Check that the polygon and label features have the right tags
-        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index");
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index", "_mvt_label_positions");
         assertFeatureTags(tile, HITS_LAYER, 1, "_id", "__EsIsLabelFeature");
+        // Check that aggs layer also has label position features
+        assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "__EsIsLabelFeature");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 2, "_key", "_count");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 1, "_key", "__EsIsLabelFeature");
     }
 
     public void testMultipolygonWithLabels() throws Exception {
@@ -362,16 +371,23 @@ public class VectorTileRestIT extends ESRestTestCase {
         createIndexAndPutGeometry(index, new MultiPolygon(List.of(toPolygon(r1), toPolygon(r2))), "multi_polygon");
         final Request mvtRequest = new Request(getHttpMethod(), index + "/_mvt/location/0/0/0?grid_precision=1");
         mvtRequest.setJsonEntity("{\"with_labels\": true }");
+        final int numAggsFeatures = 2 * 2 * 2; // Twice as many due to additional label position features
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 2, 4);
-        assertLayer(tile, AGGS_LAYER, 4096, 2 * 2, 2);
+        assertLayer(tile, AGGS_LAYER, 4096, numAggsFeatures, 3);
         assertLayer(tile, META_LAYER, 4096, 1, 13);
         assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", index);
         assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_id", "multi_polygon");
         // Check that the polygon and label features have the right tags
-        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index");
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index", "_mvt_label_positions");
         assertFeatureTags(tile, HITS_LAYER, 1, "_id", "__EsIsLabelFeature");
+        // Check that aggs layer also has label position features
+        assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "__EsIsLabelFeature");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 2, "_key", "_count");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 1, "_key", "__EsIsLabelFeature");
+
         final Response response = client().performRequest(new Request(HttpDelete.METHOD_NAME, index));
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
     }

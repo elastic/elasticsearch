@@ -351,7 +351,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                 featureBuilder.clear();
                 GeoPoint labelPos = (GeoPoint) bucket.getKey();
                 byte[] labelPosFeature = featureFactory.point(labelPos.lon(), labelPos.lat());
-                if (labelPosFeature != null && labelPosFeature.length == 0) {
+                if (labelPosFeature != null && labelPosFeature.length != 0) {
                     featureBuilder.mergeFrom(labelPosFeature);
                     VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, KEY_TAG, bucketKey);
                     VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, LABEL_POSITION_TAG, true);

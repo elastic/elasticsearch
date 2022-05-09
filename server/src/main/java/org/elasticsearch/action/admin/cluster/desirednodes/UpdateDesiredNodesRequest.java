@@ -52,7 +52,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         super(in);
         this.historyID = in.readString();
         this.version = in.readLong();
-        this.nodes = in.readList(DesiredNode::new);
+        this.nodes = in.readList(DesiredNode::readFrom);
     }
 
     @Override

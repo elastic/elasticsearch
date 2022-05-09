@@ -28,7 +28,7 @@ teardown:
         version: 1
         body:
             nodes:
-              - { settings: { "node.name": "instance-000187" }, processors: {min: 8, max: 8}, memory: "64gb", storage: "128gb", node_version: $es_version }
+              - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -38,7 +38,7 @@ teardown:
         history_id: "test"
         version: 1
         nodes:
-          - { settings: { node: { name: "instance-000187" } }, processors: {min: 8.0, max: 8.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+          - { settings: { node: { name: "instance-000187" } }, processors: {min: 8.5, max: 8.5}, memory: "64gb", storage: "128gb", node_version: $es_version }
 
   - do:
       _internal.update_desired_nodes:
@@ -46,8 +46,8 @@ teardown:
         version: 2
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors: {min: 8, max: 8}, memory: "64gb", storage: "128gb", node_version: $es_version }
-            - { settings: { "node.name": "instance-000188" }, processors: {min: 8, max: 16}, memory: "128gb", storage: "1tb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000188" }, processors: 16.0, memory: "128gb", storage: "1tb", node_version: $es_version }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -56,8 +56,8 @@ teardown:
   - match: { history_id: "test" }
   - match: { version: 2 }
   - length: { nodes: 2 }
-  - contains: { nodes: { settings: { node: { name: "instance-000187" } }, processors: {min: 8.0, max: 8.0}, memory: "64gb", storage: "128gb", node_version: $es_version } }
-  - contains: { nodes: { settings: { node: { name: "instance-000188" } }, processors: {min: 8.0, max: 16.0}, memory: "128gb", storage: "1tb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { name: "instance-000187" } }, processors: {min: 8.5, max: 8.5}, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { name: "instance-000188" } }, processors: {min: 16.0, max: 16.0}, memory: "128gb", storage: "1tb", node_version: $es_version } }
 ---
 "Test update move to a new history id":
   - skip:
@@ -78,7 +78,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187" }, processors: {min: 8, max: 16.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -88,7 +88,7 @@ teardown:
         history_id: "test"
         version: 1
         nodes:
-          - { settings: { node: { external_id: "instance-000187" } }, processors: {min: 8.0, max: 16.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+          - { settings: { node: { external_id: "instance-000187" } }, processors: {min: 8.0, max: 8.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
 
   - do:
       _internal.update_desired_nodes:
@@ -96,8 +96,8 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187" }, processors: {min: 8.0, max: 16.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
-            - { settings: { "node.external_id": "instance-000188" }, processors: {min: 16.0, max: 16.0}, memory: "128gb", storage: "1tb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000188" }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
   - match: { replaced_existing_history_id: true }
 
   - do:
@@ -105,7 +105,7 @@ teardown:
   - match: { history_id: "new_history" }
   - match: { version: 1 }
   - length: { nodes: 2 }
-  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: {min: 8.0, max: 16.0}, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: {min: 8.0, max: 8.0}, memory: "64gb", storage: "128gb", node_version: $es_version } }
   - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: {min: 16.0, max: 16.0}, memory: "128gb", storage: "1tb", node_version: $es_version } }
 ---
 "Test delete desired nodes":
@@ -826,9 +826,6 @@ teardown:
   - match: { error.type: x_content_parse_exception }
 ---
 "Test processors min is required":
-  - skip:
-      reason: "contains is a newly added assertion"
-      features: contains
   - do:
       cluster.state: {}
 
@@ -850,10 +847,7 @@ teardown:
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
-"Test processors max is required":
-  - skip:
-      reason: "contains is a newly added assertion"
-      features: contains
+"Test processors max is not required":
   - do:
       cluster.state: {}
 
@@ -865,20 +859,23 @@ teardown:
   - set: { nodes.$master.version: es_version }
 
   - do:
-      catch: bad_request
       _internal.update_desired_nodes:
         history_id: "test"
         version: 1
         body:
           nodes:
             - { settings: { "node.name": "instance-000187" }, processors: {min: 8.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
-  - match: { status: 400 }
-  - match: { error.type: x_content_parse_exception }
+
+  - do:
+      _internal.get_desired_nodes: {}
+  - match:
+      $body:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { name: "instance-000187" } }, processors: {min: 8.0, max: 8.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
 ---
 "Test min processors should be less than or equal to max processors":
-  - skip:
-      reason: "contains is a newly added assertion"
-      features: contains
   - do:
       cluster.state: {}
 

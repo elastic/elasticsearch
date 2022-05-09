@@ -114,7 +114,7 @@ public class DesiredNodeTests extends ESTestCase {
 
         final var desiredNode = new DesiredNode(
             settings.build(),
-            new DesiredNode.Processors((float) 0.4, (float) 1.2),
+            new DesiredNode.ProcessorsRange((float) 0.4, (float) 1.2),
             ByteSizeValue.ofGb(1),
             ByteSizeValue.ofGb(1),
             Version.CURRENT

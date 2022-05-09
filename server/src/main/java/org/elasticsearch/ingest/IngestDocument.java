@@ -82,7 +82,7 @@ public final class IngestDocument {
     public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = sourceAndMetadata;
         this.ingestMetadata = ingestMetadata;
-        this.ingestDocumentMetadata = new IngestDocumentMetadata(ingestMetadata.get(TIMESTAMP) instanceof ZonedDateTime zdt ? zdt : null);
+        this.ingestDocumentMetadata = new IngestDocumentMetadata(ingestMetadata.get(TIMESTAMP)instanceof ZonedDateTime zdt ? zdt : null);
     }
 
     /**

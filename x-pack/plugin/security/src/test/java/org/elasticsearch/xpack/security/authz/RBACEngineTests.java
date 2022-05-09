@@ -1158,7 +1158,7 @@ public class RBACEngineTests extends ESTestCase {
         // Cached result won't be cached again
         verify(role, never()).cacheHasPrivileges(any(), any(), any());
 
-        // Test a new check does not go through cache
+        // Test a new check does not go through cache (and hence will be stalled by the exception)
         final PrivilegesToCheck privilegesToCheck2 = new PrivilegesToCheck(
             new String[0],
             new IndicesPrivileges[0],

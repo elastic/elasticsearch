@@ -524,6 +524,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             Settings.builder()
                 .put("index.number_of_shards", numOfShards)
                 .put("index.number_of_replicas", numOfReplicas)
+                .put("index.mode", "time_series")
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                 .build(),
             new CompressedXContent("""

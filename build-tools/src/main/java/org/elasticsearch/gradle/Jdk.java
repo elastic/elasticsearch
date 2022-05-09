@@ -25,7 +25,9 @@ public class Jdk implements Buildable, Iterable<File> {
     private static final List<String> ALLOWED_ARCHITECTURES = List.of("aarch64", "x64");
     private static final List<String> ALLOWED_VENDORS = List.of("adoptium", "openjdk");
     private static final List<String> ALLOWED_PLATFORMS = List.of("darwin", "linux", "windows", "mac");
-    private static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
+    private static final Pattern VERSION_PATTERN = Pattern.compile(
+        "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
+    );
     private static final Pattern LEGACY_VERSION_PATTERN = Pattern.compile("(\\d)(u\\d+)\\+(b\\d+?)(@([a-f0-9]{32}))?");
 
     private final String name;

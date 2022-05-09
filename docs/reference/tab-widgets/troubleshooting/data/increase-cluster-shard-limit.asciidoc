@@ -191,7 +191,7 @@ PUT _cluster/settings
 <1> The new value for the system-wide `total_shards_per_node` configuration
 is increased from the previous value of `300` to `400`. 
 The `total_shards_per_node` configuration can also be set to `null`, which 
-represents no upper bound with regards to how many primary shards can be 
+represents no upper bound with regards to how many shards can be 
 collocated on one node in the system. 
 
 // end::self-managed[]

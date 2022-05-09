@@ -65,13 +65,6 @@ public class CoordinatorRewriteContextProvider {
             return null;
         }
 
-        return new CoordinatorRewriteContext(
-            parserConfig,
-            writeableRegistry,
-            client,
-            nowInMillis,
-            timeSeriesRange,
-            dateFieldType
-        );
+        return new CoordinatorRewriteContext(parserConfig, writeableRegistry, client, nowInMillis, timeSeriesRange, dateFieldType);
     }
 }

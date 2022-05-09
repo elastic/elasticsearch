@@ -76,7 +76,7 @@ indices and shards each individual data node will be able to hold,
 all other things being equal. In addition to the per field overhead you should
 at least have an additional 512MB of heap available per data node.
 For example, holding 1000 indices that each contain 4000 fields will require
-1000 × 4000 × 1024B = 4Gb for the fields and another 512MB for a total of
+1000 × 4000 × 1024B = 4GB for the fields and another 512MB for a total of
 at least 4.5GB on the data node.
 By default {es} will automatically create a mapping for every field in
 every document it indexes, but you can switch off this behaviour to

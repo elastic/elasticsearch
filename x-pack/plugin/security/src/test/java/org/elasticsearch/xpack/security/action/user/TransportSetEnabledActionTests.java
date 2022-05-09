@@ -44,7 +44,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -122,10 +121,10 @@ public class TransportSetEnabledActionTests extends ESTestCase {
 
     public void testUserCanModifySameNameUserFromDifferentRealm() throws Exception {
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
-        Authentication authentication = mock(Authentication.class, RETURNS_DEEP_STUBS);
-        when(authentication.getEffectiveSubject().getUser()).thenReturn(user);
-        when(authentication.getEffectiveSubject().getRealm().getType()).thenReturn("other_realm");
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8), "other_realm", randomAlphaOfLengthBetween(3, 8)))
+            .build(false);
         testValidUser(user, authentication);
     }
 

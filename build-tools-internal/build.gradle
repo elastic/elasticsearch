@@ -258,20 +258,20 @@ dependencies {
   testImplementation testFixtures("org.elasticsearch.gradle:build-tools:$version")
 
   testImplementation(platform(buildLibs.junit5.platform))
-  testImplementation("org.junit.jupiter:junit-jupiter") {
+  testImplementation(buildLibs.junit5.jupiter) {
     because 'allows to write and run Jupiter tests'
   }
   integTestImplementation(platform(buildLibs.junit5.platform))
-  integTestImplementation("org.junit.jupiter:junit-jupiter") {
+  integTestImplementation(buildLibs.junit5.jupiter) {
     because 'allows to write and run Jupiter tests'
   }
   integTestImplementation(buildLibs.bytebuddy) {
     because 'Generating dynamic mocks of internal libraries like JdkJarHell'
   }
-  testRuntimeOnly("org.junit.vintage:junit-vintage-engine") {
+  testRuntimeOnly(buildLibs.junit5.vintage) {
     because 'allows JUnit 3 and JUnit 4 tests to run'
   }
-  testRuntimeOnly("org.junit.platform:junit-platform-launcher") {
+  testRuntimeOnly(buildLibs.junit5.platform.launcher) {
     because 'allows tests to run from IDEs that bundle older version of launcher'
   }
 

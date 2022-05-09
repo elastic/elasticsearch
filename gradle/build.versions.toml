@@ -26,6 +26,10 @@ jackson-platform = { group = "com.fasterxml.jackson", name="jackson-bom", versio
 jna = "net.java.dev.jna:jna:5.10.0"
 junit = "junit:junit:4.12"
 junit5-platform = { group = "org.junit", name="junit-bom", version.ref="junit5" }
+junit5-jupiter = "org.junit.jupiter:junit-jupiter:5.8.1"
+junit5-platform-launcher = "org.junit.platform:junit-platform-launcher:1.8.0"
+junit5-vintage = "org.junit.vintage:junit-vintage-engine:5.8.1"
+
 maven-model = "org.apache.maven:maven-model:3.6.2"
 mockito-core = "org.mockito:mockito-core:1.9.5"
 nebula-info = "com.netflix.nebula:gradle-info-plugin:11.3.3"

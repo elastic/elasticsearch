@@ -44,10 +44,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt;
 import static org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil.isNumericType;
 
@@ -341,22 +342,16 @@ public final class AggregationResultUtils {
         }
     }
 
-    static class RangeAggExtractor implements AggValueExtractor {
-        @Override
-        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
-            Range aggregation = (Range) agg;
-            Map<String, Long> ranges = aggregation.getBuckets()
-                .stream()
-                .collect(
-                    toMap(
-                        bucket -> bucket.getKeyAsString()
-                            .replace(".0-", "-")  // from: convert double to integer
-                            .replaceAll("\\.0$", "")  // to: convert double to integer
-                            .replace('.', '_'),  // convert remaining dots with underscores so that the key prefix is not treated as object
-                        bucket -> bucket.getDocCount()
-                    )
-                );
-            return ranges;
+    static class RangeAggExtractor extends MultiBucketsAggExtractor {
+
+        RangeAggExtractor() {
+            super(RangeAggExtractor::transformBucketKey);
+        }
+
+        private static String transformBucketKey(String bucketKey) {
+            return bucketKey.replace(".0-", "-")  // from: convert double to integer
+                .replaceAll("\\.0$", "")  // to: convert double to integer
+                .replace('.', '_');  // convert remaining dots with underscores so that the key prefix is not treated as object
         }
     }
 
@@ -393,6 +388,17 @@ public final class AggregationResultUtils {
     }
 
     static class MultiBucketsAggExtractor implements AggValueExtractor {
+
+        private final Function<String, String> bucketKeyTransfomer;
+
+        MultiBucketsAggExtractor() {
+            this(Function.identity());
+        }
+
+        MultiBucketsAggExtractor(Function<String, String> bucketKeyTransfomer) {
+            this.bucketKeyTransfomer = Objects.requireNonNull(bucketKeyTransfomer);
+        }
+
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             MultiBucketsAggregation aggregation = (MultiBucketsAggregation) agg;
@@ -400,8 +406,9 @@ public final class AggregationResultUtils {
             HashMap<String, Object> nested = new HashMap<>();
 
             for (MultiBucketsAggregation.Bucket bucket : aggregation.getBuckets()) {
+                String bucketKey = bucketKeyTransfomer.apply(bucket.getKeyAsString());
                 if (bucket.getAggregations().iterator().hasNext() == false) {
-                    nested.put(bucket.getKeyAsString(), bucket.getDocCount());
+                    nested.put(bucketKey, bucket.getDocCount());
                 } else {
                     HashMap<String, Object> nestedBucketObject = new HashMap<>();
                     for (Aggregation subAgg : bucket.getAggregations()) {
@@ -414,7 +421,7 @@ public final class AggregationResultUtils {
                             )
                         );
                     }
-                    nested.put(bucket.getKeyAsString(), nestedBucketObject);
+                    nested.put(bucketKey, nestedBucketObject);
                 }
             }
             return nested;

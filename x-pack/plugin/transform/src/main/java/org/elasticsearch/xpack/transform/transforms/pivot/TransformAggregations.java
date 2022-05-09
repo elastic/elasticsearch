@@ -112,7 +112,7 @@ public final class TransformAggregations {
         BUCKET_SELECTOR("bucket_selector", DYNAMIC),
         BUCKET_SCRIPT("bucket_script", DYNAMIC),
         PERCENTILES("percentiles", DOUBLE),
-        RANGE("range", LONG),
+        RANGE("range", SOURCE),
         FILTER("filter", LONG),
         TERMS("terms", FLATTENED),
         RARE_TERMS("rare_terms", FLATTENED),

@@ -2026,23 +2026,24 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                       "field": "stars"
                     }
                   },
-                  "r": {
+                  "simple-ranges": {
                     "range": {
                       "field": "stars",
-                      "keyed": false,
+                      "keyed": %s,
                       "ranges": [ { "to": 2 }, { "from": 2, "to": 3.99 }, { "from": 4 } ]
                     }
                   },
-                  "r_keyed": {
+                  "simple-ranges-with-avg": {
                     "range": {
                       "field": "stars",
-                      "keyed": true,
+                      "keyed": %s,
                       "ranges": [ { "to": 2 }, { "from": 2, "to": 3.99 }, { "from": 4 } ]
-                    }
+                    },
+                    "aggs": { "avg_stars": { "avg": { "field": "stars" } } }
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""".formatted(REVIEWS_INDEX_NAME, transformIndex, randomBoolean(), randomBoolean());
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -2052,18 +2053,19 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         // get and check some users
         Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_11");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r.*-2", searchResult)).get(0);
-        Number actualKeyed = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r_keyed.*-2", searchResult)).get(0);
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.simple-ranges.*-2", searchResult)).get(0);
         assertEquals(5, actual.longValue());
-        assertEquals(5, actualKeyed.longValue());
-        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r.2-3_99", searchResult)).get(0);
-        actualKeyed = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r_keyed.2-3_99", searchResult)).get(0);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.simple-ranges.2-3_99", searchResult)).get(0);
         assertEquals(2, actual.longValue());
-        assertEquals(2, actualKeyed.longValue());
-        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r.4-*", searchResult)).get(0);
-        actualKeyed = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r_keyed.4-*", searchResult)).get(0);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.simple-ranges.4-*", searchResult)).get(0);
         assertEquals(19, actual.longValue());
-        assertEquals(19, actualKeyed.longValue());
+
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.simple-ranges-with-avg.*-2.avg_stars", searchResult)).get(0);
+        assertEquals(1.0, actual.doubleValue(), 1E-6);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.simple-ranges-with-avg.2-3_99.avg_stars", searchResult)).get(0);
+        assertEquals(3.0, actual.doubleValue(), 1E-6);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.simple-ranges-with-avg.4-*.avg_stars", searchResult)).get(0);
+        assertEquals(4.6842105, actual.doubleValue(), 1E-6);
     }
 
     public void testPivotWithFilter() throws Exception {

@@ -65,10 +65,10 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("double", TransformAggregations.resolveTargetMapping("sum", null));
 
         // range
-        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "int"));
-        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "double"));
-        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "half_float"));
-        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "scaled_float"));
+        assertEquals("int", TransformAggregations.resolveTargetMapping("range", "int"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("range", "double"));
+        assertEquals("half_float", TransformAggregations.resolveTargetMapping("range", "half_float"));
+        assertEquals("float", TransformAggregations.resolveTargetMapping("range", "scaled_float"));
 
         // geo_centroid
         assertEquals("geo_point", TransformAggregations.resolveTargetMapping("geo_centroid", "geo_point"));

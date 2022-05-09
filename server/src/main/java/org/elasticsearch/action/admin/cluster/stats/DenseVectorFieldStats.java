@@ -13,46 +13,38 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Objects;
-import java.util.Set;
 
 /**
- * Holds stats about a mapped field.
+ * Holds enhnaced stats about a dense vector mapped field.
  */
-public class FieldStats extends IndexFeatureStats {
-    int scriptCount = 0;
-    final Set<String> scriptLangs;
-    final FieldScriptStats fieldScriptStats;
+public final class DenseVectorFieldStats extends FieldStats {
+    int indexedVectorCount; // number of times vectors with index:true are used in mappings of this cluster
+    long indexedVectorDimsSum; // sum of dims used for indexed vectors in this cluster
 
-    FieldStats(String name) {
+    DenseVectorFieldStats(String name) {
         super(name);
-        scriptLangs = new HashSet<>();
-        fieldScriptStats = new FieldScriptStats();
+        indexedVectorCount = 0;
+        indexedVectorDimsSum = 0;
     }
 
-    FieldStats(StreamInput in) throws IOException {
+    DenseVectorFieldStats(StreamInput in) throws IOException {
         super(in);
-        scriptCount = in.readVInt();
-        scriptLangs = in.readSet(StreamInput::readString);
-        fieldScriptStats = new FieldScriptStats(in);
+        indexedVectorCount = in.readVInt();
+        indexedVectorDimsSum = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(scriptCount);
-        out.writeCollection(scriptLangs, StreamOutput::writeString);
-        fieldScriptStats.writeTo(out);
+        out.writeVInt(indexedVectorCount);
+        out.writeVLong(indexedVectorDimsSum);
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("script_count", scriptCount);
-        if (scriptCount > 0) {
-            builder.array("lang", scriptLangs.toArray(new String[0]));
-            fieldScriptStats.toXContent(builder, params);
-        }
+        builder.field("indexed_vector_count", indexedVectorCount);
+        builder.field("indexed_vector_dims_sum", indexedVectorDimsSum);
     }
 
     @Override
@@ -66,12 +58,12 @@ public class FieldStats extends IndexFeatureStats {
         if (super.equals(o) == false) {
             return false;
         }
-        FieldStats that = (FieldStats) o;
-        return scriptCount == that.scriptCount && scriptLangs.equals(that.scriptLangs) && fieldScriptStats.equals(that.fieldScriptStats);
+        DenseVectorFieldStats that = (DenseVectorFieldStats) o;
+        return indexedVectorCount == that.indexedVectorCount && indexedVectorDimsSum == that.indexedVectorDimsSum;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), scriptCount, scriptLangs, fieldScriptStats);
+        return Objects.hash(super.hashCode(), indexedVectorCount, indexedVectorDimsSum);
     }
 }

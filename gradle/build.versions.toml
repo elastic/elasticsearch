@@ -1,0 +1,28 @@
+[versions]
+asm = "9.3"
+spock = "2.1-groovy-3.0"
+junit5 = "5.7.1"
+[libraries]
+shadow-plugin = "gradle.plugin.com.github.johnrengelman:shadow:7.1.2"
+checkstyle = "com.puppycrawl.tools:checkstyle:9.3"
+spotless-plugin = "com.diffplug.spotless:spotless-plugin-gradle:6.5.2"
+maven-model = "org.apache.maven:maven-model:3.6.2"
+apache-rat = "org.apache.rat:apache-rat:0.11"
+asm = { group = "org.ow2.asm", name="asm", version.ref="asm" }
+asm-tree = { group = "org.ow2.asm", name="asm-tree", version.ref="asm" }
+apache-compress = "org.apache.commons:commons-compress:1.21"
+ant = "org.apache.ant:ant:1.10.8"
+commmons-io = "commons-io:commons-io:2.2"
+junit = "junit:junit:4.12"
+randomized-runner = "com.carrotsearch.randomizedtesting:randomizedtesting-runner:2.7.7"
+wiremock = "com.github.tomakehurst:wiremock-jre8-standalone:2.23.2"
+spock-platform = { group = "org.spockframework", name="spock-bom", version.ref="spock" }
+spock-core = { group = "org.spockframework", name="spock-core", version.ref="spock" }
+spock-junit = { group = "org.spockframework", name="spock-junit4", version.ref="spock" }
+junit5-platform = { group = "org.junit", name="junit-bom", version.ref="junit5" }
+jackson-platform = "com.fasterxml.jackson:jackson-bom:2.13.2"
+commons-codec = "commons-codec:commons-codec:1.11"
+nebula-info = "com.netflix.nebula:gradle-info-plugin:11.3.3"
+jna = "net.java.dev.jna:jna:5.10.0"
+idea-ext = "gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:1.1.1"
+forbiddenApis = "de.thetaphi:forbiddenapis:3.2"

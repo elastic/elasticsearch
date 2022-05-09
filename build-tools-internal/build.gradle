@@ -217,11 +217,11 @@ dependencies {
   components.all(JacksonAlignmentRule)
   constraints {
     // ensuring brought asm version brought in by spock is up-to-date
-    testImplementation 'org.ow2.asm:asm:9.3'
-    integTestImplementation 'org.ow2.asm:asm:9.3'
+    testImplementation buildLibs.asm
+    integTestImplementation buildLibs.asm
   }
   // Forcefully downgrade the jackson platform as used in production
-  api enforcedPlatform("com.fasterxml.jackson:jackson-bom:${versions.getProperty('jackson')}")
+  api enforcedPlatform(buildLibs.jackson.platform)
   api localGroovy()
   api gradleApi()
 
@@ -229,17 +229,17 @@ dependencies {
   api "org.elasticsearch.gradle:build-tools:$version"
 
   // same version as http client transitive dep
-  api 'commons-codec:commons-codec:1.11'
-  api 'org.apache.commons:commons-compress:1.21'
-  api 'org.apache.ant:ant:1.10.8'
-  api 'com.netflix.nebula:gradle-info-plugin:11.3.3'
-  api 'org.apache.rat:apache-rat:0.11'
-  api "net.java.dev.jna:jna:${versions.getProperty('jna')}"
-  api 'gradle.plugin.com.github.johnrengelman:shadow:7.1.2'
+  api buildLibs.commons.codec
+  api buildLibs.apache.compress
+  api buildLibs.ant
+  api buildLibs.nebula.info
+  api buildLibs.apache.rat
+  api buildLibs.jna
+  api buildLibs.shadow.plugin
   // for our ide tweaking
-  api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:1.1.1'
+  api buildLibs.idea.ext
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
-  api 'de.thetaphi:forbiddenapis:3.2'
+  api buildLibs.forbiddenApis
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.13'
   api 'org.apache.maven:maven-model:3.6.2'
   // needs to match the jackson minor version in use
@@ -249,20 +249,20 @@ dependencies {
   api 'org.ow2.asm:asm-tree:9.2'
   api "org.apache.httpcomponents:httpclient:${versions.getProperty('httpclient')}"
   api "org.apache.httpcomponents:httpcore:${versions.getProperty('httpcore')}"
-  compileOnly "com.puppycrawl.tools:checkstyle:${versions.getProperty('checkstyle')}"
+  compileOnly buildLibs.checkstyle
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
-  testImplementation "com.puppycrawl.tools:checkstyle:${versions.getProperty('checkstyle')}"
-  testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
+  testImplementation buildLibs.checkstyle
+  testImplementation buildLibs.wiremock
   testImplementation 'org.mockito:mockito-core:1.9.5'
   testImplementation "org.hamcrest:hamcrest:${versions.getProperty('hamcrest')}"
 
   testImplementation testFixtures("org.elasticsearch.gradle:build-tools:$version")
 
-  testImplementation(platform("org.junit:junit-bom:${versions.getProperty('junit5')}"))
+  testImplementation(platform(buildLibs.junit5.platform))
   testImplementation("org.junit.jupiter:junit-jupiter") {
     because 'allows to write and run Jupiter tests'
   }
-  integTestImplementation(platform("org.junit:junit-bom:${versions.getProperty('junit5')}"))
+  integTestImplementation(platform(buildLibs.junit5.platform))
   integTestImplementation("org.junit.jupiter:junit-jupiter") {
     because 'allows to write and run Jupiter tests'
   }

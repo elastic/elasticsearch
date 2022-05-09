@@ -60,63 +60,63 @@ public abstract class Metadata {
 
     public String getIndex() {
         if (indexKey == null) {
-            unsupported(INDEX, null);
+            unsupported(INDEX, false);
         }
         return getString(indexKey);
     }
 
     public void setIndex(String index) {
         if (indexKey == null) {
-            unsupported(INDEX, null);
+            unsupported(INDEX, false);
         }
         put(indexKey, index);
     }
 
     public String getId() {
         if (idKey == null) {
-            unsupported(ID, null);
+            unsupported(ID, false);
         }
         return getString(idKey);
     }
 
     public void setId(String id) {
         if (idKey == null) {
-            unsupported(ID, null);
+            unsupported(ID, false);
         }
         put(idKey, id);
     }
 
     public String getRouting() {
         if (routingKey == null) {
-            unsupported(ROUTING, null);
+            unsupported(ROUTING, false);
         }
         return getString(routingKey);
     }
 
     public void setRouting(String routing) {
         if (routingKey == null) {
-            unsupported(ROUTING, null);
+            unsupported(ROUTING, false);
         }
         put(routingKey, routing);
     }
 
     public Long getVersion() {
         if (versionKey == null) {
-            unsupported(VERSION, null);
+            unsupported(VERSION, false);
         }
         return getNumber(versionKey).longValue();
     }
 
     public void setVersion(Long version) {
         if (versionKey == null) {
-            unsupported(VERSION, null);
+            unsupported(VERSION, false);
         }
         put(versionKey, version);
     }
 
     public VersionType getVersionType() {
         if (versionTypeKey == null) {
-            unsupported(VERSION_TYPE, null);
+            unsupported(VERSION_TYPE, false);
         }
         String str = getString(versionTypeKey);
         if (str == null) {
@@ -127,7 +127,7 @@ public abstract class Metadata {
 
     public void setVersionType(VersionType versionType) {
         if (versionTypeKey == null) {
-            unsupported(VERSION_TYPE, null);
+            unsupported(VERSION_TYPE, false);
         }
         if (versionType == null) {
             put(versionTypeKey, null);
@@ -168,7 +168,7 @@ public abstract class Metadata {
     }
 
     public ZonedDateTime getTimestamp() {
-        unsupported(TIMESTAMP, null);
+        unsupported(TIMESTAMP, false);
         return null;
     }
 
@@ -198,9 +198,9 @@ public abstract class Metadata {
         throw new IllegalStateException("unexpected type [" + obj.getClass().getName() + "] for [" + obj + "], expected Number");
     }
 
-    protected void unsupported(String field, Boolean read) {
+    protected void unsupported(String field, boolean write) {
         throw new UnsupportedOperationException(
-            read == null ? "" : (read ? "reading " : "writing ") + field + " is not supported for this action"
+            (write ? "writing " : "") + field + " is not supported for this action"
         );
     }
 }

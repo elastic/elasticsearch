@@ -530,22 +530,22 @@ public class UpdateHelper {
 
         @Override
         public void setIndex(String index) {
-            unsupported(INDEX, false);
+            unsupported(INDEX, true);
         }
 
         @Override
         public void setId(String id) {
-            unsupported(ID, false);
+            unsupported(ID, true);
         }
 
         @Override
         public void setRouting(String routing) {
-            unsupported(ROUTING, false);
+            unsupported(ROUTING, true);
         }
 
         @Override
         public void setVersion(Long version) {
-            unsupported(VERSION, false);
+            unsupported(VERSION, true);
         }
 
         @Override

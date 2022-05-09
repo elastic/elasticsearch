@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 import org.junit.Before;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -1135,13 +1134,8 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             waitingAnalytics ? randomList(1, maxWaitingAnalytics, () -> randomAlphaOfLength(10)) : List.of()
         );
 
-        Collection<DiscoveryNode> nodesInCluster = clusterState.getNodes().getNodes().values();
-        Optional<NativeMemoryCapacity> nativeMemoryCapacity = service.calculateFutureAvailableCapacity(
-            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE),
-            Duration.ofMillis(randomIntBetween(1, 10000)), // exact value shouldn't matter
-            nodesInCluster,
-            clusterState
-        );
+        Collection<DiscoveryNode> mlNodesInCluster = clusterState.getNodes().getNodes().values();
+        Optional<NativeMemoryCapacity> nativeMemoryCapacity = service.calculateFutureAvailableCapacity(mlNodesInCluster, clusterState);
         assertThat(nativeMemoryCapacity.isEmpty(), is(false));
         assertThat(nativeMemoryCapacity.get().getNodeMlNativeMemoryRequirementExcludingOverhead(), greaterThanOrEqualTo(TEST_JOB_SIZE));
         assertThat(
@@ -1154,7 +1148,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         );
         assertThat(
             nativeMemoryCapacity.get().getTierMlNativeMemoryRequirementExcludingOverhead(),
-            lessThanOrEqualTo(nodesInCluster.size() * (ML_MEMORY_FOR_TEST_NODE_SIZE - NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes()))
+            lessThanOrEqualTo(mlNodesInCluster.size() * (ML_MEMORY_FOR_TEST_NODE_SIZE - NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes()))
         );
     }
 

@@ -404,12 +404,13 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
                         listener.onResponse(null);
                     }
-                    logger.trace("ML memory tracker last update time now [{}] and listeners called", lastUpdateTime);
+                    logger.debug("ML memory tracker last update time now [{}] and listeners called", lastUpdateTime);
                 } else {
                     Exception e = new NotMasterException("Node ceased to be master during ML memory tracker refresh");
                     for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
                         listener.onFailure(e);
                     }
+                    logger.debug(e.getMessage());
                 }
                 fullRefreshCompletionListeners.clear();
             }
@@ -433,7 +434,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             List<PersistentTasksCustomMetadata.PersistentTask<?>> mlDataFrameAnalyticsJobTasks = persistentTasks.tasks()
                 .stream()
                 .filter(task -> MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(task.getTaskName()))
-                .collect(Collectors.toList());
+                .toList();
             ActionListener<Void> refreshDataFrameAnalyticsJobs = ActionListener.wrap(
                 aVoid -> refreshAllDataFrameAnalyticsJobTasks(mlDataFrameAnalyticsJobTasks, refreshComplete),
                 refreshComplete::onFailure
@@ -514,7 +515,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         if (stopPhaser.register() != phase.get()) {
             // Phases above not equal to `phase` mean we've been stopped, so don't do any operations that involve external interaction
             stopPhaser.arriveAndDeregister();
-            logger.info(() -> new ParameterizedMessage("[{}] not refreshing anomaly detector memory as node is shutting down", jobId));
+            logger.info("[{}] not refreshing anomaly detector memory as node is shutting down", jobId);
             listener.onFailure(new EsRejectedExecutionException("Couldn't run ML memory update - node is shutting down"));
             return;
         }

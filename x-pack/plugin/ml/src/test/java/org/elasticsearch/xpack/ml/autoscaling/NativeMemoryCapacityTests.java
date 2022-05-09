@@ -43,6 +43,21 @@ public class NativeMemoryCapacityTests extends ESTestCase {
         assertThat(capacity.getJvmSize(), nullValue());
     }
 
+    /**
+     * This situation arises while finding current capacity when scaling up from zero.
+     */
+    public void testAutoscalingCapacityFromZero() {
+
+        AutoscalingCapacity autoscalingCapacity = NativeMemoryCapacity.ZERO.autoscalingCapacity(
+            randomIntBetween(5, 90),
+            randomBoolean(),
+            randomLongBetween(100000000L, 10000000000L),
+            randomIntBetween(0, 3)
+        );
+        assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(0L));
+        assertThat(autoscalingCapacity.total().memory().getBytes(), equalTo(0L));
+    }
+
     public void testAutoscalingCapacity() {
 
         final long BYTES_IN_64GB = ByteSizeValue.ofGb(64).getBytes();

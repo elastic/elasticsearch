@@ -48,7 +48,7 @@ public interface GeoShapeQueryable {
         try {
             luceneGeometries = toQuantizeLuceneGeometry(shape, relation);
         } catch (IllegalArgumentException e) {
-            throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "]", e);
+            throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
         }
         if (luceneGeometries.length == 0) {
             return new MatchNoDocsQuery();

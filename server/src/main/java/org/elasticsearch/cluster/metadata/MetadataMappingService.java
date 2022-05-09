@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -37,6 +38,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Service responsible for submitting mapping changes
@@ -94,14 +96,17 @@ public class MetadataMappingService {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateTask> {
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<PutMappingClusterStateUpdateTask>> taskContexts)
-            throws Exception {
+        public ClusterState execute(
+            ClusterState currentState,
+            List<TaskContext<PutMappingClusterStateUpdateTask>> taskContexts,
+            Supplier<Releasable> dropHeadersContextSupplier
+        ) throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
             try {
                 for (final var taskContext : taskContexts) {
                     final var task = taskContext.getTask();
                     final PutMappingClusterStateUpdateRequest request = task.request;
-                    try {
+                    try (var ignored = taskContext.captureResponseHeaders()) {
                         for (Index index : request.indices()) {
                             final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
                             if (indexMapperServices.containsKey(indexMetadata.getIndex()) == false) {

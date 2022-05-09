@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -48,7 +50,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
     }
 
     @Override
-    public ClusterState execute(ClusterState currentState, List<TaskContext<JoinTask>> joinTaskContexts) throws Exception {
+    public ClusterState execute(
+        ClusterState currentState,
+        List<TaskContext<JoinTask>> joinTaskContexts,
+        Supplier<Releasable> dropHeadersContextSupplier
+    ) throws Exception {
         // The current state that MasterService uses might have been updated by a (different) master in a higher term already. If so, stop
         // processing the current cluster state update, there's no point in continuing to compute it as it will later be rejected by
         // Coordinator#publish anyhow.

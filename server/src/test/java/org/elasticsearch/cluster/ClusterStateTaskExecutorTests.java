@@ -34,7 +34,7 @@ public class ClusterStateTaskExecutorTests extends ESTestCase {
     }
 
     public void testDescribeTasks() {
-        final ClusterStateTaskExecutor<TestTask> executor = (currentState, taskContexts) -> {
+        final ClusterStateTaskExecutor<TestTask> executor = (currentState, taskContexts, dropHeadersContextSupplier) -> {
             throw new AssertionError("should not be called");
         };
 

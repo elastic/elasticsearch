@@ -18,9 +18,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task> {
 
@@ -54,7 +56,11 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
     }
 
     @Override
-    public ClusterState execute(ClusterState currentState, List<TaskContext<Task>> taskContexts) throws Exception {
+    public ClusterState execute(
+        ClusterState currentState,
+        List<TaskContext<Task>> taskContexts,
+        Supplier<Releasable> dropHeadersContextSupplier
+    ) throws Exception {
         final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(currentState.nodes());
         boolean removed = false;
         for (final var taskContext : taskContexts) {
@@ -78,22 +84,22 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
             });
         }
 
-        final ClusterState finalState;
+        if (removed == false) {
+            // no nodes to remove, keep the current cluster state
+            return currentState;
+        }
 
-        if (removed) {
-            final ClusterState remainingNodesClusterState = remainingNodesClusterState(currentState, remainingNodesBuilder);
-            final ClusterState ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
-            finalState = allocationService.disassociateDeadNodes(
+        try (var ignored = dropHeadersContextSupplier.get()) {
+            // suppress deprecation warnings e.g. from reroute()
+
+            final var remainingNodesClusterState = remainingNodesClusterState(currentState, remainingNodesBuilder);
+            final var ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
+            return allocationService.disassociateDeadNodes(
                 ptasksDisassociatedState,
                 true,
                 describeTasks(taskContexts.stream().map(TaskContext::getTask).toList())
             );
-        } else {
-            // no nodes to remove, keep the current cluster state
-            finalState = currentState;
         }
-
-        return finalState;
     }
 
     // visible for testing

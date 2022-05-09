@@ -56,6 +56,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -83,6 +84,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -169,7 +171,11 @@ public class MetadataIndexStateService {
     private class AddBlocksToCloseExecutor implements ClusterStateTaskExecutor<AddBlocksToCloseTask> {
 
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<AddBlocksToCloseTask>> taskContexts) throws Exception {
+        public ClusterState execute(
+            ClusterState currentState,
+            List<TaskContext<AddBlocksToCloseTask>> taskContexts,
+            Supplier<Releasable> dropHeadersContextSupplier
+        ) throws Exception {
             ClusterState state = currentState;
             for (final var taskContext : taskContexts) {
                 final var task = taskContext.getTask();
@@ -223,11 +229,15 @@ public class MetadataIndexStateService {
     private class CloseIndicesExecutor implements ClusterStateTaskExecutor<CloseIndicesTask> {
 
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<CloseIndicesTask>> taskContexts) throws Exception {
+        public ClusterState execute(
+            ClusterState currentState,
+            List<TaskContext<CloseIndicesTask>> taskContexts,
+            Supplier<Releasable> dropHeadersContextSupplier
+        ) throws Exception {
             ClusterState state = currentState;
             for (final var taskContext : taskContexts) {
-                final var task = taskContext.getTask();
                 try {
+                    final var task = taskContext.getTask();
                     final Tuple<ClusterState, List<IndexResult>> closingResult = closeRoutingTable(
                         state,
                         task.blockedIndices,
@@ -275,7 +285,10 @@ public class MetadataIndexStateService {
                 }
             }
 
-            return allocationService.reroute(state, "indices closed");
+            try (var ignored = dropHeadersContextSupplier.get()) {
+                // reroute may encounter deprecated features but the resulting warnings are not associated with any particular task
+                return allocationService.reroute(state, "indices closed");
+            }
         }
     }
 
@@ -486,7 +499,11 @@ public class MetadataIndexStateService {
     private class AddBlocksExecutor implements ClusterStateTaskExecutor<AddBlocksTask> {
 
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<AddBlocksTask>> taskContexts) throws Exception {
+        public ClusterState execute(
+            ClusterState currentState,
+            List<TaskContext<AddBlocksTask>> taskContexts,
+            Supplier<Releasable> dropHeadersContextSupplier
+        ) throws Exception {
             ClusterState state = currentState;
 
             for (final var taskContext : taskContexts) {
@@ -551,7 +568,11 @@ public class MetadataIndexStateService {
     private static class FinalizeBlocksExecutor implements ClusterStateTaskExecutor<FinalizeBlocksTask> {
 
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<FinalizeBlocksTask>> taskContexts) throws Exception {
+        public ClusterState execute(
+            ClusterState currentState,
+            List<TaskContext<FinalizeBlocksTask>> taskContexts,
+            Supplier<Releasable> dropHeadersContextSupplier
+        ) throws Exception {
             ClusterState state = currentState;
 
             for (final var taskContext : taskContexts) {
@@ -1097,10 +1118,17 @@ public class MetadataIndexStateService {
     private class OpenIndicesExecutor implements ClusterStateTaskExecutor<OpenIndicesTask> {
 
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<OpenIndicesTask>> taskContexts) {
+        public ClusterState execute(
+            ClusterState currentState,
+            List<TaskContext<OpenIndicesTask>> taskContexts,
+            Supplier<Releasable> dropHeadersContextSupplier
+        ) {
             ClusterState state = currentState;
 
-            try {
+            try (var ignored = dropHeadersContextSupplier.get()) {
+                // we may encounter deprecated settings but they are not directly related to opening the indices, nor are they really
+                // associated with any particular tasks, so we drop them
+
                 // build an in-order de-duplicated array of all the indices to open
                 final Set<Index> indicesToOpen = new LinkedHashSet<>(taskContexts.size());
                 for (final var taskContext : taskContexts) {

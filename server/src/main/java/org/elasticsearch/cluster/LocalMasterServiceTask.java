@@ -10,8 +10,10 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.Releasable;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Used to execute things on the master service thread on nodes that are not necessarily master
@@ -24,7 +26,7 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
         this.priority = priority;
     }
 
-    protected void execute(ClusterState currentState) throws Exception {}
+    protected void execute(ClusterState currentState) {}
 
     @Override
     public final void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
@@ -53,8 +55,11 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
                 }
 
                 @Override
-                public ClusterState execute(ClusterState currentState, List<TaskContext<LocalMasterServiceTask>> taskContexts)
-                    throws Exception {
+                public ClusterState execute(
+                    ClusterState currentState,
+                    List<TaskContext<LocalMasterServiceTask>> taskContexts,
+                    Supplier<Releasable> dropHeadersContextSupplier
+                ) {
                     final LocalMasterServiceTask thisTask = LocalMasterServiceTask.this;
                     assert taskContexts.size() == 1 && taskContexts.get(0).getTask() == thisTask
                         : "expected one-element task list containing current object but was " + taskContexts;

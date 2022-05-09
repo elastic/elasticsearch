@@ -57,7 +57,8 @@ class IndexLifecycleRunner {
 
     private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (
         currentState,
-        taskContexts) -> {
+        taskContexts,
+        dropHeadersContextSupplier) -> {
         ClusterState state = currentState;
         for (final var taskContext : taskContexts) {
             try {

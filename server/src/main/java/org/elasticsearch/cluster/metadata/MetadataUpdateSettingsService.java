@@ -71,10 +71,10 @@ public class MetadataUpdateSettingsService {
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
         this.threadPool = threadPool;
-        this.executor = (currentState, taskContexts) -> {
+        this.executor = (currentState, taskContexts, dropHeadersContextSupplier) -> {
             ClusterState state = currentState;
             for (final var taskContext : taskContexts) {
-                try {
+                try (var ignored = taskContext.captureResponseHeaders()) {
                     final var task = taskContext.getTask();
                     state = task.execute(state);
                     taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState), task);
@@ -84,7 +84,9 @@ public class MetadataUpdateSettingsService {
             }
             if (state != currentState) {
                 // reroute in case things change that require it (like number of replicas)
-                state = allocationService.reroute(state, "settings update");
+                try (var ignored = dropHeadersContextSupplier.get()) {
+                    state = allocationService.reroute(state, "settings update");
+                }
             }
             return state;
         };

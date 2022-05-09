@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,6 +33,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static java.lang.String.format;
 
@@ -145,12 +147,16 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             .onResponse(new UpdateDesiredNodesResponse(true));
 
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<UpdateDesiredNodesTask>> taskContexts) throws Exception {
+        public ClusterState execute(
+            ClusterState currentState,
+            List<TaskContext<UpdateDesiredNodesTask>> taskContexts,
+            Supplier<Releasable> dropHeadersContextSupplier
+        ) throws Exception {
             final var initialDesiredNodes = DesiredNodesMetadata.fromClusterState(currentState).getLatestDesiredNodes();
             var desiredNodes = initialDesiredNodes;
             for (final var taskContext : taskContexts) {
                 final var previousDesiredNodes = desiredNodes;
-                try {
+                try (var ignored = taskContext.captureResponseHeaders()) {
                     desiredNodes = updateDesiredNodes(desiredNodes, taskContext.getTask().request());
                 } catch (Exception e) {
                     taskContext.onFailure(e);

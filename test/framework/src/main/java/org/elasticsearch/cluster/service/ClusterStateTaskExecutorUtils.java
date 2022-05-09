@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasable;
 
 import java.util.stream.StreamSupport;
 
@@ -64,7 +65,7 @@ public class ClusterStateTaskExecutorUtils {
         final var taskContexts = StreamSupport.stream(tasks.spliterator(), false).<ClusterStateTaskExecutor.TaskContext<T>>map(
             TestTaskContext::new
         ).toList();
-        final var resultingState = executor.execute(originalState, taskContexts);
+        final var resultingState = executor.execute(originalState, taskContexts, () -> null);
         assertNotNull(resultingState);
         for (final var taskContext : taskContexts) {
             final var testTaskContext = (TestTaskContext<T>) taskContext;
@@ -127,6 +128,11 @@ public class ClusterStateTaskExecutorUtils {
             assert publishListener != null;
             assert task instanceof ClusterStateAckListener == false;
             this.succeeded = true;
+        }
+
+        @Override
+        public Releasable captureResponseHeaders() {
+            return () -> {};
         }
 
         @Override

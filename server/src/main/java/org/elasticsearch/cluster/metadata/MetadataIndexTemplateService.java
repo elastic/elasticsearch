@@ -125,12 +125,17 @@ public class MetadataIndexTemplateService {
     /**
      * This is the cluster state task executor for all template-based actions.
      */
-    private static final ClusterStateTaskExecutor<TemplateClusterStateUpdateTask> TEMPLATE_TASK_EXECUTOR = (currentState, taskContexts) -> {
+    private static final ClusterStateTaskExecutor<TemplateClusterStateUpdateTask> TEMPLATE_TASK_EXECUTOR = (
+        currentState,
+        taskContexts,
+        dropHeadersContextSupplier) -> {
         ClusterState state = currentState;
         for (final var taskContext : taskContexts) {
             try {
                 final var task = taskContext.getTask();
-                state = task.execute(state);
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    state = task.execute(state);
+                }
                 taskContext.success(task.listener.map(ignored -> AcknowledgedResponse.TRUE));
             } catch (Exception e) {
                 taskContext.onFailure(e);

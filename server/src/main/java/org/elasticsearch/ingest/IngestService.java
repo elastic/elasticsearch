@@ -108,14 +108,19 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Cluster state task executor for ingest pipeline operations
      */
-    static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = (currentState, taskContexts) -> {
+    static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = (
+        currentState,
+        taskContexts,
+        dropHeadersContextSupplier) -> {
         final var allIndexMetadata = currentState.metadata().indices().values();
         final IngestMetadata initialIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
         var currentIngestMetadata = initialIngestMetadata;
         for (final var taskContext : taskContexts) {
             try {
                 final var task = taskContext.getTask();
-                currentIngestMetadata = task.execute(currentIngestMetadata, allIndexMetadata);
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    currentIngestMetadata = task.execute(currentIngestMetadata, allIndexMetadata);
+                }
                 taskContext.success(task.listener.map(ignored -> AcknowledgedResponse.TRUE));
             } catch (Exception e) {
                 taskContext.onFailure(e);

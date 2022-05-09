@@ -3016,7 +3016,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = (
         currentState,
-        taskContexts) -> new SnapshotShardsUpdateContext(currentState, taskContexts).computeUpdatedState();
+        taskContexts,
+        dropHeadersContextSupplier) -> new SnapshotShardsUpdateContext(currentState, taskContexts).computeUpdatedState();
 
     private static boolean isQueued(@Nullable ShardSnapshotStatus status) {
         return status != null && status.state() == ShardState.QUEUED;

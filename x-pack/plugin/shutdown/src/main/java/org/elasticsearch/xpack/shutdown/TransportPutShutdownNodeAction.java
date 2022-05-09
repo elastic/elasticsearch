@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.NodesShutdownMetadata.getShutdownsOrEmpty;
 
@@ -118,13 +120,17 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
     // package private for tests
     class PutShutdownNodeExecutor implements ClusterStateTaskExecutor<PutShutdownNodeTask> {
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<PutShutdownNodeTask>> taskContexts) throws Exception {
+        public ClusterState execute(
+            ClusterState currentState,
+            List<TaskContext<PutShutdownNodeTask>> taskContexts,
+            Supplier<Releasable> dropHeadersContextSupplier
+        ) throws Exception {
             var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(currentState).getAllNodeMetadataMap());
             Predicate<String> nodeExistsPredicate = currentState.getNodes()::nodeExists;
             boolean changed = false;
             for (final var taskContext : taskContexts) {
                 var request = taskContext.getTask().request();
-                try {
+                try (var ignored = taskContext.captureResponseHeaders()) {
                     changed |= putShutdownNodeState(shutdownMetadata, nodeExistsPredicate, request);
                 } catch (Exception e) {
                     taskContext.onFailure(e);

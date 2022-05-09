@@ -37,6 +37,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -51,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -267,7 +269,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         ActiveShardsObserver activeShardsObserver
     ) implements ClusterStateTaskExecutor<RolloverTask> {
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<RolloverTask>> taskContexts) throws Exception {
+        public ClusterState execute(
+            ClusterState currentState,
+            List<TaskContext<RolloverTask>> taskContexts,
+            Supplier<Releasable> dropHeadersContextSupplier
+        ) throws Exception {
             final var results = new ArrayList<MetadataRolloverService.RolloverResult>(taskContexts.size());
             var state = currentState;
             for (final var taskContext : taskContexts) {

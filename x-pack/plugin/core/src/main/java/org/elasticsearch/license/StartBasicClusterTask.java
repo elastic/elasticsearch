@@ -16,12 +16,14 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 public class StartBasicClusterTask implements ClusterStateTaskListener {
 
@@ -131,12 +133,18 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
 
     static class Executor implements ClusterStateTaskExecutor<StartBasicClusterTask> {
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<StartBasicClusterTask>> taskContexts) throws Exception {
+        public ClusterState execute(
+            ClusterState currentState,
+            List<TaskContext<StartBasicClusterTask>> taskContexts,
+            Supplier<Releasable> dropHeadersContextSupplier
+        ) throws Exception {
             XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
             final LicensesMetadata originalLicensesMetadata = currentState.metadata().custom(LicensesMetadata.TYPE);
             var currentLicensesMetadata = originalLicensesMetadata;
             for (final var taskContext : taskContexts) {
-                currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, currentState.nodes(), taskContext);
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, currentState.nodes(), taskContext);
+                }
             }
             if (currentLicensesMetadata == originalLicensesMetadata) {
                 return currentState;

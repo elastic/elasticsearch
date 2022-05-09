@@ -107,12 +107,12 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
-            executor = (currentState, taskContexts) -> {
+            executor = (currentState, taskContexts, dropHeadersContextSupplier) -> {
                 ClusterState state = currentState;
                 final Map<CreateIndexRequest, String> successfulRequests = Maps.newMapWithExpectedSize(taskContexts.size());
                 for (final var taskContext : taskContexts) {
                     final var task = taskContext.getTask();
-                    try {
+                    try (var ignored = taskContext.captureResponseHeaders()) {
                         state = task.execute(state, successfulRequests, taskContext);
                         assert successfulRequests.containsKey(task.request);
                     } catch (Exception e) {

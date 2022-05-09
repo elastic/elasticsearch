@@ -41,6 +41,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -69,6 +70,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public class ShardStateAction {
 
@@ -319,7 +321,8 @@ public class ShardStateAction {
         @Override
         public ClusterState execute(
             ClusterState currentState,
-            List<ClusterStateTaskExecutor.TaskContext<FailedShardUpdateTask>> taskContexts
+            List<TaskContext<FailedShardUpdateTask>> taskContexts,
+            Supplier<Releasable> dropHeadersContextSupplier
         ) throws Exception {
             List<ClusterStateTaskExecutor.TaskContext<FailedShardUpdateTask>> tasksToBeApplied = new ArrayList<>();
             List<FailedShard> failedShardsToBeApplied = new ArrayList<>();
@@ -409,7 +412,8 @@ public class ShardStateAction {
             assert tasksToBeApplied.size() == failedShardsToBeApplied.size() + staleShardsToBeApplied.size();
 
             ClusterState maybeUpdatedState = currentState;
-            try {
+            try (var ignored = dropHeadersContextSupplier.get()) {
+                // drop deprecation warnings arising from the computation (reroute etc).
                 maybeUpdatedState = applyFailedShards(currentState, failedShardsToBeApplied, staleShardsToBeApplied);
                 for (final var taskContext : tasksToBeApplied) {
                     taskContext.success(taskContext.getTask().newPublicationListener());
@@ -641,7 +645,11 @@ public class ShardStateAction {
         }
 
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<StartedShardUpdateTask>> taskContexts) throws Exception {
+        public ClusterState execute(
+            ClusterState currentState,
+            List<TaskContext<StartedShardUpdateTask>> taskContexts,
+            Supplier<Releasable> dropHeadersContextSupplier
+        ) throws Exception {
             List<TaskContext<StartedShardUpdateTask>> tasksToBeApplied = new ArrayList<>();
             List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(taskContexts.size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates

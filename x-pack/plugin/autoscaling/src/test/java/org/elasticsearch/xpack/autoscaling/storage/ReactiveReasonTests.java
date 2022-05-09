@@ -49,6 +49,7 @@ public class ReactiveReasonTests extends ESTestCase {
             assertEquals(assigned, map.get("assigned"));
             assertEquals(unassignedShardIds.stream().map(ShardId::toString).collect(Collectors.toList()), map.get("unassigned_shard_ids"));
             assertEquals(assignedShardIds.stream().map(ShardId::toString).collect(Collectors.toList()), map.get("assigned_shard_ids"));
+            assertEquals(assignedShardIds.size(), map.get("amount_of_assigned_shards"));
         }
     }
 }

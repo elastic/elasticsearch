@@ -197,6 +197,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.joinHelper = new JoinHelper(
             allocationService,
             masterService,
+            clusterApplier,
             transportService,
             this::getCurrentTerm,
             this::handleJoinRequest,
@@ -905,9 +906,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
             final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
-            if (lastAcceptedState.metadata().clusterUUIDCommitted()) {
-                logger.info("cluster UUID [{}]", lastAcceptedState.metadata().clusterUUID());
-            }
+            clusterBootstrapService.logBootstrapState(lastAcceptedState.metadata());
             final VotingConfiguration votingConfiguration = lastAcceptedState.getLastCommittedConfiguration();
             if (singleNodeDiscovery
                 && votingConfiguration.isEmpty() == false

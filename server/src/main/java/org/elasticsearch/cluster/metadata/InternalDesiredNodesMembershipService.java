@@ -68,16 +68,6 @@ public class InternalDesiredNodesMembershipService implements ClusterStateListen
         }
     }
 
-    // TODO: Move to DesiredNodesClusterMembers
-    public synchronized boolean isMember(DesiredNode desiredNode) {
-        return members.contains(desiredNode);
-    }
-
-    // visible for testing
-    synchronized int trackedMembersCount() {
-        return members.size();
-    }
-
     @Override
     public synchronized DesiredNodes.ClusterMembers getMembers() {
         if (members.isEmpty()) {

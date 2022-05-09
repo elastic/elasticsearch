@@ -154,7 +154,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
 
     public static Optional<String> preferredAvailableTier(List<String> prioritizedTiers, DesiredNodes.ClusterMembers nodes) {
         for (String tier : prioritizedTiers) {
-            if (tierNodesPresent(tier, nodes.desiredNodes())) {
+            if (tierNodesPresent(tier, nodes.members())) {
                 return Optional.of(tier);
             }
         }

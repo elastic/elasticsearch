@@ -181,7 +181,19 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
         );
     }
 
-    public record ClusterMembers(Set<DesiredNode> desiredNodes) {
+    public record ClusterMembers(Set<DesiredNode> members) {
         public static final ClusterMembers EMPTY = new ClusterMembers(Set.of());
+
+        public boolean contains(DesiredNode desiredNode) {
+            return members.contains(desiredNode);
+        }
+
+        public boolean isEmpty() {
+            return members.isEmpty();
+        }
+
+        public int count() {
+            return members.size();
+        }
     }
 }

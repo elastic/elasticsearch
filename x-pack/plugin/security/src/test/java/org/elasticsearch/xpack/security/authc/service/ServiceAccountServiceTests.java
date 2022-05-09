@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCre
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -599,7 +600,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
     }
 
     public void testCreateIndexTokenWillDelegate() {
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         final CreateServiceAccountTokenRequest request = mock(CreateServiceAccountTokenRequest.class);
         final ActionListener<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         serviceAccountService.createIndexToken(authentication, request, future);

@@ -12,8 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -241,19 +239,15 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
     }
 
     IndicesShardStoresResponse() {
-        this(ImmutableOpenMap.of(), Collections.emptyList());
+        this(Map.of(), Collections.emptyList());
     }
 
     public IndicesShardStoresResponse(StreamInput in) throws IOException {
         super(in);
-        storeStatuses = in.readImmutableMap(StreamInput::readString, i -> {
-            int indexEntries = i.readVInt();
-            ImmutableOpenIntMap.Builder<List<StoreStatus>> shardEntries = ImmutableOpenIntMap.builder();
-            for (int shardCount = 0; shardCount < indexEntries; shardCount++) {
-                shardEntries.put(i.readInt(), i.readList(StoreStatus::new));
-            }
-            return shardEntries.build();
-        });
+        storeStatuses = in.readImmutableMap(
+            StreamInput::readString,
+            i -> i.readImmutableMap(StreamInput::readInt, j -> j.readImmutableList(StoreStatus::new))
+        );
         failures = Collections.unmodifiableList(in.readList(Failure::readFailure));
     }
 

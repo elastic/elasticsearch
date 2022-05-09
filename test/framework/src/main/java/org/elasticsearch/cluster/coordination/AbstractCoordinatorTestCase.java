@@ -578,6 +578,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             );
             assertThat(leaderId + " has applied its state ", leader.getLastAppliedClusterState().getVersion(), isEqualToLeaderVersion);
 
+            final var clusterUuid = leader.getLastAppliedClusterState().metadata().clusterUUID();
+
             for (final ClusterNode clusterNode : clusterNodes) {
                 final String nodeId = clusterNode.getId();
                 assertFalse(nodeId + " should not have an active publication", clusterNode.coordinator.publicationInProgress());
@@ -630,6 +632,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         nodeId + " has no STATE_NOT_RECOVERED_BLOCK",
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK),
                         equalTo(false)
+                    );
+                    assertTrue(
+                        nodeId + " has locked into the cluster",
+                        clusterNode.getLastAppliedClusterState().metadata().clusterUUIDCommitted()
+                    );
+                    assertThat(
+                        nodeId + " has the correct cluster UUID",
+                        clusterNode.getLastAppliedClusterState().metadata().clusterUUID(),
+                        equalTo(clusterUuid)
                     );
 
                     for (final ClusterNode otherNode : clusterNodes) {
@@ -1400,16 +1411,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     }
 
                     @Override
-                    public void onNoLongerMaster() {
-                        // in this case, we know for sure that event was not processed by the system and will not change history
-                        // remove event to help avoid bloated history and state space explosion in linearizability checker
-                        history.remove(eventId);
-                    }
-
-                    @Override
                     public void onFailure(Exception e) {
-                        // do not remove event from history, the write might still take place
-                        // instead, complete history when checking for linearizability
+                        if (e instanceof FailedToCommitClusterStateException == false) {
+                            // In this case, we know for sure that event was not processed by the system and will not change history.
+                            // Therefore remove event to help avoid bloated history and state space explosion in linearizability checker.
+                            history.remove(eventId);
+                        }
+
+                        // Else do not remove event from history, the write might still take effect. Instead, complete history when checking
+                        // for linearizability.
                     }
                 });
             }
@@ -1452,12 +1462,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         public void onFailure(Exception e) {
                             logger.debug("publication failed", e);
                             taskListener.onFailure(e);
-                        }
-
-                        @Override
-                        public void onNoLongerMaster() {
-                            logger.trace("no longer master");
-                            taskListener.onNoLongerMaster();
                         }
 
                         @Override

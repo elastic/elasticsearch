@@ -1724,13 +1724,6 @@ public class IndicesService extends AbstractLifecycleComponent
         return mapperRegistry.getMetadataMapperParsers(version).keySet();
     }
 
-    /**
-     * Returns the registered metadata field names for all compatible versions.
-     */
-    public Set<String> getAllMetadataFields() {
-        return mapperRegistry.getAllMetadataMapperParsers().keySet();
-    }
-
     private void setIdFieldDataEnabled(boolean value) {
         this.idFieldDataEnabled = value;
     }

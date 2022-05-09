@@ -300,8 +300,8 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
             } else {
                 return URI.create(getParent(getParent(getParent(uri.toString()))));
             }
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
+        } catch (URISyntaxException unexpected) {
+            throw new AssertionError(unexpected); // should never happen
         }
     }
 

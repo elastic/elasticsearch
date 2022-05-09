@@ -79,12 +79,12 @@ class JavaServerProcess implements ServerProcess {
     @Override
     public void detach() throws IOException {
         // TODO: use a flag to store the fact we are detached, so stop is a noop
-        try {
+        /*try {
             // the server will close its streams when we want to detach, so we wait to finish reading stderr
             errorPump.join();
         } catch (InterruptedException e) {
             // how can this happen?
-        }
+        }*/
         IOUtils.close(jvmProcess.getOutputStream(), jvmProcess.getInputStream(), jvmProcess.getErrorStream());
     }
 

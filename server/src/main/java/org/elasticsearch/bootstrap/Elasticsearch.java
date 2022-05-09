@@ -19,6 +19,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.NodeValidationException;
 
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.security.Permission;
@@ -73,6 +74,21 @@ class Elasticsearch {
             if (serverArgs.daemonize()) {
                 out.close();
                 err.close();
+            } else {
+                new Thread(() -> {
+                    int msg = -1;
+                    try {
+                        msg = in.read();
+                    } catch (IOException e) {}
+                    if (msg == BootstrapInfo.SERVER_SHUTDOWN_MARKER) {
+                        out.println("Got shutdown signal from parent process");
+                        System.exit(0);
+                    } else {
+                        err.println("Parent process died, shutting down...");
+                        // parent process died or there was an error reading from it
+                        System.exit(1);
+                    }
+                }).start();
             }
 
         } catch (NodeValidationException e) {

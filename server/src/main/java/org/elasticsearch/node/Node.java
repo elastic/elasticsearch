@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.InstanceHasMasterHealthIndicatorService;
+import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -900,7 +901,8 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings()
             );
 
-            HealthService healthService = createHealthService(clusterService, clusterModule);
+            MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
+            HealthService healthService = createHealthService(clusterService, clusterModule, masterHistoryService);
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -983,6 +985,7 @@ public class Node implements Closeable {
                 b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
                 b.bind(HealthService.class).toInstance(healthService);
+                b.bind(MasterHistoryService.class).toInstance(masterHistoryService);
                 b.bind(StatsRequestLimiter.class).toInstance(statsRequestLimiter);
             });
 
@@ -1039,7 +1042,11 @@ public class Node implements Closeable {
         }
     }
 
-    private HealthService createHealthService(ClusterService clusterService, ClusterModule clusterModule) {
+    private HealthService createHealthService(
+        ClusterService clusterService,
+        ClusterModule clusterModule,
+        MasterHistoryService masterHistoryService
+    ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
             new InstanceHasMasterHealthIndicatorService(clusterService)
         );

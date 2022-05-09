@@ -869,7 +869,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final TransportRequest request1 = mock(TransportRequest.class);
         final TransportRequest request2 = mock(TransportRequest.class);
         final TransportRequest request3 = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         ConfigurableClusterPrivilege ccp1 = new MockConfigurableClusterPrivilege() {
             @Override
@@ -1570,7 +1570,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRole(authentication.getEffectiveSubject(), roleFuture);
         Role role = roleFuture.actionGet();
-        assertThat(role.checkClusterAction("cluster:admin/foo", Empty.INSTANCE, mock(Authentication.class)), is(false));
+        assertThat(role.checkClusterAction("cluster:admin/foo", Empty.INSTANCE, AuthenticationTestHelper.builder().build()), is(false));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         if (version == Version.CURRENT) {
             verify(apiKeyService).parseRoleDescriptorsBytes(
@@ -1940,7 +1940,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     public void testAsyncSearchUserHasNoClusterPrivileges() {
         for (String action : Arrays.asList(ClusterStateAction.NAME, GetWatchAction.NAME, ClusterStatsAction.NAME, NodesStatsAction.NAME)) {
             assertThat(
-                getAsyncSearchUserRole().cluster().check(action, mock(TransportRequest.class), mock(Authentication.class)),
+                getAsyncSearchUserRole().cluster().check(action, mock(TransportRequest.class), AuthenticationTestHelper.builder().build()),
                 Matchers.is(false)
             );
         }
@@ -1962,7 +1962,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     public void testXpackUserHasClusterPrivileges() {
         for (String action : Arrays.asList(ClusterStateAction.NAME, GetWatchAction.NAME, ClusterStatsAction.NAME, NodesStatsAction.NAME)) {
             assertThat(
-                getXPackUserRole().cluster().check(action, mock(TransportRequest.class), mock(Authentication.class)),
+                getXPackUserRole().cluster().check(action, mock(TransportRequest.class), AuthenticationTestHelper.builder().build()),
                 Matchers.is(true)
             );
         }

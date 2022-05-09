@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -32,6 +34,8 @@ import java.util.function.Supplier;
  * steps towards the desired balance using the {@link DesiredBalanceReconciler}.
  */
 public class DesiredBalanceShardsAllocator implements ShardsAllocator {
+
+    private static final Logger logger = LogManager.getLogger(DesiredBalanceShardsAllocator.class);
 
     public static final ActionListener<Void> REMOVE_ME = new ActionListener<>() {
 
@@ -77,25 +81,28 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 boolean shouldReroute = desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh);
                 boolean isFreshInput = isFresh(desiredBalanceInput);
 
+                logger.info("Processing input [{}]: shouldReroute={}, isFreshInput={}", desiredBalanceInput.index(), shouldReroute, isFreshInput);
+
                 if (shouldReroute) {
                     var future = new ListenableFuture<Void>();
                     if (isFreshInput) {
                         future.addListener(ActionListener.wrap(() -> {
-                            ActionListener.onResponse(pollListeners(desiredBalanceInput.index()), null);
+                            Collection<ActionListener<Void>> listeners = pollListeners(desiredBalanceInput.index());
+                            logger.info("Executing {} listeners up to {}", listeners.size(), desiredBalanceInput.index());
+                            ActionListener.onResponse(listeners, null);
                         }));
                     }
                     pendingRerouteFuture.set(future);
 
                     pendingReroute = true;
-                    rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, new ActionListener<ClusterState>() {
+                    rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, new ActionListener<>() {
                         @Override
                         public void onResponse(ClusterState clusterState) {
                             // TODO assert in a system context
                             if (isFreshInput) {
                                 pendingReroute = false;
-                                pendingRerouteFuture.get().onResponse(null);
-//                                ActionListener.onResponse(pollListeners(desiredBalanceInput.index()), null);
                             }
+                            pendingRerouteFuture.get().onResponse(null);
                         }
 
                         @Override
@@ -107,7 +114,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 } else {
                     if (isFreshInput) {
                         pendingRerouteFuture.get().addListener(ActionListener.wrap(() -> {
-                            ActionListener.onResponse(pollListeners(desiredBalanceInput.index()), null);
+                            Collection<ActionListener<Void>> listeners = pollListeners(desiredBalanceInput.index());
+                            logger.info("Executing {} listeners up to {}", listeners.size(), desiredBalanceInput.index());
+                            ActionListener.onResponse(listeners, null);
                         }));
                     }
                 }

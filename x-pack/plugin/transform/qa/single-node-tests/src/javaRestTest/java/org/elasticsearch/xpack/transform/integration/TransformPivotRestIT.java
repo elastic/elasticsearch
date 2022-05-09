@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -17,7 +16,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
 

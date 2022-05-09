@@ -1298,6 +1298,7 @@ public class Node implements Closeable {
         if (ReadinessService.enabled(environment)) {
             injector.getInstance(ReadinessService.class).stop();
         }
+        injector.getInstance(HealthNodeSelectorLifecycleHandler.class).stop();
         injector.getInstance(ResourceWatcherService.class).close();
         injector.getInstance(HttpServerTransport.class).stop();
 
@@ -1317,7 +1318,6 @@ public class Node implements Closeable {
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(TransportService.class).stop();
-        injector.getInstance(HealthNodeSelectorLifecycleHandler.class).stop();
 
         pluginLifecycleComponents.forEach(LifecycleComponent::stop);
         // we should stop this last since it waits for resources to get released

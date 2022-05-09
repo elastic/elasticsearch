@@ -27,11 +27,6 @@ We'll achieve this by inspecting the configuration for the `index.routing.alloca
 <<indices-get-settings, index setting>> and increasing the configured value for the
 indices that have shards unassigned.
 
-Note that this requires the current data nodes to have enough disk space to host 
-all the data.
-If the current deployment configuration doesn't have enough capacity to store
-all the data, including the unassigned shards, please contact 
-https://support.elastic.co[Elastic Support] to discuss available options.
 
 **Use {kib}**
 

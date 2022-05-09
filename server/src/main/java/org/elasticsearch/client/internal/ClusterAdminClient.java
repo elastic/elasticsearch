@@ -756,5 +756,4 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Delete specified dangling indices.
      */
     ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request);
-
 }

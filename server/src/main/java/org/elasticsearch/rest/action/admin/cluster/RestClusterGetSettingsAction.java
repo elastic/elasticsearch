@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -58,6 +59,11 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
         return "cluster_get_settings_action";
     }
 
+    private void setUpRequestParams(MasterNodeReadRequest<?> clusterRequest, RestRequest request) {
+        clusterRequest.local(request.paramAsBoolean("local", clusterRequest.local()));
+        clusterRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRequest.masterNodeTimeout()));
+    }
+
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
@@ -68,8 +74,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
         ClusterGetSettingsAction.Request clusterSettingsRequest = new ClusterGetSettingsAction.Request();
 
-        clusterSettingsRequest.local(request.paramAsBoolean("local", clusterSettingsRequest.local()));
-        clusterSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterSettingsRequest.masterNodeTimeout()));
+        setUpRequestParams(clusterSettingsRequest, request);
 
         return channel -> client.execute(
             ClusterGetSettingsAction.INSTANCE,
@@ -82,8 +87,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     private RestChannelConsumer prepareLegacyRequest(final RestRequest request, final NodeClient client, final boolean renderDefaults) {
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest().routingTable(false).nodes(false);
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        setUpRequestParams(clusterStateRequest, request);
         return channel -> client.admin()
             .cluster()
             .state(

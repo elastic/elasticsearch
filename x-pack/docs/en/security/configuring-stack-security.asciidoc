@@ -132,9 +132,9 @@ Certificate Authority (CA) for the HTTP layer.
 When you start {es} for the first time, we try to automatically configure
 security for you. We run some checks to determine whether this is the first time
 that the node is starting. If any of those checks fail, there's a good
-indication that you already configured security, or don't want security to be
-configured automatically. In these cases, we'll respect your existing
-configuration and skip the auto-configuration process. 
+indication that you <<<<manually-configure-security,manually configured security>>,
+or don't want security to be configured automatically. In these cases, we'll
+respect your existing configuration and skip the auto-configuration process. 
 
 [discrete]
 [[stack-existing-environment-detected]]
@@ -151,12 +151,13 @@ The existence of this directory is a strong indicator that the node was started
 previously, and we don't want to overwrite your existing configuration.
 
 The `elasticsearch.yml` file doesn't exist (or isn't readable), or the `elasticsearch.keystore` isn't readable::
-If either of these file aren't readable, we can't determine whether {es} security 
+If either of these files aren't readable, we can't determine whether {es} security 
 features are already enabled. This state also indicates that we're probably not 
 running as a user who has sufficient privileges.
 
 The {es} configuration directory isn't writable::
-This state indicates that an administrator made this directory read-only, or that the user who is starting {es} is not the user that installed {es}.
+This state likely indicates that an administrator made this directory read-only,
+or that the user who is starting {es} is not the user that installed {es}.
 
 Indices are read-only::
 It's likely that there's not enough disk space, so we can't write the `elastic`
@@ -165,9 +166,8 @@ user password and API key to the `.security` index.
 [discrete]
 [[stack-existing-settings-detected]]
 ==== Existing settings detected
-If any of the following settings have a specific value, or have a value
-configured, then we'll assume that you want to configure security on your own
-and we won't configure security automatically.
+If {es} detects any of the following settings, then we'll assume that you want
+to configure security on your own and we won't configure security automatically.
 
 * {ref}/modules-node.html#node-roles[`node.roles`] is set to a value other than 
 `master`

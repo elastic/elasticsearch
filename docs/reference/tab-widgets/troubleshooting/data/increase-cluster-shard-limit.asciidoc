@@ -170,10 +170,10 @@ The response will look like this:
 // TESTRESPONSE[skip:the result is for illustrating purposes only as don't want to change a cluster-wide setting]
 
 +
-<1> Represents the current configured value for the maximum number of shards
+<1> Represents the current configured value for the total number of shards
 that can reside on one node in the system.
 
-. <<cluster-update-settings,Increase>> the value for the maximum number of shards 
+. <<cluster-update-settings,Increase>> the value for the total number of shards 
 that can be assigned on one node to a higher value:
 +
 [source,console]

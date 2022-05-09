@@ -399,17 +399,15 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     public static class Builder {
 
         private long version;
-        private ImmutableOpenMap.Builder<String, IndexRoutingTable> indicesRouting = ImmutableOpenMap.builder();
+        private ImmutableOpenMap.Builder<String, IndexRoutingTable> indicesRouting;
 
         public Builder() {
-
+            indicesRouting = ImmutableOpenMap.builder();
         }
 
         public Builder(RoutingTable routingTable) {
             version = routingTable.version;
-            for (IndexRoutingTable indexRoutingTable : routingTable) {
-                indicesRouting.put(indexRoutingTable.getIndex().getName(), indexRoutingTable);
-            }
+            indicesRouting = ImmutableOpenMap.builder(routingTable.indicesRouting);
         }
 
         public Builder updateNodes(long version, RoutingNodes routingNodes) {

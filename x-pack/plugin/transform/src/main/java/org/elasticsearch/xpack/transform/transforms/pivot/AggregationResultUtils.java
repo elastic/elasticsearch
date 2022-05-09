@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt;
 import static org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil.isNumericType;
 
@@ -344,12 +345,17 @@ public final class AggregationResultUtils {
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             Range aggregation = (Range) agg;
-            HashMap<String, Long> ranges = new HashMap<>();
-            for (Range.Bucket bucket : aggregation.getBuckets()) {
-                double from = bucket.getFrom() == null ? Double.NEGATIVE_INFINITY : ((Double) bucket.getFrom()).doubleValue();
-                double to = bucket.getTo() == null ? Double.POSITIVE_INFINITY : ((Double) bucket.getTo()).doubleValue();
-                ranges.put(generateKeyForRange(from, to), bucket.getDocCount());
-            }
+            Map<String, Long> ranges = aggregation.getBuckets()
+                .stream()
+                .collect(
+                    toMap(
+                        bucket -> bucket.getKeyAsString()
+                            .replace(".0-", "-")  // from: convert double to integer
+                            .replaceAll("\\.0$", "")  // to: convert double to integer
+                            .replace('.', '_'),  // convert remaining dots with underscores so that the key prefix is not treated as object
+                        bucket -> bucket.getDocCount()
+                    )
+                );
             return ranges;
         }
     }

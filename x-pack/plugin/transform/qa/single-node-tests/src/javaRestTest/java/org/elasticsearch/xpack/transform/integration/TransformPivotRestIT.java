@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -16,6 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
 
@@ -2029,6 +2031,14 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   "r": {
                     "range": {
                       "field": "stars",
+                      "keyed": false,
+                      "ranges": [ { "to": 2 }, { "from": 2, "to": 3.99 }, { "from": 4 } ]
+                    }
+                  },
+                  "r_keyed": {
+                    "range": {
+                      "field": "stars",
+                      "keyed": true,
                       "ranges": [ { "to": 2 }, { "from": 2, "to": 3.99 }, { "from": 4 } ]
                     }
                   }
@@ -2046,6 +2056,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
 
         Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_4");
+
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r.*-2", searchResult)).get(0);
         assertEquals(6, actual.longValue());

@@ -76,7 +76,6 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils.BucketKeyExtractor;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -877,7 +876,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             expectedObject.put("type", type);
             double lat = randomDoubleBetween(-90.0, 90.0, false);
             double lon = randomDoubleBetween(-180.0, 180.0, false);
-            expectedObject.put("coordinates", Arrays.asList(lon, lat));
+            expectedObject.put("coordinates", asList(lon, lat));
             agg = createGeoBounds(new GeoPoint(lat, lon), new GeoPoint(lat, lon));
             assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), equalTo(expectedObject));
         }
@@ -924,12 +923,12 @@ public class AggregationResultUtilsTests extends ESTestCase {
             List<List<Double[]>> coordinates = (List<List<Double[]>>) geoJson.get("coordinates");
             assertThat(coordinates.size(), equalTo(1));
             assertThat(coordinates.get(0).size(), equalTo(5));
-            List<List<Double>> expected = Arrays.asList(
-                Arrays.asList(lon, lat),
-                Arrays.asList(lon2, lat),
-                Arrays.asList(lon2, lat2),
-                Arrays.asList(lon, lat2),
-                Arrays.asList(lon, lat)
+            List<List<Double>> expected = asList(
+                asList(lon, lat),
+                asList(lon2, lat),
+                asList(lon2, lat2),
+                asList(lon, lat2),
+                asList(lon, lat)
             );
             for (int j = 0; j < 5; j++) {
                 Double[] coordinate = coordinates.get(0).get(j);
@@ -951,7 +950,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testPercentilesAggExtractor() {
         Aggregation agg = createPercentilesAgg(
             "p_agg",
-            Arrays.asList(new Percentile(1, 0), new Percentile(50, 22.2), new Percentile(99, 43.3), new Percentile(99.5, 100.3))
+            asList(new Percentile(1, 0), new Percentile(50, 22.2), new Percentile(99, 43.3), new Percentile(99.5, 100.3))
         );
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""),
@@ -960,7 +959,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
     }
 
     public void testPercentilesAggExtractorNaN() {
-        Aggregation agg = createPercentilesAgg("p_agg", Arrays.asList(new Percentile(1, Double.NaN), new Percentile(50, Double.NaN)));
+        Aggregation agg = createPercentilesAgg("p_agg", asList(new Percentile(1, Double.NaN), new Percentile(50, Double.NaN)));
         assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), equalTo(asMap("1", null, "50", null)));
     }
 
@@ -975,16 +974,39 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testRangeAggExtractor() {
         Aggregation agg = createRangeAgg(
             "p_agg",
-            Arrays.asList(
+            asList(
                 new InternalRange.Bucket(null, Double.NEGATIVE_INFINITY, 10.5, 10, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
                 new InternalRange.Bucket(null, 10.5, 19.5, 30, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
-                new InternalRange.Bucket(null, 19.5, 20, 30, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
-                new InternalRange.Bucket(null, 20, Double.POSITIVE_INFINITY, 0, InternalAggregations.EMPTY, false, DocValueFormat.RAW)
+                new InternalRange.Bucket(null, 19.5, 200, 30, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, 20, Double.POSITIVE_INFINITY, 0, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, -10, -5, 0, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, -11.0, -6.0, 0, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, -11.0, 0, 0, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
+                new InternalRange.Bucket("custom-0", 0, 10, 777, InternalAggregations.EMPTY, false, DocValueFormat.RAW)
             )
         );
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""),
-            equalTo(asMap("*-10_5", 10L, "10_5-19_5", 30L, "19_5-20", 30L, "20-*", 0L))
+            equalTo(
+                asMap(
+                    "*-10_5",
+                    10L,
+                    "10_5-19_5",
+                    30L,
+                    "19_5-200",
+                    30L,
+                    "20-*",
+                    0L,
+                    "-10--5",
+                    0L,
+                    "-11--6",
+                    0L,
+                    "-11-0",
+                    0L,
+                    "custom-0",
+                    777L
+                )
+            )
         );
     }
 
@@ -1005,7 +1027,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         when(agg.getName()).thenReturn(name);
         if (subAggregations != null) {
             org.elasticsearch.search.aggregations.Aggregations subAggs = new org.elasticsearch.search.aggregations.Aggregations(
-                Arrays.asList(subAggregations)
+                asList(subAggregations)
             );
             when(agg.getAggregations()).thenReturn(subAggs);
         } else {

@@ -199,8 +199,6 @@ public abstract class Metadata {
     }
 
     protected void unsupported(String field, boolean write) {
-        throw new UnsupportedOperationException(
-            (write ? "writing " : "") + field + " is not supported for this action"
-        );
+        throw new UnsupportedOperationException((write ? "writing " : "") + field + " is not supported for this action");
     }
 }

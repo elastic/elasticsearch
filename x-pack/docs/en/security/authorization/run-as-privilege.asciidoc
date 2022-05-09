@@ -43,10 +43,16 @@ a role that contains the `run_as` privilege inherit all privileges from their
 role, and can also submit requests on behalf of the indicated users.
 
 When <<authorization_realms,delegated authorization>> is disabled, {es} handles
-role mapping. If delegated authorization is enabled, {es} checks the defined
-roles for the `run_as` privilege in all configured realms. If the `run_as` privilege
-is present and delegated authorization is enabled, {es} searches all configured
-realms for the `run_as` user.
+role lookup. If delegated authorization is enabled and the `run_as` privilege
+is present, {es} uses the configured realms to check roles for the user with the
+`run_as` privilege in one of the following ways:
+
+* Directly look up a user with predefined roles, such as an LDAP user lookup in
+an LDAP server.
+* Indirectly look up a user through role mapping rules, such as lookup in a JWT
+or OIDC realm. 
+* Delegate authorization to another realm, which overrides direct and indirect
+lookup. 
 
 Consider an admin role and an analyst role. The admin role has higher privileges,
 but might also want to submit requests as another user to test and verify their

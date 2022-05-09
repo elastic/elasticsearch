@@ -92,7 +92,8 @@ verify the signature of the JWT from the JWT issuer.
 `pkc_jwkset_path`::
 The file path to a JSON Web Key Set (JWKS) containing the public key material
 that the JWT realm uses to verify JWT signatures. If a path is provided,
-then it is resolved relative to the {es} configuration directory.
+then it is resolved relative to the {es} configuration directory. In {ecloud},
+use an absolute path starting with `/app/config/`.
 
 `claims.principal`::
 The name of the JWT claim that contains the user's principal (username).
@@ -157,12 +158,14 @@ Signature: UnnFmsoFKfNmKMsVoDQmKI_3-j95PCaKdgqqau3jPMY
 This example illustrates a partial decoding of a JWT. The validity period is
 from 2000 to 2099 (inclusive), as defined by the issue time (`iat`) and
 expiration time (`exp`). JWTs typically have a validity period shorter than
-100 years, such as 1-2 hours or 1-7 days, not an entire human life. The signature in this
-example is deterministic because the header, claims, and HMAC key are fixed.
-JWTs would typically have a nonce claim to make the signature non-deterministic.
-The supported JWT encoding is JSON Web Signature (JWS). The JWS `Header` and
-`Signature` are validated using OpenID Connect ID Token validation rules. Some
-validation is customizable through <<ref-jwt-settings,JWT realm settings>>.
+100 years, such as 1-2 hours or 1-7 days, not an entire human life.
+
+The signature in this example is deterministic because the header, claims, and
+HMAC key are fixed. JWTs typically have a `nonce` claim to make the signature
+non-deterministic. The supported JWT encoding is JSON Web Signature (JWS), and
+the JWS `Header` and `Signature` are validated using OpenID Connect ID Token
+validation rules. Some validation is customizable through
+<<ref-jwt-settings,JWT realm settings>>.
 
 [[jwt-validation-header]]
 ===== Header claims
@@ -255,7 +258,8 @@ setting `claims.dn_pattern` to extract a substring value.
 [[jwt-authorization]]
 ==== JWT realm authorization
 The JWT realm supports authorization with the create or update role mappings API,
-as well as delegating authorization to another realm.
+or delegating authorization to another realm. You cannot use these methods
+simultaneously, so choose whichever works best for your environment. 
 
 IMPORTANT: You cannot map roles in the JWT realm using the `role_mapping.yml`
 file.
@@ -304,13 +308,13 @@ These values are key value pairs formatted as
 
 [[jwt-authorization-delegation]]
 ===== Delegating JWT authorization to another realm
-If you <<authorization_realms,delegate authorization>> to another realm from the
+If you <<authorization_realms,delegate authorization>> to other realms from the
 JWT realm, only the `principal` claim is available for role lookup. When
 delegating the assignment and lookup of roles to another realm from the JWT
 realm, claims for `dn`, `groups`, `mail`, `metadata`, and `name` are not used
 for the {es} user's values. Only the JWT `principal` claim is passed to the
-delegated authorization realm. The realm that is delegated for authorization
-- not the JWT realm - becomes responsible for populating all of the {es} user's
+delegated authorization realms. The realms that are delegated for authorization
+- not the JWT realm - become responsible for populating all of the {es} user's
 values.
 
 The following example shows how you define delegation authorization in the
@@ -348,13 +352,12 @@ linked to realm `native1`.
 
 [[jwt-realm-runas]]
 ===== Applying the `run_as` privilege to JWT realm users
-
-You can also apply the <<run-as-privilege-apply,`run_as` privilege>> to JWT
-realm users. If a user's roles in the JWT realm mapping contains the `run_as`
-privilege, that user can submit requests on behalf of the specified `run_as`
-user. To submit requests as another user, include the `es-security-runas-user`
-header in your requests. Requests run as if they were issued from that user and
-{es} uses their roles.
+{es} can retrieve roles for a JWT user through either role mapping or 
+delegated authorization. Regardless of which option you choose, you can apply the
+<<run-as-privilege-apply,`run_as` privilege>> to a role so that a user can
+submit authenticated requests to "run as" a different user. To submit requests as
+another user, include the `es-security-runas-user` header in your requests.
+Requests run as if they were issued from that user and {es} uses their roles.
 
 For example, let's assume that there's a user with the username `user123_runas`.
 The following request creates a user role named `jwt_role1`, which specifies a
@@ -470,13 +473,13 @@ xpack.security.authc.realms.jwt.jwt8.allowed_signature_algorithms: [HS256]
 xpack.security.authc.realms.jwt.jwt8.claims.principal: sub
 xpack.security.authc.realms.jwt.jwt8.client_authentication.type: shared_secret
 ----
-<1> In {ess}, the realm order starts at `2`. `0` and `1` are reserved in the
-realm chain on {ess}.
+<1> In {ecloud}, the realm order starts at `2`. `0` and `1` are reserved in the
+realm chain on {ecloud}.
 
 ===== JWT realm secure settings
 After defining the realm settings, use the 
 {ref}/elasticsearch-keystore.html[`elasticsearch-keystore`] tool to add the
-following secure settings to the {es} keystore. In {ess}, you define settings
+following secure settings to the {es} keystore. In {ecloud}, you define settings
 for the {es} keystore under **Security** in your deployment.
 
 [source,yaml]

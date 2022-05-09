@@ -9,7 +9,6 @@
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.bootstrap.ServerArgs;
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -21,16 +20,12 @@ import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.hamcrest.CoreMatchers.equalTo;
 
 public class JavaServerProcessTests extends ESTestCase {
 

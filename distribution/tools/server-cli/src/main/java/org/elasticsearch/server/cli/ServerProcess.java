@@ -19,10 +19,12 @@ import java.nio.file.Path;
 interface ServerProcess {
 
     void detach() throws IOException;
+
     void waitFor() throws UserException, InterruptedException;
+
     void stop();
 
-    static ServerProcess start(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir) throws UserException{
+    static ServerProcess start(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir) throws UserException {
         return new JavaServerProcess(terminal, processInfo, args, pluginsDir);
     }
 }

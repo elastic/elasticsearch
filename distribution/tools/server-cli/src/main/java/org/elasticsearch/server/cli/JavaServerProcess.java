@@ -142,7 +142,8 @@ class JavaServerProcess implements ServerProcess {
         args.keystorePassword().close();
     }
 
-    private Process createProcess(ProcessInfo processInfo, Path configDir, Path pluginsDir) throws InterruptedException, IOException, UserException {
+    private Process createProcess(ProcessInfo processInfo, Path configDir, Path pluginsDir) throws InterruptedException, IOException,
+        UserException {
         Map<String, String> envVars = new HashMap<>(processInfo.envVars());
         Path tempDir = TempDirectory.setup(envVars);
         List<String> jvmOptions = getJvmOptions(configDir, pluginsDir, tempDir, envVars.get("ES_JAVA_OPTS"));
@@ -209,7 +210,8 @@ class JavaServerProcess implements ServerProcess {
     }
 
     // protected to allow tests to override
-    protected List<String> getJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws InterruptedException, IOException, UserException {
+    protected List<String> getJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws InterruptedException,
+        IOException, UserException {
         return new ArrayList<>(determineJvmOptions(configDir, pluginsDir, tmpDir, envOptions));
     }
 

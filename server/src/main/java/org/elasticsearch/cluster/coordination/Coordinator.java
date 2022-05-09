@@ -1561,6 +1561,15 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         return peerFinder.getFoundPeers();
     }
 
+    public PeerFinder getPeerFinder() {
+        return this.peerFinder;
+    }
+
+    public JoinHelper getJoinHelper() {
+        return this.joinHelper;
+    }
+
+
     /**
      * If there is any current committed publication, this method cancels it.
      * This method is used exclusively by tests.

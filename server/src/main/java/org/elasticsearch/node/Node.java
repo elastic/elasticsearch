@@ -902,7 +902,7 @@ public class Node implements Closeable {
             );
 
             MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
-            HealthService healthService = createHealthService(clusterService, clusterModule, masterHistoryService);
+            HealthService healthService = createHealthService(clusterService, discoveryModule, clusterModule, masterHistoryService);
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -1044,11 +1044,12 @@ public class Node implements Closeable {
 
     private HealthService createHealthService(
         ClusterService clusterService,
+        DiscoveryModule discoveryModule,
         ClusterModule clusterModule,
         MasterHistoryService masterHistoryService
     ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
-            new StableMasterHealthIndicatorService(clusterService, masterHistoryService)
+            new StableMasterHealthIndicatorService(clusterService, discoveryModule, masterHistoryService)
         );
         var serverHealthIndicatorServices = List.of(
             new RepositoryIntegrityHealthIndicatorService(clusterService),

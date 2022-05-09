@@ -162,6 +162,10 @@ public class JoinHelper {
         Releasables.close(connectionReference);
     }
 
+    public FailedJoinAttempt getLastFailedJoinAttempt() {
+        return lastFailedJoinAttempt.get();
+    }
+
     // package-private for testing
     static class FailedJoinAttempt {
         private final DiscoveryNode destination;

@@ -84,7 +84,9 @@ public abstract class Terminal {
     }
 
     private char[] read(String prompt) {
-        errWriter.print(prompt); // prompts should go to standard error to avoid mixing with list output
+        // prompts should go to standard error to avoid mixing with list output
+        errWriter.print(prompt);
+        errWriter.flush();
         final char[] line = readLineToCharArray(reader);
         if (line == null) {
             throw new IllegalStateException("unable to read from standard input; is standard input open and a tty attached?");

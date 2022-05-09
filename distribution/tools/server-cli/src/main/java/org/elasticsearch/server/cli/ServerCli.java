@@ -24,32 +24,15 @@ import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-
-import static org.elasticsearch.bootstrap.BootstrapInfo.SERVER_READY_MARKER;
-import static org.elasticsearch.bootstrap.BootstrapInfo.USER_EXCEPTION_MARKER;
-import static org.elasticsearch.server.cli.JvmOptionsParser.determineJvmOptions;
 
 class ServerCli extends EnvironmentAwareCommand {
 
@@ -61,7 +44,7 @@ class ServerCli extends EnvironmentAwareCommand {
     private final OptionSpecBuilder quietOption;
     private final OptionSpec<String> enrollmentTokenOption;
 
-    private volatile Process process;
+    private volatile ServerProcess server;
 
     // visible for testing
     ServerCli() {
@@ -91,49 +74,26 @@ class ServerCli extends EnvironmentAwareCommand {
             return;
         }
 
+        if (options.valuesOf(enrollmentTokenOption).size() > 1) {
+            throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
+        }
+
         // setup security
         final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
         env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
 
-        // start Elasticsearch, stashing the process into a volatile so the close via the shutdown handler will kill the process
-        this.process = createProcess(processInfo, env.configFile(), env.pluginsFile());
-        final Process process = this.process; // avoid volatile read locally, we only set it once above
-        logger.info("ES PID: " + process.pid());
-        final ErrorPumpThread errorPump = new ErrorPumpThread(terminal, process.getErrorStream());
-        errorPump.start();
-        sendArgs(options, keystorePassword, env, process.getOutputStream());
+        ServerArgs args = createArgs(options, env, keystorePassword);
+        this.server = startServer(terminal, processInfo, args, env.pluginsFile());
 
-        // Read from stderr until we get a signal back that ES is either ready or it had an error.
-        // If we are running in the foreground, this pump will never exit.
-        errorPump.join();
-        if (errorPump.ioFailure != null) {
-            throw errorPump.ioFailure;
-        }
-
-        // if we are daemonized and we got the all-clear signal, we can exit cleanly
-        if (errorPump.ready && options.has(daemonizeOption)) {
-            logger.info("Subprocess is ready and we are daemonized, exiting...");
-            this.process = null; // clear the process handle, we don't want to shut it down now that we are started
-            closeStreams(process);
+        if (options.has(daemonizeOption)) {
+            logger.info("Subprocess is started and we are daemonized, detaching...");
+            server.detach();
+            this.server = null; // clear the handle, we don't want to shut it down now that we are started
             return;
         }
-        // TODO: need a better sysprop name...
-        boolean shouldWait = Boolean.parseBoolean(processInfo.sysprops().getOrDefault("cli.wait", "true"));
 
-        if (errorPump.userExceptionMsg != null || shouldWait) {
-
-            // We pass any ES error code through UserException. If the message was set,
-            // then it is a real UserException, otherwise it is just the error code and a null message.
-            int code = process.waitFor();
-            logger.info("Subprocess exited [" + code + "]");
-            if (code != ExitCodes.OK) {
-                throw new UserException(code, errorPump.userExceptionMsg);
-            }
-        }
-    }
-
-    private void closeStreams(Process process) throws IOException {
-        IOUtils.close(process.getOutputStream(), process.getInputStream(), process.getErrorStream());
+        // we are running in the foreground, so wait for the server to exit
+        server.waitFor();
     }
 
     private void printVersion(Terminal terminal) {
@@ -149,7 +109,7 @@ class ServerCli extends EnvironmentAwareCommand {
         terminal.println(versionOutput);
     }
 
-    private SecureString getKeystorePassword(Path configDir, Terminal terminal) throws IOException {
+    private static SecureString getKeystorePassword(Path configDir, Terminal terminal) throws IOException {
         try (KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir)) {
             if (keystore != null && keystore.hasPassword()) {
                 return new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
@@ -166,10 +126,6 @@ class ServerCli extends EnvironmentAwareCommand {
         Environment env,
         SecureString keystorePassword
     ) throws Exception {
-        if (options.valuesOf(enrollmentTokenOption).size() > 1) {
-            throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
-        }
-
         String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
         Command cmd = loadTool("auto-configure-node", autoConfigLibs);
         assert cmd instanceof EnvironmentAwareCommand;
@@ -209,124 +165,27 @@ class ServerCli extends EnvironmentAwareCommand {
 
     }
 
-    private void sendArgs(OptionSet options, SecureString keystorePassword, Environment env, OutputStream processStdin) {
-        final boolean daemonize = options.has(daemonizeOption);
-        final boolean quiet = options.has(quietOption);
-        final Path pidFile = pidfileOption.value(options);
-        final var args = new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());
-
-        var out = new OutputStreamStreamOutput(processStdin);
-        try {
-            args.writeTo(out);
-        } catch (IOException ignore) {
-            // A failure to write here means the process has problems, and it will die anyways. We let this fall through
-            // so the pump thread can complete, writing out the actual error. All we get here is the failure to write to
-            // the process pipe, which isn't helpful to print.
-        }
-        keystorePassword.close();
-    }
-
-    private Process createProcess(ProcessInfo processInfo, Path configDir, Path pluginsDir) throws Exception {
-        Map<String, String> envVars = new HashMap<>(processInfo.envVars());
-        Path tempDir = TempDirectory.setup(envVars);
-        List<String> jvmOptions = getJvmOptions(configDir, pluginsDir, tempDir, envVars.get("ES_JAVA_OPTS"));
-        // jvmOptions.add("-Des.path.conf=" + env.configFile());
-        jvmOptions.add("-Des.distribution.type=" + processInfo.sysprops().get("es.distribution.type"));
-
-        Path esHome = processInfo.workingDir();
-        Path javaHome = PathUtils.get(processInfo.sysprops().get("java.home"));
-        List<String> command = new ArrayList<>();
-        boolean isWindows = processInfo.sysprops().get("os.name").startsWith("Windows");
-        command.add(javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString());
-        command.addAll(jvmOptions);
-        command.add("-cp");
-        // The '*' isn't allows by the windows filesystem, so we need to force it into the classpath after converting to a string.
-        // Thankfully this will all go away when switching to modules, which take the directory instead of a glob.
-        command.add(esHome.resolve("lib") + (isWindows ? "\\" : "/") + "*");
-        command.add("org.elasticsearch.bootstrap.Elasticsearch");
-
-        var builder = new ProcessBuilder(command);
-        builder.environment().putAll(envVars);
-        builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-
-        return startProcess(builder);
-    }
-
-    static class ErrorPumpThread extends Thread {
-        private final BufferedReader reader;
-        private final PrintWriter writer;
-        private volatile boolean ready = false;
-        private volatile String userExceptionMsg;
-        private volatile IOException ioFailure;
-
-        private ErrorPumpThread(Terminal terminal, InputStream err) {
-            super("server-cli error pump");
-            this.reader = new BufferedReader(new InputStreamReader(err, StandardCharsets.UTF_8));
-            this.writer = terminal.getErrorWriter();
-        }
-
-        @Override
-        public void run() {
-            try {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (line.isEmpty() == false && line.charAt(0) == USER_EXCEPTION_MARKER) {
-                        userExceptionMsg = line.substring(1);
-                        logger.error("Got user exception: " + userExceptionMsg);
-                    } else if (line.isEmpty() == false && line.charAt(0) == SERVER_READY_MARKER) {
-                        // The server closes stderr right after this message, but for some unknown reason
-                        // the pipe closing does not close this end of the pipe, so we must explicitly
-                        // break out of this loop, or we will block forever on the next read.
-                        logger.info("Got ready signal");
-                        ready = true;
-                        return;
-                    } else {
-                        writer.println(line);
-                    }
-                }
-            } catch (IOException e) {
-                logger.error("Got io exception in pump", e);
-                ioFailure = e;
-            }
-            writer.flush();
-        }
+    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword) {
+        boolean daemonize = options.has(daemonizeOption);
+        boolean quiet = options.has(quietOption);
+        Path pidFile = options.valueOf(pidfileOption);
+        return new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());
     }
 
     @Override
     public void close() {
-        if (process != null) {
-            logger.info("Terminating subprocess");
-            process.destroy();
-
-            // TODO: we should wait adn then forcibly kill, but after how long? this is configurable in eg systemd,
-            // but that is giving us. For systemd we should sd_notify that the main pid is different. For SIGINT
-            // we should have some default max time before sending SIGKILL? we should also maybe block on the main thread
-            // exiting after it the process is terminated
-            while (true) {
-                try {
-                    logger.info("Waiting for subprocess");
-                    // TODO: check the exit code!!
-                    process.waitFor();
-                    break;
-                } catch (InterruptedException ignore) {
-                    // retry
-                }
-            }
+        if (server != null) {
+            server.stop();
         }
-    }
-
-    // protected to allow tests to override
-    protected List<String> getJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws Exception {
-        return new ArrayList<>(determineJvmOptions(configDir, pluginsDir, tmpDir, envOptions));
-    }
-
-    // protected to allow tests to override
-    protected Process startProcess(ProcessBuilder builder) throws IOException {
-        return builder.start();
     }
 
     // protected to allow tests to override
     protected Command loadTool(String toolname, String libs) {
         return CliToolProvider.load(toolname, libs).create();
+    }
+
+    // protected to allow tests to override
+    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir) throws UserException {
+        return ServerProcess.start(terminal, processInfo, args, pluginsDir);
     }
 }

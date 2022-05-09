@@ -1,1 +1,2 @@
 org.elasticsearch.server.cli.ServerCliProvider
+org.elasticsearch.server.cli.WindowsServiceServerProvider

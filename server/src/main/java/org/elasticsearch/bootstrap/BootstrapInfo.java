@@ -69,6 +69,8 @@ public final class BootstrapInfo {
     // TODO: document
     public static final char SERVER_READY_MARKER = '\u0018';
 
+    public static final char SERVER_SHUTDOWN_MARKER = '\u001B';
+
     // create a view of sysprops map that does not allow modifications
     // this must be done this way (e.g. versus an actual typed map), because
     // some test methods still change properties, so whitelisted changes must

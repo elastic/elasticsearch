@@ -21,61 +21,33 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.hamcrest.Matcher;
-import org.junit.AfterClass;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class ServerCliTests extends CommandTestCase {
 
-    private static final ExecutorService mockProcessExecutor = Executors.newSingleThreadExecutor();
-    Path esConfigDir;
-
-    @Before
-    public void setupDummyInstallation() throws IOException {
-        sysprops.put("java.home", "/javahome");
-        esConfigDir = esHomeDir.resolve("config");
-        Files.createDirectories(esConfigDir);
-        Files.writeString(esConfigDir.resolve("jvm.options"), "");
-    }
-
-    @AfterClass
-    public static void cleanupExecutor() {
-        mockProcessExecutor.shutdown();
-    }
-
     @Override
     protected void assertUsage(Matcher<String> matcher, String... args) throws Exception {
-        mainCallback = FAIL_MAIN;
+        argsValidator = serverArgs -> fail("Should not have tried creating args on usage error");
         super.assertUsage(matcher, args);
     }
 
@@ -124,25 +96,29 @@ public class ServerCliTests extends CommandTestCase {
         Path tmpDir = createTempDir();
         Path pidFileArg = tmpDir.resolve("pid");
         assertUsage(containsString("Option p/pidfile requires an argument"), "-p");
-        mainCallback = (args, stdout, stderr, exitCode) -> { assertThat(args.pidFile().toString(), equalTo(pidFileArg.toString())); };
+        argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(pidFileArg.toString()));
         terminal.reset();
         assertOk("-p", pidFileArg.toString());
         terminal.reset();
         assertOk("--pidfile", pidFileArg.toString());
     }
 
+    public void assertDaemonized(boolean daemonized, String... args) throws Exception {
+        argsValidator = serverArgs -> assertThat(serverArgs.daemonize(), equalTo(daemonized));
+        assertOk(args);
+        assertThat(mockServer.detachCalled, is(daemonized));
+        assertThat(mockServer.waitForCalled, not(equalTo(daemonized)));
+    }
+
     public void testDaemonize() throws Exception {
-        AtomicBoolean expectDaemonize = new AtomicBoolean(true);
-        mainCallback = (args, stdout, stderr, exitCode) -> assertThat(args.daemonize(), equalTo(expectDaemonize.get()));
-        assertOk("-d");
-        assertOk("--daemonize");
-        expectDaemonize.set(false);
-        assertOk();
+        assertDaemonized(true, "-d");
+        assertDaemonized(true, "--daemonize");
+        assertDaemonized(false);
     }
 
     public void testQuiet() throws Exception {
         AtomicBoolean expectQuiet = new AtomicBoolean(true);
-        mainCallback = (args, stdout, stderr, exitCode) -> assertThat(args.quiet(), equalTo(expectQuiet.get()));
+        argsValidator = args -> assertThat(args.quiet(), equalTo(expectQuiet.get()));
         assertOk("-q");
         assertOk("--quiet");
         expectQuiet.set(false);
@@ -150,7 +126,7 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     public void testElasticsearchSettings() throws Exception {
-        mainCallback = (args, stdout, stderr, exitCode) -> {
+        argsValidator = args -> {
             Settings settings = args.nodeSettings();
             assertThat(settings.get("foo"), equalTo("bar"));
             assertThat(settings.get("baz"), equalTo("qux"));
@@ -173,7 +149,7 @@ public class ServerCliTests extends CommandTestCase {
     public void testPathHome() throws Exception {
         AtomicReference<String> expectedHomeDir = new AtomicReference<>();
         expectedHomeDir.set(esHomeDir.toString());
-        mainCallback = (args, stdout, stderr, exitCode) -> {
+        argsValidator = args -> {
             Settings settings = args.nodeSettings();
             assertThat(settings.get("path.home"), equalTo(expectedHomeDir.get()));
             assertThat(settings.keySet(), hasItem("path.logs")); // added by env initialization
@@ -255,7 +231,7 @@ public class ServerCliTests extends CommandTestCase {
             }
         }
         String expectedPassword = password == null ? "" : password;
-        mainCallback = (args, stdout, stderr, exitCode) -> { assertThat(args.keystorePassword().toString(), equalTo(expectedPassword)); };
+        argsValidator = args -> assertThat(args.keystorePassword().toString(), equalTo(expectedPassword));
         autoConfigCallback = (t, options, env, processInfo) -> {
             char[] gotPassword = t.readSecret("");
             assertThat(gotPassword, equalTo(expectedPassword.toCharArray()));
@@ -269,23 +245,26 @@ public class ServerCliTests extends CommandTestCase {
         assertKeystorePassword("dummypassword");
     }
 
-    interface MainMethod {
-        void main(ServerArgs args, OutputStream stdout, OutputStream stderr, AtomicInteger exitCode);
+    public void testCloseStopsServer() throws Exception {
+        Command command = newCommand();
+        command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+        command.close();
+        assertThat(mockServer.stopCalled, is(true));
     }
 
     interface AutoConfigMethod {
         void autoconfig(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws UserException;
     }
 
-    MainMethod mainCallback;
-    final MainMethod FAIL_MAIN = (args, stdout, stderr, exitCode) -> fail("Did not expect to run init");
+    Consumer<ServerArgs> argsValidator;
+    private final MockServerProcess mockServer = new MockServerProcess();
 
     AutoConfigMethod autoConfigCallback;
     private final MockAutoConfigCli AUTO_CONFIG_CLI = new MockAutoConfigCli();
 
     @Before
     public void resetCommand() {
-        mainCallback = null;
+        argsValidator = null;
         autoConfigCallback = null;
     }
 
@@ -311,80 +290,33 @@ public class ServerCliTests extends CommandTestCase {
         }
     }
 
-    // a "process" that is really another thread
-    private class MockElasticsearchProcess extends Process {
-        private final PipedOutputStream processStdin = new PipedOutputStream();
-        private final PipedInputStream processStdout = new PipedInputStream();
-        private final PipedInputStream processStderr = new PipedInputStream();
-        private final PipedInputStream stdin = new PipedInputStream();
-        private final PipedOutputStream stdout = new PipedOutputStream();
-        private final PipedOutputStream stderr = new PipedOutputStream();
+    private class MockServerProcess implements ServerProcess {
+        boolean detachCalled = false;
+        boolean waitForCalled = false;
+        boolean stopCalled = false;
 
-        private final AtomicInteger exitCode = new AtomicInteger();
-        private final AtomicReference<IOException> argsParsingException = new AtomicReference<>();
-        private final Future<?> main;
-
-        MockElasticsearchProcess() throws IOException {
-            stdin.connect(processStdin);
-            stdout.connect(processStdout);
-            stderr.connect(processStderr);
-            this.main = mockProcessExecutor.submit(() -> {
-                try (var in = new InputStreamStreamInput(stdin)) {
-                    final ServerArgs serverArgs = new ServerArgs(in);
-                    if (mainCallback != null) {
-                        mainCallback.main(serverArgs, stdout, stderr, exitCode);
-                    }
-                } catch (IOException e) {
-                    argsParsingException.set(e);
-                }
-                IOUtils.closeWhileHandlingException(stdin, stdout, stderr);
-            });
+        @Override
+        public void detach() {
+            assert detachCalled == false;
+            detachCalled = true;
         }
 
         @Override
-        public OutputStream getOutputStream() {
-            return processStdin;
+        public void waitFor() {
+            assert waitForCalled == false;
+            waitForCalled = true;
         }
 
         @Override
-        public InputStream getInputStream() {
-            return processStdout;
+        public void stop() {
+            assert stopCalled == false;
+            stopCalled = true;
         }
 
-        @Override
-        public InputStream getErrorStream() {
-            return processStderr;
-        }
-
-        @Override
-        public long pid() {
-            return 12345;
-        }
-
-        @Override
-        public int waitFor() throws InterruptedException {
-            try {
-                main.get();
-            } catch (ExecutionException e) {
-                throw new AssertionError(e);
-            }
-            if (argsParsingException.get() != null) {
-                throw new AssertionError("Reading server args failed", argsParsingException.get());
-            }
-            return exitCode.get();
-        }
-
-        @Override
-        public int exitValue() {
-            if (main.isDone() == false) {
-                throw new IllegalThreadStateException(); // match spec
-            }
-            return exitCode.get();
-        }
-
-        @Override
-        public void destroy() {
-            fail("Tried to kill ES process");
+        void reset() {
+            detachCalled = false;
+            waitForCalled = false;
+            stopCalled = false;
         }
     }
 
@@ -393,21 +325,19 @@ public class ServerCliTests extends CommandTestCase {
         return new ServerCli() {
 
             @Override
-            protected List<String> getJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws Exception {
-                return new ArrayList<>();
-            }
-
-            @Override
-            protected Process startProcess(ProcessBuilder processBuilder) throws IOException {
-                // TODO: validate processbuilder stuff
-                return new MockElasticsearchProcess();
-            }
-
-            @Override
             protected Command loadTool(String toolname, String libs) {
                 assertThat(toolname, equalTo("auto-configure-node"));
                 assertThat(libs, equalTo("modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli"));
                 return AUTO_CONFIG_CLI;
+            }
+
+            @Override
+            protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir) {
+                if (argsValidator != null) {
+                    argsValidator.accept(args);
+                }
+                mockServer.reset();
+                return mockServer;
             }
         };
     }

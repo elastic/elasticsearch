@@ -34,7 +34,6 @@ class WindowsServiceCli extends MultiCommand {
             addArg(args, "--StopTimeout", pinfo.envVars().getOrDefault("ES_STOP_TIMEOUT", "0"));
             addArg(args, "--StartClass", "org.elasticsearch.launcher.CliToolLauncher");
             addArg(args, "--StartMethod", "main");
-            addArg(args, "++StartParams", "--quiet");
             addArg(args, "--StopClass", "org.elasticsearch.launcher.CliToolLauncher");
             addArg(args, "--StopMethod", "close");
             addArg(args, "--Classpath", pinfo.sysprops().get("java.class.path"));
@@ -58,7 +57,6 @@ class WindowsServiceCli extends MultiCommand {
             addArg(args, "--StartPath", pinfo.workingDir().toString());
             addArg(args, "++JvmOptions", "-Dcli.name=server");
             addArg(args, "++JvmOptions", "-Dcli.libs=lib/tools/server-cli");
-            addArg(args, "++JvmOptions", "-Dcli.wait=false");
             addArg(args, "++Environment", "HOSTNAME=%s".formatted(pinfo.envVars().get("COMPUTERNAME")));
 
             String serviceUsername = pinfo.envVars().get("SERVICE_USERNAME");

@@ -2052,27 +2052,20 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         startAndWaitForTransform(transformId, transformIndex);
         assertTrue(indexExists(transformIndex));
         // get and check some users
-        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_11", 3.846153846);
-        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
-
-        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_4");
-
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_11");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r.*-2", searchResult)).get(0);
-        assertEquals(6, actual.longValue());
-        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r.2-3_99", searchResult)).get(0);
-        assertEquals(6, actual.longValue());
-        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r.4-*", searchResult)).get(0);
-        assertEquals(29, actual.longValue());
-
-        searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_11");
-        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r.*-2", searchResult)).get(0);
+        Number actualKeyed = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r_keyed.*-2", searchResult)).get(0);
         assertEquals(5, actual.longValue());
+        assertEquals(5, actualKeyed.longValue());
         actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r.2-3_99", searchResult)).get(0);
+        actualKeyed = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r_keyed.2-3_99", searchResult)).get(0);
         assertEquals(2, actual.longValue());
+        assertEquals(2, actualKeyed.longValue());
         actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r.4-*", searchResult)).get(0);
+        actualKeyed = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.r_keyed.4-*", searchResult)).get(0);
         assertEquals(19, actual.longValue());
+        assertEquals(19, actualKeyed.longValue());
     }
 
     public void testPivotWithFilter() throws Exception {

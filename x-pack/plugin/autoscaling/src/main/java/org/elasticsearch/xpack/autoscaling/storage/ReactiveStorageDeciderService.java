@@ -63,6 +63,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -182,7 +184,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
     }
 
-    record BytesShardIds(long bytes, Set<ShardId> shardIds) {}
+    record BytesShardIds(long bytes, SortedSet<ShardId> shardIds) {}
 
     // todo: move this to top level class.
     public static class AllocationState {
@@ -244,7 +246,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .toList();
             return new BytesShardIds(
                 unassignedShards.stream().mapToLong(this::sizeOf).sum(),
-                unassignedShards.stream().map(ShardRouting::shardId).collect(Collectors.toSet())
+                unassignedShards.stream().map(ShardRouting::shardId).collect(Collectors.toCollection(TreeSet::new))
             );
         }
 
@@ -286,7 +288,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
             return new BytesShardIds(
                 unallocatableBytes + unmovableBytes,
-                unmovableShards.stream().map(ShardRouting::shardId).collect(Collectors.toSet())
+                unmovableShards.stream().map(ShardRouting::shardId).collect(Collectors.toCollection(TreeSet::new))
             );
         }
 

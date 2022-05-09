@@ -119,6 +119,13 @@ threshold, check the {es} log for an entry like this:
 ----
 heap size [1.9gb], compressed ordinary object pointers [true]
 ----
++
+Or check the `jvm.using_compressed_ordinary_object_pointers` value for the nodes using the <<cluster-nodes-info,nodes info API>>:
++
+[source,console]
+----
+GET _nodes/_all/jvm
+----
 
 The more heap available to {es}, the more memory it can use for its internal
 caches. This leaves less memory for the operating system to use

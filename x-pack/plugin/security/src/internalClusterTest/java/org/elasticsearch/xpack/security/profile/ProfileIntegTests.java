@@ -146,7 +146,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         assertThat(profile3.user().domainName(), nullValue());
         assertThat(profile3.user().email(), equalTo(RAC_USER_NAME + "@example.com"));
         assertThat(profile3.user().fullName(), nullValue());
-        assertThat(profile3.user().roles(), contains(RAC_ROLE));
+        assertThat(profile3.user().roles(), containsInAnyOrder(RAC_ROLE, NATIVE_RAC_ROLE));
         assertThat(profile3.labels(), anEmptyMap());
         // Get by ID immediately should get the same document and content as the response to activate
         assertThat(getProfile(profile3.uid(), Set.of()), equalTo(profile3));
@@ -631,7 +631,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             assertThat(checkProfilePrivileges(profile.uid(), privilegesToCheck1).hasPrivilegeUids(), equalTo(Set.of(profile.uid())));
         } else {
             final HasPrivilegesResponse hasPrivilegesResponse = checkPrivileges(privilegesToCheck1);
-            assertThat(hasPrivilegesResponse.toString(), hasPrivilegesResponse.isCompleteMatch(), is(false));
+            assertThat(hasPrivilegesResponse.toString(), hasPrivilegesResponse.isCompleteMatch(), is(true));
         }
 
         // 2nd check: result is different so that we are sure cache is not interfering

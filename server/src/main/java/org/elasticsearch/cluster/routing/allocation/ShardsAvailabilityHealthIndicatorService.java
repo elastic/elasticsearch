@@ -704,9 +704,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 || replicas.unassigned_restarting > 0) {
                 builder.append(
                     Stream.of(
-                        createMessage(primaries.unassigned, "unavailable primary", " unavailable primaries"),
-                        createMessage(primaries.unassigned_new, "creating primary", " creating primaries"),
-                        createMessage(primaries.unassigned_restarting, "restarting primary", " restarting primaries"),
+                        createMessage(primaries.unassigned, "unavailable primary", "unavailable primaries"),
+                        createMessage(primaries.unassigned_new, "creating primary", "creating primaries"),
+                        createMessage(primaries.unassigned_restarting, "restarting primary", "restarting primaries"),
                         createMessage(replicas.unassigned, "unavailable replica", "unavailable replicas"),
                         createMessage(replicas.unassigned_restarting, "restarting replica", "restarting replicas")
                     ).flatMap(Function.identity()).collect(joining(", "))

@@ -33,6 +33,55 @@ import java.util.stream.Collectors;
  */
 final class EmbeddedModulePath {
 
+    /**
+     * Returns a module descriptor for the module at the given path.
+     *
+     * @throws FindException if not exactly one module is found
+     */
+    static ModuleDescriptor descriptorFor(Path path) {
+        try {
+            Optional<ModuleDescriptor> vmd = getModuleInfoVersioned(path);
+            if (vmd.isPresent()) {
+                return vmd.get();
+            } else if (hasRootModuleInfo(path)) {
+                return readModuleInfo(path.resolve(MODULE_INFO), path);
+            } else {
+                return descriptorForAutomatic(path);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    // Generates and returns a module descriptor for an automatic module at the given path.
+    // Currently, only automatic modules with a manifest name are supported.
+    private static ModuleDescriptor descriptorForAutomatic(Path path) throws IOException {
+        String moduleName = moduleNameFromManifestOrNull(path);
+        if (moduleName == null) {
+            throw new FindException("automatic module without a manifest name is not supported, for: " + path);
+        }
+        ModuleDescriptor.Builder builder;
+        try {
+            builder = ModuleDescriptor.newAutomaticModule(moduleName);
+        } catch (IllegalArgumentException e) {
+            throw new FindException(AUTOMATIC_MODULE_NAME + ": " + e.getMessage());
+        }
+
+        version(path.getFileName().toString()).ifPresent(builder::version);
+
+        // scan the names of the entries in the exploded JAR
+        var scan = scan(path);
+
+        // all packages are exported and open, since the auto-module bit is set
+        String separator = path.getFileSystem().getSeparator();
+        builder.packages(
+            scan.classFiles().stream().map(cf -> toPackageName(cf, separator)).flatMap(Optional::stream).collect(Collectors.toSet())
+        );
+
+        services(scan.serviceFiles(), path).entrySet().forEach(e -> builder.provides(e.getKey(), e.getValue()));
+        return builder.build();
+    }
+
     private EmbeddedModulePath() {}
 
     private static final String MODULE_INFO = "module-info.class";
@@ -73,13 +122,13 @@ final class EmbeddedModulePath {
         }
     }
 
-    static ModuleDescriptor readModuleInfo(Path miPath, Path pkgsRoot) throws IOException {
+    private static ModuleDescriptor readModuleInfo(Path miPath, Path pkgsRoot) throws IOException {
         try (var is = Files.newInputStream(miPath)) {
             return ModuleDescriptor.read(is, () -> explodedPackages(pkgsRoot));
         }
     }
 
-    static Optional<ModuleDescriptor> getModuleInfoVersioned(Path rootPath) throws IOException {
+    private static Optional<ModuleDescriptor> getModuleInfoVersioned(Path rootPath) throws IOException {
         for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
             Path mi = rootPath.resolve("META-INF").resolve("versions").resolve(Integer.toString(v)).resolve(MODULE_INFO);
             if (Files.exists(mi)) {
@@ -89,61 +138,10 @@ final class EmbeddedModulePath {
         return Optional.empty();
     }
 
-    /**
-     * Returns a module descriptor for the module at the given path.
-     *
-     * @throws FindException if not exactly one module is found
-     */
-    static ModuleDescriptor descriptorFor(Path path) {
-        try {
-            Optional<ModuleDescriptor> vmd = getModuleInfoVersioned(path);
-            if (vmd.isPresent()) {
-                return vmd.get();
-            } else if (hasRootModuleInfo(path)) {
-                return readModuleInfo(path.resolve(MODULE_INFO), path);
-            } else {
-                return descriptorForAutomatic(path);
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    /** A scan result, which aggregates class and services files. */
+    // A scan result, which aggregates class and services files.
     record ScanResult(Set<String> classFiles, Set<String> serviceFiles) {}
 
-    /**
-     * Generates and returns a module descriptor for an automatic module at the given path.
-     * Currently, only automatic modules with a manifest name are supported.
-     */
-    static ModuleDescriptor descriptorForAutomatic(Path path) throws IOException {
-        String moduleName = moduleNameFromManifestOrNull(path);
-        if (moduleName == null) {
-            throw new FindException("automatic module without a manifest name is not supported, for: " + path);
-        }
-        ModuleDescriptor.Builder builder;
-        try {
-            builder = ModuleDescriptor.newAutomaticModule(moduleName);
-        } catch (IllegalArgumentException e) {
-            throw new FindException(AUTOMATIC_MODULE_NAME + ": " + e.getMessage());
-        }
-
-        version(path.getFileName().toString()).ifPresent(builder::version);
-
-        // scan the names of the entries in the exploded JAR
-        var scan = scan(path);
-
-        // all packages are exported and open, since the auto-module bit is set
-        String separator = path.getFileSystem().getSeparator();
-        builder.packages(
-            scan.classFiles().stream().map(cf -> toPackageName(cf, separator)).flatMap(Optional::stream).collect(Collectors.toSet())
-        );
-
-        services(scan.serviceFiles(), path).entrySet().forEach(e -> builder.provides(e.getKey(), e.getValue()));
-        return builder.build();
-    }
-
-    /** Scans a given path for class files and services. */
+    // Scans a given path for class files and services.
     static ScanResult scan(Path path) throws IOException {
         Map<Boolean, Set<String>> map = Files.walk(path)
             .filter(p -> Files.isDirectory(p) == false)
@@ -153,12 +151,10 @@ final class EmbeddedModulePath {
         return new ScanResult(map.get(Boolean.FALSE), map.get(Boolean.TRUE));
     }
 
-    static final Pattern DASH_VERSION = Pattern.compile("-(\\d+(\\.|$))");
+    private static final Pattern DASH_VERSION = Pattern.compile("-(\\d+(\\.|$))");
 
-    /**
-     * Determines the module version (of an automatic module), given the jar file name. As per,
-     * https://docs.oracle.com/en/java/javase/18/docs/api/java.base/java/lang/module/ModuleFinder.html#of(java.nio.file.Path...)
-     */
+    // Determines the module version (of an automatic module), given the jar file name. As per,
+    // https://docs.oracle.com/en/java/javase/18/docs/api/java.base/java/lang/module/ModuleFinder.html#of(java.nio.file.Path...)
     static Optional<ModuleDescriptor.Version> version(String jarName) {
         if (jarName.endsWith(".jar") == false) {
             throw new IllegalArgumentException("unexpected jar name: " + jarName);
@@ -177,10 +173,8 @@ final class EmbeddedModulePath {
         return Optional.empty();
     }
 
-    /**
-     * Parses a set of given service files, and returns a map of service name to list of provider
-     * classes.
-     */
+    // Parses a set of given service files, and returns a map of service name to list of provider
+    // classes.
     static Map<String, List<String>> services(Set<String> serviceFiles, Path path) throws IOException {
         // map names of service configuration files to service names
         Set<String> serviceNames = serviceFiles.stream()
@@ -204,8 +198,8 @@ final class EmbeddedModulePath {
         return map;
     }
 
-    /** Drops comments and trims the given string. */
-    static String dropCommentAndTrim(String line) {
+    // Drops comments and trims the given string.
+    private static String dropCommentAndTrim(String line) {
         int ci = line.indexOf('#');
         if (ci >= 0) {
             line = line.substring(0, ci);
@@ -213,10 +207,8 @@ final class EmbeddedModulePath {
         return line.trim();
     }
 
-    /**
-     * Returns an optional containing the package name from a given path and separator, or an
-     * empty optional if none.
-     */
+    // Returns an optional containing the package name from a given path and separator, or an
+    // empty optional if none.
     static Optional<String> toPackageName(Path file, String separator) {
         Path parent = file.getParent();
         if (parent == null) {
@@ -237,10 +229,8 @@ final class EmbeddedModulePath {
         }
     }
 
-    /**
-     * Returns an optional containing the package name from a given binary class path name, or an
-     * empty optional if none.
-     */
+    // Returns an optional containing the package name from a given binary class path name, or an
+    // empty optional if none.
     static Optional<String> toPackageName(String name, String separator) {
         assert name.endsWith(separator) == false;
         int index = name.lastIndexOf(separator);
@@ -261,10 +251,8 @@ final class EmbeddedModulePath {
         }
     }
 
-    /**
-     * Returns an optional containing the service name from a given services path name, or an
-     * empty optional if none.
-     */
+    // Returns an optional containing the service name from a given services path name, or an
+    // empty optional if none.
     static Optional<String> toServiceName(String cf) {
         if (cf.startsWith(SERVICES_PREFIX) == false) {
             throw new IllegalArgumentException("unexpected service " + cf);

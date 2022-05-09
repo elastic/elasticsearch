@@ -165,7 +165,7 @@ public class RoutingAllocation {
     public DiscoveryNodes nodes() {
         return clusterState.nodes();
     }
-    
+
     public ClusterInfo clusterInfo() {
         return clusterInfo;
     }
@@ -174,7 +174,7 @@ public class RoutingAllocation {
         return shardSizeInfo;
     }
 
-    public DesiredNodes.ClusterMembers getDesiredNodesMembers() {
+    public DesiredNodes.ClusterMembers getDesiredNodesClusterMembers() {
         return desiredNodesClusterMembers;
     }
 

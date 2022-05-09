@@ -100,7 +100,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testIndexPrefer() {
         {
-            final var clusterState = clusterStateWithIndex("data_warm,data_cold", DiscoveryNodes.builder().add(HOT_NODE).build());
+            final var clusterState = clusterStateWithIndexAndNodes("data_warm,data_cold", DiscoveryNodes.builder().add(HOT_NODE).build());
 
             for (DiscoveryNode n : Arrays.asList(HOT_NODE, WARM_NODE, COLD_NODE)) {
                 assertAllocationDecision(
@@ -115,7 +115,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         }
 
         {
-            final var clusterState = clusterStateWithIndex(
+            final var clusterState = clusterStateWithIndexAndNodes(
                 "data_warm,data_cold",
                 DiscoveryNodes.builder().add(HOT_NODE).add(COLD_NODE).build()
             );
@@ -143,7 +143,10 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         }
 
         {
-            final var state = clusterStateWithIndex("data_cold,data_warm", DiscoveryNodes.builder().add(WARM_NODE).add(COLD_NODE).build());
+            final var state = clusterStateWithIndexAndNodes(
+                "data_cold,data_warm",
+                DiscoveryNodes.builder().add(WARM_NODE).add(COLD_NODE).build()
+            );
 
             for (DiscoveryNode node : List.of(HOT_NODE, COLD_NODE)) {
                 assertAllocationDecision(
@@ -167,7 +170,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         {
             // There's a warm node in the desired nodes, but it hasn't joined the cluster yet,
             // in that case we consider that there aren't any nodes with the preferred tier in the cluster
-            final var clusterState = clusterStateWithIndex("data_warm,data_cold", DiscoveryNodes.builder().add(HOT_NODE).build());
+            final var clusterState = clusterStateWithIndexAndNodes("data_warm,data_cold", DiscoveryNodes.builder().add(HOT_NODE).build());
 
             for (DiscoveryNode node : List.of(HOT_NODE, WARM_NODE, COLD_NODE)) {
                 assertAllocationDecision(
@@ -489,7 +492,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(settings), equalTo(DATA_FROZEN));
     }
 
-    private ClusterState clusterStateWithIndex(String tierPreference, DiscoveryNodes discoveryNodes) {
+    private ClusterState clusterStateWithIndexAndNodes(String tierPreference, DiscoveryNodes discoveryNodes) {
         return ClusterState.builder(service.reroute(ClusterState.EMPTY_STATE, "initial state"))
             .nodes(discoveryNodes)
             .metadata(

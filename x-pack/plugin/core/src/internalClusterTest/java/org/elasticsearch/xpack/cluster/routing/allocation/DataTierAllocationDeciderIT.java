@@ -113,7 +113,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
 
         ensureGreen(index);
 
-        assertShardPrimaryIsAllocatedInNode(coldDesiredNode);
+        assertPrimaryShardIsAllocatedInNode(0, coldDesiredNode);
 
         // Remove the cold tier
         updateDesiredNodes(masterDesiredNode, warmDesiredNode);
@@ -128,7 +128,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             )
             .get();
 
-        assertBusy(() -> assertShardPrimaryIsAllocatedInNode(warmDesiredNode));
+        assertBusy(() -> assertPrimaryShardIsAllocatedInNode(0, warmDesiredNode));
 
         ensureGreen(index);
     }
@@ -434,11 +434,11 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         internalCluster().client().execute(UpdateDesiredNodesAction.INSTANCE, request).actionGet();
     }
 
-    protected void assertShardPrimaryIsAllocatedInNode(DesiredNode coldDesiredNode) {
+    protected void assertPrimaryShardIsAllocatedInNode(int shard, DesiredNode expectedNode) {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        IndexShardRoutingTable routingTable = state.routingTable().index(index).shard(0);
+        IndexShardRoutingTable routingTable = state.routingTable().index(index).shard(shard);
         ShardRouting primaryShard = routingTable.primaryShard();
         DiscoveryNode discoveryNode = state.nodes().get(primaryShard.currentNodeId());
-        assertThat(discoveryNode.toString(), discoveryNode.getExternalId(), is(equalTo(coldDesiredNode.externalId())));
+        assertThat(discoveryNode.toString(), discoveryNode.getExternalId(), is(equalTo(expectedNode.externalId())));
     }
 }

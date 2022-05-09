@@ -83,7 +83,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         if (tierPreference.isEmpty() != false) {
             return YES_PASSES;
         }
-        Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes(), allocation.getDesiredNodesMembers());
+        Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes(), allocation.getDesiredNodesClusterMembers());
         if (tier.isPresent()) {
             String tierName = tier.get();
             if (allocationAllowed(tierName, roles)) {

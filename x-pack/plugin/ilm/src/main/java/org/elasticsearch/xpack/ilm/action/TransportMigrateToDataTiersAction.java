@@ -136,8 +136,8 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 super.clusterStateProcessed(oldState, newState);
-                clusterService.getRerouteService().reroute("cluster migrated to data tiers routing", Priority.NORMAL,
-                    ActionListener.noop());
+                clusterService.getRerouteService()
+                    .reroute("cluster migrated to data tiers routing", Priority.NORMAL, ActionListener.noop());
                 MigratedEntities entities = migratedEntities.get();
                 listener.onResponse(
                     new MigrateToDataTiersResponse(

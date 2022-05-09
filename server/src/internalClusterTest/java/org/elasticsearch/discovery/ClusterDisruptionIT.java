@@ -578,7 +578,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         masterClusterService.addHighPriorityApplier(event -> {
             // This is applicable for events related to the cluster disruption
-            if (event.nodesChanged()) {
+            if (event.state().nodes().getDataNodes().isEmpty()) {
                 failedLeader.actionGet();
                 if (dataNodeHasMaster.get() == false) {
                     try {

@@ -10,6 +10,7 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -256,7 +257,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug("connection to new remote cluster [{}] failed: {}", clusterAlias, e.getMessage(), e);
+                logger.debug(new ParameterizedMessage("connection to new remote cluster [{}] failed: {}", clusterAlias, e.getMessage()), e);
             }
         }, latch::countDown));
 

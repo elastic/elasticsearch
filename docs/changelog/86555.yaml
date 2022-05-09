@@ -2,4 +2,5 @@ pr: 86555
 summary: Fix mvt polygon orientation
 area: Geo
 type: bug
-issues: []
+issues:
+ - 86560

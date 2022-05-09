@@ -30,7 +30,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersRequest;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersResponse;
-import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService;
 import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.MigratedEntities;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
@@ -87,7 +86,6 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
                 licenseState,
                 request.isDryRun()
             ).v2();
-            MetadataMigrateToDataTiersRoutingService.MigratedTemplates migratedTemplates = entities.migratedTemplates;
             listener.onResponse(
                 new MigrateToDataTiersResponse(
                     entities.removedIndexTemplateName,
@@ -138,6 +136,8 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 super.clusterStateProcessed(oldState, newState);
+                clusterService.getRerouteService().reroute("cluster migrated to data tiers routing", Priority.NORMAL,
+                    ActionListener.noop());
                 MigratedEntities entities = migratedEntities.get();
                 listener.onResponse(
                     new MigrateToDataTiersResponse(

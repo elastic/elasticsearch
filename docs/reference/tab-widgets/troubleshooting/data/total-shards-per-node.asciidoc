@@ -75,10 +75,10 @@ The response will look like this:
 }
 ----
 +
-<1> Represents the current configured value for the maximum number of shards
+<1> Represents the current configured value for the total number of shards
 that can reside on one node for the `my-index-000001` index.
 
-. <<indices-update-settings,Increase>> the value for the maximum number of shards 
+. <<indices-update-settings,Increase>> the value for the total number of shards 
 that can be assigned on one node to a higher value:
 +
 [source,console]

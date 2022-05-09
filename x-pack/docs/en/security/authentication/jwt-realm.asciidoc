@@ -125,7 +125,7 @@ The file can be removed after you load the contents into the {es} keystore.
 Using the JWKS is preferred. However, you can add an HMAC key in string format
 using the following command. This format is compatible with OIDC HMAC keys, but
 only supports a single key with no attributes. You can only use one HMAC format
-(either `hmac_jwkset`or `hmac_key`) simultaneously.
+(either `hmac_jwkset` or `hmac_key`) simultaneously.
 
 [source,shell]
 ----
@@ -157,9 +157,9 @@ Signature: UnnFmsoFKfNmKMsVoDQmKI_3-j95PCaKdgqqau3jPMY
 This example illustrates a partial decoding of a JWT. The validity period is
 from 2000 to 2099 (inclusive), as defined by the issue time (`iat`) and
 expiration time (`exp`). JWTs typically have a validity period shorter than
-100 years, so a single JWT can span an entire human life. The signature in this
+100 years, such as 1-2 hours or 1-7 days, not an entire human life. The signature in this
 example is deterministic because the header, claims, and HMAC key are fixed.
-
+JWTs would typically have a nonce claim to make the signature non-deterministic.
 The supported JWT encoding is JSON Web Signature (JWS). The JWS `Header` and
 `Signature` are validated using OpenID Connect ID Token validation rules. Some
 validation is customizable through <<ref-jwt-settings,JWT realm settings>>.

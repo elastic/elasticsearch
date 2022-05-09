@@ -44,7 +44,7 @@ role, and can also submit requests on behalf of the indicated users.
 
 When <<authorization_realms,delegated authorization>> is disabled, {es} handles
 role mapping. If delegated authorization is enabled, {es} checks the defined
-roles for the `run_as` user in all configured realms. If the `run_as` privilege
+roles for the `run_as` privilege in all configured realms. If the `run_as` privilege
 is present and delegated authorization is enabled, {es} searches all configured
 realms for the `run_as` user.
 

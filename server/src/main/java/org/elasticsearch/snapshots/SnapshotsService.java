@@ -2419,7 +2419,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // that would save some cluster state updates.
                 removeSnapshotDeletionFromClusterState(
                     deleteEntry,
-                    null,
                     repositoryData,
                     listeners -> completeListenersIgnoringException(listeners, null)
                 );
@@ -2444,7 +2443,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         public void onMetaUpdated(RepositoryData updatedRepoData) {
                             removeSnapshotDeletionFromClusterState(
                                 deleteEntry,
-                                null,
                                 updatedRepoData,
                                 listeners -> doneFuture.addListener(new ActionListener<>() {
                                     @Override
@@ -2465,7 +2463,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                         @Override
                         public void onFailure(Exception e) {
-                            removeSnapshotDeletionFromClusterState(deleteEntry, e, repositoryData, null);
+                            submitUnbatchedTask(
+                                "remove snapshot deletion metadata after failed delete",
+                                new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {
+                                    @Override
+                                    protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
+                                        failListenersIgnoringException(deleteListeners, e);
+                                    }
+                                }
+                            );
                         }
                     }
                 );
@@ -2476,55 +2482,41 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * Removes a {@link SnapshotDeletionsInProgress.Entry} from {@link SnapshotDeletionsInProgress} in the cluster state after it executed
      * on the repository.
      *
-     * @param deleteEntry delete entry to remove from the cluster state
-     * @param failure     failure encountered while executing the delete on the repository or {@code null} if the delete executed
-     *                    successfully
+     * @param deleteEntry    delete entry to remove from the cluster state
      * @param repositoryData current {@link RepositoryData} for the repository we just ran the delete on.
+     * @param listenersHandler consumer that gets passed a list of all listeners that had their delete entry successfully removed from the
+     *                         cluster state
      */
     private void removeSnapshotDeletionFromClusterState(
         final SnapshotDeletionsInProgress.Entry deleteEntry,
-        @Nullable final Exception failure,
         final RepositoryData repositoryData,
-        @Nullable Consumer<List<ActionListener<Void>>> listenersHandler
+        final Consumer<List<ActionListener<Void>>> listenersHandler
     ) {
-        final ClusterStateUpdateTask clusterStateUpdateTask;
-        if (failure == null) {
-            // If we didn't have a failure during the snapshot delete we will remove all snapshot ids that the delete successfully removed
-            // from the repository from enqueued snapshot delete entries during the cluster state update. After the cluster state update we
-            // resolve the delete listeners with the latest repository data from after the delete.
-            clusterStateUpdateTask = new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {
-                @Override
-                protected SnapshotDeletionsInProgress filterDeletions(SnapshotDeletionsInProgress deletions) {
-                    final SnapshotDeletionsInProgress updatedDeletions = deletionsWithoutSnapshots(
-                        deletions,
-                        deleteEntry.getSnapshots(),
-                        deleteEntry.repository()
-                    );
-                    return updatedDeletions == null ? deletions : updatedDeletions;
-                }
+        // We remove all snapshot ids that the delete successfully removed from the repository from enqueued snapshot delete entries during
+        // the cluster state update. After the cluster state update we pass the list of listeners that had their entry removed from the
+        // cluster state to the given handler
+        submitUnbatchedTask("remove snapshot deletion metadata", new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {
+            @Override
+            protected SnapshotDeletionsInProgress filterDeletions(SnapshotDeletionsInProgress deletions) {
+                final SnapshotDeletionsInProgress updatedDeletions = deletionsWithoutSnapshots(
+                    deletions,
+                    deleteEntry.getSnapshots(),
+                    deleteEntry.repository()
+                );
+                return updatedDeletions == null ? deletions : updatedDeletions;
+            }
 
-                @Override
-                protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
-                    assert repositoryData.getSnapshotIds().stream().noneMatch(deleteEntry.getSnapshots()::contains)
-                        : "Repository data contained snapshot ids "
-                            + repositoryData.getSnapshotIds()
-                            + " that should should been deleted by ["
-                            + deleteEntry
-                            + "]";
-                    listenersHandler.accept(deleteListeners);
-                }
-            };
-        } else {
-            // The delete failed to execute on the repository. We remove it from the cluster state and then fail all listeners associated
-            // with it.
-            clusterStateUpdateTask = new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {
-                @Override
-                protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
-                    failListenersIgnoringException(deleteListeners, failure);
-                }
-            };
-        }
-        submitUnbatchedTask("remove snapshot deletion metadata", clusterStateUpdateTask);
+            @Override
+            protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
+                assert repositoryData.getSnapshotIds().stream().noneMatch(deleteEntry.getSnapshots()::contains)
+                    : "Repository data contained snapshot ids "
+                        + repositoryData.getSnapshotIds()
+                        + " that should should been deleted by ["
+                        + deleteEntry
+                        + "]";
+                listenersHandler.accept(deleteListeners);
+            }
+        });
     }
 
     /**

@@ -132,7 +132,6 @@ public class GeoHexCellIdSource extends ValuesSource.Numeric {
                 return intersects(-180, minLon, minLat, maxLat) || intersects(maxLon, 180, minLat, maxLat);
             } else {
                 return intersects(minLon, maxLon, minLat, maxLat);
-
             }
         }
 

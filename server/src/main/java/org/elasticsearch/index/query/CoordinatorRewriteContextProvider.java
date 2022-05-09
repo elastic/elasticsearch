@@ -10,7 +10,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -48,29 +47,29 @@ public class CoordinatorRewriteContextProvider {
 
     @Nullable
     public CoordinatorRewriteContext getCoordinatorRewriteContext(Index index) {
-        ClusterState clusterState = clusterStateSupplier.get();
-        IndexMetadata indexMetadata = clusterState.metadata().index(index);
-
-        if (indexMetadata == null
-            || (indexMetadata.getTimestampRange().containsAllShardRanges() == false && indexMetadata.getTimeSeriesRange() == null)) {
+        var clusterState = clusterStateSupplier.get();
+        var indexMetadata = clusterState.metadata().index(index);
+        var dateFieldType = mappingSupplier.apply(index);
+        if (indexMetadata == null || dateFieldType == null) {
             return null;
         }
 
-        TimeSeriesRange timeSeriesRange = indexMetadata.getTimeSeriesRange();
-        DateFieldMapper.DateFieldType dateFieldType = mappingSupplier.apply(index);
-
-        if (dateFieldType == null) {
+        final TimeSeriesRange timeSeriesRange;
+        var timestampRange = indexMetadata.getTimestampRange();
+        var tsdbTimeSeriesRange = indexMetadata.getTimeSeriesRange();
+        if (timestampRange.containsAllShardRanges() && timestampRange != IndexLongFieldRange.EMPTY) {
+            timeSeriesRange = new TimeSeriesRange(timestampRange.getMin(), timestampRange.getMax());
+        } else if (tsdbTimeSeriesRange != null) {
+            timeSeriesRange = tsdbTimeSeriesRange;
+        } else {
             return null;
         }
 
-        IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
         return new CoordinatorRewriteContext(
             parserConfig,
             writeableRegistry,
             client,
             nowInMillis,
-            index,
-            timestampRange,
             timeSeriesRange,
             dateFieldType
         );

@@ -54,10 +54,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 indexMode = null;
             }
             if (indexMode != null) {
-                Settings.Builder builder = Settings.builder();
-                builder.put(IndexSettings.MODE.getKey(), indexMode);
-
                 if (indexMode == IndexMode.TIME_SERIES) {
+                    Settings.Builder builder = Settings.builder();
                     TimeValue lookAheadTime = IndexSettings.LOOK_AHEAD_TIME.get(allSettings);
                     final Instant start;
                     final Instant end;
@@ -86,8 +84,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     assert start.isBefore(end) : "data stream backing index's start time is not before end time";
                     builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
                     builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
+                    return builder.build();
                 }
-                return builder.build();
             }
         }
 

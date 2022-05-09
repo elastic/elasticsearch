@@ -84,7 +84,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     public void testProcess() throws Exception {
         RestRequest request = mock(RestRequest.class);
         when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
-        Authentication authentication = mock(Authentication.class);
+        Authentication authentication = AuthenticationTestHelper.builder().build();
         doAnswer((i) -> {
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
@@ -102,8 +102,7 @@ public class SecurityRestFilterTests extends ESTestCase {
 
         when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
 
-        Authentication primaryAuthentication = mock(Authentication.class);
-        when(primaryAuthentication.encode()).thenReturn(randomAlphaOfLengthBetween(12, 36));
+        Authentication primaryAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(i -> {
             final Object[] arguments = i.getArguments();
             @SuppressWarnings("unchecked")
@@ -112,8 +111,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             return null;
         }).when(authcService).authenticate(eq(request), anyActionListener());
 
-        Authentication secondaryAuthentication = mock(Authentication.class);
-        when(secondaryAuthentication.encode()).thenReturn(randomAlphaOfLengthBetween(12, 36));
+        Authentication secondaryAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(i -> {
             final Object[] arguments = i.getArguments();
             @SuppressWarnings("unchecked")

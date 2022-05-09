@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
-import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -64,10 +63,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        Authentication authentication = mock(Authentication.class, RETURNS_DEEP_STUBS);
-        when(authentication.getEffectiveSubject().getUser()).thenReturn(user);
-        when(authentication.getEffectiveSubject().getRealm().getType()).thenReturn(NativeRealmSettings.TYPE);
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
+        Authentication authentication = AuthenticationTestHelper.builder().user(user).build();
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
@@ -269,12 +265,16 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        Authentication authentication = mock(Authentication.class);
-        Subject effectiveSubject = mock(Subject.class, RETURNS_DEEP_STUBS);
-        when(authentication.getEffectiveSubject()).thenReturn(effectiveSubject);
-        when(effectiveSubject.getUser()).thenReturn(user);
-        when(effectiveSubject.getRealm().getType()).thenReturn(randomFrom(NativeRealmSettings.TYPE, ReservedRealm.TYPE));
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(
+                new Authentication.RealmRef(
+                    randomAlphaOfLengthBetween(3, 8),
+                    randomFrom(NativeRealmSettings.TYPE, ReservedRealm.TYPE),
+                    randomAlphaOfLengthBetween(3, 8)
+                )
+            )
+            .build();
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
@@ -321,10 +321,12 @@ public class TransportSetEnabledActionTests extends ESTestCase {
     }
 
     private Authentication defaultAuthentication() throws IOException {
-        Authentication authentication = mock(Authentication.class, RETURNS_DEEP_STUBS);
-        when(authentication.getEffectiveSubject().getUser()).thenReturn(new User("the runner"));
-        when(authentication.getEffectiveSubject().getRealm().getType()).thenReturn(NativeRealmSettings.TYPE);
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // just can't be null
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("the runner"))
+            .realmRef(
+                new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8), NativeRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8))
+            )
+            .build();
         return authentication;
     }
 }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -22,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -225,14 +227,12 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         }
 
         @Override
-        public void onNoLongerMaster() {
-            logger.debug("stepped down as master before recovering state [{}]", TASK_SOURCE);
-            resetRecoveredFlags();
-        }
-
-        @Override
         public void onFailure(final Exception e) {
-            logger.info(() -> new ParameterizedMessage("unexpected failure during [{}]", TASK_SOURCE), e);
+            logger.log(
+                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.INFO,
+                () -> new ParameterizedMessage("unexpected failure during [{}]", TASK_SOURCE),
+                e
+            );
             resetRecoveredFlags();
         }
     }

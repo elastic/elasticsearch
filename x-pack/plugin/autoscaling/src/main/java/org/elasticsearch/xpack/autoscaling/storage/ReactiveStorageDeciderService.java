@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeci
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -712,14 +713,20 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         private final String reason;
         private final long unassigned;
         private final long assigned;
-        private final Set<ShardId> unassignedShardIds;
-        private final Set<ShardId> assignedShardIds;
+        private final SortedSet<ShardId> unassignedShardIds;
+        private final SortedSet<ShardId> assignedShardIds;
 
         public ReactiveReason(String reason, long unassigned, long assigned) {
-            this(reason, unassigned, assigned, Set.<ShardId>of(), Set.<ShardId>of());
+            this(reason, unassigned, assigned, Collections.emptySortedSet(), Collections.emptySortedSet());
         }
 
-        ReactiveReason(String reason, long unassigned, long assigned, Set<ShardId> unassignedShardIds, Set<ShardId> assignedShardIds) {
+        ReactiveReason(
+            String reason,
+            long unassigned,
+            long assigned,
+            SortedSet<ShardId> unassignedShardIds,
+            SortedSet<ShardId> assignedShardIds
+        ) {
             this.reason = reason;
             this.unassigned = unassigned;
             this.assigned = assigned;
@@ -732,11 +739,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             this.unassigned = in.readLong();
             this.assigned = in.readLong();
             if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
-                unassignedShardIds = in.readSet(ShardId::new);
-                assignedShardIds = in.readSet(ShardId::new);
+                unassignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readSet(ShardId::new)));
+                assignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readSet(ShardId::new)));
             } else {
-                unassignedShardIds = Set.of();
-                assignedShardIds = Set.of();
+                unassignedShardIds = Collections.emptySortedSet();
+                assignedShardIds = Collections.emptySortedSet();
             }
         }
 
@@ -753,11 +760,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return assigned;
         }
 
-        public Set<ShardId> unassignedShardIds() {
+        public SortedSet<ShardId> unassignedShardIds() {
             return unassignedShardIds;
         }
 
-        public Set<ShardId> assignedShardIds() {
+        public SortedSet<ShardId> assignedShardIds() {
             return assignedShardIds;
         }
 

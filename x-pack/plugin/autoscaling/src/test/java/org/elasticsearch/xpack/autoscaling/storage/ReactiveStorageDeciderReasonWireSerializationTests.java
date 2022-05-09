@@ -13,6 +13,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.TreeSet;
+
 public class ReactiveStorageDeciderReasonWireSerializationTests extends AbstractWireSerializingTestCase<
     ReactiveStorageDeciderService.ReactiveReason> {
     @Override
@@ -52,7 +54,7 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.summary(),
                     instance.unassigned(),
                     instance.assigned(),
-                    randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8),
+                    new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8)),
                     instance.assignedShardIds()
                 );
             case 4:
@@ -61,15 +63,15 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.unassigned(),
                     instance.assigned(),
                     instance.unassignedShardIds(),
-                    randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8)
+                    new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8))
                 );
             case 5:
                 return new ReactiveStorageDeciderService.ReactiveReason(
                     instance.summary(),
                     instance.unassigned(),
                     instance.assigned(),
-                    randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8),
-                    randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8)
+                    new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8)),
+                    new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8))
                 );
             default:
                 fail("unexpected");
@@ -83,8 +85,8 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
             randomAlphaOfLength(10),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8),
-            randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8)
+            new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8)),
+            new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8))
         );
     }
 }

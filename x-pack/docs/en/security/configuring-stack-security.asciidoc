@@ -171,7 +171,7 @@ and we won't configure security automatically.
 
 * {ref}/modules-node.html#node-roles[`node.roles`] is set to a value other than 
 `master`
-* `xpack.security.autoconfiguration.enabled` is set to `false`
+* {ref}/security-settings.html#general-security-settings[`xpack.security.autoconfiguration.enabled`] is set to `false`
 * {ref}/security-settings.html#general-security-settings[`xpack.security.enabled`] has a value set
 * Any of the
 {ref}/security-settings.html#transport-tls-ssl-settings[`xpack.security.transport.ssl.*`] or 

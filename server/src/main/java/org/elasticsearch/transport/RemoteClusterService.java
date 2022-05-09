@@ -257,7 +257,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug(new ParameterizedMessage("connection to new remote cluster [{}] failed: {}", clusterAlias, e.getMessage()), e);
+                logger.debug(new ParameterizedMessage("connection to new remote cluster [{}] failed", clusterAlias), e);
             }
         }, latch::countDown));
 

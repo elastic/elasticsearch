@@ -73,13 +73,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                     List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                 )
             );
-            return createIndicator(
-                YELLOW,
-                "ILM is not running",
-                createDetails(explain, ilmMetadata),
-                impacts,
-                Collections.emptyList()
-            );
+            return createIndicator(YELLOW, "ILM is not running", createDetails(explain, ilmMetadata), impacts, Collections.emptyList());
         } else {
             return createIndicator(
                 GREEN,

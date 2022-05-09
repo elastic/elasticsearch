@@ -73,13 +73,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     List.of(ImpactArea.BACKUP)
                 )
             );
-            return createIndicator(
-                YELLOW,
-                "SLM is not running",
-                createDetails(explain, slmMetadata),
-                impacts,
-                Collections.emptyList()
-            );
+            return createIndicator(YELLOW, "SLM is not running", createDetails(explain, slmMetadata), impacts, Collections.emptyList());
         } else {
             return createIndicator(
                 GREEN,

@@ -69,27 +69,25 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
-                if (desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh)) {
+                boolean shouldReroute = desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh);
+                boolean isFreshInput = isFresh(desiredBalanceInput);
+
+                if (shouldReroute) {
                     pendingReroute = true;
-                    boolean isFreshInput = isFresh(desiredBalanceInput);
                     var listener = new ActionListener<ClusterState>() {
                         @Override
                         public void onResponse(ClusterState clusterState) {
                             // TODO assert in a system context
                             if (isFreshInput) {
                                 pendingReroute = false;
-                                for (var listener : pollListeners(desiredBalanceInput.index())) {
-                                    listener.onResponse(null);
-                                }
+                                ActionListener.onResponse(pollListeners(desiredBalanceInput.index()), null);
                             }
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             // TODO assert in a system context
-                            for (var listener : pollListeners(desiredBalanceInput.index())) {
-                                listener.onFailure(e);
-                            }
+                            ActionListener.onFailure(pollListeners(desiredBalanceInput.index()), e);
                         }
                     };
                     rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, listener);

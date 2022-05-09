@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -80,4 +80,5 @@ public class ClusterGetSettingsTests extends ESTestCase {
 
         assertFalse(response.transientSettings().hasValue("transient.foo.filtered"));
         assertTrue(response.transientSettings().hasValue("transient.foo.non_filtered"));
+    }
 }

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -87,7 +88,11 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
     public SqlClearCursorRequest(StreamInput in) throws IOException {
         super(in);
         cursor = in.readString();
-        binaryCommunication = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+            binaryCommunication = in.readOptionalBoolean();
+        } else {
+            binaryCommunication = false;
+        }
     }
 
     public SqlClearCursorRequest binaryCommunication(Boolean binaryCommunication) {
@@ -103,7 +108,9 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(cursor);
-        out.writeOptionalBoolean(binaryCommunication);
+        if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            out.writeOptionalBoolean(binaryCommunication);
+        }
     }
 
     @Override

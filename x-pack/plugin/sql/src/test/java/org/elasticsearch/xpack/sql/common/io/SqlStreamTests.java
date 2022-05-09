@@ -12,7 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.QlVersionMismatchException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -51,8 +51,8 @@ public class SqlStreamTests extends ESTestCase {
     }
 
     public void testOldCursorProducesVersionMismatchError() {
-        SqlIllegalArgumentException ex = expectThrows(
-            SqlIllegalArgumentException.class,
+        QlVersionMismatchException ex = expectThrows(
+            QlVersionMismatchException.class,
             () -> SqlStreamInput.fromString(
                 // some cursor produced by ES 7.15.1
                 "97S0AwFaAWMBCHRlc3RfZW1whgEBAQljb21wb3NpdGUHZ3JvdXBieQEDbWF4CDJkMTBjNGJhAAD/AQls"

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.ql.QlVersionMismatchException;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ public class SqlStreamInput extends NamedWriteableAwareStreamInput {
         StreamInput in = StreamInput.wrap(bytes);
         Version inVersion = Version.readVersion(in);
         if (version.compareTo(inVersion) != 0) {
-            throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", inVersion, version);
+            throw new QlVersionMismatchException("cursor", inVersion, version);
         }
 
         InputStreamStreamInput uncompressingIn = new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(in));

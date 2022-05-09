@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractLatLonShape
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -406,8 +407,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             try {
                 return value.labelPosition();
             } catch (IOException e) {
-                // Most of the time the centroid is a good compromise, but perhaps we should know about this error anyway?
-                return centroid;
+                throw new UncheckedIOException("Failed to parse geo shape label position: " + e.getMessage(), e);
             }
         }
 

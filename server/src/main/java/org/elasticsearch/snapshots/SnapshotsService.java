@@ -8,6 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -54,6 +55,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -1978,19 +1980,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to remove snapshot metadata", snapshot), e);
+                if (e instanceof NotMasterException) {
+                    failure.addSuppressed(new SnapshotException(snapshot, "no longer master"));
+                }
+                logger.log(
+                    MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                    () -> new ParameterizedMessage("[{}] failed to remove snapshot metadata", snapshot),
+                    e
+                );
                 failSnapshotCompletionListeners(
                     snapshot,
                     new SnapshotException(snapshot, "Failed to remove snapshot from cluster state", e)
                 );
                 failAllListenersOnMasterFailOver(e);
-            }
-
-            @Override
-            public void onNoLongerMaster() {
-                failure.addSuppressed(new SnapshotException(snapshot, "no longer master"));
-                failSnapshotCompletionListeners(snapshot, failure);
-                failAllListenersOnMasterFailOver(new NotMasterException(REMOVE_SNAPSHOT_METADATA_TASK_SOURCE));
             }
 
             @Override

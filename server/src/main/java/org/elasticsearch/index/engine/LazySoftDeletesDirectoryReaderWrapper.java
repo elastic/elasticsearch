@@ -11,6 +11,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -23,7 +24,6 @@ import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
@@ -227,7 +227,7 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         private Bits init() throws IOException {
             assert Thread.holdsLock(this);
 
-            DocIdSetIterator iterator = DocValuesFieldExistsQuery.getDocValuesDocIdSetIterator(field, reader);
+            DocIdSetIterator iterator = getDocValuesDocIdSetIterator(field, reader);
             assert iterator != null;
             Bits liveDocs = reader.getLiveDocs();
             final FixedBitSet bits;
@@ -273,5 +273,40 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         DelegatingCacheHelper(CacheHelper delegate) {
             super(delegate);
         }
+    }
+
+    /**
+     * Returns a {@link DocIdSetIterator} from the given field or null if the field doesn't exist in
+     * the reader or if the reader has no doc values for the field.
+     */
+    private static DocIdSetIterator getDocValuesDocIdSetIterator(String field, LeafReader reader) throws IOException {
+        FieldInfo fieldInfo = reader.getFieldInfos().fieldInfo(field);
+        final DocIdSetIterator iterator;
+        if (fieldInfo != null) {
+            switch (fieldInfo.getDocValuesType()) {
+                case NONE:
+                    iterator = null;
+                    break;
+                case NUMERIC:
+                    iterator = reader.getNumericDocValues(field);
+                    break;
+                case BINARY:
+                    iterator = reader.getBinaryDocValues(field);
+                    break;
+                case SORTED:
+                    iterator = reader.getSortedDocValues(field);
+                    break;
+                case SORTED_NUMERIC:
+                    iterator = reader.getSortedNumericDocValues(field);
+                    break;
+                case SORTED_SET:
+                    iterator = reader.getSortedSetDocValues(field);
+                    break;
+                default:
+                    throw new AssertionError();
+            }
+            return iterator;
+        }
+        return null;
     }
 }

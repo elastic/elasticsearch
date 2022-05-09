@@ -329,7 +329,7 @@ class AuthenticatorChain {
      * one. If authentication is successful, this method also ensures that the authentication is written to the ThreadContext
      */
     void finishAuthentication(Authenticator.Context context, Authentication authentication, ActionListener<Authentication> listener) {
-        if (authentication.getUser().enabled() == false || authentication.getUser().authenticatedUser().enabled() == false) {
+        if (authentication.getUser().enabled() == false || authentication.getAuthenticatingSubject().getUser().enabled() == false) {
             // TODO: these should be different log messages if the runas vs auth user is disabled?
             logger.debug("user [{}] is disabled. failing authentication", authentication.getUser());
             listener.onFailure(context.getRequest().authenticationFailed(context.getMostRecentAuthenticationToken()));

@@ -416,7 +416,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         profileService.searchVersionedDocumentForSubject(subject, future2);
         final ProfileDocument profileDocument = future2.actionGet().doc();
         assertThat(profileDocument.uid(), equalTo(uid));
-        assertThat(subject.canAccessResourcesOf(profileDocument.subject()), is(true));
+        assertThat(subject.canAccessResourcesOf(profileDocument.user().toSubject()), is(true));
     }
 
     private String indexDocument() {
@@ -426,7 +426,12 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
     }
 
     private void indexDocument(String uid) {
-        final String source = ProfileServiceTests.SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, Instant.now().toEpochMilli());
+        String source = ProfileServiceTests.getSampleProfileDocumentSource(
+            uid,
+            "Foo",
+            List.of("role1", "role2"),
+            Instant.now().toEpochMilli()
+        );
         client().prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS))
             .setId("profile_" + uid)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)

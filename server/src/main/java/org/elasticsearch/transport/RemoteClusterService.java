@@ -10,6 +10,7 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -248,15 +249,15 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     @Override
     protected void updateRemoteCluster(String clusterAlias, Settings settings) {
         CountDownLatch latch = new CountDownLatch(1);
-        updateRemoteCluster(clusterAlias, settings, ActionListener.runAfter(new ActionListener<Void>() {
+        updateRemoteCluster(clusterAlias, settings, ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(Void o) {
-                logger.debug("connected to new remote cluster {}", clusterAlias);
+                logger.debug("connected to new remote cluster [{}]", clusterAlias);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug("connection to new remote cluster {} failed", clusterAlias);
+                logger.debug(new ParameterizedMessage("connection to new remote cluster [{}] failed", clusterAlias), e);
             }
         }, latch::countDown));
 
@@ -265,7 +266,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             // are on the cluster state thread and our custom future implementation will throw an
             // assertion.
             if (latch.await(10, TimeUnit.SECONDS) == false) {
-                logger.warn("failed to connect to new remote cluster {} within {}", clusterAlias, TimeValue.timeValueSeconds(10));
+                logger.warn("failed to connect to new remote cluster [{}] within {}", clusterAlias, TimeValue.timeValueSeconds(10));
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

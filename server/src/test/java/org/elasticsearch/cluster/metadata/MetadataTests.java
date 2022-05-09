@@ -1443,7 +1443,7 @@ public class MetadataTests extends ESTestCase {
             .build();
 
         try {
-            assertDataStreams(metadata.getIndices(), null);
+            assertDataStreams(metadata.getIndices(), DataStreamMetadata.EMPTY);
         } catch (Exception e) {
             fail("did not expect exception when validating a system without any data streams but got " + e.getMessage());
         }

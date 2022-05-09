@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -97,6 +98,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
             }));
             waitForDeploymentStarted(modelId);
             assertInfer(modelId);
+            assertNewInfer(modelId);
             stopDeployment(modelId);
         }
     }
@@ -121,6 +123,11 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
     private void assertInfer(String modelId) throws IOException {
         Response inference = infer("my words", modelId);
         assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"predicted_value\":[[1.0,1.0]]}"));
+    }
+
+    private void assertNewInfer(String modelId) throws IOException {
+        Response inference = newInfer("my words", modelId);
+        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}"));
     }
 
     private void putModelDefinition(String modelId) throws IOException {
@@ -200,6 +207,17 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
             {  "docs": [{"input":"%s"}] }
             """.formatted(input));
 
+        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
+        var response = client().performRequest(request);
+        assertOK(response);
+        return response;
+    }
+
+    private Response newInfer(String input, String modelId) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
+        request.setJsonEntity("""
+            {  "docs": [{"input":"%s"}] }
+            """.formatted(input));
         var response = client().performRequest(request);
         assertOK(response);
         return response;

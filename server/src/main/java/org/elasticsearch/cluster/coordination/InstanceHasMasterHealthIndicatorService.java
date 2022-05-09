@@ -54,7 +54,7 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean includeDetails) {
+    public HealthIndicatorResult calculate(boolean explain) {
 
         DiscoveryNode coordinatingNode = clusterService.localNode();
         ClusterState clusterState = clusterService.state();
@@ -70,7 +70,7 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
             impacts.add(new HealthIndicatorImpact(3, NO_MASTER_BACKUP_IMPACT, List.of(ImpactArea.BACKUP)));
         }
 
-        return createIndicator(instanceHasMasterStatus, instanceHasMasterSummary, includeDetails ? (builder, params) -> {
+        return createIndicator(instanceHasMasterStatus, instanceHasMasterSummary, explain ? (builder, params) -> {
             builder.startObject();
             builder.object("coordinating_node", xContentBuilder -> {
                 builder.field("node_id", coordinatingNode.getId());

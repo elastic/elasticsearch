@@ -51,13 +51,13 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean includeDetails) {
+    public HealthIndicatorResult calculate(boolean explain) {
         var ilmMetadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(
                 GREEN,
                 "No policies configured",
-                createDetails(includeDetails, ilmMetadata),
+                createDetails(explain, ilmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
@@ -65,7 +65,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             return createIndicator(
                 YELLOW,
                 "ILM is not running",
-                createDetails(includeDetails, ilmMetadata),
+                createDetails(explain, ilmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
@@ -73,15 +73,15 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             return createIndicator(
                 GREEN,
                 "ILM is running",
-                createDetails(includeDetails, ilmMetadata),
+                createDetails(explain, ilmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
         }
     }
 
-    private static HealthIndicatorDetails createDetails(boolean includeDetails, IndexLifecycleMetadata metadata) {
-        if (includeDetails) {
+    private static HealthIndicatorDetails createDetails(boolean explain, IndexLifecycleMetadata metadata) {
+        if (explain) {
             return new SimpleHealthIndicatorDetails(
                 Map.of("ilm_status", metadata.getOperationMode(), "policies", metadata.getPolicies().size())
             );

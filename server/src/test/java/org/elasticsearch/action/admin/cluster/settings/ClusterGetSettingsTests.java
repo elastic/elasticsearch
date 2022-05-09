@@ -69,20 +69,15 @@ public class ClusterGetSettingsTests extends ESTestCase {
         final Metadata metadata = Metadata.builder().persistentSettings(persistentSettings).transientSettings(transientSettings).build();
         final ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
 
-        action.masterOperation(null, null, clusterState, new ActionListener<>() {
-            @Override
-            public void onResponse(ClusterGetSettingsAction.Response response) {
-                assertFalse(response.persistentSettings().hasValue("persistent.foo.filtered"));
-                assertTrue(response.persistentSettings().hasValue("persistent.foo.non_filtered"));
+        final PlainActionFuture<ClusterGetSettingsAction.Response> future = new PlainActionFuture<>();
+        action.masterOperation(null, null, clusterState, future);
+        assertTrue(future.isDone());
 
-                assertFalse(response.transientSettings().hasValue("transient.foo.filtered"));
-                assertTrue(response.transientSettings().hasValue("transient.foo.non_filtered"));
-            }
+        final ClusterGetSettingsAction.Response response = future.get();
 
-            @Override
-            public void onFailure(Exception e) {
-                fail("Shouldn't reach here");
-            }
-        });
-    }
+        assertFalse(response.persistentSettings().hasValue("persistent.foo.filtered"));
+        assertTrue(response.persistentSettings().hasValue("persistent.foo.non_filtered"));
+
+        assertFalse(response.transientSettings().hasValue("transient.foo.filtered"));
+        assertTrue(response.transientSettings().hasValue("transient.foo.non_filtered"));
 }

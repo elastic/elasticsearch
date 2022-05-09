@@ -2026,14 +2026,14 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                       "field": "stars"
                     }
                   },
-                  "simple-ranges": {
+                  "ranges": {
                     "range": {
                       "field": "stars",
                       "keyed": %s,
                       "ranges": [ { "to": 2 }, { "from": 2, "to": 3.99 }, { "from": 4 } ]
                     }
                   },
-                  "simple-ranges-with-avg": {
+                  "ranges-avg": {
                     "range": {
                       "field": "stars",
                       "keyed": %s,
@@ -2053,18 +2053,18 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         // get and check some users
         Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_11");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.simple-ranges.*-2", searchResult)).get(0);
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges.*-2", searchResult)).get(0);
         assertEquals(5, actual.longValue());
-        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.simple-ranges.2-3_99", searchResult)).get(0);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges.2-3_99", searchResult)).get(0);
         assertEquals(2, actual.longValue());
-        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.simple-ranges.4-*", searchResult)).get(0);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges.4-*", searchResult)).get(0);
         assertEquals(19, actual.longValue());
 
-        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.simple-ranges-with-avg.*-2.avg_stars", searchResult)).get(0);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges-avg.*-2.avg_stars", searchResult)).get(0);
         assertEquals(1.0, actual.doubleValue(), 1E-6);
-        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.simple-ranges-with-avg.2-3_99.avg_stars", searchResult)).get(0);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges-avg.2-3_99.avg_stars", searchResult)).get(0);
         assertEquals(3.0, actual.doubleValue(), 1E-6);
-        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.simple-ranges-with-avg.4-*.avg_stars", searchResult)).get(0);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges-avg.4-*.avg_stars", searchResult)).get(0);
         assertEquals(4.6842105, actual.doubleValue(), 1E-6);
     }
 

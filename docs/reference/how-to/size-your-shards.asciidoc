@@ -72,12 +72,12 @@ space. While the exact amount resource usage of each additional field depends
 on the type of field, an additional 1024B in memory use  for each additional
 mapped field on data nodes is a good approximation in most cases.
 As a result, the more mapped fields you have per index, the fewer
-indices and shards will each individual data node be able to hold,
+indices and shards each individual data node will be able to hold,
 all other things being equal. In addition to the per field overhead you should
 at least have an additional 512MB of heap available per data node.
 For example, holding 1000 indices that each contain 4000 fields will require
-1000 x 4000 x 1024b = 4Gb for the fields and another 512Mb for a total of
-at least 4.5Gb on the data node.
+1000 × 4000 × 1024B = 4Gb for the fields and another 512MB for a total of
+at least 4.5GB on the data node.
 By default {es} will automatically create a mapping for every field in
 every document it indexes, but you can switch off this behaviour to
 <<explicit-mapping,take control of your mappings>>.
@@ -189,9 +189,11 @@ index                                 prirep shard store
 
 The number of indices a master node can manage is proportional to the node's
 heap memory. The exact amount of heap memory each additional index requires
-depends on various factors. Theses include but are not limited to the size of its mapping,
-the number of shards per index or whether indices are created identically from the same
-template with no dynamic mapping involved.
+depends on various factors such as the size of the mapping and the number of
+shards per index. Where possible, the master node will deduplicate the mapping
+metadata across indices with identical mappings. Mapping metadata can be
+deduplicated across indices that are created from the same index template as
+long as they do not use dynamic mapping updates.
 Under the assumption that indices are mostly created identically from a small number of templates
 and no dynamic mapping updates are involved, a good rule of thumb is to aim for 3000 indices or
 fewer per GB of heap on master nodes. For example, if your cluster contains 12,000 indices then

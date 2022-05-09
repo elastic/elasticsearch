@@ -195,7 +195,8 @@ template with no dynamic mapping involved.
 Under the assumption that indices are mostly created identically from a small number of templates
 and no dynamic mapping updates are involved, a good rule of thumb is to aim for 3000 indices or
 fewer per GB of heap on master nodes. For example, if your cluster contains 12,000 indices then
-each  dedicated master node should  have at least 4GB of heap available.
+each dedicated master node should have at least 4GB of heap available. For non-dedicated master
+nodes, the same rule holds and should be added to the heap requirements of other node roles.
 
 To check the current size of each node's heap, use the <<cat-nodes,cat nodes
 API>>.

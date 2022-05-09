@@ -391,11 +391,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             assertThat(resultReason.summary(), equalTo(reason));
             assertThat(
                 resultReason.unassignedShardIds(),
-                equalTo(decider.allocationState(context).storagePreventsAllocation0().unassignedShards())
+                equalTo(decider.allocationState(context).storagePreventsAllocation0().shardIds())
             );
             assertThat(
                 resultReason.assignedShardIds(),
-                equalTo(decider.allocationState(context).storagePreventsRemainOrMove0().unmovableShards())
+                equalTo(decider.allocationState(context).storagePreventsRemainOrMove0().shardIds())
             );
         } else {
             assertThat(result.requiredCapacity(), is(nullValue()));

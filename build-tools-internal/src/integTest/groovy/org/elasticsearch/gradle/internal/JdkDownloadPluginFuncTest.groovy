@@ -215,12 +215,19 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     private static byte[] filebytes(final String vendor, final String platform) throws IOException {
-        final String effectivePlatform = isMac(platform) ? "macos" : platform;
+        final String effectivePlatform = getPlatform(vendor, platform);
         if (vendor.equals(VENDOR_ADOPTIUM)) {
             return JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_adoptium_" + effectivePlatform + "." + extension(platform)).getBytes()
         } else if (vendor.equals(VENDOR_OPENJDK)) {
             JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_openjdk_" + effectivePlatform + "." + extension(platform)).getBytes()
         }
+    }
+
+    private static String getPlatform(String vendor, String platform) {
+        if (isMac(platform)) {
+            return vendor.equals(VENDOR_ADOPTIUM) ? "osx" : "macos";
+        }
+        return platform;
     }
 
     private static boolean isMac(String platform) {

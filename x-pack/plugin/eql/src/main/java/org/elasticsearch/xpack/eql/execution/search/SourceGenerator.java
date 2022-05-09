@@ -11,7 +11,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
-import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
@@ -133,10 +132,7 @@ public abstract class SourceGenerator {
                     }
                 }
             } else if (sortable instanceof ScriptSort ss) {
-                sortBuilder = scriptSort(
-                    ss.script().toPainless(),
-                    ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING
-                );
+                sortBuilder = scriptSort(ss.script().toPainless(), ss.script().outputType().scriptSortType());
             }
 
             if (sortBuilder != null) {

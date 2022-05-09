@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -549,7 +550,7 @@ public final class DataTypeConverter {
             }
             return o;
         }),
-        STRING_TO_VERSION(o -> new VersionFieldValue(o.toString()));
+        STRING_TO_VERSION(o -> new Version(o.toString()));
 
         public static final String NAME = "dtc-def";
 

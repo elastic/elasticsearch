@@ -14,8 +14,8 @@ import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.VersionFieldValue;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
 import java.time.OffsetTime;
@@ -779,8 +779,10 @@ public class SqlDataTypeConverterTests extends ESTestCase {
     public void testStringToVersion() {
         Converter conversion = converterFor(KEYWORD, VERSION);
         assertNull(conversion.convert(null));
-        assertEquals(new VersionFieldValue("2.1.4"), conversion.convert("2.1.4"));
-        assertEquals(new VersionFieldValue("2.1.4-SNAPSHOT"), conversion.convert("2.1.4-SNAPSHOT"));
+        assertEquals(new Version("2.1.4").toString(), conversion.convert("2.1.4").toString());
+        assertEquals(new Version("2.1.4").toBytesRef(), ((Version) conversion.convert("2.1.4")).toBytesRef());
+        assertEquals(new Version("2.1.4-SNAPSHOT").toString(), conversion.convert("2.1.4-SNAPSHOT").toString());
+        assertEquals(new Version("2.1.4-SNAPSHOT").toBytesRef(), ((Version) conversion.convert("2.1.4-SNAPSHOT")).toBytesRef());
     }
 
     public void testVersionToString() {

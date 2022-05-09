@@ -10,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.index.Index;
@@ -56,7 +56,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
         Optional<String> availableDestinationTier = DataTierAllocationDecider.preferredAvailableTier(
             preferredTierConfiguration,
             clusterState.getNodes(),
-            DesiredNodesMetadata.fromClusterState(clusterState)
+            DesiredNodes.ClusterMembers.EMPTY
         );
 
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {

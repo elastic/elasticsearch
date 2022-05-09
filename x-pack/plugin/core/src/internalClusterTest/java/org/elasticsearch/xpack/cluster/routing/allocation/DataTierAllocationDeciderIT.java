@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DesiredNode;
-import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -99,12 +98,6 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
 
         startWarmOnlyNode(warmDesiredNode.externalId());
         final var coldNodeName = startColdOnlyNode(coldDesiredNode.externalId());
-
-        final var clusterState = client().admin().cluster().prepareState().get().getState();
-        final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
-        final var clusterMembers = desiredNodesMetadata.getClusterMembers();
-        assertThat(clusterMembers.contains(warmDesiredNode), is(equalTo(true)));
-        assertThat(clusterMembers.contains(coldDesiredNode), is(equalTo(true)));
 
         client().admin()
             .indices()

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
@@ -37,7 +37,7 @@ public class WaitForDataTierStep extends ClusterStateWaitStep {
         boolean present = DataTierAllocationDecider.preferredAvailableTier(
             DataTier.parseTierList(tierPreference),
             clusterState.nodes(),
-            DesiredNodesMetadata.fromClusterState(clusterState)
+            DesiredNodes.ClusterMembers.EMPTY
         ).isPresent();
         SingleMessageFieldInfo info = present ? null : new SingleMessageFieldInfo("no nodes for tiers [" + tierPreference + "] available");
         return new Result(present, info);

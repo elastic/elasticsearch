@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -53,6 +54,8 @@ public class RoutingAllocation {
 
     private final SnapshotShardSizeInfo shardSizeInfo;
 
+    private final DesiredNodes.ClusterMembers desiredNodesClusterMembers;
+
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
 
     private boolean ignoreDisable = false;
@@ -81,7 +84,7 @@ public class RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
-        this(deciders, null, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+        this(deciders, null, clusterState, clusterInfo, shardSizeInfo, DesiredNodes.ClusterMembers.EMPTY, currentNanoTime);
     }
 
     /**
@@ -97,6 +100,7 @@ public class RoutingAllocation {
         ClusterState clusterState,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
+        DesiredNodes.ClusterMembers desiredNodesClusterMembers,
         long currentNanoTime
     ) {
         this.deciders = deciders;
@@ -104,6 +108,7 @@ public class RoutingAllocation {
         this.clusterState = clusterState;
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
+        this.desiredNodesClusterMembers = desiredNodesClusterMembers;
         this.currentNanoTime = currentNanoTime;
         Map<String, SingleNodeShutdownMetadata> targetNameToShutdown = new HashMap<>();
         for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().values()) {
@@ -172,6 +177,10 @@ public class RoutingAllocation {
 
     public SnapshotShardSizeInfo snapshotShardSizeInfo() {
         return shardSizeInfo;
+    }
+
+    public DesiredNodes.ClusterMembers getDesiredNodesMembers() {
+        return desiredNodesClusterMembers;
     }
 
     /**

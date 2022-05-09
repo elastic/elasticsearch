@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.metadata.DesiredNode;
-import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -68,7 +68,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     }
 
     public interface PreferredTierFunction {
-        Optional<String> apply(List<String> tierPreference, DiscoveryNodes nodes, DesiredNodesMetadata desiredNodesMetadata);
+        Optional<String> apply(List<String> tierPreference, DiscoveryNodes nodes, DesiredNodes.ClusterMembers desiredNodes);
     }
 
     private static final Decision YES_PASSES = Decision.single(Decision.YES.type(), NAME, "node passes tier preference filters");
@@ -83,7 +83,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         if (tierPreference.isEmpty() != false) {
             return YES_PASSES;
         }
-        Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes(), allocation.desiredNodesMetadata());
+        Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes(), allocation.getDesiredNodesMembers());
         if (tier.isPresent()) {
             String tierName = tier.get();
             if (allocationAllowed(tierName, roles)) {
@@ -141,9 +141,9 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     public static Optional<String> preferredAvailableTier(
         List<String> prioritizedTiers,
         DiscoveryNodes nodes,
-        DesiredNodesMetadata desiredNodesMetadata
+        DesiredNodes.ClusterMembers desiredNodesMembers
     ) {
-        final var desiredNodesPreferredTier = preferredAvailableTier(prioritizedTiers, List.of());
+        final var desiredNodesPreferredTier = preferredAvailableTier(prioritizedTiers, desiredNodesMembers);
 
         if (desiredNodesPreferredTier.isPresent()) {
             return desiredNodesPreferredTier;
@@ -152,9 +152,9 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         return preferredAvailableTier(prioritizedTiers, nodes);
     }
 
-    public static Optional<String> preferredAvailableTier(List<String> prioritizedTiers, Collection<DesiredNode> nodes) {
+    public static Optional<String> preferredAvailableTier(List<String> prioritizedTiers, DesiredNodes.ClusterMembers nodes) {
         for (String tier : prioritizedTiers) {
-            if (tierNodesPresent(tier, nodes)) {
+            if (tierNodesPresent(tier, nodes.desiredNodes())) {
                 return Optional.of(tier);
             }
         }

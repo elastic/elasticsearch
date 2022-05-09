@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -933,6 +934,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
+            DesiredNodes.ClusterMembers.EMPTY,
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
@@ -965,6 +967,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
+            DesiredNodes.ClusterMembers.EMPTY,
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
@@ -1126,6 +1129,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
+            DesiredNodes.ClusterMembers.EMPTY,
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -50,6 +51,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
+            DesiredNodes.ClusterMembers.EMPTY,
             System.nanoTime()
         );
 

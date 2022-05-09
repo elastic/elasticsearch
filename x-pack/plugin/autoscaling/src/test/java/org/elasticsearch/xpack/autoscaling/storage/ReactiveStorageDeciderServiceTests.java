@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -236,6 +237,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             initialClusterState,
             null,
             null,
+            DesiredNodes.ClusterMembers.EMPTY,
             System.nanoTime()
         );
         ShardRouting primaryShard = subjectRoutings.primaryShard();

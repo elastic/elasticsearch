@@ -43,8 +43,10 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.InstanceHasMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
+import org.elasticsearch.cluster.metadata.DesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.InternalDesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -525,6 +527,9 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 rerouteServiceReference::get
             );
+            final DesiredNodesMembershipService desiredNodesMembershipService = InternalDesiredNodesMembershipService.create(
+                clusterService
+            );
             final ClusterModule clusterModule = new ClusterModule(
                 settings,
                 clusterService,
@@ -532,7 +537,8 @@ public class Node implements Closeable {
                 clusterInfoService,
                 snapshotsInfoService,
                 threadPool.getThreadContext(),
-                systemIndices
+                systemIndices,
+                desiredNodesMembershipService
             );
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));

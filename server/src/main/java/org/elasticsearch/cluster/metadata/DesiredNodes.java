@@ -180,4 +180,8 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
             }, TreeMap::new))
         );
     }
+
+    public record ClusterMembers(Set<DesiredNode> desiredNodes) {
+        public static final ClusterMembers EMPTY = new ClusterMembers(Set.of());
+    }
 }

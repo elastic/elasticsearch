@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -304,6 +305,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             state,
             null,
             null,
+            DesiredNodes.ClusterMembers.EMPTY,
             System.nanoTime()
         );
         randomAllocate(allocation);
@@ -335,6 +337,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             state,
             null,
             null,
+            DesiredNodes.ClusterMembers.EMPTY,
             System.nanoTime()
         );
         startAll(allocation);

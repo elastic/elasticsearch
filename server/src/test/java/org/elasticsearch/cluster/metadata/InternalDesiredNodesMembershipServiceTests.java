@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class DesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
+public class InternalDesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
     private TestThreadPool threadPool;
     private ClusterService clusterService;
 
@@ -61,7 +61,7 @@ public class DesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
     }
 
     public void testDesiredNodeIsConsideredAsMemberOnceSeen() {
-        final var tracker = DesiredNodesMembershipService.create(clusterService);
+        final var tracker = InternalDesiredNodesMembershipService.create(clusterService);
 
         applyClusterState("add new nodes", this::withNewNodes);
 
@@ -90,7 +90,7 @@ public class DesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
     }
 
     public void testMembershipIsUpdatedAfterDesiredNodesAreUpdated() {
-        final var tracker = DesiredNodesMembershipService.create(clusterService);
+        final var tracker = InternalDesiredNodesMembershipService.create(clusterService);
 
         applyClusterState("add new nodes", this::withNewNodes);
 
@@ -134,7 +134,7 @@ public class DesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
     }
 
     public void testMoveToNewHistoryIdClearsPreviousMembers() {
-        final var tracker = DesiredNodesMembershipService.create(clusterService);
+        final var tracker = InternalDesiredNodesMembershipService.create(clusterService);
 
         applyClusterState("add a few nodes", this::withNewNodes);
 
@@ -180,7 +180,7 @@ public class DesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
         applyClusterState("add new nodes", this::withNewNodes);
         applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
 
-        final var tracker = DesiredNodesMembershipService.create(clusterService);
+        final var tracker = InternalDesiredNodesMembershipService.create(clusterService);
 
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
 
@@ -192,7 +192,7 @@ public class DesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
     }
 
     public void testRemoveDesiredNodes() {
-        final var tracker = DesiredNodesMembershipService.create(clusterService);
+        final var tracker = InternalDesiredNodesMembershipService.create(clusterService);
 
         applyClusterState("add new nodes", this::withNewNodes);
         applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);

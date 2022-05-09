@@ -8,6 +8,14 @@
 
 package org.elasticsearch.cluster.metadata;
 
-public interface DesiredNodesMembershipService {
-    DesiredNodes.ClusterMembers getMembers();
+public class EmptyDesiredNodesMembershipService implements DesiredNodesMembershipService {
+
+    public static final DesiredNodesMembershipService INSTANCE = new EmptyDesiredNodesMembershipService();
+
+    private EmptyDesiredNodesMembershipService() {}
+
+    @Override
+    public DesiredNodes.ClusterMembers getMembers() {
+        return DesiredNodes.ClusterMembers.EMPTY;
+    }
 }

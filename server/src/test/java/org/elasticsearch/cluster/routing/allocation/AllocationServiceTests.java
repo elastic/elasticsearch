@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.metadata.EmptyDesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
+import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
@@ -129,7 +131,8 @@ public class AllocationServiceTests extends ESTestCase {
                 }
             },
             new EmptyClusterInfoService(),
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            EmptyDesiredNodesMembershipService.INSTANCE
         );
 
         final String unrealisticAllocatorName = "unrealistic";
@@ -228,7 +231,7 @@ public class AllocationServiceTests extends ESTestCase {
     }
 
     public void testExplainsNonAllocationOfShardWithUnknownAllocator() {
-        final AllocationService allocationService = new AllocationService(null, null, null, null);
+        final AllocationService allocationService = new AllocationService(null, null, null, null, (SnapshotsInfoService) null);
         allocationService.setExistingShardsAllocators(
             Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator())
         );

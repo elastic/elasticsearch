@@ -63,7 +63,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             IndexMode.TIME_SERIES
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
-            .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
+            .template(
+                new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
+            )
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();
@@ -161,7 +163,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             dsIndexMode
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
-            .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
+            .template(
+                new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
+            )
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();
@@ -245,7 +249,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             IndexMode.TIME_SERIES
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
-            .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
+            .template(
+                new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
+            )
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();

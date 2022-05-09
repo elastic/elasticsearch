@@ -19,7 +19,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DoubleFieldMapperTests extends FloatingPointNumberFieldMapperTestCase {
+public class DoubleFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected Number missingValue() {

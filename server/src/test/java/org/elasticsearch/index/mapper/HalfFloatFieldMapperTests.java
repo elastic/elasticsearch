@@ -17,7 +17,7 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.util.List;
 
-public class HalfFloatFieldMapperTests extends FloatingPointNumberFieldMapperTestCase {
+public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected Number missingValue() {

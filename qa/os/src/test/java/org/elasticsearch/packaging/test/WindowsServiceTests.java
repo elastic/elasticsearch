@@ -220,24 +220,6 @@ public class WindowsServiceTests extends PackagingTestCase {
         }
     }
 
-    public void test60Manager() throws IOException {
-        Path serviceMgr = installation.bin("elasticsearch-service-mgr.exe");
-        Path tmpServiceMgr = serviceMgr.getParent().resolve(serviceMgr.getFileName() + ".tmp");
-        Files.move(serviceMgr, tmpServiceMgr);
-        Path fakeServiceMgr = serviceMgr.getParent().resolve("elasticsearch-service-mgr.bat");
-        Files.write(fakeServiceMgr, Arrays.asList("echo \"Fake Service Manager GUI\""));
-        Shell sh = new Shell();
-        Result result = sh.run(serviceScript + " manager");
-        assertThat(result.stdout(), containsString("Fake Service Manager GUI"));
-
-        // check failure too
-        Files.write(fakeServiceMgr, Arrays.asList("echo \"Fake Service Manager GUI Failure\"", "exit 1"));
-        result = sh.runIgnoreExitCode(serviceScript + " manager");
-        TestCase.assertEquals(1, result.exitCode());
-        assertThat(result.stderr(), containsString("Fake Service Manager GUI Failure"));
-        Files.move(tmpServiceMgr, serviceMgr);
-    }
-
     public void test80JavaOptsInEnvVar() throws Exception {
         sh.getEnv().put("ES_JAVA_OPTS", "-Xmx2g -Xms2g");
         sh.run(serviceScript + " install");

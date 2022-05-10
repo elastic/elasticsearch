@@ -82,11 +82,11 @@ class Elasticsearch {
                     } catch (IOException e) {}
                     if (msg == BootstrapInfo.SERVER_SHUTDOWN_MARKER) {
                         out.println("Got shutdown signal from parent process");
-                        System.exit(0);
+                        exit(0);
                     } else {
                         err.println("Parent process died, shutting down...");
                         // parent process died or there was an error reading from it
-                        System.exit(1);
+                        exit(1);
                     }
                 }).start();
             }

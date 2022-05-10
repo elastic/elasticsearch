@@ -89,6 +89,7 @@ class ServerCli extends EnvironmentAwareCommand {
             logger.info("Subprocess is started and we are daemonized, detaching...");
             server.detach();
             this.server = null; // clear the handle, we don't want to shut it down now that we are started
+            logger.info("exiting...");
             return;
         }
 

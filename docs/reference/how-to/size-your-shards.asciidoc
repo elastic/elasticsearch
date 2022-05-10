@@ -69,15 +69,18 @@ heap memory.
 
 Every mapped field also carries some overhead in terms of memory usage and disk
 space. While the exact amount resource usage of each additional field depends
-on the type of field, an additional 1024B in memory use  for each additional
+on the type of field, an additional 1KB in memory use  for each additional
 mapped field on data nodes is a good approximation in most cases.
 As a result, the more mapped fields you have per index, the fewer
 indices and shards each individual data node will be able to hold,
 all other things being equal. In addition to the per field overhead you should
-at least have an additional 512MB of heap available per data node.
+have heap available for the base Elasticsearch heap usage as well as the heap
+usage of the workload. For a small workload, 512MB of heap in addition to the
+per field overhead suffice in many cases. For tight workloads, it is possible to
+go even lower.
 For example, holding 1000 indices that each contain 4000 fields will require
 1000 × 4000 × 1024B = 4GB for the fields and another 512MB for a total of
-at least 4.5GB on the data node.
+at least 4.5GB heap on the data node.
 By default {es} will automatically create a mapping for every field in
 every document it indexes, but you can switch off this behaviour to
 <<explicit-mapping,take control of your mappings>>.

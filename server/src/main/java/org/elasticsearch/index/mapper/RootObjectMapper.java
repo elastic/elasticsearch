@@ -508,4 +508,9 @@ public class RootObjectMapper extends ObjectMapper {
         }
         return false;
     }
+
+    @Override
+    protected void startSyntheticField(XContentBuilder b) throws IOException {
+        b.startObject();
+    }
 }

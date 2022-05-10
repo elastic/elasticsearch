@@ -303,7 +303,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 modelId,
                 modelBytes,
                 threadsPerAllocation == null ? legacyInferenceThreads : threadsPerAllocation,
-                numberOfAllocations == null ? numberOfAllocations : legacyModelThreads,
+                numberOfAllocations == null ? legacyModelThreads : numberOfAllocations,
                 queueCapacity
             );
         }

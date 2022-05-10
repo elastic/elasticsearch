@@ -122,7 +122,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
     @Unroll
     def "test cluster modules #propertyName change is detected"() {
         given:
-        addSubProject("test-module") << """
+        subProject("test-module") << """
             plugins {
                 id 'elasticsearch.esplugin'
             }

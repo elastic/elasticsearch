@@ -10,9 +10,7 @@ package org.elasticsearch.upgrades;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;

@@ -129,7 +129,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     desiredNodesMembers,
                     n,
                     Decision.Type.NO,
-                    "index has a preference for tiers [data_warm,data_cold] " + "and node does not meet the required [data_cold] tier"
+                    "index has a preference for tiers [data_warm,data_cold] and node does not meet the required [data_cold] tier"
                 );
             }
 
@@ -154,7 +154,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     new DesiredNodes.ClusterMembers(Set.of(WARM_DESIRED_NODE)),
                     node,
                     Decision.Type.NO,
-                    "index has a preference for tiers [data_cold,data_warm] " + "and node does not meet the required [data_warm] tier"
+                    "index has a preference for tiers [data_cold,data_warm] and node does not meet the required [data_warm] tier"
                 );
             }
 
@@ -349,8 +349,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         {
             // When there are desired nodes that haven't joined the cluster yet, those are not considered
             final var nodes = DiscoveryNodes.builder().add(WARM_NODE).add(CONTENT_NODE).build();
-            final var desiredNodes = new DesiredNodes.ClusterMembers(Set.of(WARM_DESIRED_NODE, CONTENT_DESIRED_NODE)); // HOT_DESIRED_NODE
-                                                                                                                       // is member yet
+            // i.e. HOT_DESIRED_NODE might be part of the DesiredNodes, but it is not part of the cluster yet
+            final var desiredNodes = new DesiredNodes.ClusterMembers(Set.of(WARM_DESIRED_NODE, CONTENT_DESIRED_NODE));
 
             assertThat(
                 DataTierAllocationDecider.preferredAvailableTier(DataTier.parseTierList("data"), nodes, desiredNodes),

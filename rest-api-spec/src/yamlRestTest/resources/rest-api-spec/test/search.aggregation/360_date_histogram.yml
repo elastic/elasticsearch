@@ -389,8 +389,8 @@ setup:
 ---
 "Daylight with offset date_histogram test":
   - skip:
-      version: "- 8.2.99"
-      reason: Bug fixed in 8.3.0
+      version: "- 7.17.0"
+      reason: Bug fixed before 7.17.0
 
   - do:
       search:
@@ -416,10 +416,6 @@ setup:
 
 ---
 "Daylight without offset date_histogram test":
-  - skip:
-      version: "- 8.2.99"
-      reason: Bug fixed in 8.3.0
-
   - do:
       search:
         index: timezone_daylight_test

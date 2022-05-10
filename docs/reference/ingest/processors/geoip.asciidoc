@@ -329,7 +329,7 @@ of each node’s `elasticsearch.yml` file.
 
 [IMPORTANT]
 ====
-In air gapped environments, the Elasticsearch nodes require access to `https://geoip.elastic.co`
+In air gapped environments, the {es} nodes require access to `https://geoip.elastic.co`
 and `https://storage.googleapis.com/`.
 ====
 

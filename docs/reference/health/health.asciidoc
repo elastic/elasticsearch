@@ -38,6 +38,10 @@ is controlled by the worst component status.
 [[health-api-query-params]]
 ==== {api-query-parms-title}
 
+`explain`::
+    (Optional, Boolean) If `true`, the response includes additional details that help explain the status of each non-green indicator.
+    Defaults to `true`.
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
@@ -57,7 +61,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
 `components`::
     (object) Information about the health of the cluster components.
 
-[[cluster-health-api-example]]
+[[health-api-example]]
 ==== {api-examples-title}
 
 [source,console]

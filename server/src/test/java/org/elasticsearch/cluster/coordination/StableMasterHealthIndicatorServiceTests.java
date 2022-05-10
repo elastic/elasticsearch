@@ -18,10 +18,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
-import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -118,16 +116,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
         assertThat(result.summary(), equalTo("The master has changed 4 times in the last 30m"));
-        assertThat(1, equalTo(result.impacts().size()));
-        HealthIndicatorImpact impact = result.impacts().get(0);
-        assertThat(3, equalTo(impact.severity()));
-        assertThat(
-            "The cluster currently has a master node, but having multiple master node changes in a short time is an indicator that the "
-                + "cluster is at risk of of not being able to create, delete, or rebalance indices",
-            equalTo(impact.impactDescription())
-        );
-        assertThat(1, equalTo(impact.impactAreas().size()));
-        assertThat(ImpactArea.INGEST, equalTo(impact.impactAreas().get(0)));
+        assertThat(3, equalTo(result.impacts().size()));
         SimpleHealthIndicatorDetails details = (SimpleHealthIndicatorDetails) result.details();
         assertThat(2, equalTo(details.details().size()));
         // We don't show nulls in the recent_masters list:
@@ -180,12 +169,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
         assertThat(result.summary(), startsWith("The cluster's master has alternated between "));
         assertThat(result.summary(), endsWith("and no master multiple times in the last 30m"));
-        assertThat(result.impacts().size(), equalTo(1));
-        HealthIndicatorImpact impact = result.impacts().get(0);
-        assertThat(impact.severity(), equalTo(3));
-        assertThat(impact.impactDescription(), equalTo("The cluster is at risk of not being able to create, delete, or rebalance indices"));
-        assertThat(impact.impactAreas().size(), equalTo(1));
-        assertThat(impact.impactAreas().get(0), equalTo(ImpactArea.INGEST));
+        assertThat(result.impacts().size(), equalTo(3));
         SimpleHealthIndicatorDetails details = (SimpleHealthIndicatorDetails) result.details();
         assertThat(details.details().size(), equalTo(1));
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
@@ -226,12 +210,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
         assertThat(result.summary(), startsWith("The cluster's master has alternated between "));
         assertThat(result.summary(), endsWith("and no master multiple times in the last 30m"));
-        assertThat(result.impacts().size(), equalTo(1));
-        HealthIndicatorImpact impact = result.impacts().get(0);
-        assertThat(impact.severity(), equalTo(3));
-        assertThat(impact.impactDescription(), equalTo("The cluster is at risk of not being able to create, delete, or rebalance indices"));
-        assertThat(impact.impactAreas().size(), equalTo(1));
-        assertThat(impact.impactAreas().get(0), equalTo(ImpactArea.INGEST));
+        assertThat(result.impacts().size(), equalTo(3));
         SimpleHealthIndicatorDetails details = (SimpleHealthIndicatorDetails) result.details();
         assertThat(details.details().size(), equalTo(3));
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();

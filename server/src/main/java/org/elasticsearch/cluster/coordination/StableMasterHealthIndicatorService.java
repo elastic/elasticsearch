@@ -86,6 +86,19 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private static final int DEFAULT_ACCEPTABLE_IDENTITY_CHANGES = 3;
     private static final int SMALLEST_ALLOWED_ACCEPTABLE_IDENTITY_CHANGES = 0;
 
+    // Keys for the details map:
+    private static final String DETAILS_CURRENT_MASTER = "current_master";
+    private static final String DETAILS_RECENT_MASTERS = "recent_masters";
+    private static final String DETAILS_EXCEPTION_FETCHING_HISTORY = "exception_fetching_history";
+    private static final String DETAILS_EXCEPTION_FETCHING_HISTORY_STACK_TRACE = "exception_fetching_history_stack_trace";
+
+    // Impacts of having an unstable master:
+    private static final String UNSTABLE_MASTER_INGEST_IMPACT = "The cluster cannot create, delete, or rebalance indices, and cannot "
+        + "insert or update documents.";
+    private static final String UNSTABLE_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT = "Scheduled tasks such as Watcher, ILM, and SLM will not "
+        + "work. The _cat APIs will not work.";
+    private static final String UNSTABLE_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work.";
+
     /**
      * The severity to use for a low-severity impact in this indicator
      */
@@ -182,23 +195,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             masterChanges,
             localMasterHistory.getMaxHistoryAge()
         );
-        Map<String, Object> details = new HashMap<>();
-        Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
-        List<UserAction> userActions = new ArrayList<>();
-        impacts.add(
-            new HealthIndicatorImpact(
-                LOW_IMPACT_SEVERITY,
-                "The cluster currently has a master node, but having multiple master node changes in a short time is an indicator "
-                    + "that the cluster is at risk of of not being able to create, delete, or rebalance indices",
-                List.of(ImpactArea.INGEST)
-            )
-        );
-        if (explain) {
-            List<DiscoveryNode> recentMasters = localMasterHistory.getNodes();
-            details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
-            // Having the nulls in the recent masters xcontent list is not helpful, so we filter them out:
-            details.put("recent_masters", recentMasters.stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList());
-        }
+        Map<String, Object> details = getSimpleDetailsMap(explain, localMasterHistory);
+        Collection<HealthIndicatorImpact> impacts = getUnstableMasterImpacts();
+        List<UserAction> userActions = getContactSupportUserActions(explain);
         return createIndicator(
             stableMasterStatus,
             summary,
@@ -206,6 +205,58 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             impacts,
             userActions
         );
+    }
+
+    /**
+     * This returns an empty map if explain is false, otherwise a map of details containing only "current_master" and "recent_masters".
+     * @param explain If true, the map will contain "current_master" and "recent_masters". Otherwise it will be empty.
+     * @param localMasterHistory The MasterHistory object to pull current and recent master info from
+     * @return An empty map if explain is false, otherwise a map of details containing only "current_master" and "recent_masters"
+     */
+    private Map<String, Object> getSimpleDetailsMap(boolean explain, MasterHistory localMasterHistory) {
+        Map<String, Object> details = new HashMap<>();
+        if (explain) {
+            List<DiscoveryNode> recentMasters = localMasterHistory.getNodes();
+            details.put(DETAILS_CURRENT_MASTER, new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
+            // Having the nulls in the recent masters xcontent list is not helpful, so we filter them out:
+            details.put(
+                DETAILS_RECENT_MASTERS,
+                recentMasters.stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList()
+            );
+        }
+        return details;
+    }
+
+    /**
+     * This method returns the only user action that is relevant when the master is unstable -- contact support.
+     * @param explain If true, the returned list includes a UserAction to contact support, otherwise an empty list
+     * @return a single UserAction instructing users to contact support.
+     */
+    private List<UserAction> getContactSupportUserActions(boolean explain) {
+        if (explain) {
+            UserAction.Definition contactSupport = new UserAction.Definition(
+                "contact_support",
+                "The Elasticsearch cluster does not have a stable master node. This almost always requires expert assistance. Please contact "
+                    + "Elastic support to resolve the problem.",
+                null
+            );
+            UserAction userAction = new UserAction(contactSupport, null);
+            return List.of(userAction);
+        } else {
+            return List.of();
+        }
+    }
+
+    /**
+     * Returns the list of the impacts of an unstable master node.
+     * @return The list of the impacts of an unstable master node
+     */
+    private List<HealthIndicatorImpact> getUnstableMasterImpacts() {
+        List<HealthIndicatorImpact> impacts = new ArrayList<>();
+        impacts.add(new HealthIndicatorImpact(1, UNSTABLE_MASTER_INGEST_IMPACT, List.of(ImpactArea.INGEST)));
+        impacts.add(new HealthIndicatorImpact(1, UNSTABLE_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)));
+        impacts.add(new HealthIndicatorImpact(3, UNSTABLE_MASTER_BACKUP_IMPACT, List.of(ImpactArea.BACKUP)));
+        return impacts;
     }
 
     /**
@@ -220,11 +271,11 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @return The HealthIndicatorResult for the given localMasterHistory
      */
     private HealthIndicatorResult calculateWhenMasterHasFlappedNull(MasterHistory localMasterHistory, boolean explain) {
-        HealthStatus stableMasterStatus;
-        String summary;
+        final HealthStatus stableMasterStatus;
+        final String summary;
         Map<String, Object> details = new HashMap<>();
-        Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
-        List<UserAction> userActions = new ArrayList<>();
+        final Collection<HealthIndicatorImpact> impacts;
+        final List<UserAction> userActions;
         DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
         logger.trace("One master has gone null {} or more times recently: {}", acceptableNullTransitions + 1, master);
         boolean localNodeIsMaster = clusterService.localNode().equals(master);
@@ -256,27 +307,24 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 localMasterHistory.getNodes().stream().filter(Objects::nonNull).collect(Collectors.toSet()),
                 localMasterHistory.getMaxHistoryAge()
             );
-            impacts.add(
-                new HealthIndicatorImpact(
-                    LOW_IMPACT_SEVERITY,
-                    "The cluster is at risk of not being able to create, delete, or rebalance indices",
-                    List.of(ImpactArea.INGEST)
-                )
-            );
+            impacts = getUnstableMasterImpacts();
             if (explain) {
-                details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
+                details.put(DETAILS_CURRENT_MASTER, new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
                 if (remoteHistoryException != null) {
-                    details.put("exception_fetching_history", remoteHistoryException.getMessage());
+                    details.put(DETAILS_EXCEPTION_FETCHING_HISTORY, remoteHistoryException.getMessage());
                     StringWriter stringWriter = new StringWriter();
                     remoteHistoryException.printStackTrace(new PrintWriter(stringWriter));
                     String remoteHistoryExceptionStackTrace = stringWriter.toString();
-                    details.put("exception_fetching_history_stack_trace", remoteHistoryExceptionStackTrace);
+                    details.put(DETAILS_EXCEPTION_FETCHING_HISTORY_STACK_TRACE, remoteHistoryExceptionStackTrace);
                 }
             }
+            userActions = getContactSupportUserActions(explain);
         } else {
             logger.trace("This node thinks the master is unstable, but the master node {} thinks it is stable", master);
             stableMasterStatus = HealthStatus.GREEN;
             summary = "The cluster has a stable master node";
+            impacts = List.of();
+            userActions = List.of();
         }
         return createIndicator(
             stableMasterStatus,
@@ -295,15 +343,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         HealthStatus stableMasterStatus = HealthStatus.GREEN;
         String summary = "The cluster has a stable master node";
         Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
-        List<UserAction> userActions = new ArrayList<>();
+        List<UserAction> userActions = List.of();
         logger.trace("The cluster has a stable master node");
-        Map<String, Object> details = new HashMap<>();
-        if (explain) {
-            List<DiscoveryNode> recentMasters = localMasterHistory.getNodes();
-            details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
-            // Having the nulls in the recent masters xcontent list is not helpful, so we filter them out:
-            details.put("recent_masters", recentMasters.stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList());
-        }
+        Map<String, Object> details = getSimpleDetailsMap(explain, localMasterHistory);
         return createIndicator(stableMasterStatus, summary, new SimpleHealthIndicatorDetails(details), impacts, userActions);
     }
 
@@ -318,8 +360,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         HealthStatus stableMasterStatus = HealthStatus.RED;
         String summary = "Placeholder summary";
         Map<String, Object> details = new HashMap<>();
-        Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
-        List<UserAction> userActions = new ArrayList<>();
+        Collection<HealthIndicatorImpact> impacts = getUnstableMasterImpacts();
+        List<UserAction> userActions = getContactSupportUserActions(explain);
         return createIndicator(
             stableMasterStatus,
             summary,

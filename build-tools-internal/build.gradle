@@ -103,6 +103,10 @@ gradlePlugin {
       id = 'elasticsearch.internal-test-rerun'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin'
     }
+    javaDoc {
+      id = 'elasticsearch.java-doc'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin'
+    }
     java {
       id = 'elasticsearch.java'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin'

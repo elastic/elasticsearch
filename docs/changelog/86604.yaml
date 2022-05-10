@@ -1,0 +1,6 @@
+pr: 86604
+summary: Internal role names no longer reserved
+area: Authorization
+type: enhancement
+issues:
+ - 86480

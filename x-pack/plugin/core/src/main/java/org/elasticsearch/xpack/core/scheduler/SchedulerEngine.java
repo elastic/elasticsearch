@@ -166,7 +166,7 @@ public class SchedulerEngine {
     public boolean remove(String jobId) {
         ActiveSchedule removedSchedule = schedules.remove(jobId);
         if (removedSchedule != null) {
-            logger.debug(() -> new ParameterizedMessage("removed job [{}]", jobId));
+            logger.debug(() -> "removed job [" + jobId + "]");
             removedSchedule.cancel();
         }
         return removedSchedule != null;
@@ -186,7 +186,7 @@ public class SchedulerEngine {
                 listener.triggered(event);
             } catch (final Exception e) {
                 // do not allow exceptions to escape this method; we should continue to notify listeners and schedule the next run
-                logger.warn(new ParameterizedMessage("listener failed while handling triggered event [{}]", name), e);
+                logger.warn(() -> "listener failed while handling triggered event [" + name + "]", e);
             }
         }
     }

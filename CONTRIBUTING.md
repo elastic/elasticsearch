@@ -452,7 +452,7 @@ causes and their causes, as well as any suppressed exceptions and so on:
 If you wish to use placeholders and an exception at the same time, construct a
 `ParameterizedMessage`:
 
-    logger.debug(new ParameterizedMessage("failed at offset [{}]", offset), exception);
+    logger.debug(() -> "failed at offset [" + offset + "]", exception);
 
 You can also use a `Supplier<ParameterizedMessage>` to avoid constructing
 expensive messages that will usually be discarded:
@@ -650,7 +650,7 @@ which it will not recover. For instance, the `FsHealthService` uses `ERROR`
 logs to record that the data path failed some basic health checks and hence the
 node cannot continue to operate as a member of the cluster:
 
-    logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
+    logger.error(() -> "health check of [" + path + "] failed", ex);
 
 Errors like this should be very rare. When in doubt, prefer `WARN` to `ERROR`.
 

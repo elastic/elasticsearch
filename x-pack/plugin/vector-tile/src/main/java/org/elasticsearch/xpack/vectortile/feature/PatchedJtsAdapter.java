@@ -152,6 +152,8 @@ final class PatchedJtsAdapter {
                 // Check CCW Winding (must be positive area in original coordinate system, MVT is positive-y-down,
                 // so inequality is flipped)
                 // See: https://docs.mapbox.com/vector-tiles/specification/#winding-order
+                // This equality is a change from the original which is taken from
+                // https://github.com/wdtinc/mapbox-vector-tile-java/pull/41
                 if (exteriorArea > 0d) {
                     CoordinateArrays.reverse(exteriorRing.getCoordinates());
                 }
@@ -172,6 +174,8 @@ final class PatchedJtsAdapter {
                     // Check CW Winding (must be negative area in original coordinate system, MVT is positive-y-down,
                     // so inequality is flipped)
                     // See: https://docs.mapbox.com/vector-tiles/specification/#winding-order
+                    // This equality is a change from the original which is taken from
+                    // https://github.com/wdtinc/mapbox-vector-tile-java/pull/41
                     if (interiorArea < 0d) {
                         CoordinateArrays.reverse(nextInteriorRing.getCoordinates());
                     }

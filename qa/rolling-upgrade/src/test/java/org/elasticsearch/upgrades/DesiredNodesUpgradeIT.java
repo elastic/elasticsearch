@@ -70,34 +70,34 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
     private String desiredNodesWithRangeOrFloatProcessors() {
         if (randomBoolean()) {
             return """
-            {
-                "nodes" : [
-                    {
-                        "settings" : {
-                             "node.name" : "instance-000187"
-                        },
-                        "processors_range" : {"min": 9.0, "max": 10.0},
-                        "memory" : "58gb",
-                        "storage" : "1700gb",
-                        "node_version" : "99.1.0"
-                    }
-                ]
-            }""";
+                {
+                    "nodes" : [
+                        {
+                            "settings" : {
+                                 "node.name" : "instance-000187"
+                            },
+                            "processors_range" : {"min": 9.0, "max": 10.0},
+                            "memory" : "58gb",
+                            "storage" : "1700gb",
+                            "node_version" : "99.1.0"
+                        }
+                    ]
+                }""";
         } else {
             return """
-            {
-                "nodes" : [
-                    {
-                        "settings" : {
-                             "node.name" : "instance-000187"
-                        },
-                        "processors" : 9.5,
-                        "memory" : "58gb",
-                        "storage" : "1700gb",
-                        "node_version" : "99.1.0"
-                    }
-                ]
-            }""";
+                {
+                    "nodes" : [
+                        {
+                            "settings" : {
+                                 "node.name" : "instance-000187"
+                            },
+                            "processors" : 9.5,
+                            "memory" : "58gb",
+                            "storage" : "1700gb",
+                            "node_version" : "99.1.0"
+                        }
+                    ]
+                }""";
         }
     }
 

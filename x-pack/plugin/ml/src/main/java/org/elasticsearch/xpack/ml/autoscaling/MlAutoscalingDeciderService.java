@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -50,7 +51,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -172,7 +172,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             .map(sizeFunction)
             .map(l -> l == null ? 0L : l)
             .sorted(Comparator.comparingLong(Long::longValue).reversed())
-            .toList();
+            .collect(Collectors.toList());
 
         long tierMemory = 0L;
         // Node memory needs to be AT LEAST the size of the largest job + the required overhead.
@@ -260,7 +260,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
     private static Collection<PersistentTask<?>> anomalyDetectionTasks(PersistentTasksCustomMetadata tasksCustomMetadata) {
         if (tasksCustomMetadata == null) {
-            return Collections.emptyList();
+            return List.of();
         }
 
         return tasksCustomMetadata.findTasks(MlTasks.JOB_TASK_NAME, t -> taskStateFilter(getJobStateModifiedForReassignments(t)));
@@ -268,7 +268,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
     private static Collection<PersistentTask<?>> snapshotUpgradeTasks(PersistentTasksCustomMetadata tasksCustomMetadata) {
         if (tasksCustomMetadata == null) {
-            return Collections.emptyList();
+            return List.of();
         }
 
         return tasksCustomMetadata.findTasks(MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME, t -> taskStateFilter(getSnapshotUpgradeState(t)));
@@ -276,7 +276,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
     private static Collection<PersistentTask<?>> dataframeAnalyticsTasks(PersistentTasksCustomMetadata tasksCustomMetadata) {
         if (tasksCustomMetadata == null) {
-            return Collections.emptyList();
+            return List.of();
         }
 
         return tasksCustomMetadata.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, t -> taskStateFilter(getDataFrameAnalyticsState(t)));
@@ -285,7 +285,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
     @SuppressWarnings("unchecked")
     private static Collection<PersistentTask<DatafeedParams>> datafeedTasks(PersistentTasksCustomMetadata tasksCustomMetadata) {
         if (tasksCustomMetadata == null) {
-            return Collections.emptyList();
+            return List.of();
         }
 
         return tasksCustomMetadata.findTasks(MlTasks.DATAFEED_TASK_NAME, t -> true)
@@ -379,6 +379,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         final ClusterState clusterState = context.state();
 
         PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        logger.info("TEMP - REMOVE! PersistentTasksCustomMetadata: " + ((tasks == null) ? "null" : Strings.toString(tasks)));
         Collection<PersistentTask<?>> anomalyDetectionTasks = anomalyDetectionTasks(tasks);
         Collection<PersistentTask<?>> snapshotUpgradeTasks = snapshotUpgradeTasks(tasks);
         Collection<PersistentTask<?>> dataframeAnalyticsTasks = dataframeAnalyticsTasks(tasks);
@@ -406,6 +407,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         final int numAnomalyJobsInQueue = NUM_ANOMALY_JOBS_IN_QUEUE.get(configuration);
 
         final List<DiscoveryNode> mlNodes = getMlNodes(clusterState);
+        logger.info("TEMP - REMOVE! mlNodes: " + mlNodes);
         final NativeMemoryCapacity currentScale = currentScale(mlNodes);
 
         final MlScalingReason.Builder reasonBuilder = MlScalingReason.builder()
@@ -441,7 +443,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         // We don't need to check anything as there are no tasks
         // This is a quick path to downscale.
         // simply return `0` for scale down if delay is satisfied
-        if (anomalyDetectionTasks.isEmpty() && dataframeAnalyticsTasks.isEmpty() && modelAssignments.isEmpty()) {
+        if (anomalyDetectionTasks.isEmpty()
+            && snapshotUpgradeTasks.isEmpty()
+            && dataframeAnalyticsTasks.isEmpty()
+            && modelAssignments.isEmpty()) {
             long msLeftToScale = msLeftToDownScale(configuration);
             if (msLeftToScale > 0) {
                 return new AutoscalingDeciderResult(
@@ -545,16 +550,28 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         }
 
         long largestJobOrModel = Math.max(
-            anomalyDetectionTasks.stream()
-                .filter(PersistentTask::isAssigned)
-                // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
-                .mapToLong(t -> {
-                    Long mem = this.getAnomalyMemoryRequirement(t);
-                    assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
-                    return mem;
-                })
-                .max()
-                .orElse(0L),
+            Math.max(
+                anomalyDetectionTasks.stream()
+                    .filter(PersistentTask::isAssigned)
+                    // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
+                    .mapToLong(t -> {
+                        Long mem = this.getAnomalyMemoryRequirement(t);
+                        assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
+                        return mem;
+                    })
+                    .max()
+                    .orElse(0L),
+                snapshotUpgradeTasks.stream()
+                    .filter(PersistentTask::isAssigned)
+                    // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
+                    .mapToLong(t -> {
+                        Long mem = this.getAnomalyMemoryRequirement(t);
+                        assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
+                        return mem;
+                    })
+                    .max()
+                    .orElse(0L)
+            ),
             dataframeAnalyticsTasks.stream()
                 .filter(PersistentTask::isAssigned)
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
@@ -573,11 +590,14 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
         // This is an exceptionally weird state
         // Our view of the memory is stale or we have tasks where the required job memory is 0, which should be impossible
-        if (largestJobOrModel == 0L && (dataframeAnalyticsTasks.size() + anomalyDetectionTasks.size() + modelAssignments.size() > 0)) {
+        if (largestJobOrModel == 0L
+            && (dataframeAnalyticsTasks.size() + anomalyDetectionTasks.size() + snapshotUpgradeTasks.size() + modelAssignments
+                .size() > 0)) {
             logger.warn(
-                "The calculated minimum required node size was unexpectedly [0] as there are "
-                    + "[{}] anomaly job tasks, [{}] data frame analytics tasks and [{}] model assignments",
+                "The calculated minimum required node size was unexpectedly [0] as there are [{}] anomaly job tasks, "
+                    + "[{}] model snapshot upgrade tasks, [{}] data frame analytics tasks and [{}] model assignments",
                 anomalyDetectionTasks.size(),
+                snapshotUpgradeTasks.size(),
                 dataframeAnalyticsTasks.size(),
                 modelAssignments.size()
             );
@@ -773,7 +793,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 "Checking for scale up -"
                     + " waiting data frame analytics jobs [{}]"
                     + " data frame analytics jobs allowed to queue [{}]"
-                    + " waiting anomaly detection jobs (including snapshot upgrades) [{}]"
+                    + " waiting anomaly detection jobs (including model snapshot upgrades) [{}]"
                     + " anomaly detection jobs allowed to queue [{}]"
                     + " waiting models [{}]"
                     + " future freed capacity [{}]"

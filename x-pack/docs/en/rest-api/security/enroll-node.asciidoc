@@ -27,7 +27,7 @@ caller to generate valid signed certificates for the HTTP layer of all nodes in 
 
 [source,console]
 --------------------------------------------------
-GET /security/enroll/node
+GET /_security/enroll/node
 --------------------------------------------------
 // TEST[skip:Determine behavior for keystore with multiple keys]
 The API returns a response such as

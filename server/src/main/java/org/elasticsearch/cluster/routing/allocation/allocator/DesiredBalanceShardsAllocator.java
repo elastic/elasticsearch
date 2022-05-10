@@ -81,16 +81,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 boolean shouldReroute = desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh);
                 boolean isFreshInput = isFresh(desiredBalanceInput);
 
-                logger.info("Processing input [{}]: shouldReroute={}, isFreshInput={}", desiredBalanceInput.index(), shouldReroute, isFreshInput);
-
                 if (shouldReroute) {
                     var future = new ListenableFuture<Void>();
                     if (isFreshInput) {
-                        future.addListener(ActionListener.wrap(() -> {
-                            Collection<ActionListener<Void>> listeners = pollListeners(desiredBalanceInput.index());
-                            logger.info("Executing {} listeners up to {}", listeners.size(), desiredBalanceInput.index());
-                            ActionListener.onResponse(listeners, null);
-                        }));
+                        future.addListener(
+                            ActionListener.wrap(() -> { ActionListener.onResponse(pollListeners(desiredBalanceInput.index()), null); })
+                        );
                     }
                     pendingRerouteFuture.set(future);
 
@@ -113,11 +109,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     });
                 } else {
                     if (isFreshInput) {
-                        pendingRerouteFuture.get().addListener(ActionListener.wrap(() -> {
-                            Collection<ActionListener<Void>> listeners = pollListeners(desiredBalanceInput.index());
-                            logger.info("Executing {} listeners up to {}", listeners.size(), desiredBalanceInput.index());
-                            ActionListener.onResponse(listeners, null);
-                        }));
+                        pendingRerouteFuture.get()
+                            .addListener(
+                                ActionListener.wrap(() -> { ActionListener.onResponse(pollListeners(desiredBalanceInput.index()), null); })
+                            );
                     }
                 }
             }

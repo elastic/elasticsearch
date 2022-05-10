@@ -344,11 +344,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
         var threadPool = new TestThreadPool(getTestName());
         RerouteService rerouteService = (r, p, l) -> threadPool.executor(ThreadPool.Names.CLUSTER_COORDINATION).submit(() -> {
-            // if (randomBoolean()) {
-            //     Thread.yield();// TODO make it slower occasionally?
-            // }
             reroutedIndices.addAll(createdIndices);
-            logger.info("Completed reroute for [{}]", reroutedIndices);
             l.onResponse(null);
         });
         var allocator = new ShardsAllocator() {
@@ -360,7 +356,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                     String indexName = unassignedIterator.next().getIndexName();
                     allocatedIndices.add(indexName);
                     unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
-                    logger.info("Allocated [{}]", indexName);
                 }
             }
 
@@ -376,38 +371,36 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).masterNodeId(discoveryNode.getId()))
             .build();
 
-        var indexNameGenerator = 0;
+        var indexNameGenerator = new AtomicInteger();
         var listenersCalled = new AtomicInteger();
 
         var iterations = 1_000;
         for (int i = 0; i < iterations; i++) {
             boolean addNewIndex = i == 0 || randomInt(9) == 0;
             if (addNewIndex) {
-                indexNameGenerator++;
-                var indexName = "index-" + indexNameGenerator;
+                var indexName = "index-" + indexNameGenerator.incrementAndGet();
                 var indexMetadata = createIndex(indexName);
                 clusterState = ClusterState.builder(clusterState)
                     .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadata, true))
                     .routingTable(RoutingTable.builder(clusterState.routingTable()).addAsNew(indexMetadata))
                     .build();
                 createdIndices.add(indexName);
-                logger.info("Created [{}]", indexName);
             }
             var indexName = "index-" + indexNameGenerator;
-            desiredBalanceShardsAllocator.allocate(
-                createAllocationFrom(clusterState),
-                ActionListener.wrap(() -> {
-                    assertThat("Listener should be called after index is rerouted", reroutedIndices, hasItem(indexName));
-                    listenersCalled.incrementAndGet();
-                })
-            );
+            desiredBalanceShardsAllocator.allocate(createAllocationFrom(clusterState), ActionListener.wrap(() -> {
+                assertThat("Listener should be called after index is rerouted", reroutedIndices, hasItem(indexName));
+                listenersCalled.incrementAndGet();
+            }));
         }
 
-        assertBusy(desiredBalanceShardsAllocator::isIdle);
+        assertBusy(() -> {
+            assertThat(createdIndices.size(), equalTo(indexNameGenerator.get()));
+            assertThat(allocatedIndices.size(), equalTo(indexNameGenerator.get()));
+            assertThat(reroutedIndices.size(), equalTo(indexNameGenerator.get()));
+            assertThat(listenersCalled.get(), equalTo(iterations));
+        });
 
         terminate(threadPool);
-        assertThat(allocatedIndices.size(), equalTo(indexNameGenerator));
-        assertThat(listenersCalled.get(), equalTo(iterations));
     }
 
     private static RoutingAllocation createAllocationFrom(ClusterState clusterState) {

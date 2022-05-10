@@ -1004,12 +1004,12 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "https://remote-elastic-cloud-deployment:9243",
+      "host": "http://otherhost:9200",
       "headers": {
-        "Authorization": "ApiKey <A_SECRET_API_KEY_VALUE_HERE>"
+        "Authorization": "ApiKey API_KEY_VALUE"
       }
     },
-    "index": "source-index",
+    "index": "my-index-000001",
     "query": {
       "match": {
         "test": "data"
@@ -1021,7 +1021,10 @@ POST _reindex
   }
 }
 ----
-// NOTCONSOLE
+// TEST[setup:host]
+// TEST[s/^/PUT my-index-000001\n/]
+// TEST[s/otherhost:9200",/\${host}"/]
+// TEST[s/API_KEY_VALUE",/\93116930-2ecb-4161-aa5e-4f3586c87ac6"/]
 
 Remote hosts have to be explicitly allowed in `elasticsearch.yml` using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list

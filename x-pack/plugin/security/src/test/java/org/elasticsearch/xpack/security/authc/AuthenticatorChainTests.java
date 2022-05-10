@@ -130,7 +130,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
         when(auditableRestRequest.tamperedRequest()).thenReturn(e);
         final Authenticator.Context context = createAuthenticatorContext(auditableRestRequest);
-        when(authenticationContextSerializer.readFromContext(any())).thenReturn(mock(Authentication.class));
+        when(authenticationContextSerializer.readFromContext(any())).thenReturn(AuthenticationTestHelper.builder().build());
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         authenticatorChain.authenticateAsync(context, future);

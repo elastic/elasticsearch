@@ -136,10 +136,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                 try {
                     p.reload(settingsWithKeystore);
                 } catch (final Exception e) {
-                    logger.warn(
-                        () -> "Reload failed for plugin ["+ p.getClass().getSimpleName() +"]",
-                        e
-                    );
+                    logger.warn(() -> "Reload failed for plugin [" + p.getClass().getSimpleName() + "]", e);
                     exceptions.add(e);
                 }
             });

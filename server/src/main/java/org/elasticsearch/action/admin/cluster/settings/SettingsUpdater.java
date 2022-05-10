@@ -168,8 +168,13 @@ final class SettingsUpdater {
         final Logger logger
     ) {
         logger.warn(
-            (Supplier<?>) () ->
-                "ignoring existing invalid " + settingType + " setting: [" + e.getKey() + "] with value [" + e.getValue() + "]; archiving",
+            (Supplier<?>) () -> "ignoring existing invalid "
+                + settingType
+                + " setting: ["
+                + e.getKey()
+                + "] with value ["
+                + e.getValue()
+                + "]; archiving",
             ex
         );
     }

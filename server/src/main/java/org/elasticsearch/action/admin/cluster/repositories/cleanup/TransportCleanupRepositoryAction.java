@@ -237,7 +237,11 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                             logger.debug("Finished repository cleanup operations on [{}][{}]", repositoryName, repositoryStateId);
                         } else {
                             logger.debug(
-                                () -> "Failed to finish repository cleanup operations on [" + repositoryName + "][" + repositoryStateId + "]",
+                                () -> "Failed to finish repository cleanup operations on ["
+                                    + repositoryName
+                                    + "]["
+                                    + repositoryStateId
+                                    + "]",
                                 failure
                             );
                         }
@@ -261,10 +265,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                     if (failure != null) {
                                         e.addSuppressed(failure);
                                     }
-                                    logger.warn(
-                                        () -> "[" + repositoryName + "] failed to remove repository cleanup task",
-                                        e
-                                    );
+                                    logger.warn(() -> "[" + repositoryName + "] failed to remove repository cleanup task", e);
                                     listener.onFailure(e);
                                 }
 
@@ -280,8 +281,11 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                         listener.onResponse(result);
                                     } else {
                                         logger.warn(
-                                            () ->
-                                                "Failed to run repository cleanup operations on [" + repositoryName + "][" + repositoryStateId + "]",
+                                            () -> "Failed to run repository cleanup operations on ["
+                                                + repositoryName
+                                                + "]["
+                                                + repositoryStateId
+                                                + "]",
                                             failure
                                         );
                                         listener.onFailure(failure);

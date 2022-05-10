@@ -27,7 +27,8 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
-import org.elasticsearch.index.query.TimeSeriesRange;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -107,7 +108,7 @@ public enum IndexMode {
         }
 
         @Override
-        public TimeSeriesRange getConfiguredTimestampRange(Settings indexSettings) {
+        public IndexLongFieldRange getConfiguredTimestampRange(Settings indexSettings) {
             return null;
         }
     },
@@ -193,10 +194,10 @@ public enum IndexMode {
         }
 
         @Override
-        public TimeSeriesRange getConfiguredTimestampRange(Settings indexSettings) {
+        public IndexLongFieldRange getConfiguredTimestampRange(Settings indexSettings) {
             long min = IndexSettings.TIME_SERIES_START_TIME.get(indexSettings).toEpochMilli();
             long max = IndexSettings.TIME_SERIES_END_TIME.get(indexSettings).toEpochMilli();
-            return new TimeSeriesRange(false, min, max);
+            return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max));
         }
     };
 
@@ -304,7 +305,7 @@ public enum IndexMode {
      *         Otherwise <code>null</code> is returned.
      */
     @Nullable
-    public abstract TimeSeriesRange getConfiguredTimestampRange(Settings indexSettings);
+    public abstract IndexLongFieldRange getConfiguredTimestampRange(Settings indexSettings);
 
     public static IndexMode fromString(String value) {
         return switch (value) {

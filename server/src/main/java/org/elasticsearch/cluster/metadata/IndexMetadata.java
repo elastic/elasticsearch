@@ -39,7 +39,6 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.TimeSeriesRange;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
@@ -933,7 +932,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      *         Otherwise <code>null</code> is returned.
      */
     @Nullable
-    public TimeSeriesRange getTimeSeriesTimestampRange() {
+    public IndexLongFieldRange getTimeSeriesTimestampRange() {
         return IndexSettings.MODE.get(settings).getConfiguredTimestampRange(settings);
     }
 

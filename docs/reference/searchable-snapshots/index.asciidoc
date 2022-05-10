@@ -133,7 +133,7 @@ retrieve the data needed to complete the search in parallel with the ongoing
 recovery. On-disk data is preserved across restarts, such that the node does
 not need to re-download data that is already stored on the node after a restart.
 +
-Indices managed by {ilm-init} are prefixed with `recovered-` when fully mounted.
+Indices managed by {ilm-init} are prefixed with `restored-` when fully mounted.
 
 [[partially-mounted]]
 Partially mounted index::
@@ -294,6 +294,10 @@ A snapshot of a {search-snap} index contains only a small amount of metadata
 which identifies its original index snapshot. It does not contain any data from
 the original index. The restore of a backup will fail to restore any
 {search-snap} indices whose original index snapshot is unavailable.
+
+Because {search-snap} indices are not regular indices, it is not possible to
+use a <<snapshots-source-only-repository,source-only repository>> to take
+snapshots of {search-snap} indices.
 
 [discrete]
 [[searchable-snapshots-reliability]]

@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -59,9 +58,9 @@ public class ResolveIndexTests extends ESTestCase {
         { ".test-system-index", false, false, true, false, null, new String[] {} } };
 
     private final Object[][] dataStreams = new Object[][] {
-        // name, timestampField, numBackingIndices
-        { "logs-mysql-prod", "@timestamp", 4 },
-        { "logs-mysql-test", "@timestamp", 2 } };
+        // name, numBackingIndices
+        { "logs-mysql-prod", 4 },
+        { "logs-mysql-test", 2 } };
 
     private Metadata metadata;
     private final IndexAbstractionResolver resolver = new IndexAbstractionResolver(TestIndexNameExpressionResolver.newInstance());
@@ -179,11 +178,7 @@ public class ResolveIndexTests extends ESTestCase {
             builder.put(index, false);
         }
 
-        DataStream ds = DataStreamTestHelper.newInstance(
-            dataStreamName,
-            createTimestampField("@timestamp"),
-            backingIndices.stream().map(IndexMetadata::getIndex).toList()
-        );
+        DataStream ds = DataStreamTestHelper.newInstance(dataStreamName, backingIndices.stream().map(IndexMetadata::getIndex).toList());
         builder.put(ds);
 
         IndicesOptions indicesOptions = IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
@@ -279,8 +274,8 @@ public class ResolveIndexTests extends ESTestCase {
             Object[] dataStreamInfo = findInfo(dataStreams, expectedDataStreams[k]);
             assertThat(dataStreamInfo, notNullValue());
             assertThat(resolvedDataStream.getName(), equalTo((String) dataStreamInfo[0]));
-            assertThat(resolvedDataStream.getTimestampField(), equalTo((String) dataStreamInfo[1]));
-            int numBackingIndices = (int) dataStreamInfo[2];
+            assertThat(resolvedDataStream.getTimestampField(), equalTo("@timestamp"));
+            int numBackingIndices = (int) dataStreamInfo[1];
             List<String> expectedBackingIndices = new ArrayList<>();
             for (int m = 1; m <= numBackingIndices; m++) {
                 expectedBackingIndices.add(DataStream.getDefaultBackingIndexName(resolvedDataStream.getName(), m, epochMillis));
@@ -295,8 +290,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<IndexMetadata> allIndices = new ArrayList<>();
         for (Object[] dsInfo : dataStreams) {
             String dataStreamName = (String) dsInfo[0];
-            String timestampField = (String) dsInfo[1];
-            int numBackingIndices = (int) dsInfo[2];
+            int numBackingIndices = (int) dsInfo[1];
             List<IndexMetadata> backingIndices = new ArrayList<>();
             for (int backingIndexNumber = 1; backingIndexNumber <= numBackingIndices; backingIndexNumber++) {
                 backingIndices.add(
@@ -305,11 +299,7 @@ public class ResolveIndexTests extends ESTestCase {
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = DataStreamTestHelper.newInstance(
-                dataStreamName,
-                createTimestampField(timestampField),
-                backingIndices.stream().map(IndexMetadata::getIndex).toList()
-            );
+            DataStream ds = DataStreamTestHelper.newInstance(dataStreamName, backingIndices.stream().map(IndexMetadata::getIndex).toList());
             builder.put(ds);
         }
 
@@ -373,7 +363,7 @@ public class ResolveIndexTests extends ESTestCase {
     private Object[] findBackingIndexInfo(Object[][] dataStreamSource, String indexName) {
         for (Object[] info : dataStreamSource) {
             String dataStreamName = (String) info[0];
-            int generations = (int) info[2];
+            int generations = (int) info[1];
             for (int k = 1; k <= generations; k++) {
                 if (DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis).equals(indexName)) {
                     return new Object[] {

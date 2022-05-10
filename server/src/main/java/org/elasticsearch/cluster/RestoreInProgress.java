@@ -361,7 +361,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                     snapshot,
                     state,
                     Collections.unmodifiableList(indexBuilder),
-                    in.readImmutableMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)
+                    in.readImmutableOpenMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)
                 )
             );
         }
@@ -396,7 +396,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
      * @param entry   restore operation metadata
      * @param builder XContent builder
      */
-    public void toXContent(Entry entry, XContentBuilder builder) throws IOException {
+    public static void toXContent(Entry entry, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field("snapshot", entry.snapshot().getSnapshotId().getName());
         builder.field("repository", entry.snapshot().getRepository());

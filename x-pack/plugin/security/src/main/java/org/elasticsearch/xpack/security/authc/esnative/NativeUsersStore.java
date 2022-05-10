@@ -244,7 +244,6 @@ public class NativeUsersStore {
      */
     public void changePassword(final ChangePasswordRequest request, final ActionListener<Void> listener) {
         final String username = request.username();
-        assert User.isInternalUsername(username) == false : username + "is internal!";
         final String docType;
         if (ClientReservedRealm.isReserved(username, settings)) {
             docType = RESERVED_USER_TYPE;
@@ -756,7 +755,7 @@ public class NativeUsersStore {
     }
 
     @Nullable
-    private UserAndPassword transformUser(final String id, final Map<String, Object> sourceMap) {
+    private static UserAndPassword transformUser(final String id, final Map<String, Object> sourceMap) {
         if (sourceMap == null) {
             return null;
         }

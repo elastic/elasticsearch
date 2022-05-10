@@ -166,7 +166,7 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @SuppressWarnings("unchecked")
-        private boolean processField(
+        private static boolean processField(
             RootObjectMapper.Builder builder,
             String fieldName,
             Object fieldNode,
@@ -507,5 +507,10 @@ public class RootObjectMapper extends ObjectMapper {
             return ((String) value).contains(snippet);
         }
         return false;
+    }
+
+    @Override
+    protected void startSyntheticField(XContentBuilder b) throws IOException {
+        b.startObject();
     }
 }

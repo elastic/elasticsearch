@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -34,7 +33,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCre
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -349,7 +348,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         assertThat(
             future5.get(),
             equalTo(
-                new Authentication(
+                Authentication.newServiceAccountAuthentication(
                     new User(
                         "elastic/fleet-server",
                         Strings.EMPTY_ARRAY,
@@ -358,10 +357,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                         Map.of("_elastic_service_account", true),
                         true
                     ),
-                    new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName),
-                    null,
-                    Version.CURRENT,
-                    Authentication.AuthenticationType.TOKEN,
+                    nodeName,
                     Map.of("_token_name", "token1", "_token_source", authenticatingStore.getTokenSource().name().toLowerCase(Locale.ROOT))
                 )
             )
@@ -518,7 +514,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             assertThat(
                 authentication,
                 equalTo(
-                    new Authentication(
+                    Authentication.newServiceAccountAuthentication(
                         new User(
                             "elastic/fleet-server",
                             Strings.EMPTY_ARRAY,
@@ -527,10 +523,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                             Map.of("_elastic_service_account", true),
                             true
                         ),
-                        new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName),
-                        null,
-                        Version.CURRENT,
-                        Authentication.AuthenticationType.TOKEN,
+                        nodeName,
                         Map.of("_token_name", token4.getTokenName(), "_token_source", tokenSource.name().toLowerCase(Locale.ROOT))
                     )
                 )
@@ -572,7 +565,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
     public void testGetRoleDescriptor() throws ExecutionException, InterruptedException {
         final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
-        final Authentication auth1 = new Authentication(
+        final Authentication auth1 = Authentication.newServiceAccountAuthentication(
             new User(
                 "elastic/fleet-server",
                 Strings.EMPTY_ARRAY,
@@ -581,14 +574,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 Map.of("_elastic_service_account", true),
                 true
             ),
-            new Authentication.RealmRef(
-                ServiceAccountSettings.REALM_NAME,
-                ServiceAccountSettings.REALM_TYPE,
-                randomAlphaOfLengthBetween(3, 8)
-            ),
-            null,
-            Version.CURRENT,
-            Authentication.AuthenticationType.TOKEN,
+            randomAlphaOfLengthBetween(3, 8),
             Map.of("_token_name", randomAlphaOfLengthBetween(3, 8), "_token_source", tokenSource.name().toLowerCase(Locale.ROOT))
         );
 
@@ -602,16 +588,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
             "elastic/fleet-server",
             () -> randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)
         );
-        final Authentication auth2 = new Authentication(
+        final Authentication auth2 = Authentication.newServiceAccountAuthentication(
             new User(username, Strings.EMPTY_ARRAY, "Service account - " + username, null, Map.of("_elastic_service_account", true), true),
-            new Authentication.RealmRef(
-                ServiceAccountSettings.REALM_NAME,
-                ServiceAccountSettings.REALM_TYPE,
-                randomAlphaOfLengthBetween(3, 8)
-            ),
-            null,
-            Version.CURRENT,
-            Authentication.AuthenticationType.TOKEN,
+            randomAlphaOfLengthBetween(3, 8),
             Map.of("_token_name", randomAlphaOfLengthBetween(3, 8), "_token_source", tokenSource.name().toLowerCase(Locale.ROOT))
         );
         final PlainActionFuture<RoleDescriptor> future2 = new PlainActionFuture<>();
@@ -621,7 +600,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
     }
 
     public void testCreateIndexTokenWillDelegate() {
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         final CreateServiceAccountTokenRequest request = mock(CreateServiceAccountTokenRequest.class);
         final ActionListener<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         serviceAccountService.createIndexToken(authentication, request, future);

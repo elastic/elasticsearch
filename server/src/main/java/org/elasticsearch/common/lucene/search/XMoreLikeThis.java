@@ -719,7 +719,7 @@ public final class XMoreLikeThis {
             for (String fieldName : fieldNames) {
                 int freq = ir.docFreq(new Term(fieldName, word));
                 topField = (freq > docFreq) ? fieldName : topField;
-                docFreq = (freq > docFreq) ? freq : docFreq;
+                docFreq = Math.max(freq, docFreq);
             }
 
             if (minDocFreq > 0 && docFreq < minDocFreq) {

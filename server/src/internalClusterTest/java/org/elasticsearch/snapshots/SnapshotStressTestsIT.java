@@ -15,6 +15,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
@@ -574,13 +575,8 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                             snapshotInfo.snapshotId().getName()
                         );
 
-                        client().admin()
-                            .cluster()
-                            .prepareHealth(indicesToRestore)
-                            .setWaitForEvents(Priority.LANGUID)
-                            .setWaitForGreenStatus()
+                        prepareClusterHealthRequest(indicesToRestore).setWaitForGreenStatus()
                             .setWaitForNoInitializingShards(true)
-                            .setWaitForNodes(Integer.toString(internalCluster().getNodeNames().length))
                             .execute(mustSucceed(clusterHealthResponse -> {
 
                                 logger.info(
@@ -874,13 +870,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         snapshotName
                     );
 
-                    client().admin()
-                        .cluster()
-                        .prepareHealth(targetIndexNames.toArray(new String[0]))
-                        .setWaitForEvents(Priority.LANGUID)
-                        .setWaitForYellowStatus()
-                        .setWaitForNodes(Integer.toString(internalCluster().getNodeNames().length))
-                        .execute(ensureYellowStep);
+                    prepareClusterHealthRequest(targetIndexNames.toArray(String[]::new)).setWaitForYellowStatus().execute(ensureYellowStep);
 
                     ensureYellowStep.addListener(mustSucceed(clusterHealthResponse -> {
                         assertFalse("timed out waiting for yellow state of " + targetIndexNames, clusterHealthResponse.isTimedOut());
@@ -1341,13 +1331,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                             logger.info("--> waiting for yellow health of [{}] prior to indexing [{}] docs", indexName, docCount);
 
-                            client().admin()
-                                .cluster()
-                                .prepareHealth(indexName)
-                                .setWaitForEvents(Priority.LANGUID)
-                                .setWaitForYellowStatus()
-                                .setWaitForNodes(Integer.toString(internalCluster().getNodeNames().length))
-                                .execute(ensureYellowStep);
+                            prepareClusterHealthRequest(indexName).setWaitForYellowStatus().execute(ensureYellowStep);
 
                             final StepListener<BulkResponse> bulkStep = new StepListener<>();
 
@@ -1412,6 +1396,17 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
         }
 
+    }
+
+    // Prepares a health request with twice the default (30s) timeout that waits for all cluster tasks to finish as well as all cluster
+    // nodes before returning
+    private static ClusterHealthRequestBuilder prepareClusterHealthRequest(String... targetIndexNames) {
+        return client().admin()
+            .cluster()
+            .prepareHealth(targetIndexNames)
+            .setTimeout(TimeValue.timeValueSeconds(60))
+            .setWaitForNodes(Integer.toString(internalCluster().getNodeNames().length))
+            .setWaitForEvents(Priority.LANGUID);
     }
 
     private static String stringFromSnapshotInfo(SnapshotInfo snapshotInfo) {

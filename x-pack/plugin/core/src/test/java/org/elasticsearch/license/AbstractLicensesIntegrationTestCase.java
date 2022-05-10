@@ -8,7 +8,6 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -41,7 +40,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
     protected void putLicense(final License license) throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
-        clusterService.submitStateUpdateTask("putting license", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("putting license", new ClusterStateUpdateTask() {
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 latch.countDown();
@@ -58,7 +57,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
             public void onFailure(@Nullable Exception e) {
                 logger.error("error on metadata cleanup after test", e);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         latch.await();
     }
 
@@ -69,7 +68,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
     protected void wipeAllLicenses() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
-        clusterService.submitStateUpdateTask("delete licensing metadata", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("delete licensing metadata", new ClusterStateUpdateTask() {
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 latch.countDown();
@@ -86,7 +85,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
             public void onFailure(@Nullable Exception e) {
                 logger.error("error on metadata cleanup after test", e);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         latch.await();
     }
 

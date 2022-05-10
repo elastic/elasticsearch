@@ -360,7 +360,7 @@ public class InboundHandler {
         }
     }
 
-    private <T extends TransportResponse> void doHandleResponse(TransportResponseHandler<T> handler, T response) {
+    private static <T extends TransportResponse> void doHandleResponse(TransportResponseHandler<T> handler, T response) {
         try {
             handler.handleResponse(response);
         } catch (Exception e) {
@@ -401,7 +401,7 @@ public class InboundHandler {
         }
     }
 
-    private void doHandleException(final TransportResponseHandler<?> handler, TransportException transportException) {
+    private static void doHandleException(final TransportResponseHandler<?> handler, TransportException transportException) {
         try {
             handler.handleException(transportException);
         } catch (Exception e) {

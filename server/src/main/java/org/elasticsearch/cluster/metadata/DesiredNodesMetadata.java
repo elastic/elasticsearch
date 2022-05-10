@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -68,12 +69,12 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(LATEST_FIELD.getPreferredName(), latestDesiredNodes);
+        builder.field(LATEST_FIELD.getPreferredName(), (ToXContent) latestDesiredNodes);
         return builder;
     }
 
-    public static DesiredNodes latestFromClusterState(ClusterState clusterState) {
-        return clusterState.metadata().custom(TYPE, EMPTY).getLatestDesiredNodes();
+    public static DesiredNodesMetadata fromClusterState(ClusterState clusterState) {
+        return clusterState.metadata().custom(TYPE, EMPTY);
     }
 
     @Nullable

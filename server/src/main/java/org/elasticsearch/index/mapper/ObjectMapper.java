@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -28,7 +29,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -124,13 +124,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 int firstDotIndex = name.indexOf(".");
                 String childName = name.substring(0, firstDotIndex);
                 String fullChildName = prefix == null ? childName : prefix + "." + childName;
-                ObjectMapper.Builder childBuilder = findChild(childName, fullChildName, context);
+                ObjectMapper.Builder childBuilder = findChild(fullChildName, context);
                 childBuilder.addDynamic(name.substring(firstDotIndex + 1), fullChildName, mapper, context);
                 mappersBuilders.add(childBuilder);
             }
         }
 
-        private ObjectMapper.Builder findChild(String childName, String fullChildName, DocumentParserContext context) {
+        private static ObjectMapper.Builder findChild(String fullChildName, DocumentParserContext context) {
             // does the child mapper already exist? if so, use that
             ObjectMapper child = context.mappingLookup().objectMappers().get(fullChildName);
             if (child != null) {
@@ -142,10 +142,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return child.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
             throw new IllegalArgumentException("Missing intermediate object " + fullChildName);
-        }
-
-        public Optional<Mapper.Builder> getBuilder(String name) {
-            return mappersBuilders.stream().filter(b -> b.name().equals(name)).findFirst();
         }
 
         protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {
@@ -171,6 +167,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     public static class TypeParser implements Mapper.TypeParser {
+
+        @Override
+        public boolean supportsVersion(Version indexCreatedVersion) {
+            return true;
+        }
+
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
@@ -303,7 +305,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (name.isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");
         }
-        this.fullPath = fullPath;
+        this.fullPath = internFieldName(fullPath);
         this.enabled = enabled;
         this.dynamic = dynamic;
         if (mappers == null) {
@@ -493,5 +495,64 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        List<SourceLoader.SyntheticFieldLoader> fields = new ArrayList<>();
+        mappers.values().stream().sorted(Comparator.comparing(Mapper::name)).forEach(sub -> {
+            SourceLoader.SyntheticFieldLoader subLoader = sub.syntheticFieldLoader();
+            if (subLoader != null) {
+                fields.add(subLoader);
+            }
+        });
+        return new SourceLoader.SyntheticFieldLoader() {
+            @Override
+            public Leaf leaf(LeafReader reader) throws IOException {
+                List<SourceLoader.SyntheticFieldLoader.Leaf> leaves = new ArrayList<>();
+                for (SourceLoader.SyntheticFieldLoader field : fields) {
+                    leaves.add(field.leaf(reader));
+                }
+                return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                    @Override
+                    public void advanceToDoc(int docId) throws IOException {
+                        for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
+                            leaf.advanceToDoc(docId);
+                        }
+                    }
+
+                    @Override
+                    public boolean hasValue() {
+                        for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
+                            if (leaf.hasValue()) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+
+                    @Override
+                    public void load(XContentBuilder b) throws IOException {
+                        boolean started = false;
+                        for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
+                            if (leaf.hasValue()) {
+                                if (false == started) {
+                                    started = true;
+                                    startSyntheticField(b);
+                                }
+                                leaf.load(b);
+                            }
+                        }
+                        if (started) {
+                            b.endObject();
+                        }
+                    }
+                };
+            }
+        };
+    }
+
+    protected void startSyntheticField(XContentBuilder b) throws IOException {
+        b.startObject(simpleName());
     }
 }

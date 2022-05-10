@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
@@ -118,7 +117,6 @@ public class EqlSearchIT extends ESRestTestCase {
             .collect(Collectors.toSet());
         // each function has a query and query results associated to it
         Set<String> testedFunctions = new HashSet<>();
-        boolean multiValued = nodes.getBWCVersion().onOrAfter(RuntimeUtils.SWITCH_TO_MULTI_VALUE_FIELDS_VERSION);
         try (
             RestClient client = buildClient(
                 restClientSettings(),
@@ -136,7 +134,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "between",
                 "PROCESS where between(process_name, \\\"w\\\", \\\"s\\\") : \\\"indow\\\"",
-                multiValued ? new int[] { 120, 121 } : new int[] { 121 }
+                new int[] { 120, 121 }
             );
             assertMultiValueFunctionQuery(
                 availableFunctions,
@@ -145,7 +143,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "cidrmatch",
                 "PROCESS where string(cidrmatch(source_address, \\\"10.6.48.157/24\\\")) : \\\"true\\\"",
-                multiValued ? new int[] { 121, 122 } : new int[] { 122 }
+                new int[] { 121, 122 }
             );
             assertMultiValueFunctionQuery(
                 availableFunctions,
@@ -154,7 +152,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "concat",
                 "PROCESS where concat(file_name, process_name) == \\\"foo\\\" or add(pid, ppid) > 100",
-                multiValued ? new int[] { 116, 117, 120, 121, 122 } : new int[] { 120, 121 }
+                new int[] { 116, 117, 120, 121, 122 }
             );
             assertMultiValueFunctionQuery(
                 availableFunctions,
@@ -163,7 +161,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "endswith",
                 "PROCESS where string(endswith(process_name, \\\"s\\\")) : \\\"true\\\"",
-                multiValued ? new int[] { 120, 121 } : new int[] { 121 }
+                new int[] { 120, 121 }
             );
             assertMultiValueFunctionQuery(
                 availableFunctions,
@@ -172,7 +170,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "indexof",
                 "PROCESS where indexof(file_name, \\\"x\\\", 2) > 0",
-                multiValued ? new int[] { 116, 117 } : new int[] { 117 }
+                new int[] { 116, 117 }
             );
             assertMultiValueFunctionQuery(
                 availableFunctions,
@@ -181,7 +179,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "length",
                 "PROCESS where length(file_name) >= 3 and length(file_name) == 1",
-                multiValued ? new int[] { 116 } : new int[] {}
+                new int[] { 116 }
             );
             assertMultiValueFunctionQuery(
                 availableFunctions,
@@ -190,7 +188,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "startswith",
                 "PROCESS where string(startswith~(file_name, \\\"F\\\")) : \\\"true\\\"",
-                multiValued ? new int[] { 116, 117, 120, 121 } : new int[] { 116, 120, 121 }
+                new int[] { 116, 117, 120, 121 }
             );
             assertMultiValueFunctionQuery(
                 availableFunctions,
@@ -199,7 +197,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "string",
                 "PROCESS where string(concat(file_name, process_name) == \\\"foo\\\") : \\\"true\\\"",
-                multiValued ? new int[] { 116, 120 } : new int[] { 120 }
+                new int[] { 116, 120 }
             );
             assertMultiValueFunctionQuery(
                 availableFunctions,
@@ -208,7 +206,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "stringcontains",
                 "PROCESS where string(stringcontains(file_name, \\\"txt\\\")) : \\\"true\\\"",
-                multiValued ? new int[] { 117 } : new int[] {}
+                new int[] { 117 }
             );
             assertMultiValueFunctionQuery(
                 availableFunctions,
@@ -217,7 +215,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "substring",
                 "PROCESS where substring(file_name, -4) : \\\".txt\\\"",
-                multiValued ? new int[] { 117 } : new int[] {}
+                new int[] { 117 }
             );
             assertMultiValueFunctionQuery(
                 availableFunctions,
@@ -226,7 +224,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "add",
                 "PROCESS where add(pid, 1) == 2",
-                multiValued ? new int[] { 120, 121, 122 } : new int[] { 120, 121, 122 }
+                new int[] { 120, 121, 122 }
             );
             assertMultiValueFunctionQuery(
                 availableFunctions,
@@ -235,7 +233,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "divide",
                 "PROCESS where divide(pid, 12) == 1",
-                multiValued ? new int[] { 116, 117, 118, 119, 120, 122 } : new int[] { 116, 117, 118, 119 }
+                new int[] { 116, 117, 118, 119, 120, 122 }
             );
             assertMultiValueFunctionQuery(
                 availableFunctions,
@@ -244,7 +242,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "modulo",
                 "PROCESS where modulo(ppid, 10) == 0",
-                multiValued ? new int[] { 121, 122 } : new int[] { 121 }
+                new int[] { 121, 122 }
             );
             assertMultiValueFunctionQuery(
                 availableFunctions,
@@ -253,7 +251,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "multiply",
                 "PROCESS where string(multiply(pid, 10) == 120) == \\\"true\\\"",
-                multiValued ? new int[] { 116, 117, 118, 119, 120, 122 } : new int[] { 116, 117, 118, 119 }
+                new int[] { 116, 117, 118, 119, 120, 122 }
             );
             assertMultiValueFunctionQuery(
                 availableFunctions,
@@ -262,7 +260,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "number",
                 "PROCESS where number(command_line) + pid >= 360",
-                multiValued ? new int[] { 122, 123 } : new int[] { 123 }
+                new int[] { 122, 123 }
             );
             assertMultiValueFunctionQuery(
                 availableFunctions,
@@ -271,7 +269,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 client,
                 "subtract",
                 "PROCESS where subtract(pid, 1) == 0",
-                multiValued ? new int[] { 120, 121, 122 } : new int[] { 120, 121, 122 }
+                new int[] { 120, 121, 122 }
             );
         }
 

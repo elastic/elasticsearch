@@ -44,7 +44,6 @@ import java.util.stream.StreamSupport;
 public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply(JavaPlugin.class);
         configureCompileModulePath(project);
     }
 
@@ -116,26 +115,16 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
             .stream()
             .filter(ResolvedDependencyResult.class::isInstance)
             .map(ResolvedDependencyResult.class::cast)
+            .map(ResolvedDependencyResult::getSelected)
             .filter(it -> {
-                var id = it.getSelected().getId();
-                if (visited.contains(id)) {
+                boolean added = visited.add(it.getId());
+                if (added == false) {
                     return false;
                 }
-                visited.add(id);
-                return isModuleDependency || (id instanceof ProjectComponentIdentifier);
+                return isModuleDependency
+                    || (it.getId()instanceof ProjectComponentIdentifier projectId && hasModuleInfoDotJava(project, projectId));
             })
-            .flatMap(it -> {
-                var id = it.getSelected().getId();
-                if (isModuleDependency
-                    || (id instanceof ProjectComponentIdentifier projectId && hasModuleInfoDotJava(project, projectId))) {
-                    return Stream.concat(
-                        walkResolvedComponent(project, it.getSelected(), true, visited),
-                        Stream.of(it.getSelected().getId())
-                    );
-                } else {
-                    return walkResolvedComponent(project, it.getSelected(), false, visited);
-                }
-            });
+            .flatMap(it -> Stream.concat(walkResolvedComponent(project, it, true, visited), Stream.of(it.getId())));
     }
 
     static class CompileModulePathArgumentProvider implements CommandLineArgumentProvider, Named {

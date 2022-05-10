@@ -89,22 +89,6 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         file('build/classes/java/main/module-info.class').exists() == false
     }
 
-    def "non module project with transitive module dependency"() {
-        given:
-        file('some-other-lib/src/main/java/module-info.java') << """
-        module someOtherLibModule {
-        }
-        """
-        when:
-        def result = gradleRunner('compileJava').build()
-        then:
-        result.task(":compileJava").outcome == TaskOutcome.SUCCESS
-
-        assertModulePathClasspath(['./some-other-lib/build/classes/java/main'], normalized(result.output))
-        assertCompileClasspath(['./some-lib/build/classes/java/main'], normalized(result.output))
-        file('build/classes/java/main/module-info.class').exists() == false
-    }
-
     def "module project with non module dependencies"() {
         given:
         file('src/main/java/module-info.java') << """

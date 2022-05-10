@@ -275,9 +275,6 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
 
             if (preRounding < 0 || aggCtx.getTimestamp() <= preRounding - interval) {
                 preRounding = rounding.nextRoundingValue(aggCtx.getTimestamp());
-                if (false == timeBucketMetrics.containsKey(preRounding)) {
-                    timeBucketMetrics.put(preRounding, downsampleFunction.getAggregatorFunction());
-                }
             }
 
             // calculate the value of the current doc
@@ -321,6 +318,9 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                 final int valuesCount = values.docValueCount();
                 for (int i = 0; i < valuesCount; i++) {
                     double value = values.nextValue();
+                    if (false == timeBucketMetrics.containsKey(preRounding)) {
+                        timeBucketMetrics.put(preRounding, downsampleFunction.getAggregatorFunction());
+                    }
                     for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
                         Long timestamp = entry.getKey();
                         AggregatorFunction function = entry.getValue();

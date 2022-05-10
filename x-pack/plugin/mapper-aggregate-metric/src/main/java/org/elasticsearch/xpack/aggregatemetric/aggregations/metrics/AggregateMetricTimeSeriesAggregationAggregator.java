@@ -101,6 +101,9 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
                     final int valuesCount = values.docValueCount();
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
+                        if (false == timeBucketMetrics.containsKey(preRounding)) {
+                            timeBucketMetrics.put(preRounding, downsampleFunction.getAggregatorFunction());
+                        }
                         for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
                             Long timestamp = entry.getKey();
                             AggregatorFunction function = entry.getValue();
@@ -139,6 +142,9 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
                     }
                 }
 
+                if (false == timeBucketMetrics.containsKey(preRounding)) {
+                    timeBucketMetrics.put(preRounding, downsampleFunction.getAggregatorFunction());
+                }
                 for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
                     Long timestamp = entry.getKey();
                     AggregatorFunction function = entry.getValue();

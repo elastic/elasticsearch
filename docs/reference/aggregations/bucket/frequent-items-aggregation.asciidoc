@@ -91,6 +91,10 @@ aggregation.
 
 In the following examples, we use the e-commerce {kib} sample data set.
 
+
+[discrete]
+==== Aggregation with two analized fields
+
 In the first example, the goal is to find out based on transaction data (1.) 
 from what product categories the customers purchase products frequently together 
 and (2.) from which cities they make those purchases. We are interested in sets 
@@ -181,6 +185,10 @@ products from these categories together. The item set with the second highest
 support is `Women's Clothing` and `Women's Accessories` with customers mostly 
 from New York. Finally, the item set with the third highest support is 
 `Men's Clothing` and `Men's Shoes` with customers mostly from Cairo.
+
+
+[discrete]
+==== Aggregation analizing numeric values via a runtime field
 
 The frequent items aggregation enables you to bucket numeric values by using 
 <<runtime,runtime fields>>. The next example demonstrates how to use a script to 

@@ -268,6 +268,15 @@ public class EnrichPolicyRunner implements Runnable {
         Set<String> types = matchFieldMappings.stream().map(map -> map.get("type")).collect(Collectors.toSet());
         if (types.size() == 1) {
             String type = types.iterator().next();
+            if (type == null) {
+                // when no type is defined in a field mapping then it is of type object:
+                throw new ElasticsearchException(
+                    "Field '{}' has type [object] which doesn't appear to be a range type",
+                    enrichPolicy.getMatchField(),
+                    type
+                );
+            }
+
             switch (type) {
                 case "integer_range":
                 case "float_range":

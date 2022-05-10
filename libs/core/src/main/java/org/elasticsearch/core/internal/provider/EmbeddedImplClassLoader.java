@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.jar.Manifest;
 
 import static java.util.jar.Attributes.Name.MULTI_RELEASE;
@@ -97,14 +98,9 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     private Resource privilegedGetResourceOrNull(String name) {
         return AccessController.doPrivileged((PrivilegedAction<Resource>) () -> {
             for (JarMeta jarMeta : jarMetas) {
-                URL url = findResourceForPrefixOrNull(name, jarMeta);
-                if (url != null) {
-                    try {
-                        InputStream is = url.openStream();
-                        return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
-                    } catch (IOException e) {
-                        // silently ignore, same as ClassLoader
-                    }
+                InputStream is = findResourceForPrefixOrNull(name, jarMeta, parent::getResourceAsStream);
+                if (is != null) {
+                    return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
                 }
             }
             return null;
@@ -142,7 +138,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     protected URL findResource(String name) {
         Objects.requireNonNull(name);
         for (JarMeta jarMeta : jarMetas) {
-            URL url = findResourceForPrefixOrNull(name, jarMeta);
+            URL url = findResourceForPrefixOrNull(name, jarMeta, parent::getResource);
             if (url != null) {
                 return url;
             }
@@ -154,22 +150,22 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
      * Searches for the named resource, returning its url or null if not found.
      * Iterates over all multi-release versions, then the root, for the given jar prefix.
      */
-    URL findResourceForPrefixOrNull(String name, JarMeta jarMeta) {
-        URL url;
+    <T> T findResourceForPrefixOrNull(String name, JarMeta jarMeta, Function<String, T> finder) {
+        T resource;
         if (jarMeta.isMultiRelease) {
-            url = findVersionedResourceForPrefixOrNull(jarMeta.prefix(), name);
-            if (url != null) {
-                return url;
+            resource = findVersionedResourceForPrefixOrNull(jarMeta.prefix(), name, finder);
+            if (resource != null) {
+                return resource;
             }
         }
-        return parent.getResource(jarMeta.prefix() + "/" + name);
+        return finder.apply(jarMeta.prefix() + "/" + name);
     }
 
-    URL findVersionedResourceForPrefixOrNull(String prefix, String name) {
+    <T> T findVersionedResourceForPrefixOrNull(String prefix, String name, Function<String, T> finder) {
         for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
-            URL url = parent.getResource(prefix + "/" + MRJAR_VERSION_PREFIX + v + "/" + name);
-            if (url != null) {
-                return url;
+            T resource = finder.apply(prefix + "/" + MRJAR_VERSION_PREFIX + v + "/" + name);
+            if (resource != null) {
+                return resource;
             }
         }
         return null;
@@ -187,7 +183,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
                     return true;
                 } else {
                     while (jarMetaIndex < jarMetas.size()) {
-                        URL u = findResourceForPrefixOrNull(name, jarMetas.get(jarMetaIndex));
+                        URL u = findResourceForPrefixOrNull(name, jarMetas.get(jarMetaIndex), parent::getResource);
                         jarMetaIndex++;
                         if (u != null) {
                             url = u;
@@ -225,12 +221,12 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
 
     private static Map<JarMeta, CodeSource> getProviderPrefixes(ClassLoader parent, String providerName) {
         String providerPrefix = IMPL_PREFIX + providerName;
-        URL listingURL = parent.getResource(providerPrefix + JAR_LISTING_FILE);
-        if (listingURL == null) {
+        InputStream in = parent.getResourceAsStream(providerPrefix + JAR_LISTING_FILE);
+        if (in == null) {
             throw new IllegalStateException("missing %s provider jars list".formatted(providerName));
         }
         try (
-            InputStream in = listingURL.openStream();
+            in;
             InputStreamReader isr = new InputStreamReader(in, StandardCharsets.UTF_8);
             BufferedReader reader = new BufferedReader(isr)
         ) {
@@ -244,7 +240,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
                 } else {
                     jam = new JarMeta(jarPrefix, false);
                 }
-                map.put(jam, codeSource(listingURL, jar));
+                map.put(jam, codeSource(parent.getResource(providerPrefix + JAR_LISTING_FILE), jar));
             }
             return Map.copyOf(map);
         } catch (IOException e) {

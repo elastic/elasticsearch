@@ -389,6 +389,9 @@ public class DiscoveryNodesTests extends ESTestCase {
     }
 
     public void testMaxMinNodeVersion() {
+        assertEquals(Version.CURRENT, DiscoveryNodes.EMPTY_NODES.getMaxNodeVersion());
+        assertEquals(Version.CURRENT.minimumCompatibilityVersion(), DiscoveryNodes.EMPTY_NODES.getMinNodeVersion());
+
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         discoBuilder.add(
             new DiscoveryNode(

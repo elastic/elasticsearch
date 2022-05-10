@@ -798,7 +798,7 @@ public final class DocumentParser {
      * and how they are stored in the lucene index.
      */
     private static class InternalDocumentParserContext extends DocumentParserContext {
-        private final ContentPath path = new ContentPath(0);
+        private final ContentPath path = new ContentPath();
         private final XContentParser parser;
         private final LuceneDocument document;
         private final List<LuceneDocument> documents = new ArrayList<>();

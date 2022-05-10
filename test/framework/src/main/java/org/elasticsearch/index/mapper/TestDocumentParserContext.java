@@ -26,7 +26,7 @@ import java.util.function.Function;
  */
 public class TestDocumentParserContext extends DocumentParserContext {
     private final LuceneDocument document = new LuceneDocument();
-    private final ContentPath contentPath = new ContentPath(0);
+    private final ContentPath contentPath = new ContentPath();
 
     /**
      * The shortest and easiest way to create a context, to be used when none of the constructor arguments are needed.

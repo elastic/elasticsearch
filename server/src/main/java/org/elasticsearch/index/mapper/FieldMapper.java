@@ -1365,7 +1365,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected static ContentPath parentPath(String name) {
             int endPos = name.lastIndexOf(".");
             if (endPos == -1) {
-                return new ContentPath(0);
+                return new ContentPath();
             }
             return new ContentPath(name.substring(0, endPos));
         }

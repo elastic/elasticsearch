@@ -313,7 +313,7 @@ public abstract class DocumentParserContext {
      * @param doc           the document to target
      */
     public final DocumentParserContext createCopyToContext(String copyToField, LuceneDocument doc) throws IOException {
-        ContentPath path = new ContentPath(0);
+        ContentPath path = new ContentPath();
         XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()));
         return new Wrapper(this) {
             @Override

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -107,11 +106,7 @@ public abstract class GeoShapeValues {
             return boundingBox;
         }
 
-        public GeoRelation relate(Rectangle rectangle) throws IOException {
-            int minX = CoordinateEncoder.GEO.encodeX(rectangle.getMinX());
-            int maxX = CoordinateEncoder.GEO.encodeX(rectangle.getMaxX());
-            int minY = CoordinateEncoder.GEO.encodeY(rectangle.getMinY());
-            int maxY = CoordinateEncoder.GEO.encodeY(rectangle.getMaxY());
+        public GeoRelation relate(int minX, int maxX, int minY, int maxY) throws IOException {
             tile2DVisitor.reset(minX, minY, maxX, maxY);
             reader.visit(tile2DVisitor);
             return tile2DVisitor.relation();

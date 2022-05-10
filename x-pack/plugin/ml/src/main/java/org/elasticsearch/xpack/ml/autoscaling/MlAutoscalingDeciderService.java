@@ -367,13 +367,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         if (isMaster == false) {
             throw new IllegalArgumentException("request for scaling information is only allowed on the master node");
         }
-        long previousTimeStamp = this.lastTimeToScale;
-        this.lastTimeToScale = this.timeSupplier.getAsLong();
-        final Duration memoryTrackingStale;
-        if (previousTimeStamp == 0L) {
-            memoryTrackingStale = DEFAULT_MEMORY_REFRESH_RATE;
-        } else {
-            memoryTrackingStale = Duration.ofMillis(TimeValue.timeValueMinutes(1).millis() + this.lastTimeToScale - previousTimeStamp);
+        long previousTimeStamp = lastTimeToScale;
+        lastTimeToScale = timeSupplier.getAsLong();
+        if (previousTimeStamp > 0L && lastTimeToScale > previousTimeStamp) {
+            mlMemoryTracker.setAutoscalingCheckInterval(Duration.ofMillis(lastTimeToScale - previousTimeStamp));
         }
 
         final ClusterState clusterState = context.state();
@@ -474,8 +471,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         // This is the sole check for memory staleness. It's possible that memory becomes stale while we execute the rest
         // of the code of this method, but it's best that all the code runs with the same view of whether the last refresh
         // was done in time.
-        if (mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false) {
-            logger.debug("view of job memory is stale given duration [{}]. Not attempting to make scaling decision", memoryTrackingStale);
+        if (mlMemoryTracker.isRecentlyRefreshed() == false) {
+            logger.debug(
+                "view of job memory is stale given duration [{}]. Not attempting to make scaling decision",
+                mlMemoryTracker.getStalenessDuration()
+            );
             return buildDecisionAndRequestRefresh(reasonBuilder);
         }
         // We need the current node loads to determine if we need to scale up or down
@@ -550,28 +550,29 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         }
 
         long largestJobOrModel = Math.max(
-            Math.max(
-                anomalyDetectionTasks.stream()
-                    .filter(PersistentTask::isAssigned)
-                    // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
-                    .mapToLong(t -> {
-                        Long mem = this.getAnomalyMemoryRequirement(t);
-                        assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
-                        return mem;
-                    })
-                    .max()
-                    .orElse(0L),
-                snapshotUpgradeTasks.stream()
-                    .filter(PersistentTask::isAssigned)
-                    // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
-                    .mapToLong(t -> {
-                        Long mem = this.getAnomalyMemoryRequirement(t);
-                        assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
-                        return mem;
-                    })
-                    .max()
-                    .orElse(0L)
-            ),
+            anomalyDetectionTasks.stream()
+                .filter(PersistentTask::isAssigned)
+                // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
+                .mapToLong(t -> {
+                    Long mem = this.getAnomalyMemoryRequirement(t);
+                    assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
+                    return mem;
+                })
+                .max()
+                .orElse(0L),
+            snapshotUpgradeTasks.stream()
+                .filter(PersistentTask::isAssigned)
+                // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
+                .mapToLong(t -> {
+                    Long mem = this.getAnomalyMemoryRequirement(t);
+                    assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
+                    return mem;
+                })
+                .max()
+                .orElse(0L)
+        );
+        largestJobOrModel = Math.max(
+            largestJobOrModel,
             dataframeAnalyticsTasks.stream()
                 .filter(PersistentTask::isAssigned)
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
@@ -588,11 +589,19 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             modelAssignments.values().stream().mapToLong(t -> t.getTaskParams().estimateMemoryUsageBytes()).max().orElse(0L)
         );
 
-        // This is an exceptionally weird state
-        // Our view of the memory is stale or we have tasks where the required job memory is 0, which should be impossible
-        if (largestJobOrModel == 0L
-            && (dataframeAnalyticsTasks.size() + anomalyDetectionTasks.size() + snapshotUpgradeTasks.size() + modelAssignments
-                .size() > 0)) {
+        // This state is invalid, but may occur due to complex bugs that have slipped through testing.
+        // We could have tasks where the required job memory is 0, which should be impossible.
+        // This can also happen if a job that is awaiting assignment ceases to have the AWAITING_LAZY_ASSIGNMENT
+        // assignment explanation, for example because some other explanation overrides it. (This second situation
+        // arises because, for example, anomalyDetectionTasks contains a task that is waiting but waitingAnomalyJobs
+        // doesn't because its assignment explanation didn't match AWAITING_LAZY_ASSIGNMENT.)
+        if (largestJobOrModel == 0L) {
+            // We shouldn't need to check this condition because it's the exact opposite of the condition that
+            // would have sent us down the scale down to zero branch higher up this method.
+            assert anomalyDetectionTasks.isEmpty() == false
+                || snapshotUpgradeTasks.isEmpty() == false
+                || dataframeAnalyticsTasks.isEmpty() == false
+                || modelAssignments.isEmpty() == false : "No tasks or models at all should have put us in the scale down to zero branch";
             logger.warn(
                 "The calculated minimum required node size was unexpectedly [0] as there are [{}] anomaly job tasks, "
                     + "[{}] model snapshot upgrade tasks, [{}] data frame analytics tasks and [{}] model assignments",
@@ -601,10 +610,18 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 dataframeAnalyticsTasks.size(),
                 modelAssignments.size()
             );
+            // This next message could obviously be pretty big, but should only get logged very rarely as it
+            // requires both debug enabled and some other bug to exist to cause us to be in this branch
+            logger.debug(
+                () -> new ParameterizedMessage(
+                    "persistent tasks that caused unexpected scaling situation: [{}]",
+                    (tasks == null) ? "null" : Strings.toString(tasks)
+                )
+            );
             return buildDecisionAndRequestRefresh(
                 reasonBuilder.setSimpleReason(
-                    "Passing currently perceived capacity as there are running analytics and anomaly jobs, "
-                        + "but their memory usage estimates are inaccurate."
+                    "Passing currently perceived capacity as there are running analytics and anomaly jobs or deployed models, "
+                        + "but their assignment explanations are unexpected or their memory usage estimates are inaccurate."
                 )
             );
         }

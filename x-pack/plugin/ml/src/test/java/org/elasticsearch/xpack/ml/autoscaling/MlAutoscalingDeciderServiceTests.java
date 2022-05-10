@@ -136,7 +136,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     @Before
     public void setup() {
         mlMemoryTracker = mock(MlMemoryTracker.class);
-        when(mlMemoryTracker.isRecentlyRefreshed(any())).thenReturn(true);
+        when(mlMemoryTracker.isRecentlyRefreshed()).thenReturn(true);
         when(mlMemoryTracker.asyncRefresh()).thenReturn(true);
         when(mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(any())).thenReturn(TEST_JOB_SIZE);
         when(mlMemoryTracker.getDataFrameAnalyticsJobMemoryRequirement(any())).thenReturn(TEST_JOB_SIZE);

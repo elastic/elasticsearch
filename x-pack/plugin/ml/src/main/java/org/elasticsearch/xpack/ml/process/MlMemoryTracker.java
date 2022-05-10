@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -67,6 +68,7 @@ import java.util.stream.Stream;
 public class MlMemoryTracker implements LocalNodeMasterListener {
 
     private static final Duration RECENT_UPDATE_THRESHOLD = Duration.ofMinutes(1);
+    private static final Duration DEFAULT_AUTOSCALING_CHECK_INTERVAL = Duration.ofMinutes(5);
 
     private final Logger logger = LogManager.getLogger(MlMemoryTracker.class);
     private final Map<String, Long> memoryRequirementByAnomalyDetectorJob = new ConcurrentHashMap<>();
@@ -85,6 +87,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     private volatile boolean stopped;
     private volatile Instant lastUpdateTime;
     private volatile Duration reassignmentRecheckInterval;
+    private volatile Duration autoscalingCheckInterval = DEFAULT_AUTOSCALING_CHECK_INTERVAL;
 
     public MlMemoryTracker(
         Settings settings,
@@ -119,6 +122,10 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
     private void setReassignmentRecheckInterval(TimeValue recheckInterval) {
         reassignmentRecheckInterval = Duration.ofNanos(recheckInterval.getNanos());
+    }
+
+    public void setAutoscalingCheckInterval(Duration autoscalingCheckInterval) {
+        this.autoscalingCheckInterval = Objects.requireNonNull(autoscalingCheckInterval);
     }
 
     @Override
@@ -196,18 +203,21 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      * for valid task assignment decisions to be made using it?
      */
     public boolean isRecentlyRefreshed() {
-        return isRecentlyRefreshed(reassignmentRecheckInterval);
+        Instant localLastUpdateTime = lastUpdateTime;
+        return isMaster && localLastUpdateTime != null && localLastUpdateTime.plus(getStalenessDuration()).isAfter(Instant.now());
     }
 
     /**
-     * Is the information in this object sufficiently up to date
-     * for valid task assignment decisions to be made using it?
+     * @return The definition of "staleness" used by {@link #isRecentlyRefreshed()}. This method is intended only as
+     *         a debugging aid, as calling it separately to {@link #isRecentlyRefreshed()} could return a different
+     *         number if settings were modified in between the two calls.
      */
-    public boolean isRecentlyRefreshed(Duration customDuration) {
-        Instant localLastUpdateTime = lastUpdateTime;
-        return isMaster
-            && localLastUpdateTime != null
-            && localLastUpdateTime.plus(RECENT_UPDATE_THRESHOLD).plus(customDuration).isAfter(Instant.now());
+    public Duration getStalenessDuration() {
+        return max(reassignmentRecheckInterval, autoscalingCheckInterval).plus(RECENT_UPDATE_THRESHOLD);
+    }
+
+    static Duration max(Duration first, Duration second) {
+        return first.compareTo(second) > 0 ? first : second;
     }
 
     /**

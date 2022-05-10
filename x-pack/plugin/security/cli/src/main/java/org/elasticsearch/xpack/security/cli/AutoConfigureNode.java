@@ -12,8 +12,10 @@ import joptsimple.OptionSpec;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.lucene.util.SetOnce;
+import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.ExitCodes;
@@ -459,7 +461,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 httpCaKey,
                 false,
                 HTTP_CERTIFICATE_DAYS,
-                SIGNATURE_ALGORITHM
+                SIGNATURE_ALGORITHM,
+                Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
             );
 
             // the HTTP CA PEM file is provided "just in case". The node doesn't use it, but clients (configured manually, outside of the

@@ -215,7 +215,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
         try {
             cleaner.accept(element);
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("Unable to clean unused element"), e);
+            logger.warn("Unable to clean unused element", e);
         }
     }
 

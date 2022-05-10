@@ -699,7 +699,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                     } catch (Exception ex) {
                                         e.addSuppressed(ex);
                                         logger.warn(
-                                            () -> new ParameterizedMessage("failed to execute failure callback for chunk request"),
+                                            "failed to execute failure callback for chunk request",
                                             e
                                         );
                                     }

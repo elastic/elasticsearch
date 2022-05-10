@@ -82,8 +82,7 @@ public class RestVectorTileAction extends BaseRestHandler {
     // internal centroid aggregation name
     static final String CENTROID_AGG_NAME = INTERNAL_AGG_PREFIX + "centroid";
     // internal label position runtime field name
-    static final String LABEL_POSITION_FIELD_NAME = INTERNAL_AGG_PREFIX + "label_positions";
-    static final String LABEL_POSITION_TAG = "__EsIsLabelFeature";
+    static final String LABEL_POSITION_FIELD_NAME = INTERNAL_AGG_PREFIX + "label_position";
 
     public RestVectorTileAction() {}
 
@@ -280,21 +279,18 @@ public class RestVectorTileAction extends BaseRestHandler {
         final MvtLayerProps layerProps = new MvtLayerProps();
         final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
         for (SearchHit searchHit : hits) {
-            final DocumentField geoField = searchHit.field(request.getField());
+            String requestField = request.getField();
+            final DocumentField geoField = searchHit.field(requestField);
             if (geoField == null) {
                 continue;
             }
+            final Map<String, DocumentField> fields = searchHit.getDocumentFields();
             for (Object feature : geoField) {
                 featureBuilder.clear();
                 featureBuilder.mergeFrom((byte[]) feature);
                 VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, ID_TAG, searchHit.getId());
                 VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, INDEX_TAG, searchHit.getIndex());
-                final Map<String, DocumentField> fields = searchHit.getDocumentFields();
-                for (String field : fields.keySet()) {
-                    if (request.getField().equals(field) == false) {
-                        VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, field, fields.get(field).getValue());
-                    }
-                }
+                addHitsFields(featureBuilder, layerProps, requestField, fields);
                 hitsLayerBuilder.addFeatures(featureBuilder);
             }
             if (request.getWithLabels()) {
@@ -307,7 +303,9 @@ public class RestVectorTileAction extends BaseRestHandler {
                         featureBuilder.clear();
                         featureBuilder.mergeFrom(labelPosFeature);
                         VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, ID_TAG, searchHit.getId());
-                        VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, LABEL_POSITION_TAG, true);
+                        VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, INDEX_TAG, searchHit.getIndex());
+                        VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, LABEL_POSITION_FIELD_NAME, true);
+                        addHitsFields(featureBuilder, layerProps, requestField, fields);
                         hitsLayerBuilder.addFeatures(featureBuilder);
                     }
                 }
@@ -315,6 +313,19 @@ public class RestVectorTileAction extends BaseRestHandler {
         }
         VectorTileUtils.addPropertiesToLayer(hitsLayerBuilder, layerProps);
         return hitsLayerBuilder;
+    }
+
+    private static void addHitsFields(
+        final VectorTile.Tile.Feature.Builder featureBuilder,
+        final MvtLayerProps layerProps,
+        String requestField,
+        Map<String, DocumentField> fields
+    ) {
+        for (String field : fields.keySet()) {
+            if ((requestField.equals(field) == false) && (field.equals(LABEL_POSITION_FIELD_NAME) == false)) {
+                VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, field, fields.get(field).getValue());
+            }
+        }
     }
 
     private static VectorTile.Tile.Layer.Builder buildAggsLayer(
@@ -340,12 +351,11 @@ public class RestVectorTileAction extends BaseRestHandler {
             VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, KEY_TAG, bucketKey);
             // Add count as key value pair
             VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, COUNT_TAG, bucket.getDocCount());
-            for (Aggregation aggregation : bucket.getAggregations()) {
-                if (aggregation.getName().startsWith(INTERNAL_AGG_PREFIX) == false) {
-                    VectorTileUtils.addToXContentToFeature(featureBuilder, layerProps, aggregation);
-                }
-            }
+            // Add all aggregation results
+            addAggsFields(featureBuilder, layerProps, bucket);
+            // Build the feature
             aggLayerBuilder.addFeatures(featureBuilder);
+
             if (request.getWithLabels()) {
                 // Add label position as point
                 featureBuilder.clear();
@@ -354,13 +364,27 @@ public class RestVectorTileAction extends BaseRestHandler {
                 if (labelPosFeature != null && labelPosFeature.length != 0) {
                     featureBuilder.mergeFrom(labelPosFeature);
                     VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, KEY_TAG, bucketKey);
-                    VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, LABEL_POSITION_TAG, true);
+                    VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, COUNT_TAG, bucket.getDocCount());
+                    VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, LABEL_POSITION_FIELD_NAME, true);
+                    addAggsFields(featureBuilder, layerProps, bucket);
                     aggLayerBuilder.addFeatures(featureBuilder);
                 }
             }
         }
         VectorTileUtils.addPropertiesToLayer(aggLayerBuilder, layerProps);
         return aggLayerBuilder;
+    }
+
+    private static void addAggsFields(
+        final VectorTile.Tile.Feature.Builder featureBuilder,
+        final MvtLayerProps layerProps,
+        final InternalGeoGridBucket bucket
+    ) throws IOException {
+        for (Aggregation aggregation : bucket.getAggregations()) {
+            if (aggregation.getName().startsWith(INTERNAL_AGG_PREFIX) == false) {
+                VectorTileUtils.addToXContentToFeature(featureBuilder, layerProps, aggregation);
+            }
+        }
     }
 
     private static VectorTile.Tile.Layer.Builder buildMetaLayer(

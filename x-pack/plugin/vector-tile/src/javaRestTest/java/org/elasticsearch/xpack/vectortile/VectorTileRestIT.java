@@ -321,24 +321,51 @@ public class VectorTileRestIT extends ESRestTestCase {
     }
 
     public void testWithLabels() throws Exception {
-        {
-            final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
-            mvtRequest.setJsonEntity("{\"size\" : 100, \"with_labels\": true }");
-            final VectorTile.Tile tile = execute(mvtRequest);
-            assertThat(tile.getLayersCount(), Matchers.equalTo(3));
-            // CHeck that double the points are returned (one extra label position for each point)
-            assertLayer(tile, HITS_LAYER, 4096, 66, 4, "_id", "_index", "__EsIsLabelFeature", "_mvt_label_positions");
-            assertLayer(tile, AGGS_LAYER, 4096, 2, 3);
-            assertLayer(tile, META_LAYER, 4096, 1, 13);
-            // Check that features exist for label positions
-            assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index", "_mvt_label_positions");
-            assertFeatureTags(tile, HITS_LAYER, 1, "_id", "__EsIsLabelFeature");
-            assertFeatureTags(tile, HITS_LAYER, 64, "_id", "_index", "_mvt_label_positions");
-            assertFeatureTags(tile, HITS_LAYER, 65, "_id", "__EsIsLabelFeature");
-            // Check that aggs layer also has label position features
-            assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count");
-            assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "__EsIsLabelFeature");
-        }
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("{\"size\" : 100, \"with_labels\": true}");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        // CHeck that double the points are returned (one extra label position for each point)
+        assertLayer(tile, HITS_LAYER, 4096, 66, 3, "_id", "_index", "_mvt_label_position");
+        assertLayer(tile, AGGS_LAYER, 4096, 2, 3);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+        // Check that features exist for label positions
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index");
+        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "_index", "_mvt_label_position");
+        assertFeatureTags(tile, HITS_LAYER, 64, "_id", "_index");
+        assertFeatureTags(tile, HITS_LAYER, 65, "_id", "_index", "_mvt_label_position");
+        // Check that aggs layer also has label position features
+        assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "_count", "_mvt_label_position");
+    }
+
+    public void testWithLabelsAndFieldsAndAggs() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("""
+            {
+              "size" : 100,
+              "with_labels": true,
+              "fields": ["name", "value1"],
+              "aggs": {
+                "minVal": {
+                  "min": {"field": "value1"}
+                }
+              }
+            }""");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        // CHeck that double the points are returned (one extra label position for each point)
+        assertLayer(tile, HITS_LAYER, 4096, 66, 5, "_id", "_index", "_mvt_label_position", "name", "value1");
+        assertLayer(tile, AGGS_LAYER, 4096, 2, 4);
+        assertLayer(tile, META_LAYER, 4096, 1, 18); // 5 extra tags for each new aggregation defined
+        // Check that features exist for label positions
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index", "name", "value1");
+        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "_index", "_mvt_label_position", "name", "value1");
+        assertFeatureTags(tile, HITS_LAYER, 64, "_id", "_index", "name", "value1");
+        assertFeatureTags(tile, HITS_LAYER, 65, "_id", "_index", "_mvt_label_position", "name", "value1");
+        // Check that aggs layer also has label position features
+        assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count", "minVal.value");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "_count", "minVal.value", "_mvt_label_position");
     }
 
     public void testBasicShapeWithLabels() throws Exception {
@@ -348,19 +375,51 @@ public class VectorTileRestIT extends ESRestTestCase {
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         // Check that there is an extra feature returned, a point label position
-        assertLayer(tile, HITS_LAYER, 4096, 2, 4, "_id", "_index", "__EsIsLabelFeature", "_mvt_label_positions");
+        assertLayer(tile, HITS_LAYER, 4096, 2, 3, "_id", "_index", "_mvt_label_position");
         assertLayer(tile, AGGS_LAYER, 4096, numAggsFeatures, 3);
         assertLayer(tile, META_LAYER, 4096, 1, 13);
         assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", INDEX_POLYGON);
         assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_id", "polygon");
         // Check that the polygon and label features have the right tags
-        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index", "_mvt_label_positions");
-        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "__EsIsLabelFeature");
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index");
+        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "_index", "_mvt_label_position");
         // Check that aggs layer also has label position features
         assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count");
-        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "__EsIsLabelFeature");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "_count", "_mvt_label_position");
         assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 2, "_key", "_count");
-        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 1, "_key", "__EsIsLabelFeature");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 1, "_key", "_count", "_mvt_label_position");
+    }
+
+    public void testBasicShapeWithLabelsAndFieldsAndAggs() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("""
+            {
+              "size" : 100,
+              "with_labels": true,
+              "fields": ["name", "value1"],
+              "aggs": {
+                "minVal": {
+                  "min": {"field": "value1"}
+                }
+              }
+            }""");
+        final int numAggsFeatures = 2 * 256 * 256; // Twice as many due to additional label position features
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        // Check that there is an extra feature returned, a point label position
+        assertLayer(tile, HITS_LAYER, 4096, 2, 5, "_id", "_index", "_mvt_label_position", "name", "value1");
+        assertLayer(tile, AGGS_LAYER, 4096, numAggsFeatures, 4);
+        assertLayer(tile, META_LAYER, 4096, 1, 18); // 5 extra tags for each new aggregation defined
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", INDEX_POLYGON);
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_id", "polygon");
+        // Check that the polygon and label features have the right tags
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index", "name", "value1");
+        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "_index", "_mvt_label_position", "name", "value1");
+        // Check that aggs layer also has label position features
+        assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count", "minVal.value");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "_count", "minVal.value", "_mvt_label_position");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 2, "_key", "_count", "minVal.value");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 1, "_key", "_count", "minVal.value", "_mvt_label_position");
     }
 
     public void testMultipolygonWithLabels() throws Exception {
@@ -374,19 +433,19 @@ public class VectorTileRestIT extends ESRestTestCase {
         final int numAggsFeatures = 2 * 2 * 2; // Twice as many due to additional label position features
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
-        assertLayer(tile, HITS_LAYER, 4096, 2, 4);
+        assertLayer(tile, HITS_LAYER, 4096, 2, 3);
         assertLayer(tile, AGGS_LAYER, 4096, numAggsFeatures, 3);
         assertLayer(tile, META_LAYER, 4096, 1, 13);
         assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", index);
         assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_id", "multi_polygon");
         // Check that the polygon and label features have the right tags
-        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index", "_mvt_label_positions");
-        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "__EsIsLabelFeature");
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index");
+        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "_index", "_mvt_label_position");
         // Check that aggs layer also has label position features
         assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count");
-        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "__EsIsLabelFeature");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "_count", "_mvt_label_position");
         assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 2, "_key", "_count");
-        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 1, "_key", "__EsIsLabelFeature");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 1, "_key", "_count", "_mvt_label_position");
 
         final Response response = client().performRequest(new Request(HttpDelete.METHOD_NAME, index));
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
@@ -849,7 +908,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             Arrays.stream(tags).forEach(t -> expected.add(t));
             for (int i = 0; i < layer.getKeysCount(); i++) {
                 String key = layer.getKeys(i);
-                assertTrue("Expected layer to contain tag " + key, expected.contains(key));
+                assertTrue("Layer contains unexpected tag " + key, expected.contains(key));
             }
         }
     }

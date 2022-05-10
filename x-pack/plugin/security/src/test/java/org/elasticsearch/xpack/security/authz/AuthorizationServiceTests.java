@@ -525,7 +525,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         RoleDescriptor role = new RoleDescriptor(
             SystemUser.ROLE_NAME,
-            new String[] { ClusterPrivilegeResolver.MANAGE_SECURITY.name() },
+            new String[] { ClusterPrivilegeResolver.ALL.name() },
             null,
             null,
             null,
@@ -535,19 +535,18 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         roleMap.put(SystemUser.ROLE_NAME, role);
 
-        // Granted by `ClusterPrivilegeResolver.MANAGE_SECURITY`
-        String action = PutUserAction.NAME;
+        String actionNotAuthorizedForSystemUser = PutUserAction.NAME;
+        assertThat(SystemUser.isAuthorized(actionNotAuthorizedForSystemUser), is(false));
         TransportRequest request = mock(TransportRequest.class);
-        assertThat(SystemUser.isAuthorized(action), is(false));
         assertThrowsAuthorizationException(
-            () -> authorize(authentication, action, request),
-            action,
+            () -> authorize(authentication, actionNotAuthorizedForSystemUser, request),
+            actionNotAuthorizedForSystemUser,
             authentication.getEffectiveSubject().getUser().principal()
         );
         verify(auditTrail).accessDenied(
             eq(requestId),
             eq(authentication),
-            eq(action),
+            eq(actionNotAuthorizedForSystemUser),
             eq(request),
             authzInfoRoles(new String[] { SystemUser.ROLE_NAME })
         );

@@ -120,6 +120,7 @@ public class BatchedRerouteService implements RerouteService {
                         return reroute.reroute(currentState, reason, future);
                     } else {
                         logger.trace("batched reroute [{}] was promoted", reason);
+                        // reroute was batched and completed in other branch
                         future.onResponse(null);
                         return currentState;
                     }

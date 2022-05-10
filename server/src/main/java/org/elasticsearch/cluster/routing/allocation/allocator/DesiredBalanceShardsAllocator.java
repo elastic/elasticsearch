@@ -70,7 +70,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.desiredBalanceService = new DesiredBalanceService(delegateAllocator);
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
-            private final AtomicReference<ListenableFuture<Void>> pendingRerouteFuture = new AtomicReference<>();
+            private final AtomicReference<ListenableFuture<Void>> pendingRerouteFuture = new AtomicReference<>(init());
+
+            private ListenableFuture<Void> init() {
+                var future = new ListenableFuture<Void>();
+                future.onResponse(null);
+                return future;
+            }
 
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {

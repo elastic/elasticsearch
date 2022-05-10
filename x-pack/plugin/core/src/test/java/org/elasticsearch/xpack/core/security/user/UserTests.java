@@ -20,12 +20,4 @@ public class UserTests extends ESTestCase {
         user = new User("u1", new String[] { "r1", "r2" }, "user1", "user1@domain.com", Map.of("key", "val"), true);
         assertThat(user.toString(), is("User[username=u1,roles=[r1,r2],fullName=user1,email=user1@domain.com,metadata={key=val}]"));
     }
-
-    public void testInternalUsersHaveEmptyRoles() {
-        assertEquals(SystemUser.INSTANCE.roles().length, 0);
-        assertEquals(XPackUser.INSTANCE.roles().length, 0);
-        assertEquals(XPackSecurityUser.INSTANCE.roles().length, 0);
-        assertEquals(AsyncSearchUser.INSTANCE.roles().length, 0);
-        assertEquals(SecurityProfileUser.INSTANCE.roles().length, 0);
-    }
 }

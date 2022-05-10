@@ -124,6 +124,7 @@ import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -479,7 +480,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
-    public void testActionsForUserMatchingSystemUserRoleNameNotAuthorized() {
+    public void testActionsForUserMatchingSystemUserRoleNameDenied() {
         final Authentication authentication = createAuthentication(new User(SystemUser.NAME, SystemUser.ROLE_NAME));
         final IndexRequest request = mock(IndexRequest.class);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
@@ -515,6 +516,40 @@ public class AuthorizationServiceTests extends ESTestCase {
             );
         }
 
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testSystemUserActionMatchingCustomRoleNameDenied() {
+        final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        RoleDescriptor role = new RoleDescriptor(
+            SystemUser.ROLE_NAME,
+            new String[] { ClusterPrivilegeResolver.MANAGE_SECURITY.name() },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        roleMap.put(SystemUser.ROLE_NAME, role);
+
+        // Granted by `ClusterPrivilegeResolver.MANAGE_SECURITY`
+        String action = PutUserAction.NAME;
+        TransportRequest request = mock(TransportRequest.class);
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, action, request),
+            action,
+            authentication.getEffectiveSubject().getUser().principal()
+        );
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(action),
+            eq(request),
+            authzInfoRoles(new String[] { SystemUser.ROLE_NAME })
+        );
         verifyNoMoreInteractions(auditTrail);
     }
 

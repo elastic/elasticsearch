@@ -37,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.TimeSeriesRange;
@@ -935,13 +934,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     @Nullable
     public TimeSeriesRange getTimeSeriesTimestampRange() {
-        if (IndexSettings.MODE.get(settings) == IndexMode.TIME_SERIES) {
-            long min = IndexSettings.TIME_SERIES_START_TIME.get(settings).toEpochMilli();
-            long max = IndexSettings.TIME_SERIES_END_TIME.get(settings).toEpochMilli();
-            return new TimeSeriesRange(min, max);
-        } else {
-            return null;
-        }
+        return IndexSettings.MODE.get(settings).getConfiguredTimestampRange(settings);
     }
 
     @Override

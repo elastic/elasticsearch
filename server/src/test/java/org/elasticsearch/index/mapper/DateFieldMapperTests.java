@@ -14,16 +14,21 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -561,6 +566,141 @@ public class DateFieldMapperTests extends MapperTestCase {
                 equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]")
             );
         }
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new SyntheticSourceSupport() {
+            private final DateFieldMapper.Resolution resolution = randomFrom(DateFieldMapper.Resolution.values());
+            private final Object nullValue = usually()
+                ? null
+                : randomValueOtherThanMany(
+                    v -> v instanceof BigDecimal,  // BigDecimal values don't parse properly so limit the test to others
+                    () -> randomValue()
+                );
+            private final DateFormatter formatter = resolution == DateFieldMapper.Resolution.MILLISECONDS
+                ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER
+                : DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER;
+
+            @Override
+            public SyntheticSourceExample example() {
+                if (randomBoolean()) {
+                    Tuple<Object, String> v = generateValue();
+                    return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+                }
+                List<Tuple<Object, String>> values = randomList(1, 5, this::generateValue);
+                List<Object> in = values.stream().map(Tuple::v1).toList();
+                List<String> outList = values.stream()
+                    .sorted(
+                        Comparator.comparing(v -> Instant.from(formatter.parse(v.v1() == null ? nullValue.toString() : v.v1().toString())))
+                    )
+                    .map(Tuple::v2)
+                    .toList();
+                Object out = outList.size() == 1 ? outList.get(0) : outList;
+                return new SyntheticSourceExample(in, out, this::mapping);
+            }
+
+            private Tuple<Object, String> generateValue() {
+                if (nullValue != null && randomBoolean()) {
+                    return Tuple.tuple(null, outValue(nullValue));
+                }
+                Object in = randomValue();
+                String out = outValue(in);
+                return Tuple.tuple(in, out);
+            }
+
+            private Object randomValue() {
+                switch (resolution) {
+                    case MILLISECONDS:
+                        if (randomBoolean()) {
+                            return randomIs8601Nanos(MAX_ISO_DATE);
+                        }
+                        return randomLongBetween(0, MAX_ISO_DATE);
+                    case NANOSECONDS:
+                        return switch (randomInt(2)) {
+                            case 0 -> randomLongBetween(0, MAX_NANOS);
+                            case 1 -> randomIs8601Nanos(MAX_NANOS);
+                            case 2 -> new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION));
+                            default -> throw new IllegalStateException();
+                        };
+                    default:
+                        throw new IllegalStateException();
+                }
+            }
+
+            private String outValue(Object in) {
+                return formatter.format(formatter.parse(in.toString()));
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", resolution.type());
+                if (nullValue != null) {
+                    b.field("null_value", nullValue);
+                }
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                List<SyntheticSourceInvalidExample> examples = new ArrayList<>();
+                for (String fieldType : new String[] { "date", "date_nanos" }) {
+                    examples.add(
+                        new SyntheticSourceInvalidExample(
+                            equalTo(
+                                "field [field] of type ["
+                                    + fieldType
+                                    + "] doesn't support synthetic source because it doesn't have doc values"
+                            ),
+                            b -> b.field("type", fieldType).field("doc_values", false)
+                        )
+                    );
+                    examples.add(
+                        new SyntheticSourceInvalidExample(
+                            equalTo(
+                                "field [field] of type ["
+                                    + fieldType
+                                    + "] doesn't support synthetic source because it ignores malformed dates"
+                            ),
+                            b -> b.field("type", fieldType).field("ignore_malformed", true)
+                        )
+                    );
+                }
+                return examples;
+            }
+        };
+    }
+
+    protected IngestScriptSupport ingestScriptSupport() {
+        return new IngestScriptSupport() {
+            @Override
+            protected DateFieldScript.Factory emptyFieldScript() {
+                return (fieldName, params, searchLookup, formatter) -> ctx -> new DateFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    formatter,
+                    ctx
+                ) {
+                    @Override
+                    public void execute() {}
+                };
+            }
+
+            @Override
+            protected DateFieldScript.Factory nonEmptyFieldScript() {
+                return (fieldName, params, searchLookup, formatter) -> ctx -> new DateFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    formatter,
+                    ctx
+                ) {
+                    @Override
+                    public void execute() {
+                        emit(1649343081000L);
+                    }
+                };
+            }
+        };
     }
 
     public void testLegacyField() throws Exception {

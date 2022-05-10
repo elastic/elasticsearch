@@ -49,6 +49,17 @@ A `frequent_items` aggregation looks like this in isolation:
 |`size` | (integer) The number of top item sets to return. | Optional | `10`
 |===
 
+
+[discrete]
+[[frequent-items-fields]]
+==== Fields
+
+Supported field types for the analyzed fields are keyword, numeric, ip, date, 
+and array. You can also add runtime fields to your analyzed fields.
+
+If the combined cardinality of the analyzed fields are high, then the 
+aggregation might be resource intensive.
+
 [discrete]
 [[frequent-items-minimum-set-size]]
 ==== Minimum set size
@@ -188,7 +199,7 @@ from New York. Finally, the item set with the third highest support is
 
 
 [discrete]
-==== Aggregation analizing numeric values via a runtime field
+==== Analizing numeric values by using a runtime field
 
 The frequent items aggregation enables you to bucket numeric values by using 
 <<runtime,runtime fields>>. The next example demonstrates how to use a script to 

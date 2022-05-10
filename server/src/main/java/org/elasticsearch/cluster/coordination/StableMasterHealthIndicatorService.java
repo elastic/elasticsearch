@@ -236,8 +236,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         if (explain) {
             UserAction.Definition contactSupport = new UserAction.Definition(
                 "contact_support",
-                "The Elasticsearch cluster does not have a stable master node. This almost always requires expert assistance. Please contact "
-                    + "Elastic support to resolve the problem.",
+                "The Elasticsearch cluster does not have a stable master node. This almost always requires expert assistance. Please "
+                    + "contact Elastic support to resolve the problem.",
                 null
             );
             UserAction userAction = new UserAction(contactSupport, null);
@@ -398,8 +398,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     /**
      * XContentBuilder doesn't deal well with ToXContentFragments (which is what DiscoveryNodes are). Also XContentBuilder doesn't do well
-     * with null values in lists. This object wraps the DiscoveryNode's XContent in a start and end object, and writes out nulls as empty
-     * objects.
+     * with null values in lists. This object wraps the DiscoveryNode's XContent in a start and end object, and writes out nulls as
+     * XContent nulls.
      */
     private record DiscoveryNodeXContentObject(DiscoveryNode master) implements ToXContentObject {
 

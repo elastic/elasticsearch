@@ -11,7 +11,7 @@ package org.elasticsearch.index.query;
 /**
  * Represents a time range defined as epoch millis.
  */
-public record TimeSeriesRange(long min, long max) {
+public record TimeSeriesRange(boolean empty, long min, long max) {
 
     public TimeSeriesRange {
         assert min < max;

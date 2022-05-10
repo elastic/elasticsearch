@@ -196,7 +196,7 @@ public enum IndexMode {
         public TimeSeriesRange getConfiguredTimestampRange(Settings indexSettings) {
             long min = IndexSettings.TIME_SERIES_START_TIME.get(indexSettings).toEpochMilli();
             long max = IndexSettings.TIME_SERIES_END_TIME.get(indexSettings).toEpochMilli();
-            return new TimeSeriesRange(min, max);
+            return new TimeSeriesRange(false, min, max);
         }
     };
 

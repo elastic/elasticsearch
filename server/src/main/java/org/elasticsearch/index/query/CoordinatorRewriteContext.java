@@ -50,7 +50,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
     }
 
     boolean hasTimestampData() {
-        return timeSeriesRange != null;
+        return timeSeriesRange.empty() == false;
     }
 
     @Nullable

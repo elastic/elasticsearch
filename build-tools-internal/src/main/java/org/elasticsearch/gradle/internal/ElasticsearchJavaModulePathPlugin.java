@@ -39,7 +39,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 /**
- * The Java Module Path Plugin, i.e. --module-path
+ * The Java Module Compile Path Plugin, i.e. --module-path, ---module-version
  */
 public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
     @Override
@@ -95,11 +95,11 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
                 FileCollection trimmedClasspath = classpath.minus(moduleCompileClasspath);
                 task.setClasspath(project.files(trimmedClasspath));
             }
-            task.doFirst(new Action<Task>() {
+            task.doLast(new Action<Task>() {
                 @Override
-                public void execute(Task task) {
+                public void execute(Task task2) {
                     // System.out.println("%s, Module path args: %s".formatted(project, argsToString(argumentProvider.asArguments())));
-                    // System.out.println("%s, Classpath: %s".formatted(project, pathToString(classpath.getAsPath())));
+                    // System.out.println("%s, Classpath: %s".formatted(project, pathToString(task.getClasspath().getAsPath())));
                 }
             });
         });
@@ -121,12 +121,20 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
                     return false;
                 }
                 visited.add(id);
-                return isModuleDependency
-                    || (id instanceof ProjectComponentIdentifier projectId && hasModuleInfoDotJava(project, projectId));
+                return isModuleDependency || (id instanceof ProjectComponentIdentifier);
             })
-            .flatMap(
-                it -> Stream.concat(walkResolvedComponent(project, it.getSelected(), true, visited), Stream.of(it.getSelected().getId()))
-            );
+            .flatMap(it -> {
+                var id = it.getSelected().getId();
+                if (isModuleDependency
+                    || (id instanceof ProjectComponentIdentifier projectId && hasModuleInfoDotJava(project, projectId))) {
+                    return Stream.concat(
+                        walkResolvedComponent(project, it.getSelected(), true, visited),
+                        Stream.of(it.getSelected().getId())
+                    );
+                } else {
+                    return walkResolvedComponent(project, it.getSelected(), false, visited);
+                }
+            });
     }
 
     static class CompileModulePathArgumentProvider implements CommandLineArgumentProvider, Named {

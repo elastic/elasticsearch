@@ -20,32 +20,40 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
 
     public static final GString JAVA_BASE_MODULE = "java.base:${System.getProperty("java.version")}"
 
+    public static final String ES_VERSION = VersionProperties.getElasticsearch()
+
     def setup() {
         javaMainClass()
-        addSubProject("some-lib") << """
-            apply plugin:'java-library'
-            
+        subProject("some-lib") << """
+            plugins {
+                id 'java-library'
+                id 'elasticsearch.java-module'
+            }
+
             dependencies {
                 api project(":some-other-lib")
             }
         """
-        addSubProject("some-other-lib") << """
-            apply plugin:'java-library'
+        subProject("some-other-lib") << """
+            plugins {
+                id 'java-library'
+                id 'elasticsearch.java-module'
+            }
         """
         buildFile << """
             plugins {
                 id 'java'
                 id 'elasticsearch.java-module'
             }
-            
+
             allprojects {
                 version = '1.2.3'
             }
-            
+
             dependencies {
                 implementation project('some-lib')
             }
-            
+
             tasks.named('compileJava').configure {
                 doLast {
                     println "COMPILE_JAVA_COMPILER_ARGS " + options.allCompilerArgs.join(';')
@@ -76,9 +84,6 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         then:
         result.task(":compileJava").outcome == TaskOutcome.SUCCESS
 
-        /**
-         * TODO: is this behavior expected, that all transitive deps of a module dependency are put on module path too?
-         * */
         assertModulePathClasspath(['./some-lib/build/classes/java/main', './some-other-lib/build/classes/java/main'], normalized(result.output))
         assertCompileClasspath([], normalized(result.output))
         file('build/classes/java/main/module-info.class').exists() == false
@@ -87,7 +92,7 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
     def "non module project with transitive module dependency"() {
         given:
         file('some-other-lib/src/main/java/module-info.java') << """
-        module someLibModule {
+        module someOtherLibModule {
         }
         """
         when:
@@ -95,11 +100,8 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         then:
         result.task(":compileJava").outcome == TaskOutcome.SUCCESS
 
-        /**
-         * TODO: is this behavior expected, that transitive deps that are module dependencies are not on module path?
-         * */
-        assertModulePathClasspath([], normalized(result.output))
-        assertCompileClasspath(['./some-lib/build/classes/java/main', './some-other-lib/build/classes/java/main'], normalized(result.output))
+        assertModulePathClasspath(['./some-other-lib/build/classes/java/main'], normalized(result.output))
+        assertCompileClasspath(['./some-lib/build/classes/java/main'], normalized(result.output))
         file('build/classes/java/main/module-info.class').exists() == false
     }
 
@@ -122,22 +124,20 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
 
     def "module project with module dependencies"() {
         given:
-        file('src/main/java/module-info.java') << """
-        module rootModule {
-            requires someModule;
-        }
-        """
         file('some-other-lib/src/main/java/module-info.java') << """
-        module someOtherModule {
+        module someOtherLibModule {
         }
-        
         """
         file('some-lib/src/main/java/module-info.java') << """
-        module someModule {
-            requires someOtherModule;
+        module someLibModule {
+            requires someOtherLibModule;
         }
         """
-
+        file('src/main/java/module-info.java') << """
+        module rootModule {
+            requires someLibModule;
+        }
+        """
         when:
         def result = gradleRunner('compileJava').build()
         then:
@@ -148,7 +148,7 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         file('build/classes/java/main/module-info.class').exists()
         file('some-lib/build/classes/java/main/module-info.class').exists()
         file('some-other-lib/build/classes/java/main/module-info.class').exists()
-        assertModuleInfo(file('build/classes/java/main/module-info.class'), 'rootModule', [JAVA_BASE_MODULE, 'someModule:null'])
+        assertModuleInfo(file('build/classes/java/main/module-info.class'), 'rootModule', [JAVA_BASE_MODULE, 'someLibModule:'+ES_VERSION])
     }
 
     def "module project with transitive module dependency"() {
@@ -158,7 +158,7 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         }
         """
         file('some-other-lib/src/main/java/module-info.java') << """
-        module someOtherModule {
+        module someOtherLibModule {
         }
         """
 

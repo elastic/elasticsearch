@@ -53,12 +53,55 @@ public class DesiredNodeTests extends ESTestCase {
         assertThat(desiredNode.externalId(), is(equalTo(nodeName)));
     }
 
-    public void testDesiredNodeMustHaveAtLeastOneProcessor() {
+    public void testNumberOfProcessorsValidation() {
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10)).build();
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> new DesiredNode(settings, -1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT)
+            () -> new DesiredNode(settings, randomInvalidFloatProcessor(), ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT)
+        );
+
+        // Processor ranges
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new DesiredNode(
+                settings,
+                new DesiredNode.ProcessorsRange(randomInvalidFloatProcessor(), randomFrom(random(), null, 1.0f)),
+                ByteSizeValue.ofGb(1),
+                ByteSizeValue.ofGb(1),
+                Version.CURRENT
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new DesiredNode(
+                settings,
+                new DesiredNode.ProcessorsRange(randomFloat() + 1, randomInvalidFloatProcessor()),
+                ByteSizeValue.ofGb(1),
+                ByteSizeValue.ofGb(1),
+                Version.CURRENT
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new DesiredNode(
+                settings,
+                new DesiredNode.ProcessorsRange(randomInvalidFloatProcessor(), randomInvalidFloatProcessor()),
+                ByteSizeValue.ofGb(1),
+                ByteSizeValue.ofGb(1),
+                Version.CURRENT
+            )
+        );
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new DesiredNode(
+                settings,
+                new DesiredNode.ProcessorsRange(3.0f, 2.0f),
+                ByteSizeValue.ofGb(1),
+                ByteSizeValue.ofGb(1),
+                Version.CURRENT
+            )
         );
     }
 
@@ -110,19 +153,77 @@ public class DesiredNodeTests extends ESTestCase {
     }
 
     public void testNodeCPUsRoundUp() {
-        final var settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10));
+        final var settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10)).build();
 
-        final var desiredNode = new DesiredNode(
-            settings.build(),
-            new DesiredNode.ProcessorsRange((float) 0.4, (float) 1.2),
-            ByteSizeValue.ofGb(1),
-            ByteSizeValue.ofGb(1),
-            Version.CURRENT
-        );
+        {
+            final var desiredNode = new DesiredNode(
+                settings,
+                new DesiredNode.ProcessorsRange((float) 0.4, (float) 1.2),
+                ByteSizeValue.ofGb(1),
+                ByteSizeValue.ofGb(1),
+                Version.CURRENT
+            );
 
-        assertThat(desiredNode.minProcessors(), is(equalTo((float) 0.4)));
-        assertThat(desiredNode.roundedMinProcessors(), is(equalTo(1)));
-        assertThat(desiredNode.maxProcessors(), is(equalTo((float) 1.2)));
-        assertThat(desiredNode.roundedMinProcessors(), is(equalTo(1)));
+            assertThat(desiredNode.minProcessors(), is(equalTo((float) 0.4)));
+            assertThat(desiredNode.roundedDownMinProcessors(), is(equalTo(1)));
+            assertThat(desiredNode.maxProcessors(), is(equalTo((float) 1.2)));
+            assertThat(desiredNode.roundedUpMaxProcessors(), is(equalTo(2)));
+        }
+
+        {
+            final var desiredNode = new DesiredNode(settings, 1.2f, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+
+            assertThat(desiredNode.minProcessors(), is(equalTo((float) 1.2)));
+            assertThat(desiredNode.roundedDownMinProcessors(), is(equalTo(1)));
+            assertThat(desiredNode.maxProcessors(), is(equalTo((float) 1.2)));
+            assertThat(desiredNode.roundedUpMaxProcessors(), is(equalTo(2)));
+        }
+
+        {
+            final var desiredNode = new DesiredNode(settings, 1024, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+
+            assertThat(desiredNode.minProcessors(), is(equalTo((float) 1024)));
+            assertThat(desiredNode.roundedDownMinProcessors(), is(equalTo(1024)));
+            assertThat(desiredNode.maxProcessors(), is(equalTo((float) 1024)));
+            assertThat(desiredNode.roundedUpMaxProcessors(), is(equalTo(1024)));
+        }
+    }
+
+    public void testDesiredNodeIsCompatible() {
+        final var settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10)).build();
+
+        {
+            final var desiredNode = new DesiredNode(
+                settings,
+                new DesiredNode.ProcessorsRange((float) 0.4, (float) 1.2),
+                ByteSizeValue.ofGb(1),
+                ByteSizeValue.ofGb(1),
+                Version.CURRENT
+            );
+            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_2_0), is(equalTo(false)));
+            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_3_0), is(equalTo(true)));
+        }
+
+        {
+            final var desiredNode = new DesiredNode(
+                settings,
+                randomIntBetween(0, 10) + randomFloat(),
+                ByteSizeValue.ofGb(1),
+                ByteSizeValue.ofGb(1),
+                Version.CURRENT
+            );
+            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_2_0), is(equalTo(false)));
+            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_3_0), is(equalTo(true)));
+        }
+
+        {
+            final var desiredNode = new DesiredNode(settings, 2.0f, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_2_0), is(equalTo(true)));
+            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_3_0), is(equalTo(true)));
+        }
+    }
+
+    private Float randomInvalidFloatProcessor() {
+        return randomFrom(-1.0f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY);
     }
 }

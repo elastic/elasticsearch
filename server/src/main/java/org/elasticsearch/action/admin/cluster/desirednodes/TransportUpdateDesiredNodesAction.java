@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
+import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -149,6 +150,24 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             final var initialDesiredNodes = DesiredNodesMetadata.fromClusterState(currentState).getLatestDesiredNodes();
             var desiredNodes = initialDesiredNodes;
             for (final var taskContext : taskContexts) {
+                final var minNodeVersion = currentState.nodes().getMinNodeVersion();
+                if (minNodeVersion.before(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
+                    var hasNonSupportedDesiredNodes = taskContext.getTask()
+                        .request()
+                        .getNodes()
+                        .stream()
+                        .anyMatch(desiredNode -> desiredNode.isCompatibleWithVersion(minNodeVersion) == false);
+                    if (hasNonSupportedDesiredNodes) {
+                        taskContext.onFailure(
+                            new RuntimeException(
+                                "Unable to use processor ranges or floating-point processors in mixed-clusters with nodes in "
+                                    + minNodeVersion
+                            )
+                        );
+                        continue;
+                    }
+                }
+
                 final var previousDesiredNodes = desiredNodes;
                 try {
                     desiredNodes = updateDesiredNodes(desiredNodes, taskContext.getTask().request());

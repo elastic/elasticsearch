@@ -25,7 +25,7 @@ PUT /_internal/desired_nodes/history/1
                  "node.attr.data" : "hot",
                  "node.attr.logical_availability_zone" : "zone-0"
             },
-            "processors" : {"min": 8.0, "max": 8.0},
+            "processors" : 8.0,
             "memory" : "58gb",
             "storage" : "1700gb",
             "node_version" : "{version}"

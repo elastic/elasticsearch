@@ -11,12 +11,10 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -30,93 +28,90 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
 
         switch (CLUSTER_TYPE) {
             case OLD -> {
-                final var updateDesiredNodesRequest = new Request("PUT", "/_internal/desired_nodes/history/1");
-                updateDesiredNodesRequest.setJsonEntity("""
-                    {
-                        "nodes" : [
-                            {
-                                "settings" : {
-                                     "node.name" : "instance-000187"
-                                },
-                                "processors" : 8,
-                                "memory" : "58gb",
-                                "storage" : "1700gb",
-                                "node_version" : "8.3.0"
-                            }
-                        ]
-                    }""");
-                var statusCode = client().performRequest(updateDesiredNodesRequest).getStatusLine().getStatusCode();
+                var response = updateDesiredNodes(1, desiredNodesWithIntegerProcessor());
+                var statusCode = response.getStatusLine().getStatusCode();
                 assertThat(statusCode, equalTo(200));
             }
             case MIXED -> {
-                final var getDesiredNodesRequest = new Request("GET", "/_internal/desired_nodes/_latest");
-                Response response = client().performRequest(getDesiredNodesRequest);
-                assertThat(response.getStatusLine().getStatusCode(), is(equalTo(200)));
-
-                final var updateDesiredNodesRequest = new Request("PUT", "/_internal/desired_nodes/history/2");
-                if (getMasterVersion().onOrAfter(Version.V_8_3_0)) {
-                    updateDesiredNodesRequest.setJsonEntity("""
-                    {
-                        "nodes" : [
-                            {
-                                "settings" : {
-                                     "node.name" : "instance-000187"
-                                },
-                                "processors_range" : {"min": 9.0, "max": 10.0},
-                                "memory" : "58gb",
-                                "storage" : "1700gb",
-                                "node_version" : "8.3.0"
-                            }
-                        ]
-                    }""");
+                final var historyVersion = FIRST_MIXED_ROUND ? 2 : 3;
+                if (getMasterVersion().onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
+                    var response = updateDesiredNodes(historyVersion, desiredNodesWithRangeOrFloatProcessors());
+                    var statusCode = response.getStatusLine().getStatusCode();
+                    // Processor ranges or float processors are forbidden in mixed mode
+                    assertThat(statusCode, equalTo(400));
                 } else {
-                    updateDesiredNodesRequest.setJsonEntity("""
-                    {
-                        "nodes" : [
-                            {
-                                "settings" : {
-                                     "node.name" : "instance-000187"
-                                },
-                                "processors" : 9,
-                                "memory" : "58gb",
-                                "storage" : "1700gb",
-                                "node_version" : "8.3.0"
-                            }
-                        ]
-                    }""");
+                    var response = updateDesiredNodes(historyVersion, desiredNodesWithIntegerProcessor());
+                    var statusCode = response.getStatusLine().getStatusCode();
+                    assertThat(statusCode, equalTo(200));
                 }
-                var statusCode = client().performRequest(updateDesiredNodesRequest).getStatusLine().getStatusCode();
-                assertThat(statusCode, equalTo(200));
             }
             case UPGRADED -> {
-                final var updateDesiredNodesRequest = new Request("PUT", "/_internal/desired_nodes/history/3");
-                updateDesiredNodesRequest.setJsonEntity("""
-                    {
-                        "nodes" : [
-                            {
-                                "settings" : {
-                                     "node.name" : "instance-000187"
-                                },
-                                "processors_range" : {"min": 9.0, "max": 10.0},
-                                "memory" : "58gb",
-                                "storage" : "1700gb",
-                                "node_version" : "8.3.0"
-                            }
-                        ]
-                    }""");
-                var statusCode = client().performRequest(updateDesiredNodesRequest).getStatusLine().getStatusCode();
+                var response = updateDesiredNodes(4, desiredNodesWithRangeOrFloatProcessors());
+                var statusCode = response.getStatusLine().getStatusCode();
                 assertThat(statusCode, equalTo(200));
             }
         }
+
+        final var getDesiredNodesRequest = new Request("GET", "/_internal/desired_nodes/_latest");
+        Response response = client().performRequest(getDesiredNodesRequest);
+        assertThat(response.getStatusLine().getStatusCode(), is(equalTo(200)));
     }
 
-    private Version getMasterVersion() {
-        return Version.V_8_2_0;
+    private Response updateDesiredNodes(int version, String body) throws Exception {
+        final var updateDesiredNodesRequest = new Request("PUT", "/_internal/desired_nodes/history/" + version);
+        updateDesiredNodesRequest.setJsonEntity(body);
+        return client().performRequest(updateDesiredNodesRequest);
     }
 
-    private String getNodeId(Predicate<Version> versionPredicate) throws IOException {
-        Response response = client().performRequest(new Request("GET", "/_cat/master?v=true"));
-        logger.info("----> {}", Streams.readFully(response.getEntity().getContent()).utf8ToString());
-        return null;
+    private String desiredNodesWithRangeOrFloatProcessors() {
+        return """
+            {
+                "nodes" : [
+                    {
+                        "settings" : {
+                             "node.name" : "instance-000187"
+                        },
+                        "processors_range" : {"min": 9.0, "max": 10.0},
+                        "memory" : "58gb",
+                        "storage" : "1700gb",
+                        "node_version" : "99.1.0"
+                    }
+                ]
+            }""";
+    }
+
+    private String desiredNodesWithIntegerProcessor() {
+        return """
+            {
+                "nodes" : [
+                    {
+                        "settings" : {
+                             "node.name" : "instance-000187"
+                        },
+                        "processors" : 9,
+                        "memory" : "58gb",
+                        "storage" : "1700gb",
+                        "node_version" : "99.1.0"
+                    }
+                ]
+            }""";
+    }
+
+    private Version getMasterVersion() throws Exception {
+        final var masterId = getMasterNodeId();
+        return getVersion(masterId);
+    }
+
+    private String getMasterNodeId() throws IOException {
+        final var request = new Request("GET", "/_cluster/state");
+        final var response = client().performRequest(request);
+        return ObjectPath.createFromResponse(response).evaluate("master_node").toString();
+    }
+
+    private Version getVersion(String nodeId) throws IOException {
+        final var request = new Request("GET", "/_nodes");
+        final var response = client().performRequest(request);
+
+        return Version.fromString(ObjectPath.createFromResponse(response).evaluate("nodes." + nodeId + ".version").toString());
     }
 }

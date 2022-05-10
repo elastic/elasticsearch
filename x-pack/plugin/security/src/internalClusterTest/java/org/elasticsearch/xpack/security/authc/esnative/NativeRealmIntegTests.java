@@ -267,11 +267,11 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testAddUserAndRoleThenAuth() {
-        testAddUserAndRoleThenAuth("joe");
+        testAddUserAndRoleThenAuth("joe", "test_role");
     }
 
     public void testAddUserWithInternalUsernameAndRoleThenAuth() {
-        testAddUserAndRoleThenAuth(AuthenticationTestHelper.randomInternalUsername());
+        testAddUserAndRoleThenAuth(AuthenticationTestHelper.randomInternalUsername(), AuthenticationTestHelper.randomInternalRoleName());
     }
 
     public void testAuthWithInternalUsernameFailsWithoutCorrespondingUser() {
@@ -283,9 +283,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
     }
 
-    private void testAddUserAndRoleThenAuth(String username) {
+    private void testAddUserAndRoleThenAuth(String username, String roleName) {
         logger.error("--> creating role");
-        preparePutRole("test_role").cluster("all")
+        preparePutRole(roleName).cluster("all")
             .addIndices(
                 new String[] { "*" },
                 new String[] { "read" },
@@ -296,7 +296,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             )
             .get();
         logger.error("--> creating user");
-        preparePutUser(username, "s3krit-password", hasher, "test_role").get();
+        preparePutUser(username, "s3krit-password", hasher, roleName).get();
         logger.error("--> waiting for .security index");
         ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("--> retrieving user");

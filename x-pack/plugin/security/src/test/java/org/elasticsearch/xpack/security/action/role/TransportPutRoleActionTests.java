@@ -28,9 +28,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
 import java.util.ArrayList;
@@ -130,15 +130,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
     }
 
     public void testValidRoleWithInternalRoleName() {
-        testValidRole(
-            randomFrom(
-                UsernamesField.SYSTEM_ROLE,
-                UsernamesField.XPACK_ROLE,
-                UsernamesField.ASYNC_SEARCH_ROLE,
-                UsernamesField.XPACK_SECURITY_ROLE,
-                UsernamesField.SECURITY_PROFILE_ROLE
-            )
-        );
+        testValidRole(AuthenticationTestHelper.randomInternalRoleName());
     }
 
     private void testValidRole(String roleName) {

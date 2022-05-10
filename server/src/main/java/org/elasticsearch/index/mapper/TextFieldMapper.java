@@ -345,7 +345,7 @@ public class TextFieldMapper extends FieldMapper {
             TextSearchInfo tsi = new TextSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, searchQuoteAnalyzer);
             TextFieldType ft;
             if (indexCreatedVersion.isLegacyIndexVersion()) {
-                ft = new ConstantScoreTextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
+                ft = new LegacyTextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
                 // ignore fieldData and eagerGlobalOrdinals
             } else {
                 ft = new TextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
@@ -979,6 +979,19 @@ public class TextFieldMapper extends FieldMapper {
             throws IOException {
             // Disable scoring
             return new ConstantScoreQuery(super.phrasePrefixQuery(stream, slop, maxExpansions, queryShardContext));
+        }
+
+    }
+
+    static class LegacyTextFieldType extends ConstantScoreTextFieldType {
+
+        LegacyTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
+            super(name, indexed, stored, tsi, meta);
+        }
+
+        @Override
+        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Cannot use span prefix queries on text field " + name() + " of a legacy index");
         }
 
     }

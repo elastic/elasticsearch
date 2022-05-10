@@ -1,5 +1,5 @@
 pr: 86604
-summary: Internal role names no longer reserved
+summary: Relax restrictions for role names
 area: Authorization
 type: enhancement
 issues:

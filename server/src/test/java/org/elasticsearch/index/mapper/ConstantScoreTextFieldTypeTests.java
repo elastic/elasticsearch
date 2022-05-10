@@ -48,13 +48,6 @@ public class ConstantScoreTextFieldTypeTests extends FieldTypeTestCase {
         return new ConstantScoreTextFieldType("field");
     }
 
-    public void testIsAggregatableDependsOnFieldData() {
-        ConstantScoreTextFieldType ft = createFieldType();
-        assertFalse(ft.isAggregatable());
-        ft.setFielddata(true);
-        assertTrue(ft.isAggregatable());
-    }
-
     public void testTermQuery() {
         MappedFieldType ft = createFieldType();
         assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))), ft.termQuery("foo", null));

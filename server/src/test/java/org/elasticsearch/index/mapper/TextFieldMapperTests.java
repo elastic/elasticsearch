@@ -1105,4 +1105,29 @@ public class TextFieldMapperTests extends MapperTestCase {
         merge(mapperService, differentAnalyzer);
         assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
     }
+
+    public void testIgnoreFieldDataOnLegacyIndex() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> b.field("type", "text").field("fielddata", true));
+        MapperService mapperService = createMapperService(mapping);
+        assertTrue(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().fielddata());
+
+        mapperService = createMapperService(Version.fromString("5.0.0"), mapping);
+        assertFalse(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().fielddata());
+
+        MapperService finalMapperService = mapperService;
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ((TextFieldMapper) finalMapperService.documentMapper().mappers().getMapper("field")).fieldType()
+                .fielddataBuilder("test", null)
+        );
+    }
+
+    public void testIgnoreEagerGlobalOrdinalsOnLegacyIndex() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> b.field("type", "text").field("eager_global_ordinals", true));
+        MapperService mapperService = createMapperService(mapping);
+        assertTrue(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().eagerGlobalOrdinals());
+
+        mapperService = createMapperService(Version.fromString("5.0.0"), mapping);
+        assertFalse(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().eagerGlobalOrdinals());
+    }
 }

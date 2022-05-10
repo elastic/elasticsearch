@@ -345,12 +345,13 @@ public class TextFieldMapper extends FieldMapper {
             TextFieldType ft;
             if (indexCreatedVersion.isLegacyIndexVersion()) {
                 ft = new ConstantScoreTextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
+                // ignore fieldData and eagerGlobalOrdinals
             } else {
                 ft = new TextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
-            }
-            ft.eagerGlobalOrdinals = eagerGlobalOrdinals.getValue();
-            if (fieldData.getValue()) {
-                ft.setFielddata(true, freqFilter.getValue());
+                ft.eagerGlobalOrdinals = eagerGlobalOrdinals.getValue();
+                if (fieldData.getValue()) {
+                    ft.setFielddata(true, freqFilter.getValue());
+                }
             }
             return ft;
         }

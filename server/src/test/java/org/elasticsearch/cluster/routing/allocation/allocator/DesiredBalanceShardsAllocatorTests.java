@@ -343,10 +343,13 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var reroutedIndices = new CopyOnWriteArraySet<String>();
 
         var threadPool = new TestThreadPool(getTestName());
-        RerouteService rerouteService = (r, p, l) -> threadPool.executor(ThreadPool.Names.CLUSTER_COORDINATION).submit(() -> {
-            reroutedIndices.addAll(createdIndices);
-            l.onResponse(null);
-        });
+        RerouteService rerouteService = (r, p, l) -> {
+            final var localCreatedIndices = Set.copyOf(createdIndices);
+            threadPool.executor(ThreadPool.Names.GENERIC).submit(() -> {
+                reroutedIndices.addAll(localCreatedIndices);
+                l.onResponse(null);
+            });
+        };
         var allocator = new ShardsAllocator() {
             @Override
             public void allocate(RoutingAllocation allocation) {// TODO attempt to count up-to-date allocations
@@ -374,7 +377,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var indexNameGenerator = new AtomicInteger();
         var listenersCalled = new AtomicInteger();
 
-        var iterations = 1_000;
+        var iterations = between(1, 1_000);
         for (int i = 0; i < iterations; i++) {
             boolean addNewIndex = i == 0 || randomInt(9) == 0;
             if (addNewIndex) {

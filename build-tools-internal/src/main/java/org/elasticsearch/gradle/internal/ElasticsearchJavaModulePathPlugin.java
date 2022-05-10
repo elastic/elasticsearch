@@ -21,6 +21,7 @@ import org.gradle.api.artifacts.result.ResolvedComponentResult;
 import org.gradle.api.artifacts.result.ResolvedDependencyResult;
 import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.logging.Logger;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.SourceSet;
@@ -99,9 +100,17 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
             }
             task.doLast(new Action<Task>() {
                 @Override
-                public void execute(Task task2) {
-                    // System.out.println("%s, Module path args: %s".formatted(project, argsToString(argumentProvider.asArguments())));
-                    // System.out.println("%s, Classpath: %s".formatted(project, pathToString(task.getClasspath().getAsPath())));
+                public void execute(Task t) {
+                    Logger logger = task.getLogger();
+                    if (logger.isInfoEnabled()) {
+                        logger.info(
+                            "%s%n Module path args: %s%n Classpath: %s".formatted(
+                                task.toString(),
+                                argsToString(argumentProvider.asArguments()),
+                                pathToString(task.getClasspath().getAsPath())
+                            )
+                        );
+                    }
                 }
             });
         });

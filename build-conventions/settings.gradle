@@ -9,7 +9,7 @@ rootProject.name = 'build-conventions'
 
 dependencyResolutionManagement {
     versionCatalogs {
-        create("buildLibs") {
+        buildLibs {
             from(files("../gradle/build.versions.toml"))
         }
     }

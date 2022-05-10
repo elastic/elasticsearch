@@ -9,7 +9,7 @@ include 'reaper'
 
 dependencyResolutionManagement {
     versionCatalogs {
-        create("buildLibs") {
+        buildLibs {
             from(files("../gradle/build.versions.toml"))
         }
     }

@@ -302,14 +302,17 @@ public class CompositeRolesStore {
         return xpackUserRole;
     }
 
+    // for testing
     Role getAsyncSearchUserRole() {
         return asyncSearchUserRole;
     }
 
+    // for testing
     Role getXpackSecurityRole() {
         return xpackSecurityRole;
     }
 
+    // for testing
     Role getSecurityProfileRole() {
         return securityProfileRole;
     }

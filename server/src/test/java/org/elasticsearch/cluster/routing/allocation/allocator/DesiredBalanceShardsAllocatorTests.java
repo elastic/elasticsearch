@@ -355,10 +355,16 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             public void allocate(RoutingAllocation allocation) {// TODO attempt to count up-to-date allocations
                 final var dataNodeId = allocation.nodes().getDataNodes().values().iterator().next().getId();
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
+                var madeProgress = false;
                 while (unassignedIterator.hasNext()) {
-                    String indexName = unassignedIterator.next().getIndexName();
-                    allocatedIndices.add(indexName);
-                    unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
+                    final var indexName = unassignedIterator.next().getIndexName();
+                    if (randomBoolean() || (madeProgress == false && unassignedIterator.hasNext() == false)) {
+                        allocatedIndices.add(indexName);
+                        unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
+                        madeProgress = true;
+                    } else {
+                        unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+                    }
                 }
             }
 

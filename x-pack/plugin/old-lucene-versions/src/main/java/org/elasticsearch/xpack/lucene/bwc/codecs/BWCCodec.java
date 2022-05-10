@@ -138,7 +138,7 @@ public abstract class BWCCodec extends Codec {
             codec,
             segmentInfo.getDiagnostics(),
             segmentInfo.getId(),
-            segmentInfo.getAttributes(), // adapt attributes so that per-field format codecs are overriden
+            segmentInfo.getAttributes(),
             segmentInfo.getIndexSort()
         );
         segmentInfo1.setFiles(segmentInfo.files());

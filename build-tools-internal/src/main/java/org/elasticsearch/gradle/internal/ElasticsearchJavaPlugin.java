@@ -135,6 +135,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
         javadoc.configure(doc -> doc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath()));
 
+        // ensure that modular dependencies can be found on the module path
         javadoc.configure(
             doc -> doc.getOptions().modulePath(Util.getJavaMainSourceSet(project).get().getCompileClasspath().getFiles().stream().toList())
         );

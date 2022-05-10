@@ -206,6 +206,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
+    /**
+     * FlatMap a function over all plugins
+     * @param function a function that takes a plugin and returns a result
+     * @return A stream of results
+     * @param <T> The generic type of the result
+     */
     public <T> Stream<T> map(Function<Plugin, T> function) {
         return plugins.stream().map(LoadedPlugin::instance).map(function);
     }
@@ -213,7 +219,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     /**
      * FlatMap a function over all plugins
      * @param function a function that takes a plugin and returns a collection
-     * @return A list of results
+     * @return A stream of results
      * @param <T> The generic type of the collection
      */
     public <T> Stream<T> flatMap(Function<Plugin, Collection<T>> function) {

@@ -192,8 +192,6 @@ public class WindowsServiceTests extends PackagingTestCase {
         Result result = sh.runIgnoreExitCode(serviceScript + " start");
         assertThat(result.stderr(), result.exitCode(), equalTo(1));
         dumpServiceLogs();
-        logger.warn(result.stderr().substring(0, 8192));
-        fail("NO MATCH");
         assertThat(result.stderr(), containsString("Failed starting '" + DEFAULT_ID + "' service"));
     }
 

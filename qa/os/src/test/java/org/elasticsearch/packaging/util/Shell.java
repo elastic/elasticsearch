@@ -203,7 +203,12 @@ public class Shell {
         if (Files.exists(path)) {
             long size = Files.size(path);
             if (size > 100 * 1024) {
-                return "<<Too large to read: " + size + " bytes>>";
+                // file is really big, truncate at 100k
+                try (var br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+                    char[] buf = new char[100 * 1024];
+                    int nRead = br.read(buf);
+                    return new String(buf, 0, nRead) + "\n<<Too large to read (" + size + " bytes), truncated>>";
+                }
             }
             try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {
                 return lines.collect(Collectors.joining("\n"));

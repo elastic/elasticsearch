@@ -873,7 +873,7 @@ teardown:
         history_id: "test"
         version: 1
         nodes:
-          - { settings: { node: { name: "instance-000187" } }, processors_range: {min: 8.0, max: null}, memory: "64gb", storage: "128gb", node_version: $es_version }
+          - { settings: { node: { name: "instance-000187" } }, processors_range: {min: 8.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
 ---
 "Test min processors should be less than or equal to max processors":
   - do:

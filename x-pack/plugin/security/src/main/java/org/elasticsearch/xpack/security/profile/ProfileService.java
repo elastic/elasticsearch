@@ -49,6 +49,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -210,7 +211,7 @@ public class ProfileService {
         );
     }
 
-    public void suggestProfile(SuggestProfilesRequest request, ActionListener<SuggestProfilesResponse> listener) {
+    public void suggestProfile(SuggestProfilesRequest request, TaskId parentTaskId, ActionListener<SuggestProfilesResponse> listener) {
         tryFreezeAndCheckIndex(listener.map(response -> {
             assert response == null : "only null response can reach here";
             return new SuggestProfilesResponse(
@@ -219,7 +220,7 @@ public class ProfileService {
                 new TotalHits(0, TotalHits.Relation.EQUAL_TO)
             );
         })).ifPresent(frozenProfileIndex -> {
-            final SearchRequest searchRequest = buildSearchRequest(request);
+            final SearchRequest searchRequest = buildSearchRequest(request, parentTaskId);
 
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
@@ -271,7 +272,7 @@ public class ProfileService {
     }
 
     // package private for testing
-    SearchRequest buildSearchRequest(SuggestProfilesRequest request) {
+    SearchRequest buildSearchRequest(SuggestProfilesRequest request, TaskId parentTaskId) {
         final BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("user_profile.enabled", true));
         if (Strings.hasText(request.getName())) {
             query.must(
@@ -302,12 +303,14 @@ public class ProfileService {
             query.minimumShouldMatch(0);
         }
 
-        return client.prepareSearch(SECURITY_PROFILE_ALIAS)
+        final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS)
             .setQuery(query)
             .setSize(request.getSize())
             .addSort("_score", SortOrder.DESC)
             .addSort("user_profile.last_synchronized", SortOrder.DESC)
             .request();
+        searchRequest.setParentTask(parentTaskId);
+        return searchRequest;
     }
 
     private void getVersionedDocument(String uid, ActionListener<VersionedDocument> listener) {

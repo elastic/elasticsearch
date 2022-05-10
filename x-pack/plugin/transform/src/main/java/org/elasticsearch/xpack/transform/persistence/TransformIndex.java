@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -58,7 +57,7 @@ public final class TransformIndex {
             // We only need mappings, more specifically its "_meta" part
             .features(GetIndexRequest.Feature.MAPPINGS);
         executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, GetIndexAction.INSTANCE, getIndexRequest, ActionListener.wrap(getIndexResponse -> {
-            ImmutableOpenMap<String, MappingMetadata> indicesMappings = getIndexResponse.mappings();
+            Map<String, MappingMetadata> indicesMappings = getIndexResponse.mappings();
             if (indicesMappings.containsKey(destIndex) == false) {
                 listener.onResponse(false);
                 return;

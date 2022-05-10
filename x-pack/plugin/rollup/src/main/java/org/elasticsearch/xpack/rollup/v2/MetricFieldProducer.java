@@ -10,19 +10,49 @@ package org.elasticsearch.xpack.rollup.v2;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-record MetricFieldProducer(String field, List<Metric> metrics) {
+abstract class MetricFieldProducer {
+    private final String field;
+    private final List<Metric> metrics;
+    private boolean isEmpty = true;
+
+    MetricFieldProducer(String field, List<Metric> metrics) {
+        this.field = field;
+        this.metrics = metrics;
+    }
 
     void reset() {
         for (Metric metric : metrics) {
             metric.reset();
         }
+        isEmpty = true;
     }
+
+    public String field() {
+        return field;
+    }
+
+    public List<Metric> metrics() {
+        return metrics;
+    }
+
+    public void collectMetric(Double value) {
+        for (MetricFieldProducer.Metric metric : metrics) {
+            metric.collect(value);
+        }
+        isEmpty = false;
+    }
+
+    public boolean isEmpty() {
+        return isEmpty;
+    }
+
+    public abstract Object value();
 
     abstract static class Metric {
         final String name;
@@ -38,7 +68,7 @@ record MetricFieldProducer(String field, List<Metric> metrics) {
         abstract void reset();
     }
 
-    private static class Max extends Metric {
+    static class Max extends Metric {
         private Double max;
 
         Max() {
@@ -61,10 +91,10 @@ record MetricFieldProducer(String field, List<Metric> metrics) {
         }
     }
 
-    private static class Min extends Metric {
+    static class Min extends Metric {
         private Double min;
 
-        private Min() {
+        Min() {
             super("min");
         }
 
@@ -84,10 +114,10 @@ record MetricFieldProducer(String field, List<Metric> metrics) {
         }
     }
 
-    private static class Sum extends Metric {
+    static class Sum extends Metric {
         private double sum = 0;
 
-        private Sum() {
+        Sum() {
             super("sum");
         }
 
@@ -108,10 +138,10 @@ record MetricFieldProducer(String field, List<Metric> metrics) {
         }
     }
 
-    private static class ValueCount extends Metric {
+    static class ValueCount extends Metric {
         private long count;
 
-        private ValueCount() {
+        ValueCount() {
             super("value_count");
         }
 
@@ -131,24 +161,76 @@ record MetricFieldProducer(String field, List<Metric> metrics) {
         }
     }
 
-    static Map<String, MetricFieldProducer> buildMetrics(SearchExecutionContext context, String[] metricFields) {
-        final Map<String, MetricFieldProducer> fields = new LinkedHashMap<>();
+    static class LastValue extends Metric {
+        private Number lastValue;
 
+        LastValue() {
+            super("last_value");
+        }
+
+        @Override
+        void collect(double value) {
+            if (lastValue == null) {
+                lastValue = value;
+            }
+        }
+
+        @Override
+        Number get() {
+            return lastValue;
+        }
+
+        @Override
+        void reset() {
+            lastValue = null;
+        }
+    }
+
+    static class CounterMetricFieldProducer extends MetricFieldProducer {
+
+        CounterMetricFieldProducer(String field) {
+            super(field, List.of(new LastValue()));
+
+        }
+
+        @Override
+        public Object value() {
+            assert metrics().size() == 1 : "Counters have only one metric";
+            return metrics().get(0).get();
+        }
+    }
+
+    static class GaugeMetricFieldProducer extends MetricFieldProducer {
+
+        GaugeMetricFieldProducer(String field) {
+            super(field, List.of(new Min(), new Max(), new Sum(), new ValueCount()));
+        }
+
+        @Override
+        public Object value() {
+            Map<String, Object> metricValues = new HashMap<>();
+            for (MetricFieldProducer.Metric metric : metrics()) {
+                if (metric.get() != null) {
+                    metricValues.put(metric.name, metric.get());
+                }
+            }
+            return metricValues;
+        }
+    }
+
+    static Map<String, MetricFieldProducer> buildMetricFieldProducers(SearchExecutionContext context, String[] metricFields) {
+        final Map<String, MetricFieldProducer> fields = new LinkedHashMap<>();
         for (String field : metricFields) {
             MappedFieldType fieldType = context.getFieldType(field);
             assert fieldType.getMetricType() != null;
 
-            final List<Metric> list = new ArrayList<>();
-            for (String metricName : fieldType.getMetricType().supportedAggs()) {
-                switch (metricName) {
-                    case "min" -> list.add(new Min());
-                    case "max" -> list.add(new Max());
-                    case "sum" -> list.add(new Sum());
-                    case "value_count" -> list.add(new ValueCount());
-                    default -> throw new IllegalArgumentException("Unsupported metric type [" + metricName + "]");
-                }
-            }
-            fields.put(field, new MetricFieldProducer(field, Collections.unmodifiableList(list)));
+            MetricFieldProducer producer = switch (fieldType.getMetricType()) {
+                case gauge -> new GaugeMetricFieldProducer(field);
+                case counter -> new CounterMetricFieldProducer(field);
+                default -> throw new IllegalArgumentException("Unsupported metric type [" + fieldType.getMetricType() + "]");
+            };
+
+            fields.put(field, producer);
         }
         return Collections.unmodifiableMap(fields);
     }

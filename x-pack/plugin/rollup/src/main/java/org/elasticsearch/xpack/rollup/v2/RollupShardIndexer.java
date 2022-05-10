@@ -263,12 +263,13 @@ class RollupShardIndexer {
 
                         if (leafField.advanceExact(docId)) {
                             for (int i = 0; i < leafField.docValueCount(); i++) {
+                                // TODO: We should lazily load the doc_values for the metric.
+                                // In cases such as counter metrics we only need the first (latest_value)
                                 Object obj = leafField.nextValue();
+                                // TODO: Implement aggregate_metric_double for rollup of rollups
                                 if (obj instanceof Number number) {
                                     // Collect docs to rollup doc
-                                    double value = number.doubleValue();
-                                    rollupBucketBuilder.collectMetric(fieldName, value);
-                                    // TODO: Implement aggregate_metric_double for rollup of rollups
+                                    rollupBucketBuilder.collectMetric(fieldName, number.doubleValue());
                                 } else {
                                     throw new IllegalArgumentException("Expected [Number], got [" + obj.getClass() + "]");
                                 }
@@ -316,7 +317,7 @@ class RollupShardIndexer {
         private final Map<String, MetricFieldProducer> metricFieldProducers;
 
         RollupBucketBuilder() {
-            this.metricFieldProducers = MetricFieldProducer.buildMetrics(searchExecutionContext, metricFields);
+            this.metricFieldProducers = MetricFieldProducer.buildMetricFieldProducers(searchExecutionContext, metricFields);
         }
 
         public RollupBucketBuilder init(BytesRef tsid, long timestamp) {
@@ -333,11 +334,8 @@ class RollupShardIndexer {
             return this;
         }
 
-        public void collectMetric(String fieldName, double value) {
-            MetricFieldProducer field = this.metricFieldProducers.get(fieldName);
-            for (MetricFieldProducer.Metric metric : field.metrics()) {
-                metric.collect(value);
-            }
+        public void collectMetric(String field, double value) {
+            metricFieldProducers.get(field).collectMetric(value);
         }
 
         public void collectDocCount(int docCount) {
@@ -362,14 +360,8 @@ class RollupShardIndexer {
             }
 
             for (MetricFieldProducer fieldProducer : metricFieldProducers.values()) {
-                Map<String, Object> metricValues = new HashMap<>();
-                for (MetricFieldProducer.Metric metric : fieldProducer.metrics()) {
-                    if (metric.get() != null) {
-                        metricValues.put(metric.name, metric.get());
-                    }
-                }
-                if (metricValues.isEmpty() == false) {
-                    doc.put(fieldProducer.field(), metricValues);
+                if (fieldProducer.isEmpty() == false) {
+                    doc.put(fieldProducer.field(), fieldProducer.value());
                 }
             }
 

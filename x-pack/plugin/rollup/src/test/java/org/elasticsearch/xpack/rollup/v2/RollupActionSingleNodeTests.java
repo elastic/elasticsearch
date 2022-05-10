@@ -155,13 +155,14 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testRollupIndex() throws IOException {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
+        String ts = randomDateForInterval(config.getInterval());
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
-            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_TIMESTAMP, ts)
             .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
             // .field(FIELD_DIMENSION_2, randomIntBetween(1, 10)) //TODO: Fix _tsid format issue and then enable this
             .field(FIELD_NUMERIC_1, randomInt())
-            .field(FIELD_NUMERIC_2, randomInt() * randomDouble())
+            .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
             .endObject();
         bulkIndex(sourceSupplier);
         prepareSourceIndex(sourceIndex);
@@ -287,7 +288,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .field(FIELD_TIMESTAMP, randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 60).toEpochMilli()))
             .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
             .field(FIELD_NUMERIC_1, randomInt())
-            .field(FIELD_NUMERIC_2, randomInt() * randomDouble())
+            .field(FIELD_NUMERIC_2, now.toEpochMilli())
             .endObject();
         bulkIndex(dataStreamName, sourceSupplier);
 
@@ -466,7 +467,11 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(config.getInterval().toString(), dateTimeMeta.get(config.getIntervalType()));
 
         metricFields.forEach((field, metricType) -> {
-            assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
+            switch (metricType) {
+                case counter -> assertEquals("double", mappings.get(field).get("type"));
+                case gauge -> assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
+                default -> fail("Unsupported field type");
+            }
             assertEquals(metricType.toString(), mappings.get(field).get("time_series_metric"));
         });
 
@@ -501,7 +506,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             for (String agg : metricType.supportedAggs()) {
                 switch (agg) {
                     case "min" -> composite.subAggregation(new MinAggregationBuilder(fieldname + "_" + agg).field(fieldname));
-                    case "max" -> composite.subAggregation(new MaxAggregationBuilder(fieldname + "_" + agg).field(fieldname));
+                    case "max", "last_value" -> composite.subAggregation(new MaxAggregationBuilder(fieldname + "_" + agg).field(fieldname));
                     case "sum" -> composite.subAggregation(new SumAggregationBuilder(fieldname + "_" + agg).field(fieldname));
                     case "value_count" -> composite.subAggregation(
                         new ValueCountAggregationBuilder(fieldname + "_" + agg).field(fieldname)

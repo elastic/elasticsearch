@@ -363,16 +363,24 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
         for (Map.Entry<String, FieldCapabilities> e : metricFieldCaps.entrySet()) {
             TimeSeriesParams.MetricType metricType = e.getValue().getMetricType();
-
-            List<String> aggs = List.of(metricType.supportedAggs());
-            // We choose max as the default metric
-            String defaultMetric = aggs.contains("max") ? "max" : aggs.get(0);
-            builder.startObject(e.getKey())
-                .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
-                .stringListField(AggregateDoubleMetricFieldMapper.Names.METRICS, aggs)
-                .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
-                .field(TimeSeriesParams.TIME_SERIES_METRIC_PARAM, metricType)
-                .endObject();
+            if (metricType == TimeSeriesParams.MetricType.counter) {
+                // For counters we keep the same field type, because they store
+                // only one value (the last value of the counter)
+                builder.startObject(e.getKey())
+                    .field("type", e.getValue().getType())
+                    .field(TimeSeriesParams.TIME_SERIES_METRIC_PARAM, metricType)
+                    .endObject();
+            } else {
+                List<String> aggs = List.of(metricType.supportedAggs());
+                // We choose max as the default metric
+                String defaultMetric = aggs.contains("max") ? "max" : aggs.get(0);
+                builder.startObject(e.getKey())
+                    .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
+                    .stringListField(AggregateDoubleMetricFieldMapper.Names.METRICS, aggs)
+                    .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
+                    .field(TimeSeriesParams.TIME_SERIES_METRIC_PARAM, metricType)
+                    .endObject();
+            }
         }
 
         builder.endObject();

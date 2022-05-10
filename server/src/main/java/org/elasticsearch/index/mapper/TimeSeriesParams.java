@@ -24,7 +24,7 @@ public final class TimeSeriesParams {
 
     public enum MetricType {
         gauge(new String[] { "max", "min", "value_count", "sum" }),
-        counter(new String[] { "max" }),
+        counter(new String[] { "last_value" }),
         histogram(new String[] { "value_count" }), // TODO Add more aggs
         summary(new String[] { "value_count", "sum", "min", "max" });
 

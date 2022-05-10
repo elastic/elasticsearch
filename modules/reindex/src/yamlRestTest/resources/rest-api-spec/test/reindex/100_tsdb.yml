@@ -250,8 +250,6 @@ from standard with random _id to tsdb:
             index: tsdb
           dest:
             index: standard
-          script:
-            source: ctx._id = null
   - match: {created: 4}
   - match: {updated: 0}
   - match: {version_conflicts: 0}
@@ -271,8 +269,6 @@ from standard with random _id to tsdb:
             index: standard
           dest:
             index: tsdb_new
-          script:
-            source: ctx._id = null
   - match: {created: 4}
   - match: {updated: 0}
   - match: {version_conflicts: 0}
@@ -321,7 +317,7 @@ from tsdb to tsdb modifying timestamp:
           dest:
             index: tsdb_new
           script:
-            source: ctx._id = null; ctx._source["@timestamp"] = ctx._source["@timestamp"].replace("-04-", "-05-")
+            source: ctx._source["@timestamp"] = ctx._source["@timestamp"].replace("-04-", "-05-")
   - match: {created: 4}
   - match: {updated: 0}
   - match: {version_conflicts: 0}
@@ -370,7 +366,7 @@ from tsdb to tsdb modifying dimension:
           dest:
             index: tsdb_new
           script:
-            source: ctx._id = null; ctx._source["metricset"] = "bubbles"
+            source: ctx._source["metricset"] = "bubbles"
   - match: {created: 4}
   - match: {updated: 0}
   - match: {version_conflicts: 0}

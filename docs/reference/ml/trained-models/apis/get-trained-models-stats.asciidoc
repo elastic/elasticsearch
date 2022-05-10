@@ -228,7 +228,7 @@ The epoch timestamp when the allocation started.
 
 `threads_per_allocation`:::
 (integer)
-The number of threads by each allocation during inference.
+The number of threads for each allocation during inference.
 This value is limited by the number of hardware threads on the node;
 it might therefore differ from the `threads_per_allocation` value in the <<start-trained-model-deployment>> API.
 

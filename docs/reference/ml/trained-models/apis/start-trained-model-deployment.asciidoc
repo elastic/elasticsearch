@@ -62,7 +62,7 @@ new requests are rejected with a 429 error. Defaults to 1024.
 
 `threads_per_allocation`::
 (Optional, integer)
-Sets the number of threads used by each model allocation during during inference. This generally increases
+Sets the number of threads used by each model allocation during inference. This generally increases
 the inference speed. The inference process is a compute-bound process; any number
 greater than the number of available hardware threads on the machine does not increase the
 inference speed. If this setting is greater than the number of hardware threads

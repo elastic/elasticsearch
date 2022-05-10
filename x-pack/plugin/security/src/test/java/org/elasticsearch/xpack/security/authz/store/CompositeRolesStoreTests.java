@@ -2008,10 +2008,26 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         assertThat(e1.getMessage(), containsString("system user and we should never try to get its role descriptors"));
 
-        when(subject.getUser()).thenReturn(XPackSecurityUser.INSTANCE);
-        final PlainActionFuture<Collection<Set<RoleDescriptor>>> future2 = new PlainActionFuture<>();
-        compositeRolesStore.getRoleDescriptorsList(subject, future2);
-        assertThat(future2.actionGet(), equalTo(List.of(Set.of(XPackSecurityUser.ROLE_DESCRIPTOR))));
+        for (var userAndDescriptor : List.of(
+            new Tuple<>(XPackUser.INSTANCE, XPackUser.ROLE_DESCRIPTOR),
+            new Tuple<>(AsyncSearchUser.INSTANCE, AsyncSearchUser.ROLE_DESCRIPTOR),
+            new Tuple<>(XPackSecurityUser.INSTANCE, XPackSecurityUser.ROLE_DESCRIPTOR),
+            new Tuple<>(SecurityProfileUser.INSTANCE, SecurityProfileUser.ROLE_DESCRIPTOR)
+        )) {
+            assertOnInternalUserMatchesRoleDescriptor(compositeRolesStore, subject, userAndDescriptor.v1(), userAndDescriptor.v2());
+        }
+    }
+
+    private void assertOnInternalUserMatchesRoleDescriptor(
+        CompositeRolesStore compositeRolesStore,
+        Subject subject,
+        User internalUser,
+        RoleDescriptor roleDescriptor
+    ) {
+        when(subject.getUser()).thenReturn(internalUser);
+        final PlainActionFuture<Collection<Set<RoleDescriptor>>> future = new PlainActionFuture<>();
+        compositeRolesStore.getRoleDescriptorsList(subject, future);
+        assertThat(future.actionGet(), equalTo(List.of(Set.of(roleDescriptor))));
     }
 
     private void getRoleForRoleNames(CompositeRolesStore rolesStore, Collection<String> roleNames, ActionListener<Role> listener) {

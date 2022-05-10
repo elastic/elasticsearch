@@ -1,0 +1,54 @@
+import org.elasticsearch.gradle.transform.UnzipTransform
+
+import java.util.stream.Collectors
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.build'
+
+
+tasks.named("loggerUsageCheck").configure {enabled = false }
+
+dependencies {
+  // TODO PG log4j is added temporarily
+  api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-logging'
+  }
+}
+
+
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+      'org.osgi.framework.Bundle',
+      'org.osgi.framework.BundleActivator',
+      'org.osgi.framework.BundleContext',
+      'org.osgi.framework.BundleEvent',
+      'org.osgi.framework.SynchronousBundleListener',
+      'org.osgi.framework.wiring.BundleWire',
+      'org.osgi.framework.wiring.BundleWiring',
+
+  )
+}
+tasks.named('forbiddenApisMain').configure {
+  // :libs:elasticsearch-core does not depend on server
+  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server
+  replaceSignatureFiles 'jdk-signatures'
+}
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-requires-automatic,-requires-transitive-automatic")
+  options.compilerArgs.add("-Xlint:-module") // qualified exports
+  options.compilerArgs.add("-Xlint:-exports") // implements Message!!
+}

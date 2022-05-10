@@ -111,8 +111,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         AllocationState allocationState = allocationState(context);
-        var assignedBytesUnmovableShards = allocationState.storagePreventsRemainOrMove0();
-        var unassignedBytesUnassignedShards = allocationState.storagePreventsAllocation0();
+        var assignedBytesUnmovableShards = allocationState.storagePreventsRemainOrMove();
+        var unassignedBytesUnassignedShards = allocationState.storagePreventsAllocation();
         long unassignedBytes = unassignedBytesUnassignedShards.bytes();
         long assignedBytes = assignedBytesUnmovableShards.bytes();
         long maxShardSize = allocationState.maxShardSize();
@@ -235,11 +235,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             this.roles = roles;
         }
 
-        public long storagePreventsAllocation() {
-            return storagePreventsAllocation0().bytes();
-        }
-
-        BytesShardIds storagePreventsAllocation0() {
+        BytesShardIds storagePreventsAllocation() {
             RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
             List<ShardRouting> unassignedShards = StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
                 .filter(shard -> canAllocate(shard, allocation) == false)
@@ -251,11 +247,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             );
         }
 
-        public long storagePreventsRemainOrMove() {
-            return storagePreventsRemainOrMove0().bytes();
-        }
-
-        BytesShardIds storagePreventsRemainOrMove0() {
+        BytesShardIds storagePreventsRemainOrMove() {
             RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
 
             List<ShardRouting> candidates = new LinkedList<>();

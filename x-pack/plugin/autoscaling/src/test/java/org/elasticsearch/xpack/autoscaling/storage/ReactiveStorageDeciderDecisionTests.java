@@ -343,7 +343,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private interface VerificationSubject {
-        long invoke(ReactiveStorageDeciderService.AllocationState state);
+        ReactiveStorageDeciderService.BytesShardIds invoke(ReactiveStorageDeciderService.AllocationState state);
     }
 
     private void verify(VerificationSubject subject, long expected, AllocationDecider... allocationDeciders) {
@@ -366,7 +366,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             DISK_THRESHOLD_SETTINGS,
             createAllocationDeciders(allocationDeciders)
         );
-        assertThat(subject.invoke(allocationState), equalTo(expected));
+        assertThat(subject.invoke(allocationState).bytes(), equalTo(expected));
     }
 
     private void verifyScale(long expectedDifference, String reason, AllocationDecider... allocationDeciders) {
@@ -391,11 +391,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             assertThat(resultReason.summary(), equalTo(reason));
             assertThat(
                 resultReason.unassignedShardIds(),
-                equalTo(decider.allocationState(context).storagePreventsAllocation0().shardIds())
+                equalTo(decider.allocationState(context).storagePreventsAllocation().shardIds())
             );
             assertThat(
                 resultReason.assignedShardIds(),
-                equalTo(decider.allocationState(context).storagePreventsRemainOrMove0().shardIds())
+                equalTo(decider.allocationState(context).storagePreventsRemainOrMove().shardIds())
             );
         } else {
             assertThat(result.requiredCapacity(), is(nullValue()));

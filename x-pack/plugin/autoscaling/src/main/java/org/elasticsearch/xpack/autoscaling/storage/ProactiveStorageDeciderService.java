@@ -63,7 +63,7 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
             diskThresholdSettings,
             allocationDeciders
         );
-        long unassignedBytesBeforeForecast = allocationState.storagePreventsAllocation();
+        long unassignedBytesBeforeForecast = allocationState.storagePreventsAllocation().bytes();
         assert unassignedBytesBeforeForecast >= 0;
 
         TimeValue forecastWindow = FORECAST_WINDOW.get(configuration);
@@ -72,8 +72,8 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
             System.currentTimeMillis()
         );
 
-        long unassignedBytes = allocationStateAfterForecast.storagePreventsAllocation();
-        long assignedBytes = allocationStateAfterForecast.storagePreventsRemainOrMove();
+        long unassignedBytes = allocationStateAfterForecast.storagePreventsAllocation().bytes();
+        long assignedBytes = allocationStateAfterForecast.storagePreventsRemainOrMove().bytes();
         long maxShardSize = allocationStateAfterForecast.maxShardSize();
         assert assignedBytes >= 0;
         assert unassignedBytes >= unassignedBytesBeforeForecast;

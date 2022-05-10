@@ -1379,34 +1379,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new Tuple<>(XPackSecurityUser.INSTANCE, compositeRolesStore.getXpackSecurityRole()),
             new Tuple<>(SecurityProfileUser.INSTANCE, compositeRolesStore.getSecurityProfileRole())
         )) {
-            assertInternalUserShortCircuitsToOwnInternalRole(
-                fileRolesStore,
-                nativeRolesStore,
-                reservedRolesStore,
-                effectiveRoleDescriptors,
-                compositeRolesStore,
-                userAndRole.v1(),
-                userAndRole.v2()
-            );
-        }
-    }
+            User internalUser = userAndRole.v1();
+            Subject subject = new Subject(internalUser, new RealmRef("name", "type", "node"));
+            PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
+            compositeRolesStore.getRole(subject, rolesFuture);
+            Role roles = rolesFuture.actionGet();
+            Role expectedRole = userAndRole.v2();
 
-    private void assertInternalUserShortCircuitsToOwnInternalRole(
-        FileRolesStore fileRolesStore,
-        NativeRolesStore nativeRolesStore,
-        ReservedRolesStore reservedRolesStore,
-        AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors,
-        CompositeRolesStore compositeRolesStore,
-        User internalUser,
-        Role expectedInternalUserRole
-    ) {
-        PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
-        Subject subject = new Subject(internalUser, new RealmRef("name", "type", "node"));
-        compositeRolesStore.getRole(subject, rolesFuture);
-        Role roles = rolesFuture.actionGet();
-        assertThat(roles, equalTo(expectedInternalUserRole));
-        assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        verifyNoMoreInteractions(fileRolesStore, nativeRolesStore, reservedRolesStore);
+            assertThat(roles, equalTo(expectedRole));
+            assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
+            verifyNoMoreInteractions(fileRolesStore, nativeRolesStore, reservedRolesStore);
+        }
     }
 
     public void testGetRolesForSystemUserThrowsException() {
@@ -2014,20 +1997,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new Tuple<>(XPackSecurityUser.INSTANCE, XPackSecurityUser.ROLE_DESCRIPTOR),
             new Tuple<>(SecurityProfileUser.INSTANCE, SecurityProfileUser.ROLE_DESCRIPTOR)
         )) {
-            assertOnInternalUserMatchesRoleDescriptor(compositeRolesStore, subject, userAndDescriptor.v1(), userAndDescriptor.v2());
+            User internalUser = userAndDescriptor.v1();
+            when(subject.getUser()).thenReturn(internalUser);
+            final PlainActionFuture<Collection<Set<RoleDescriptor>>> future = new PlainActionFuture<>();
+            compositeRolesStore.getRoleDescriptorsList(subject, future);
+            RoleDescriptor expectedRoleDescriptor = userAndDescriptor.v2();
+            assertThat(future.actionGet(), equalTo(List.of(Set.of(expectedRoleDescriptor))));
         }
-    }
-
-    private void assertOnInternalUserMatchesRoleDescriptor(
-        CompositeRolesStore compositeRolesStore,
-        Subject subject,
-        User internalUser,
-        RoleDescriptor roleDescriptor
-    ) {
-        when(subject.getUser()).thenReturn(internalUser);
-        final PlainActionFuture<Collection<Set<RoleDescriptor>>> future = new PlainActionFuture<>();
-        compositeRolesStore.getRoleDescriptorsList(subject, future);
-        assertThat(future.actionGet(), equalTo(List.of(Set.of(roleDescriptor))));
     }
 
     private void getRoleForRoleNames(CompositeRolesStore rolesStore, Collection<String> roleNames, ActionListener<Role> listener) {

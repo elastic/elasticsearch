@@ -336,7 +336,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         assertThat(listenersCalled.get(), equalTo(1));
     }
 
-    public void testConcurrency() throws Exception {
+    public void testConcurrency() throws InterruptedException {
 
         var createdIndices = new CopyOnWriteArraySet<String>();
         var allocatedIndices = new CopyOnWriteArraySet<String>();
@@ -375,9 +375,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             .build();
 
         var indexNameGenerator = new AtomicInteger();
-        var listenersCalled = new AtomicInteger();
 
         var iterations = between(1, 1_000);
+        var listenersCountdown = new CountDownLatch(iterations);
         for (int i = 0; i < iterations; i++) {
             boolean addNewIndex = i == 0 || randomInt(9) == 0;
             if (addNewIndex) {
@@ -392,16 +392,14 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             var indexName = "index-" + indexNameGenerator;
             desiredBalanceShardsAllocator.allocate(createAllocationFrom(clusterState), ActionListener.wrap(() -> {
                 assertThat("Listener should be called after index is rerouted", reroutedIndices, hasItem(indexName));
-                listenersCalled.incrementAndGet();
+                listenersCountdown.countDown();
             }));
         }
 
-        assertBusy(() -> {
-            assertThat(createdIndices.size(), equalTo(indexNameGenerator.get()));
-            assertThat(allocatedIndices.size(), equalTo(indexNameGenerator.get()));
-            assertThat(reroutedIndices.size(), equalTo(indexNameGenerator.get()));
-            assertThat(listenersCalled.get(), equalTo(iterations));
-        });
+        assertTrue("Should call all listeners", listenersCountdown.await(10, TimeUnit.SECONDS));
+        assertThat(createdIndices.size(), equalTo(indexNameGenerator.get()));
+        assertThat(allocatedIndices.size(), equalTo(indexNameGenerator.get()));
+        assertThat(reroutedIndices.size(), equalTo(indexNameGenerator.get()));
 
         terminate(threadPool);
     }

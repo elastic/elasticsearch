@@ -929,8 +929,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return timestampRange;
     }
 
+    /**
+     * @return the time range this index represents if this index is in time series mode.
+     *         Otherwise <code>null</code> is returned.
+     */
     @Nullable
-    public TimeSeriesRange getTimeSeriesRange() {
+    public TimeSeriesRange getTimeSeriesTimestampRange() {
         if (IndexSettings.MODE.get(settings) == IndexMode.TIME_SERIES) {
             long min = IndexSettings.TIME_SERIES_START_TIME.get(settings).toEpochMilli();
             long max = IndexSettings.TIME_SERIES_END_TIME.get(settings).toEpochMilli();

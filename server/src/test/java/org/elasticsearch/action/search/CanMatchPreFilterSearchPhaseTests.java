@@ -505,7 +505,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         }
 
         assignShardsAndExecuteCanMatchPhase(
-            dataStream,
+            List.of(dataStream),
             regularIndices,
             contextProviderBuilder.build(),
             queryBuilder,
@@ -572,7 +572,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         }
 
         assignShardsAndExecuteCanMatchPhase(
-            dataStream,
+            List.of(dataStream),
             regularIndices,
             contextProviderBuilder.build(),
             queryBuilder,
@@ -624,7 +624,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         }
 
         assignShardsAndExecuteCanMatchPhase(
-            dataStream,
+            List.of(dataStream),
             regularIndices,
             contextProviderBuilder.build(),
             queryBuilder,
@@ -633,17 +633,27 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     }
 
     public void testCanMatchFilteringOnCoordinatorThatCanBeSkippedTsdb() throws Exception {
-        Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
-        Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
-        DataStream dataStream = DataStreamTestHelper.newInstance("mydata", List.of(dataStreamIndex1, dataStreamIndex2));
-
-        List<Index> regularIndices = randomList(0, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
+        DataStream dataStream1;
+        {
+            Index index1 = new Index(".ds-ds10001", UUIDs.base64UUID());
+            Index index2 = new Index(".ds-ds10002", UUIDs.base64UUID());
+            dataStream1 = DataStreamTestHelper.newInstance("ds1", List.of(index1, index2));
+        }
+        DataStream dataStream2;
+        {
+            Index index1 = new Index(".ds-ds20001", UUIDs.base64UUID());
+            Index index2 = new Index(".ds-ds20002", UUIDs.base64UUID());
+            dataStream2 = DataStreamTestHelper.newInstance("ds2", List.of(index1, index2));
+        }
 
         long indexMinTimestamp = randomLongBetween(0, 5000);
         long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
-        for (Index dataStreamIndex : dataStream.getIndices()) {
-            contextProviderBuilder.addIndexMinMaxTimestamps(dataStreamIndex, indexMinTimestamp, indexMaxTimestamp);
+        for (Index index : dataStream1.getIndices()) {
+            contextProviderBuilder.addIndexMinMaxTimestamps(index, indexMinTimestamp, indexMaxTimestamp);
+        }
+        for (Index index : dataStream2.getIndices()) {
+            contextProviderBuilder.addIndex(index);
         }
 
         RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("@timestamp");
@@ -659,41 +669,29 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         }
 
         assignShardsAndExecuteCanMatchPhase(
-            dataStream,
-            regularIndices,
+            List.of(dataStream1, dataStream2),
+            List.of(),
             contextProviderBuilder.build(),
             queryBuilder,
             (updatedSearchShardIterators, requests) -> {
-                List<SearchShardIterator> skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
-                ;
-
-                List<SearchShardIterator> nonSkippedShards = updatedSearchShardIterators.stream()
+                var skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
+                var nonSkippedShards = updatedSearchShardIterators.stream()
                     .filter(searchShardIterator -> searchShardIterator.skip() == false)
                     .toList();
-                ;
 
-                int regularIndexShardCount = (int) updatedSearchShardIterators.stream()
-                    .filter(s -> regularIndices.contains(s.shardId().getIndex()))
-                    .count();
+                boolean allSkippedShardAreFromDataStream1 = skippedShards.stream()
+                    .allMatch(shardIterator -> dataStream1.getIndices().contains(shardIterator.shardId().getIndex()));
+                assertThat(allSkippedShardAreFromDataStream1, equalTo(true));
+                boolean allNonSkippedShardAreFromDataStream1 = nonSkippedShards.stream()
+                    .noneMatch(shardIterator -> dataStream1.getIndices().contains(shardIterator.shardId().getIndex()));
+                assertThat(allNonSkippedShardAreFromDataStream1, equalTo(true));
 
-                // When all the shards can be skipped we should query at least 1
-                // in order to get a valid search response.
-                if (regularIndexShardCount == 0) {
-                    assertThat(nonSkippedShards.size(), equalTo(1));
-                } else {
-                    boolean allNonSkippedShardsAreFromRegularIndices = nonSkippedShards.stream()
-                        .allMatch(shardIterator -> regularIndices.contains(shardIterator.shardId().getIndex()));
-
-                    assertThat(allNonSkippedShardsAreFromRegularIndices, equalTo(true));
-                }
-
-                boolean allSkippedShardAreFromDataStream = skippedShards.stream()
-                    .allMatch(shardIterator -> dataStream.getIndices().contains(shardIterator.shardId().getIndex()));
-                assertThat(allSkippedShardAreFromDataStream, equalTo(true));
-
-                boolean allRequestsWereTriggeredAgainstRegularIndices = requests.stream()
-                    .allMatch(request -> regularIndices.contains(request.shardId().getIndex()));
-                assertThat(allRequestsWereTriggeredAgainstRegularIndices, equalTo(true));
+                boolean allSkippedShardAreFromDataStream2 = skippedShards.stream()
+                    .allMatch(shardIterator -> dataStream2.getIndices().contains(shardIterator.shardId().getIndex()));
+                assertThat(allSkippedShardAreFromDataStream2, equalTo(false));
+                boolean allNonSkippedShardAreFromDataStream2 = nonSkippedShards.stream()
+                    .noneMatch(shardIterator -> dataStream2.getIndices().contains(shardIterator.shardId().getIndex()));
+                assertThat(allNonSkippedShardAreFromDataStream2, equalTo(false));
             }
         );
     }
@@ -714,7 +712,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     }
 
     private <QB extends AbstractQueryBuilder<QB>> void assignShardsAndExecuteCanMatchPhase(
-        DataStream dataStream,
+        List<DataStream> dataStreams,
         List<Index> regularIndices,
         CoordinatorRewriteContextProvider contextProvider,
         AbstractQueryBuilder<QB> query,
@@ -727,7 +725,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
         List<String> indicesToSearch = new ArrayList<>();
-        indicesToSearch.add(dataStream.getName());
+        for (DataStream dataStream : dataStreams) {
+            indicesToSearch.add(dataStream.getName());
+        }
         for (Index regularIndex : regularIndices) {
             indicesToSearch.add(regularIndex.getName());
         }
@@ -737,15 +737,17 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
         boolean atLeastOnePrimaryAssigned = false;
         final List<SearchShardIterator> originalShardIters = new ArrayList<>();
-        for (Index dataStreamIndex : dataStream.getIndices()) {
-            // If we have to execute the can match request against all the shards
-            // and none is assigned, the phase is considered as failed meaning that the next phase won't be executed
-            boolean withAssignedPrimaries = randomBoolean() || atLeastOnePrimaryAssigned == false;
-            int numShards = randomIntBetween(1, 6);
-            originalShardIters.addAll(
-                getShardsIter(dataStreamIndex, originalIndices, numShards, false, withAssignedPrimaries ? primaryNode : null, null)
-            );
-            atLeastOnePrimaryAssigned |= withAssignedPrimaries;
+        for (var dataStream : dataStreams) {
+            for (var dataStreamIndex : dataStream.getIndices()) {
+                // If we have to execute the can match request against all the shards
+                // and none is assigned, the phase is considered as failed meaning that the next phase won't be executed
+                boolean withAssignedPrimaries = randomBoolean() || atLeastOnePrimaryAssigned == false;
+                int numShards = randomIntBetween(1, 6);
+                originalShardIters.addAll(
+                    getShardsIter(dataStreamIndex, originalIndices, numShards, false, withAssignedPrimaries ? primaryNode : null, null)
+                );
+                atLeastOnePrimaryAssigned |= withAssignedPrimaries;
+            }
         }
 
         for (Index regularIndex : regularIndices) {
@@ -774,8 +776,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         }
 
         Map<String, AliasFilter> aliasFilters = new HashMap<>();
-        for (Index dataStreamIndex : dataStream.getIndices()) {
-            aliasFilters.put(dataStreamIndex.getUUID(), aliasFilter);
+        for (var dataStream : dataStreams) {
+            for (var dataStreamIndex : dataStream.getIndices()) {
+                aliasFilters.put(dataStreamIndex.getUUID(), aliasFilter);
+            }
         }
 
         for (Index regularIndex : regularIndices) {
@@ -885,6 +889,22 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(minTimestamp))
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(maxTimestamp));
 
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
+                .settings(indexSettings)
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+
+            Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder);
+            clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
+            fields.put(index, new DateFieldMapper.DateFieldType("@timestamp"));
+        }
+
+        private void addIndex(Index index) {
+            if (clusterState.metadata().index(index) != null) {
+                throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
+            }
+
+            Settings.Builder indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
                 .settings(indexSettings)
                 .numberOfShards(1)

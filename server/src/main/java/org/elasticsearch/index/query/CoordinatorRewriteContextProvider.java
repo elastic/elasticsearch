@@ -56,7 +56,7 @@ public class CoordinatorRewriteContextProvider {
 
         final TimeSeriesRange timeSeriesRange;
         var timestampRange = indexMetadata.getTimestampRange();
-        var tsdbTimeSeriesRange = indexMetadata.getTimeSeriesRange();
+        var tsdbTimeSeriesRange = indexMetadata.getTimeSeriesTimestampRange();
         if (timestampRange.containsAllShardRanges() && timestampRange != IndexLongFieldRange.EMPTY) {
             timeSeriesRange = new TimeSeriesRange(timestampRange.getMin(), timestampRange.getMax());
         } else if (tsdbTimeSeriesRange != null) {

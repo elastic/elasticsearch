@@ -8,6 +8,9 @@
 
 package org.elasticsearch.index.query;
 
+/**
+ * Represents a time range defined as epoch millis.
+ */
 public record TimeSeriesRange(long min, long max) {
 
     public TimeSeriesRange {

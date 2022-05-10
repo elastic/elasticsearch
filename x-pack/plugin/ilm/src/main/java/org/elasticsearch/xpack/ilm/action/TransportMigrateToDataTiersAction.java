@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -37,6 +39,8 @@ import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTier
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 
 public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction<MigrateToDataTiersRequest, MigrateToDataTiersResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportMigrateToDataTiersAction.class);
 
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
@@ -135,9 +139,16 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                super.clusterStateProcessed(oldState, newState);
                 clusterService.getRerouteService()
-                    .reroute("cluster migrated to data tiers routing", Priority.NORMAL, ActionListener.noop());
+                    .reroute("cluster migrated to data tiers routing", Priority.NORMAL, new ActionListener<ClusterState>() {
+                        @Override
+                        public void onResponse(ClusterState clusterState) {}
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn("unsuccessful reroute after migration to data tiers routing", e);
+                        }
+                    });
                 MigratedEntities entities = migratedEntities.get();
                 listener.onResponse(
                     new MigrateToDataTiersResponse(

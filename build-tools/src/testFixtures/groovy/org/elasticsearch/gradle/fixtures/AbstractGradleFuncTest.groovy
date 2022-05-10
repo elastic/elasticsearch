@@ -110,10 +110,6 @@ abstract class AbstractGradleFuncTest extends Specification {
     File internalBuild(File buildScript = buildFile, String major = "7.10.1", String minor = "7.11.0", String bugfix = "7.12.0") {
         buildScript << """plugins {
           id 'elasticsearch.global-build-info'
-<<<<<<< HEAD
-=======
-          ${extraPlugins.collect { p -> "id '$p'" }.join('\n')}
->>>>>>> 8bbc7c2e0b8 (Port javadoc configuration logic into a binary plugin (#86471))
         }
         import org.elasticsearch.gradle.Architecture
         import org.elasticsearch.gradle.internal.info.BuildParams
@@ -148,9 +144,6 @@ abstract class AbstractGradleFuncTest extends Specification {
             System.err.println("Syserr: " + proc.errorStream.text)
         }
     }
-<<<<<<< HEAD
-}
-=======
 
     def cleanup() {
         if (Boolean.getBoolean('test.keep.samplebuild')) {
@@ -177,4 +170,3 @@ abstract class AbstractGradleFuncTest extends Specification {
         };
     }
 }
->>>>>>> 8bbc7c2e0b8 (Port javadoc configuration logic into a binary plugin (#86471))

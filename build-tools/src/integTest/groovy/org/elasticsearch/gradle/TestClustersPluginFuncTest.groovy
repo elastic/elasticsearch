@@ -122,11 +122,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
     @Unroll
     def "test cluster modules #propertyName change is detected"() {
         given:
-<<<<<<< HEAD
-        addSubProject("test-module") << """
-=======
-        subProject("test-$pluginType") << """
->>>>>>> 8bbc7c2e0b8 (Port javadoc configuration logic into a binary plugin (#86471))
+        subProject("test-module") << """
             plugins {
                 id 'elasticsearch.esplugin'
             }

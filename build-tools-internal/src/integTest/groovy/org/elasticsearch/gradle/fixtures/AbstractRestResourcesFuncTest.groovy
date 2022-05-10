@@ -12,8 +12,7 @@ package org.elasticsearch.gradle.fixtures;
 abstract class AbstractRestResourcesFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
-        addSubProject(":test:framework") << "apply plugin: 'elasticsearch.java'"
-
+        subProject(":test:framework") << "apply plugin: 'elasticsearch.java'"
         subProject(":rest-api-spec") << """
         configurations { restSpecs\nrestTests }
         artifacts {

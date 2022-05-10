@@ -49,21 +49,24 @@ public class CoordinatorRewriteContextProvider {
     public CoordinatorRewriteContext getCoordinatorRewriteContext(Index index) {
         var clusterState = clusterStateSupplier.get();
         var indexMetadata = clusterState.metadata().index(index);
-        var dateFieldType = mappingSupplier.apply(index);
-        if (indexMetadata == null || dateFieldType == null) {
+
+        if (indexMetadata == null) {
+            return null;
+        }
+        IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
+        if (timestampRange.containsAllShardRanges() == false) {
+            timestampRange = indexMetadata.getTimeSeriesTimestampRange();
+            if (timestampRange == null) {
+                return null;
+            }
+        }
+
+        DateFieldMapper.DateFieldType dateFieldType = mappingSupplier.apply(index);
+
+        if (dateFieldType == null) {
             return null;
         }
 
-        final IndexLongFieldRange timeSeriesRange;
-        var tsdbTimeSeriesRange = indexMetadata.getTimeSeriesTimestampRange();
-        if (indexMetadata.getTimestampRange().containsAllShardRanges()) {
-            timeSeriesRange = indexMetadata.getTimestampRange();
-        } else if (tsdbTimeSeriesRange != null) {
-            timeSeriesRange = tsdbTimeSeriesRange;
-        } else {
-            return null;
-        }
-
-        return new CoordinatorRewriteContext(parserConfig, writeableRegistry, client, nowInMillis, timeSeriesRange, dateFieldType);
+        return new CoordinatorRewriteContext(parserConfig, writeableRegistry, client, nowInMillis, timestampRange, dateFieldType);
     }
 }

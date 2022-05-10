@@ -538,6 +538,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         // Granted by `ClusterPrivilegeResolver.MANAGE_SECURITY`
         String action = PutUserAction.NAME;
         TransportRequest request = mock(TransportRequest.class);
+        assertThat(SystemUser.isAuthorized(action), is(false));
         assertThrowsAuthorizationException(
             () -> authorize(authentication, action, request),
             action,

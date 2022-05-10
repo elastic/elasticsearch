@@ -11,7 +11,7 @@ or to rehydrate parts of it. Access to the data is expected to be infrequent,
 and can therefore happen with limited performance and query capabilities.
 
 For this, {es} now has the ability to access older snapshot repositories
-(back to version 5). The legacy indices in the <<snapshot-restore,snapshot repository>>
+(going back to version 5). The legacy indices in the <<snapshot-restore,snapshot repository>>
 can either be <<restore-snapshot-api,restored>>, or can be directly accessed
 via <<searchable-snapshots,searchable snapshots>> so that the archived data
 won't even need to fully reside on local disks for access.
@@ -41,7 +41,6 @@ provide regular query capabilities on a select subset of fields:
 - <<multi-fields,Multi-fields>>
 - <<field-alias,Field aliases>>
 - <<object,`object`>> fields
-// - <<nested,`nested`>> fields in limited form, not supporting any type of nested queries.
 - some basic metadata fields, e.g. `_type` for querying {es} 5 indices
 - <<runtime-mapping-fields,runtime fields>>
 - <<mapping-source-field,`_source` field>>

@@ -1023,7 +1023,7 @@ POST _reindex
 ----
 // TEST[setup:host]
 // TEST[s/^/PUT my-index-000001\n/]
-// TEST[s/otherhost:9200",/\${host},"/]
+// TEST[s/otherhost:9200",/\${host}",/]
 // TEST[s/API_KEY_VALUE" /\93116930-2ecb-4161-aa5e-4f3586c87ac6"/]
 
 Remote hosts have to be explicitly allowed in `elasticsearch.yml` using the

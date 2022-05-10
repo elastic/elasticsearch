@@ -231,7 +231,6 @@ dependencies {
   // same version as http client transitive dep
   api buildLibs.commons.codec
   api buildLibs.apache.compress
-  api buildLibs.ant
   api buildLibs.nebula.info
   api buildLibs.apache.rat
   api buildLibs.jna

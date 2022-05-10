@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
 import java.util.ArrayList;
@@ -125,7 +126,14 @@ public class TransportPutRoleActionTests extends ESTestCase {
     }
 
     public void testValidRole() {
-        final String roleName = randomFrom("admin", "dept_a", "restricted");
+        testValidRole(randomFrom("admin", "dept_a", "restricted"));
+    }
+
+    public void testRoleMatchingInternalRoleIsValid() {
+        testValidRole(randomFrom(UsernamesField.SYSTEM_ROLE, UsernamesField.XPACK_ROLE, UsernamesField.ASYNC_SEARCH_ROLE));
+    }
+
+    private void testValidRole(String roleName) {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(
             Settings.EMPTY,

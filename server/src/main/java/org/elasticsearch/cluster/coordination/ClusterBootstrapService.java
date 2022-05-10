@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -121,6 +122,30 @@ public class ClusterBootstrapService {
     public static boolean discoveryIsConfigured(Settings settings) {
         return Stream.of(DISCOVERY_SEED_PROVIDERS_SETTING, DISCOVERY_SEED_HOSTS_SETTING, INITIAL_MASTER_NODES_SETTING)
             .anyMatch(s -> s.exists(settings));
+    }
+
+    void logBootstrapState(Metadata metadata) {
+        if (metadata.clusterUUIDCommitted()) {
+            final var clusterUUID = metadata.clusterUUID();
+            if (bootstrapRequirements.isEmpty()) {
+                logger.info("this node is locked into cluster UUID [{}] and will not attempt further cluster bootstrapping", clusterUUID);
+            } else {
+                logger.warn(
+                    """
+                        this node is locked into cluster UUID [{}] but [{}] is set to {}; \
+                        remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts""",
+                    clusterUUID,
+                    INITIAL_MASTER_NODES_SETTING.getKey(),
+                    bootstrapRequirements
+                );
+            }
+        } else {
+            logger.info(
+                "this node has not joined a bootstrapped cluster yet; [{}] is set to {}",
+                INITIAL_MASTER_NODES_SETTING.getKey(),
+                bootstrapRequirements
+            );
+        }
     }
 
     void onFoundPeersUpdated() {

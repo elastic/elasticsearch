@@ -20,15 +20,14 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
-import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -196,7 +195,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                         }
                     } else {
                         ActionListener<Response> delegate = listener.delegateResponse((delegatedListener, t) -> {
-                            if (t instanceof FailedToCommitClusterStateException || t instanceof NotMasterException) {
+                            if (MasterService.isPublishFailureException(t)) {
                                 logger.debug(
                                     () -> new ParameterizedMessage(
                                         "master could not publish cluster state or "

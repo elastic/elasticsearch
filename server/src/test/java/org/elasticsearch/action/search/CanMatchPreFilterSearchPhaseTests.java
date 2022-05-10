@@ -685,6 +685,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 boolean allNonSkippedShardAreFromDataStream1 = nonSkippedShards.stream()
                     .noneMatch(shardIterator -> dataStream1.getIndices().contains(shardIterator.shardId().getIndex()));
                 assertThat(allNonSkippedShardAreFromDataStream1, equalTo(true));
+                boolean allRequestMadeToDataStream1 = requests.stream()
+                    .allMatch(request -> dataStream1.getIndices().contains(request.shardId().getIndex()));
+                assertThat(allRequestMadeToDataStream1, equalTo(false));
 
                 boolean allSkippedShardAreFromDataStream2 = skippedShards.stream()
                     .allMatch(shardIterator -> dataStream2.getIndices().contains(shardIterator.shardId().getIndex()));
@@ -692,6 +695,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 boolean allNonSkippedShardAreFromDataStream2 = nonSkippedShards.stream()
                     .noneMatch(shardIterator -> dataStream2.getIndices().contains(shardIterator.shardId().getIndex()));
                 assertThat(allNonSkippedShardAreFromDataStream2, equalTo(false));
+                boolean allRequestMadeToDataStream2 = requests.stream()
+                    .allMatch(request -> dataStream2.getIndices().contains(request.shardId().getIndex()));
+                assertThat(allRequestMadeToDataStream2, equalTo(true));
             }
         );
     }
@@ -735,9 +741,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         String[] indices = indicesToSearch.toArray(new String[0]);
         OriginalIndices originalIndices = new OriginalIndices(indices, SearchRequest.DEFAULT_INDICES_OPTIONS);
 
-        boolean atLeastOnePrimaryAssigned = false;
         final List<SearchShardIterator> originalShardIters = new ArrayList<>();
         for (var dataStream : dataStreams) {
+            boolean atLeastOnePrimaryAssigned = false;
             for (var dataStreamIndex : dataStream.getIndices()) {
                 // If we have to execute the can match request against all the shards
                 // and none is assigned, the phase is considered as failed meaning that the next phase won't be executed

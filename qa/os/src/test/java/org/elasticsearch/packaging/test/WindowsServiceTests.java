@@ -28,6 +28,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileUtils.append;
+import static org.elasticsearch.packaging.util.FileUtils.copyDirectory;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -205,17 +206,17 @@ public class WindowsServiceTests extends PackagingTestCase {
     }
 
     public void test33JavaChanged() throws Exception {
-        final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
+        final Path alternateJdk = installation.bundledJdk.getParent().resolve("jdk.copy");
 
         try {
-            mv(installation.bundledJdk, relocatedJdk);
-            sh.getEnv().put("ES_JAVA_HOME", relocatedJdk.toString());
+            copyDirectory(installation.bundledJdk, alternateJdk);
+            sh.getEnv().put("ES_JAVA_HOME", alternateJdk.toString());
             assertCommand(serviceScript + " install");
             sh.getEnv().remove("ES_JAVA_HOME");
             assertCommand(serviceScript + " start");
             assertStartedAndStop();
         } finally {
-            mv(relocatedJdk, installation.bundledJdk);
+            FileUtils.rm(alternateJdk);
         }
     }
 

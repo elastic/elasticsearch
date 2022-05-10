@@ -8,12 +8,9 @@
 
 package org.elasticsearch.packaging.test;
 
-import junit.framework.TestCase;
-
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
-import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -22,7 +19,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
@@ -196,6 +192,7 @@ public class WindowsServiceTests extends PackagingTestCase {
         Result result = sh.runIgnoreExitCode(serviceScript + " start");
         assertThat(result.stderr(), result.exitCode(), equalTo(1));
         dumpServiceLogs();
+        logger.warn(result.stderr());
         assertThat(result.stderr(), containsString("Failed starting '" + DEFAULT_ID + "' service"));
     }
 

@@ -49,17 +49,7 @@
 ##
 ################################################################
 
-## GC configuration
-8-13:-XX:+UseConcMarkSweepGC
-8-13:-XX:CMSInitiatingOccupancyFraction=75
-8-13:-XX:+UseCMSInitiatingOccupancyOnly
-
-## G1GC Configuration
-# to use G1GC, uncomment the next two lines and update the version on the
-# following three lines to your version of the JDK
-# 8-13:-XX:-UseConcMarkSweepGC
-# 8-13:-XX:-UseCMSInitiatingOccupancyOnly
-14-:-XX:+UseG1GC
+-XX:+UseG1GC
 
 ## JVM temporary directory
 -Djava.io.tmpdir=${ES_TMPDIR}
@@ -71,9 +61,8 @@
 # specified
 -XX:+HeapDumpOnOutOfMemoryError
 
-# exit right after heap dump on out of memory error. Recommended to also use
-# on java 8 for supported versions (8u92+).
-9-:-XX:+ExitOnOutOfMemoryError
+# exit right after heap dump on out of memory error
+-XX:+ExitOnOutOfMemoryError
 
 # specify an alternative path for heap dumps; ensure the directory exists and
 # has sufficient space

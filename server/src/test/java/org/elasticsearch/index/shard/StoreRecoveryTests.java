@@ -32,7 +32,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -88,7 +88,7 @@ public class StoreRecoveryTests extends ESTestCase {
         Directory target = newFSDirectory(createTempDir());
         final long maxSeqNo = randomNonNegativeLong();
         final long maxUnsafeAutoIdTimestamp = randomNonNegativeLong();
-        storeRecovery.addIndices(indexStats, target, indexSort, dirs, maxSeqNo, maxUnsafeAutoIdTimestamp, null, 0, false, false);
+        StoreRecovery.addIndices(indexStats, target, indexSort, dirs, maxSeqNo, maxUnsafeAutoIdTimestamp, null, 0, false, false);
         int numFiles = 0;
         Predicate<String> filesFilter = (f) -> f.startsWith("segments") == false
             && f.equals("write.lock") == false
@@ -163,7 +163,7 @@ public class StoreRecoveryTests extends ESTestCase {
             .setRoutingNumShards(numShards * 1000000)
             .numberOfReplicas(0)
             .build();
-        storeRecovery.addIndices(
+        StoreRecovery.addIndices(
             indexStats,
             target,
             indexSort,

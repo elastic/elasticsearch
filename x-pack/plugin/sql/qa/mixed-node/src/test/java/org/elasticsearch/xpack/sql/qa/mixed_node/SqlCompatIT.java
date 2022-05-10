@@ -15,7 +15,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
-import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.INTRODUCING_MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION;
 
 public class SqlCompatIT extends BaseRestSqlTestCase {
 
@@ -69,28 +68,6 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         });
     }
 
-    public void testNullsOrderBeforeMissingOrderSupportQueryingNewNode() throws IOException {
-        testNullsOrderBeforeMissingOrderSupport(newNodesClient);
-    }
-
-    public void testNullsOrderBeforeMissingOrderSupportQueryingOldNode() throws IOException {
-        testNullsOrderBeforeMissingOrderSupport(oldNodesClient);
-    }
-
-    private void testNullsOrderBeforeMissingOrderSupport(RestClient client) throws IOException {
-        assumeTrue(
-            "expected some nodes without support for missing_order but got none",
-            bwcVersion.before(INTRODUCING_MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION)
-        );
-
-        List<Integer> result = runOrderByNullsLastQuery(client);
-
-        assertEquals(3, result.size());
-        assertNull(result.get(0));
-        assertEquals(Integer.valueOf(1), result.get(1));
-        assertEquals(Integer.valueOf(2), result.get(2));
-    }
-
     public void testNullsOrderWithMissingOrderSupportQueryingNewNode() throws IOException {
         testNullsOrderWithMissingOrderSupport(newNodesClient);
     }
@@ -100,11 +77,6 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     private void testNullsOrderWithMissingOrderSupport(RestClient client) throws IOException {
-        assumeTrue(
-            "expected all nodes with support for missing_order but got some without",
-            bwcVersion.onOrAfter(INTRODUCING_MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION)
-        );
-
         List<Integer> result = runOrderByNullsLastQuery(client);
 
         assertEquals(3, result.size());
@@ -143,8 +115,11 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     public static String sqlQueryEntityWithOptionalMode(String query, Version bwcVersion) throws IOException {
+        return sqlQueryEntityWithOptionalMode(Map.of("query", query), bwcVersion);
+    }
+
+    public static String sqlQueryEntityWithOptionalMode(Map<String, Object> fields, Version bwcVersion) throws IOException {
         XContentBuilder json = XContentFactory.jsonBuilder().startObject();
-        json.field("query", query);
         if (bwcVersion.before(Version.V_7_12_0)) {
             // a bug previous to 7.12 caused a NullPointerException when accessing displaySize in ColumnInfo. The bug has been addressed in
             // https://github.com/elastic/elasticsearch/pull/68802/files
@@ -153,6 +128,9 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
             json.field("mode", "jdbc");
             json.field("binary_format", false);
             json.field("version", bwcVersion.toString());
+        }
+        for (Map.Entry<String, Object> entry : fields.entrySet()) {
+            json.field(entry.getKey(), entry.getValue());
         }
         json.endObject();
 
@@ -173,11 +151,10 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         indexDocs();
 
         Request req = new Request("POST", "_sql");
-        // GROUP BY queries always return a cursor
-        req.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test GROUP BY 1", bwcVersion));
+        req.setJsonEntity(sqlQueryEntityWithOptionalMode(Map.of("query", "SELECT int FROM test", "fetch_size", 1), bwcVersion));
         Map<String, Object> json = performRequestAndReadBodyAsJson(client1, req);
         String cursor = (String) json.get("cursor");
-        assertThat(cursor, Matchers.not(Matchers.emptyString()));
+        assertThat(cursor, Matchers.not(Matchers.emptyOrNullString()));
 
         Request scrollReq = new Request("POST", "_sql");
         scrollReq.setJsonEntity("{\"cursor\": \"%s\"}".formatted(cursor));

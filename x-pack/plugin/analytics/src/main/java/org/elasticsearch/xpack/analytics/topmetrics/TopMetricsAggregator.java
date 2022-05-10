@@ -293,6 +293,9 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
         @Override
         public double doubleValue(long index) {
+            if (index < 0 || index >= values.size()) {
+                return Double.NaN;
+            }
             return values.get(index);
         }
 
@@ -357,7 +360,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
         @Override
         public double doubleValue(long index) {
-            if (empty.isEmpty(index)) {
+            if (empty.isEmpty(index) || index < 0 || index >= values.size()) {
                 return Double.NaN;
             }
             return values.get(index);

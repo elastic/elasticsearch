@@ -198,16 +198,5 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
         createRestoreRequest.addParameter("wait_for_completion", "true");
         createRestoreRequest.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
         assertOK(client().performRequest(createRestoreRequest));
-
-        // add mappings (they will be auto-converted later)
-        Request putMappingsRequest = new Request("PUT", "/" + indexName + "/_mappings");
-        XContentBuilder mappingsBuilder = XContentFactory.jsonBuilder().startObject().startObject("properties");
-        for (String type : basicTypes) {
-            mappingsBuilder.startObject(type).field("type", type).endObject();
-        }
-        mappingsBuilder.startObject("date").field("type", "date").field("format", "yyyy/MM/dd").endObject();
-        mappingsBuilder.endObject().endObject();
-        putMappingsRequest.setJsonEntity(Strings.toString(mappingsBuilder));
-        assertOK(client().performRequest(putMappingsRequest));
     }
 }

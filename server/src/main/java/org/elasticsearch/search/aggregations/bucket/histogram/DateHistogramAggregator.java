@@ -428,7 +428,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         protected InternalAggregation adapt(InternalAggregation delegateResult) {
             InternalDateRange range = (InternalDateRange) delegateResult;
             List<InternalDateHistogram.Bucket> buckets = new ArrayList<>(range.getBuckets().size());
-            for (InternalDateRange.Bucket rangeBucket : range.getBuckets()) {
+
+            range.getBuckets().stream().forEach(rangeBucket -> {
                 if (rangeBucket.getDocCount() > 0) {
                     buckets.add(
                         new InternalDateHistogram.Bucket(
@@ -440,7 +441,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                         )
                     );
                 }
-            }
+            });
+
             CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
             InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0

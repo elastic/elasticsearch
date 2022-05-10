@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.MockLicenseState;
@@ -1343,7 +1344,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(Arrays.asList(roles.names()), hasItem("anonymous_user_role"));
     }
 
-    public void testDoesNotUseRolesStoreForXPacAndAsyncSearchUser() {
+    public void testDoesNotUseRolesStoreForInternalUsers() {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
@@ -1368,25 +1369,42 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             null,
-            rds -> effectiveRoleDescriptors.set(rds)
+            effectiveRoleDescriptors::set
         );
         verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
 
-        // test Xpack user short circuits to its own reserved role
+        for (var userAndRole : List.of(
+            new Tuple<>(XPackUser.INSTANCE, compositeRolesStore.getXpackUserRole()),
+            new Tuple<>(AsyncSearchUser.INSTANCE, compositeRolesStore.getAsyncSearchUserRole()),
+            new Tuple<>(XPackSecurityUser.INSTANCE, compositeRolesStore.getXpackSecurityRole()),
+            new Tuple<>(SecurityProfileUser.INSTANCE, compositeRolesStore.getSecurityProfileRole())
+        )) {
+            assertInternalUserShortCircuitsToOwnReservedRole(
+                fileRolesStore,
+                nativeRolesStore,
+                reservedRolesStore,
+                effectiveRoleDescriptors,
+                compositeRolesStore,
+                userAndRole.v1(),
+                userAndRole.v2()
+            );
+        }
+    }
+
+    private void assertInternalUserShortCircuitsToOwnReservedRole(
+        FileRolesStore fileRolesStore,
+        NativeRolesStore nativeRolesStore,
+        ReservedRolesStore reservedRolesStore,
+        AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors,
+        CompositeRolesStore compositeRolesStore,
+        User internalUser,
+        Role expectedInternalUserRole
+    ) {
         PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
-        Subject subject = new Subject(XPackUser.INSTANCE, new RealmRef("name", "type", "node"));
+        Subject subject = new Subject(internalUser, new RealmRef("name", "type", "node"));
         compositeRolesStore.getRole(subject, rolesFuture);
         Role roles = rolesFuture.actionGet();
-        assertThat(roles, equalTo(compositeRolesStore.getXpackUserRole()));
-        assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        verifyNoMoreInteractions(fileRolesStore, nativeRolesStore, reservedRolesStore);
-
-        // test AyncSearch user short circuits to its own reserved role
-        rolesFuture = new PlainActionFuture<>();
-        subject = new Subject(AsyncSearchUser.INSTANCE, new RealmRef("name", "type", "node"));
-        compositeRolesStore.getRole(subject, rolesFuture);
-        roles = rolesFuture.actionGet();
-        assertThat(roles, equalTo(compositeRolesStore.getAsyncSearchUserRole()));
+        assertThat(roles, equalTo(expectedInternalUserRole));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verifyNoMoreInteractions(fileRolesStore, nativeRolesStore, reservedRolesStore);
     }

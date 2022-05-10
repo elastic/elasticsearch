@@ -995,11 +995,11 @@ using basic auth or the password will be sent in plain text.
 There are a range of <<reindex-ssl,settings>> available to configure the behaviour of the
  `https` connection.
 
-When using Elastic Cloud, it is also possible to authenticate against the remote cluster
+When using {ecloud}, it is also possible to authenticate against the remote cluster
 through the use of a valid API key:
 
 [source,console]
---------------------------------------------------
+----
 POST _reindex
 {
   "source": {
@@ -1020,9 +1020,10 @@ POST _reindex
     "index": "my-new-index-000001"
   }
 }
---------------------------------------------------
+----
+// NOTCONSOLE
 
-Remote hosts have to be explicitly allowed in elasticsearch.yml using the
+Remote hosts have to be explicitly allowed in `elasticsearch.yml` using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list
 of allowed remote `host` and `port` combinations. Scheme is
 ignored, only the host and port are used. For example:

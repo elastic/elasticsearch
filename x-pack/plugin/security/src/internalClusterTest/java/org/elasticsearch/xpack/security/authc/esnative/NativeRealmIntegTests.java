@@ -198,12 +198,20 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertFalse("user should not exist after being deleted", resp.hasUsers());
     }
 
-    public void testAddAndGetRole() throws Exception {
+    public void testAddAndGetRole() {
+        testAddAndGetRole("test_role");
+    }
+
+    public void testAddAndGetRoleWithInternalRoleName() {
+        testAddAndGetRole(AuthenticationTestHelper.randomInternalRoleName());
+    }
+
+    private void testAddAndGetRole(String roleName) {
         final List<RoleDescriptor> existingRoles = Arrays.asList(new GetRolesRequestBuilder(client()).get().roles());
         final int existing = existingRoles.size();
         final Map<String, Object> metadata = Collections.singletonMap("key", randomAlphaOfLengthBetween(1, 10));
         logger.error("--> creating role");
-        preparePutRole("test_role").cluster("all", "none")
+        preparePutRole(roleName).cluster("all", "none")
             .runAs("root", "nobody")
             .addIndices(
                 new String[] { "index" },
@@ -218,7 +226,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         logger.error("--> waiting for .security index");
         ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("--> retrieving role");
-        GetRolesResponse resp = new GetRolesRequestBuilder(client()).names("test_role").get();
+        GetRolesResponse resp = new GetRolesRequestBuilder(client()).names(roleName).get();
         assertTrue("role should exist", resp.hasRoles());
         RoleDescriptor testRole = resp.roles()[0];
         assertNotNull(testRole);
@@ -254,15 +262,15 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertEquals("should be " + (3 + existing) + " roles total", 3 + existing, allRolesResp.roles().length);
 
         logger.info("--> retrieving test_role and test_role3");
-        GetRolesResponse someRolesResp = new GetRolesRequestBuilder(client()).names("test_role", "test_role3").get();
+        GetRolesResponse someRolesResp = new GetRolesRequestBuilder(client()).names(roleName, "test_role3").get();
         assertTrue("roles should exist", someRolesResp.hasRoles());
         assertEquals("should be 2 roles total", 2, someRolesResp.roles().length);
 
         logger.info("--> deleting role");
-        DeleteRoleResponse delResp = new DeleteRoleRequestBuilder(client()).name("test_role").get();
+        DeleteRoleResponse delResp = new DeleteRoleRequestBuilder(client()).name(roleName).get();
         assertTrue(delResp.found());
         logger.info("--> retrieving role");
-        GetRolesResponse resp2 = new GetRolesRequestBuilder(client()).names("test_role").get();
+        GetRolesResponse resp2 = new GetRolesRequestBuilder(client()).names(roleName).get();
         assertFalse("role should not exist after being deleted", resp2.hasRoles());
     }
 

@@ -40,7 +40,7 @@ public class SecurityProfileUser extends User {
         // the following traits, and especially the run-as one, go with all the internal users
         // TODO abstract in a base `InternalUser` class
         assert enabled();
-        assert roles() != null && roles().length == 1;
+        assert roles() != null && roles().length == 0;
     }
 
     @Override

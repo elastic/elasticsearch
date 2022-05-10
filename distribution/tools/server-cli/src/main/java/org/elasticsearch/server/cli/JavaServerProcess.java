@@ -108,6 +108,7 @@ class JavaServerProcess implements ServerProcess {
             // process is already effectively dead, fall through to wait for it, or should we SIGKILL?
         }
 
+        logger.info("Waiting for stderr to drain");
         try {
             errorPump.join();
         } catch (InterruptedException e) {
@@ -172,11 +173,13 @@ class JavaServerProcess implements ServerProcess {
     private class ErrorPumpThread extends Thread {
         private final BufferedReader reader;
         private final PrintWriter writer;
+        private final boolean deamonized;
 
-        private ErrorPumpThread(PrintWriter errOutput, InputStream errInput) {
+        private ErrorPumpThread(PrintWriter errOutput, InputStream errInput, boolean daemonized) {
             super("server-cli error pump");
             this.reader = new BufferedReader(new InputStreamReader(errInput, StandardCharsets.UTF_8));
             this.writer = errOutput;
+            this.deamonized = daemonized;
         }
 
         @Override
@@ -189,12 +192,15 @@ class JavaServerProcess implements ServerProcess {
                         logger.error("Got user exception: " + userExceptionMsg);
                         readyOrDead.countDown();
                     } else if (line.isEmpty() == false && line.charAt(0) == SERVER_READY_MARKER) {
-                        // The server closes stderr right after this message, but for some unknown reason
-                        // the pipe closing does not close this end of the pipe, so we must explicitly
-                        // break out of this loop, or we will block forever on the next read.
                         logger.info("Got ready signal");
                         ready = true;
                         readyOrDead.countDown();
+                        if (this.deamonized) {
+                            // The server closes stderr right after this message, but for some unknown reason
+                            // the pipe closing does not close this end of the pipe, so we must explicitly
+                            // break out of this loop, or we will block forever on the next read.
+                            break;
+                        }
                     } else {
                         writer.println(line);
                         logger.info("got stderr: " + line);

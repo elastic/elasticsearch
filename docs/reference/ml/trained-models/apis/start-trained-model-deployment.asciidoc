@@ -40,8 +40,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 `number_of_allocations`::
 (Optional, integer)
-The number of allocations a model gets on each node it is assigned to.
-For each allocation there is a separate thread used for sending inference requests to the model.
+The number of model allocations on each node where the model is deployed.
+All allocations on a node share the same copy of the model in memory but use
+a separate set of threads to evaluate the model. 
 Increasing this value generally increases the throughput.
 If this setting is greater than the number of hardware threads
 it will automatically be changed to a value less than the number of hardware threads.

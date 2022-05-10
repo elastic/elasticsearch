@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -34,8 +32,6 @@ import java.util.function.Supplier;
  * steps towards the desired balance using the {@link DesiredBalanceReconciler}.
  */
 public class DesiredBalanceShardsAllocator implements ShardsAllocator {
-
-    private static final Logger logger = LogManager.getLogger(DesiredBalanceShardsAllocator.class);
 
     public static final ActionListener<Void> REMOVE_ME = new ActionListener<>() {
 

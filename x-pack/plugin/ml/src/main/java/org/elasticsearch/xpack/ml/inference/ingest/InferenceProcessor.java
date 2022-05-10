@@ -28,7 +28,7 @@ import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
@@ -42,6 +42,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
@@ -125,17 +127,13 @@ public class InferenceProcessor extends AbstractProcessor {
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            InternalInferModelAction.INSTANCE,
+            InferModelAction.INSTANCE,
             this.buildRequest(ingestDocument),
             ActionListener.wrap(r -> handleResponse(r, ingestDocument, handler), e -> handler.accept(ingestDocument, e))
         );
     }
 
-    void handleResponse(
-        InternalInferModelAction.Response response,
-        IngestDocument ingestDocument,
-        BiConsumer<IngestDocument, Exception> handler
-    ) {
+    void handleResponse(InferModelAction.Response response, IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         if (previouslyLicensed == false) {
             previouslyLicensed = true;
         }
@@ -150,14 +148,14 @@ public class InferenceProcessor extends AbstractProcessor {
         }
     }
 
-    InternalInferModelAction.Request buildRequest(IngestDocument ingestDocument) {
+    InferModelAction.Request buildRequest(IngestDocument ingestDocument) {
         Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
         // Add ingestMetadata as previous processors might have added metadata from which we are predicting (see: foreach processor)
         if (ingestDocument.getIngestMetadata().isEmpty() == false) {
             fields.put(INGEST_KEY, ingestDocument.getIngestMetadata());
         }
         LocalModel.mapFieldsIfNecessary(fields, fieldMap);
-        return new InternalInferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed);
+        return new InferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed);
     }
 
     void auditWarningAboutLicenseIfNecessary() {
@@ -170,7 +168,7 @@ public class InferenceProcessor extends AbstractProcessor {
         }
     }
 
-    void mutateDocument(InternalInferModelAction.Response response, IngestDocument ingestDocument) {
+    void mutateDocument(InferModelAction.Response response, IngestDocument ingestDocument) {
         if (response.getInferenceResults().isEmpty()) {
             throw new ElasticsearchStatusException("Unexpected empty inference response", RestStatus.INTERNAL_SERVER_ERROR);
         }
@@ -402,6 +400,9 @@ public class InferenceProcessor extends AbstractProcessor {
             } else if (configMap.containsKey(ZeroShotClassificationConfig.NAME)) {
                 checkNlpSupported(ZeroShotClassificationConfig.NAME);
                 return ZeroShotClassificationConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(QuestionAnsweringConfig.NAME)) {
+                checkNlpSupported(QuestionAnsweringConfig.NAME);
+                return QuestionAnsweringConfigUpdate.fromMap(valueMap);
             } else {
                 throw ExceptionsHelper.badRequestException(
                     "unrecognized inference configuration type {}. Supported types {}",

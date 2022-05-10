@@ -81,6 +81,8 @@ import static org.elasticsearch.persistent.PersistentTasksClusterService.needsRe
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
+import static org.elasticsearch.xpack.core.ml.MlTasks.DATAFEED_TASK_NAME;
+import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_TASK_NAME;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -724,10 +726,10 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // succession, like we see in internal cluster tests of node failure scenarios
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+            List<PersistentTask<?>> tasks = findTasks(clusterState, Set.of(DATAFEED_TASK_NAME, JOB_TASK_NAME));
             assertNotNull(tasks);
-            assertEquals("Expected 2 tasks, but got [" + tasks.taskMap() + "]", 2, tasks.taskMap().size());
-            for (PersistentTask<?> task : tasks.tasks()) {
+            assertEquals("Expected 2 tasks, but got [" + tasks + "]", 2, tasks.size());
+            for (PersistentTask<?> task : tasks) {
                 assertFalse(needsReassignment(task.getAssignment(), clusterState.nodes()));
             }
 

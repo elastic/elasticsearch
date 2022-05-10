@@ -94,10 +94,10 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
                 .masterTimeout(request.masterNodeTimeout())
                 .version(request.version()),
 
-            new MetadataIndexTemplateService.PutListener() {
+            new ActionListener<>() {
                 @Override
-                public void onResponse(MetadataIndexTemplateService.PutResponse response) {
-                    listener.onResponse(AcknowledgedResponse.of(response.acknowledged()));
+                public void onResponse(AcknowledgedResponse response) {
+                    listener.onResponse(response);
                 }
 
                 @Override

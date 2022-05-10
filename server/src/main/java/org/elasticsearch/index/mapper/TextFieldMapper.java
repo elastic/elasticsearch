@@ -915,6 +915,26 @@ public class TextFieldMapper extends FieldMapper {
             super(name, indexed, stored, tsi, meta);
         }
 
+        public ConstantScoreTextFieldType(String name) {
+            this(
+                name,
+                true,
+                false,
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                Collections.emptyMap()
+            );
+        }
+
+        public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
+            this(
+                name,
+                indexed,
+                stored,
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                meta
+            );
+        }
+
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             // Disable scoring

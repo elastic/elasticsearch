@@ -43,6 +43,7 @@ import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.IndexSettings;
@@ -1086,5 +1087,22 @@ public class TextFieldMapperTests extends MapperTestCase {
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         assumeFalse("We don't have a way to assert things here", true);
+    }
+
+    public void testUnknownAnalyzerOnLegacyIndex() throws IOException {
+        XContentBuilder startingMapping = fieldMapping(b -> b.field("type", "text").field("analyzer", "does_not_exist"));
+
+        expectThrows(MapperParsingException.class, () -> createMapperService(startingMapping));
+
+        MapperService mapperService = createMapperService(Version.fromString("5.0.0"), startingMapping);
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
+
+        merge(mapperService, startingMapping);
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
+
+        // check that analyzer can be swapped out on legacy index
+        XContentBuilder differentAnalyzer = fieldMapping(b -> b.field("type", "text").field("analyzer", "keyword"));
+        merge(mapperService, differentAnalyzer);
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
     }
 }

@@ -37,8 +37,12 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
                 if (getMasterVersion().onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
                     var response = updateDesiredNodes(historyVersion, desiredNodesWithRangeOrFloatProcessors());
                     var statusCode = response.getStatusLine().getStatusCode();
-                    // Processor ranges or float processors are forbidden in mixed mode
-                    assertThat(statusCode, equalTo(400));
+                    if (UPGRADE_FROM_VERSION.onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
+                        assertThat(statusCode, equalTo(200));
+                    } else {
+                        // Processor ranges or float processors are forbidden in mixed mode
+                        assertThat(statusCode, equalTo(400));
+                    }
                 } else {
                     var response = updateDesiredNodes(historyVersion, desiredNodesWithIntegerProcessor());
                     var statusCode = response.getStatusLine().getStatusCode();
@@ -64,7 +68,8 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
     }
 
     private String desiredNodesWithRangeOrFloatProcessors() {
-        return """
+        if (randomBoolean()) {
+            return """
             {
                 "nodes" : [
                     {
@@ -78,6 +83,22 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
                     }
                 ]
             }""";
+        } else {
+            return """
+            {
+                "nodes" : [
+                    {
+                        "settings" : {
+                             "node.name" : "instance-000187"
+                        },
+                        "processors" : 9.5,
+                        "memory" : "58gb",
+                        "storage" : "1700gb",
+                        "node_version" : "99.1.0"
+                    }
+                ]
+            }""";
+        }
     }
 
     private String desiredNodesWithIntegerProcessor() {

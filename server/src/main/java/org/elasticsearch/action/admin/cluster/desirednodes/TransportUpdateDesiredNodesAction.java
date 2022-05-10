@@ -159,7 +159,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                         .anyMatch(desiredNode -> desiredNode.isCompatibleWithVersion(minNodeVersion) == false);
                     if (hasNonSupportedDesiredNodes) {
                         taskContext.onFailure(
-                            new RuntimeException(
+                            new IllegalArgumentException(
                                 "Unable to use processor ranges or floating-point processors in mixed-clusters with nodes in "
                                     + minNodeVersion
                             )

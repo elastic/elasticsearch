@@ -44,6 +44,7 @@ import java.util.stream.StreamSupport;
 public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
+        project.getPluginManager().apply(JavaPlugin.class);
         configureCompileModulePath(project);
     }
 

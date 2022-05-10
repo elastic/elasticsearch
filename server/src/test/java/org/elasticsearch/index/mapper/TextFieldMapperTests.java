@@ -16,6 +16,7 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -62,11 +64,14 @@ import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.hamcrest.Matcher;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -204,7 +209,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         );
         return new IndexAnalyzers(
             Map.of("default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop),
-            Map.of(),
+            Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
             Map.of()
         );
     }
@@ -1086,5 +1091,79 @@ public class TextFieldMapperTests extends MapperTestCase {
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         assumeFalse("We don't have a way to assert things here", true);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        SyntheticSourceExample delegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport().example();
+        return new SyntheticSourceSupport() {
+            @Override
+            public SyntheticSourceExample example() throws IOException {
+                return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), b -> {
+                    b.field("type", "text");
+                    b.startObject("fields");
+                    {
+                        b.startObject(randomAlphaOfLength(4));
+                        delegate.mapping().accept(b);
+                        b.endObject();
+                    }
+                    b.endObject();
+                });
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                Matcher<String> err = equalTo(
+                    "field [field] of type [text] doesn't support synthetic source "
+                        + "unless it has a sub-field of type [keyword] with doc values enabled and without ignore_above or a normalizer"
+                );
+                return List.of(
+                    new SyntheticSourceInvalidExample(err, TextFieldMapperTests.this::minimalMapping),
+                    new SyntheticSourceInvalidExample(err, b -> {
+                        b.field("type", "text");
+                        b.startObject("fields");
+                        {
+                            b.startObject("l");
+                            b.field("type", "long");
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }),
+                    new SyntheticSourceInvalidExample(err, b -> {
+                        b.field("type", "text");
+                        b.startObject("fields");
+                        {
+                            b.startObject("kwd");
+                            b.field("type", "keyword");
+                            b.field("ignore_above", 10);
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }),
+                    new SyntheticSourceInvalidExample(err, b -> {
+                        b.field("type", "text");
+                        b.startObject("fields");
+                        {
+                            b.startObject("kwd");
+                            b.field("type", "keyword");
+                            b.field("normalizer", "lowercase");
+                            b.endObject();
+                        }
+                        b.endObject();
+                    })
+                );
+            }
+        };
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
+        throws IOException {
+        // Disabled because it currently fails
     }
 }

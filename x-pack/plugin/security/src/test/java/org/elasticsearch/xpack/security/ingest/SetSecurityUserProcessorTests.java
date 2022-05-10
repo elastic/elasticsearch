@@ -22,13 +22,11 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
-import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor.Property;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -40,6 +38,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SetSecurityUserProcessorTests extends ESTestCase {
@@ -96,21 +95,17 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testProcessorWithEmptyUserData() throws Exception {
         // test when user returns null for all values (need a mock, because a real user cannot have a null username)
-        User user = Mockito.mock(User.class);
-        Authentication authentication = Mockito.mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        User user = mock(User.class);
         final Authentication.RealmRef authByRealm = new Authentication.RealmRef("_name", "_type", "_node_name");
-        when(authentication.getSourceRealm()).thenReturn(authByRealm);
-        when(authentication.getAuthenticatedBy()).thenReturn(authByRealm);
-        when(authentication.getAuthenticationType()).thenReturn(AuthenticationType.REALM);
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // don't care as long as it's not null
-        new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
+        Authentication authentication = AuthenticationTestHelper.builder().realm().user(user).realmRef(authByRealm).build(false);
+        final SecurityContext mockSecurityContext = mock(SecurityContext.class);
+        when(mockSecurityContext.getAuthentication()).thenReturn(authentication);
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
-            securityContext,
+            mockSecurityContext,
             Settings.EMPTY,
             "_field",
             EnumSet.allOf(Property.class)

@@ -138,7 +138,7 @@ public class NodeAvailabilityZoneMapper implements ClusterStateListener {
                 .toList();
             if (orderedNodeAttributeValues.size() != awarenessAttributes.size()) {
                 // This indicates bad configuration - there shouldn't be nodes that don't have all the awareness attributes
-                logger.trace(
+                logger.debug(
                     "Node [{}] does not have all configured awareness attributes {} - will be ignored in availability zone mapper",
                     node,
                     awarenessAttributes

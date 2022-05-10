@@ -53,7 +53,4 @@ public class XPackSecurityUser extends User {
         return INSTANCE.equals(user);
     }
 
-    public static boolean is(String principal) {
-        return NAME.equals(principal);
-    }
 }

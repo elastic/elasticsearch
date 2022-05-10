@@ -111,7 +111,7 @@ import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
@@ -148,9 +148,11 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
@@ -171,8 +173,10 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
+import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
@@ -265,7 +269,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testSnapshotUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("snapshot_user");
         assertNotNull(roleDescriptor);
@@ -339,7 +343,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testIngestAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("ingest_admin");
         assertNotNull(roleDescriptor);
@@ -356,6 +360,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ingestAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(ingestAdminRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
         assertThat(ingestAdminRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(ingestAdminRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(ingestAdminRole.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(ingestAdminRole.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(ingestAdminRole.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(ingestAdminRole.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
         assertThat(ingestAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
         assertThat(
@@ -373,7 +382,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testKibanaSystemRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = randomValueOtherThanMany(
+            Authentication::isApiKey,  // cannot be API key for managing API keys
+            () -> AuthenticationTestHelper.builder().build()
+        );
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_system");
         assertNotNull(roleDescriptor);
@@ -401,15 +413,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLength(8), null, null);
         assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, createApiKeyRequest, authentication), is(true));
         // Can only get and query its own API keys
-        assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, new GetApiKeyRequest(), authentication), is(false));
+        assertThat(kibanaRole.cluster().check(GetApiKeyAction.NAME, new GetApiKeyRequest(), authentication), is(false));
         assertThat(
-            kibanaRole.cluster().check(CreateApiKeyAction.NAME, new GetApiKeyRequest(null, null, null, null, true), authentication),
+            kibanaRole.cluster().check(GetApiKeyAction.NAME, new GetApiKeyRequest(null, null, null, null, true), authentication),
             is(true)
         );
         final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest();
-        assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, queryApiKeyRequest, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(QueryApiKeyAction.NAME, queryApiKeyRequest, authentication), is(false));
         queryApiKeyRequest.setFilterForCurrentUser();
-        assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, queryApiKeyRequest, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(QueryApiKeyAction.NAME, queryApiKeyRequest, authentication), is(true));
 
         // ML
         assertRoleHasManageMl(kibanaRole);
@@ -455,6 +467,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // User profile
         assertThat(kibanaRole.cluster().check(GetProfileAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(true));
         UpdateProfileDataRequest updateProfileDataRequest = randomBoolean()
             ? new UpdateProfileDataRequest(
                 randomAlphaOfLength(10),
@@ -1026,7 +1040,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testKibanaAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_admin");
         assertNotNull(roleDescriptor);
@@ -1070,7 +1084,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testKibanaUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_user");
         assertNotNull(roleDescriptor);
@@ -1115,7 +1129,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testMonitoringUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("monitoring_user");
         assertNotNull(roleDescriptor);
@@ -1133,6 +1147,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(monitoringUserRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(monitoringUserRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
         assertThat(monitoringUserRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(monitoringUserRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(monitoringUserRole.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(monitoringUserRole.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(monitoringUserRole.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(monitoringUserRole.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
         assertThat(monitoringUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
@@ -1199,7 +1218,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testRemoteMonitoringAgentRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("remote_monitoring_agent");
         assertNotNull(roleDescriptor);
@@ -1221,6 +1240,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(remoteMonitoringAgentRole.cluster().check(ActivateWatchAction.NAME, request, authentication), is(false));
         assertThat(remoteMonitoringAgentRole.cluster().check(WatcherServiceAction.NAME, request, authentication), is(false));
         assertThat(remoteMonitoringAgentRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
         // ILM
         assertThat(remoteMonitoringAgentRole.cluster().check(GetLifecycleAction.NAME, request, authentication), is(true));
         assertThat(remoteMonitoringAgentRole.cluster().check(PutLifecycleAction.NAME, request, authentication), is(true));
@@ -1365,7 +1389,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testRemoteMonitoringCollectorRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("remote_monitoring_collector");
         assertNotNull(roleDescriptor);
@@ -1630,7 +1654,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testReportingUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("reporting_user");
         assertNotNull(roleDescriptor);
@@ -1682,7 +1706,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testSuperuserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("superuser");
         assertNotNull(roleDescriptor);
@@ -1809,7 +1833,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testLogstashSystemRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("logstash_system");
         assertNotNull(roleDescriptor);
@@ -1843,7 +1867,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testBeatsAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("beats_admin");
         assertNotNull(roleDescriptor);
@@ -1858,6 +1882,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(beatsAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(beatsAdminRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
         assertThat(beatsAdminRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(beatsAdminRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(beatsAdminRole.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(beatsAdminRole.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(beatsAdminRole.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(beatsAdminRole.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
         assertThat(beatsAdminRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
@@ -1885,7 +1914,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testBeatsSystemRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor(BeatsSystemUser.ROLE_NAME);
         assertNotNull(roleDescriptor);
@@ -1900,6 +1929,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(beatsSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(beatsSystemRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
         assertThat(beatsSystemRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(true));
+        assertThat(beatsSystemRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(beatsSystemRole.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(beatsSystemRole.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(beatsSystemRole.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(beatsSystemRole.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
         assertThat(beatsSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
@@ -1922,7 +1956,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testAPMSystemRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor(APMSystemUser.ROLE_NAME);
         assertNotNull(roleDescriptor);
@@ -1975,7 +2009,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testAPMUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("apm_user");
         assertNotNull(roleDescriptor);
@@ -2027,7 +2061,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testMachineLearningAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("machine_learning_admin");
         assertNotNull(roleDescriptor);
@@ -2068,7 +2102,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     private void assertRoleHasManageMl(Role role) {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         assertThat(role.cluster().check(CloseJobAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(DeleteCalendarAction.NAME, request, authentication), is(true));
@@ -2103,7 +2137,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(GetRecordsAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(GetTrainedModelsAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(GetTrainedModelsStatsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(InternalInferModelAction.NAME, request, authentication), is(false)); // internal use only
+        assertThat(role.cluster().check(InferModelAction.EXTERNAL_NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(InferModelAction.NAME, request, authentication), is(false)); // internal use only
         assertThat(role.cluster().check(IsolateDatafeedAction.NAME, request, authentication), is(false)); // internal use only
         assertThat(role.cluster().check(KillProcessAction.NAME, request, authentication), is(false)); // internal use only
         assertThat(role.cluster().check(MlInfoAction.NAME, request, authentication), is(true));
@@ -2136,7 +2171,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testMachineLearningUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("machine_learning_user");
         assertNotNull(roleDescriptor);
@@ -2193,6 +2228,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(ValidateDetectorAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(ValidateJobConfigAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
@@ -2225,7 +2265,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testTransformAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor[] roleDescriptors = {
             new ReservedRolesStore().roleDescriptor("data_frame_transforms_admin"),
@@ -2288,7 +2328,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testTransformUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor[] roleDescriptors = {
             new ReservedRolesStore().roleDescriptor("data_frame_transforms_user"),
@@ -2312,6 +2352,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(StopTransformAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+            assertThat(role.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
             assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
@@ -2351,7 +2396,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testWatcherAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("watcher_admin");
         assertNotNull(roleDescriptor);
@@ -2382,7 +2427,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testWatcherUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("watcher_user");
         assertNotNull(roleDescriptor);
@@ -2417,7 +2462,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testPredefinedViewerRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("viewer");
         assertNotNull(roleDescriptor);
@@ -2433,6 +2478,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
         // Check index privileges
         assertOnlyReadAllowed(role, "observability-annotations");
         assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));
@@ -2470,7 +2520,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testPredefinedEditorRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("editor");
         assertNotNull(roleDescriptor);
@@ -2487,6 +2537,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ActivateProfileAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(GetProfileAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
 
         // Check index privileges
         assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));
@@ -2619,7 +2674,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testLogstashAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("logstash_admin");
         assertNotNull(roleDescriptor);

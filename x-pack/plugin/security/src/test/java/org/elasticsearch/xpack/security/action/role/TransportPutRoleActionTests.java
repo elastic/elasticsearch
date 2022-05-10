@@ -129,8 +129,16 @@ public class TransportPutRoleActionTests extends ESTestCase {
         testValidRole(randomFrom("admin", "dept_a", "restricted"));
     }
 
-    public void testRoleMatchingInternalRoleIsValid() {
-        testValidRole(randomFrom(UsernamesField.SYSTEM_ROLE, UsernamesField.XPACK_ROLE, UsernamesField.ASYNC_SEARCH_ROLE));
+    public void testValidRoleWithInternalRoleName() {
+        testValidRole(
+            randomFrom(
+                UsernamesField.SYSTEM_ROLE,
+                UsernamesField.XPACK_ROLE,
+                UsernamesField.ASYNC_SEARCH_ROLE,
+                UsernamesField.XPACK_SECURITY_ROLE,
+                UsernamesField.SECURITY_PROFILE_ROLE
+            )
+        );
     }
 
     private void testValidRole(String roleName) {

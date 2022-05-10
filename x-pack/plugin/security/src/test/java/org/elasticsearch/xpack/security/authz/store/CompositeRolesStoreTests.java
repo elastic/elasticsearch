@@ -1379,7 +1379,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new Tuple<>(XPackSecurityUser.INSTANCE, compositeRolesStore.getXpackSecurityRole()),
             new Tuple<>(SecurityProfileUser.INSTANCE, compositeRolesStore.getSecurityProfileRole())
         )) {
-            assertInternalUserShortCircuitsToOwnReservedRole(
+            assertInternalUserShortCircuitsToOwnInternalRole(
                 fileRolesStore,
                 nativeRolesStore,
                 reservedRolesStore,
@@ -1391,7 +1391,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
     }
 
-    private void assertInternalUserShortCircuitsToOwnReservedRole(
+    private void assertInternalUserShortCircuitsToOwnInternalRole(
         FileRolesStore fileRolesStore,
         NativeRolesStore nativeRolesStore,
         ReservedRolesStore reservedRolesStore,

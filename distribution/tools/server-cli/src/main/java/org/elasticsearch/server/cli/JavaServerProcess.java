@@ -54,7 +54,7 @@ class JavaServerProcess implements ServerProcess {
         try {
             // start Elasticsearch, stashing the process into a volatile so the close via the shutdown handler will kill the process
             this.jvmProcess = createProcess(processInfo, args.configDir(), pluginsDir);
-            this.errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
+            this.errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream(), args.daemonize());
             errorPump.start();
             logger.info("ES PID: " + jvmProcess.pid());
             sendArgs(args, jvmProcess.getOutputStream());
@@ -173,13 +173,13 @@ class JavaServerProcess implements ServerProcess {
     private class ErrorPumpThread extends Thread {
         private final BufferedReader reader;
         private final PrintWriter writer;
-        private final boolean deamonized;
+        private final boolean exitWhenReady;
 
-        private ErrorPumpThread(PrintWriter errOutput, InputStream errInput, boolean daemonized) {
+        private ErrorPumpThread(PrintWriter errOutput, InputStream errInput, boolean exitWhenRead) {
             super("server-cli error pump");
             this.reader = new BufferedReader(new InputStreamReader(errInput, StandardCharsets.UTF_8));
             this.writer = errOutput;
-            this.deamonized = daemonized;
+            this.exitWhenReady = exitWhenRead;
         }
 
         @Override
@@ -195,7 +195,7 @@ class JavaServerProcess implements ServerProcess {
                         logger.info("Got ready signal");
                         ready = true;
                         readyOrDead.countDown();
-                        if (this.deamonized) {
+                        if (this.exitWhenReady) {
                             // The server closes stderr right after this message, but for some unknown reason
                             // the pipe closing does not close this end of the pipe, so we must explicitly
                             // break out of this loop, or we will block forever on the next read.

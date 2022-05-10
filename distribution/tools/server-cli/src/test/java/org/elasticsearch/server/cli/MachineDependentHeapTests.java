@@ -62,13 +62,22 @@ public class MachineDependentHeapTests extends LaunchersTestCase {
 
     public void testMlOnlyOptions() {
         List<String> options = calculateHeap(1, "ml");
-        assertThat(options, containsInAnyOrder("-Xmx409m", "-Xms409m"));
+        assertThat(options, containsInAnyOrder("-Xmx408m", "-Xms408m"));
 
         options = calculateHeap(4, "ml");
-        assertThat(options, containsInAnyOrder("-Xmx1024m", "-Xms1024m"));
+        assertThat(options, containsInAnyOrder("-Xmx1636m", "-Xms1636m"));
 
         options = calculateHeap(32, "ml");
-        assertThat(options, containsInAnyOrder("-Xmx2048m", "-Xms2048m"));
+        assertThat(options, containsInAnyOrder("-Xmx8192m", "-Xms8192m"));
+
+        options = calculateHeap(64, "ml");
+        assertThat(options, containsInAnyOrder("-Xmx11468m", "-Xms11468m"));
+
+        // We'd never see a node this big in Cloud, but this assertion proves that the 31GB absolute maximum
+        // eventually kicks in (because 0.4 * 16 + 0.1 * (263 - 16) > 31)
+        options = calculateHeap(263, "ml");
+        assertThat(options, containsInAnyOrder("-Xmx31744m", "-Xms31744m"));
+
     }
 
     public void testDataNodeOptions() {

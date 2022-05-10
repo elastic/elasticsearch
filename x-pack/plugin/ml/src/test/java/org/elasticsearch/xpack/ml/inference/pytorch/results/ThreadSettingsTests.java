@@ -15,7 +15,11 @@ import java.io.IOException;
 public class ThreadSettingsTests extends AbstractXContentTestCase<ThreadSettings> {
 
     public static ThreadSettings createRandom() {
-        return new ThreadSettings(randomIntBetween(1, Integer.MAX_VALUE), randomIntBetween(1, Integer.MAX_VALUE));
+        return new ThreadSettings(
+            randomIntBetween(1, Integer.MAX_VALUE),
+            randomIntBetween(1, Integer.MAX_VALUE),
+            randomBoolean() ? null : randomAlphaOfLength(5)
+        );
     }
 
     @Override

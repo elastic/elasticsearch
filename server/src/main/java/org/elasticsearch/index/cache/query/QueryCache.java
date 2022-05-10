@@ -8,11 +8,9 @@
 
 package org.elasticsearch.index.cache.query;
 
-import org.elasticsearch.index.IndexComponent;
-
 import java.io.Closeable;
 
-public interface QueryCache extends IndexComponent, Closeable, org.apache.lucene.search.QueryCache {
+public interface QueryCache extends Closeable, org.apache.lucene.search.QueryCache {
 
     void clear(String reason);
 }

@@ -78,13 +78,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 boolean isFreshInput = isFresh(desiredBalanceInput);
 
                 if (shouldReroute) {
-                    var future = new ListenableFuture<Void>();
-                    if (isFreshInput) {
-                        future.addListener(
-                            ActionListener.wrap(() -> { ActionListener.onResponse(pollListeners(desiredBalanceInput.index()), null); })
-                        );
-                    }
-                    pendingRerouteFuture.set(future);
+                    pendingRerouteFuture.set(new ListenableFuture<>());
 
                     pendingReroute = true;
                     rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, new ActionListener<>() {
@@ -103,13 +97,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                             ActionListener.onFailure(pollListeners(desiredBalanceInput.index()), e);
                         }
                     });
-                } else {
-                    if (isFreshInput) {
-                        pendingRerouteFuture.get()
-                            .addListener(
-                                ActionListener.wrap(() -> { ActionListener.onResponse(pollListeners(desiredBalanceInput.index()), null); })
-                            );
-                    }
+                }
+
+                if (isFreshInput) {
+                    pendingRerouteFuture.get()
+                        .addListener(
+                            ActionListener.wrap(() -> ActionListener.onResponse(pollListeners(desiredBalanceInput.index()), null))
+                        );
                 }
             }
 

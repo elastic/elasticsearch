@@ -79,9 +79,9 @@ public class OldMappingsIT extends ESRestTestCase {
         String snapshotName = "snap";
         List<String> indices;
         if (oldVersion.before(Version.fromString("6.0.0"))) {
-            indices = Arrays.asList("filebeat", "winlogbeat");
+            indices = Arrays.asList("filebeat", "winlogbeat", "custom");
         } else {
-            indices = Arrays.asList("filebeat");
+            indices = Arrays.asList("filebeat", "custom");
         }
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
@@ -91,8 +91,9 @@ public class OldMappingsIT extends ESRestTestCase {
             if (oldVersion.before(Version.fromString("6.0.0"))) {
                 assertOK(oldEs.performRequest(createIndex("winlogbeat", "winlogbeat.json")));
             }
+            assertOK(oldEs.performRequest(createIndex("custom", "custom.json")));
 
-            Request doc1 = new Request("PUT", "/" + "filebeat" + "/" + "doc" + "/" + "1");
+            Request doc1 = new Request("PUT", "/" + "custom" + "/" + "doc" + "/" + "1");
             doc1.addParameter("refresh", "true");
             XContentBuilder bodyDoc1 = XContentFactory.jsonBuilder()
                 .startObject()
@@ -106,7 +107,7 @@ public class OldMappingsIT extends ESRestTestCase {
             doc1.setJsonEntity(Strings.toString(bodyDoc1));
             assertOK(oldEs.performRequest(doc1));
 
-            Request doc2 = new Request("PUT", "/" + "filebeat" + "/" + "doc" + "/" + "2");
+            Request doc2 = new Request("PUT", "/" + "custom" + "/" + "doc" + "/" + "2");
             doc2.addParameter("refresh", "true");
             XContentBuilder bodyDoc2 = XContentFactory.jsonBuilder()
                 .startObject()
@@ -178,7 +179,7 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     public void testSearchKeyword() throws IOException {
-        Request search = new Request("POST", "/" + "filebeat" + "/_search");
+        Request search = new Request("POST", "/" + "custom" + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("query")
@@ -196,7 +197,7 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     public void testSearchOnPlaceHolderField() throws IOException {
-        Request search = new Request("POST", "/" + "filebeat" + "/_search");
+        Request search = new Request("POST", "/" + "custom" + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("query")
@@ -216,7 +217,7 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     public void testAggregationOnPlaceholderField() throws IOException {
-        Request search = new Request("POST", "/" + "filebeat" + "/_search");
+        Request search = new Request("POST", "/" + "custom" + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("aggs")
@@ -233,7 +234,7 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     public void testConstantScoringOnTextField() throws IOException {
-        Request search = new Request("POST", "/" + "filebeat" + "/_search");
+        Request search = new Request("POST", "/" + "custom" + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("query")
@@ -255,7 +256,7 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     public void testSearchFieldsOnPlaceholderField() throws IOException {
-        Request search = new Request("POST", "/" + "filebeat" + "/_search");
+        Request search = new Request("POST", "/" + "custom" + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("query")

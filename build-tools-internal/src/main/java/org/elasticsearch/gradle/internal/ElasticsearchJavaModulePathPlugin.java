@@ -69,7 +69,8 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
 
         var moduleCompileClasspath = configurations.create("moduleCompileClasspath", it -> {
             it.extendsFrom(compileClasspath);
-            it.setCanBeConsumed(false); // We don't want this configuration used by dependent projects
+            it.setCanBeResolved(true);
+            it.setCanBeConsumed(false); // we don't want this configuration used by dependent projects
             it.attributes(
                 attrs -> attrs.attribute(
                     LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,

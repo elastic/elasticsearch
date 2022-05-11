@@ -229,7 +229,6 @@ public final class TransformAggregations {
                 }
                 for (AggregationBuilder subAgg : rangeAgg.getSubAggregations()) {
                     Tuple<Map<String, String>, Map<String, String>> subAggregationTypes = getAggregationInputAndOutputTypes(subAgg);
-                    System.out.println("XXX 1.5 rangeAgg outputTypes: " + subAggregationTypes);
                     for (Entry<String, String> subAggOutputType : subAggregationTypes.v2().entrySet()) {
                         outputTypes.put(String.join(".", fieldName, subAggOutputType.getKey()), subAggOutputType.getValue());
                     }

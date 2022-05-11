@@ -208,7 +208,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
                 // and it would cause more harm than good to block jobs from opening in subsequent releases
-                logger.warn(new ParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
+                logger.warn(() -> "[" + jobId + "] ML annotations index could not be updated with latest mappings", e);
                 ElasticsearchMappings.addDocMappingIfMissing(
                     AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
                     AnomalyDetectorsIndex::wrappedResultsMapping,

@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -459,7 +458,7 @@ public class DiskThresholdMonitor {
             setLastRunTimeMillis();
             listener.onResponse(r);
         }, e -> {
-            logger.debug(new ParameterizedMessage("setting indices [{}] read-only failed", readOnly), e);
+            logger.debug(() -> "setting indices [" + readOnly + "] read-only failed", e);
             setLastRunTimeMillis();
             listener.onFailure(e);
         });

@@ -87,9 +87,7 @@ final class SingleUseKey {
                     return nonceAndKey;
                 } else {
                     // this is the infrequent code path, where a new key is generated and the nonce is reset back
-                    logger.trace(
-                        () -> new ParameterizedMessage("Try to generate a new key to replace the key with id [{}]", nonceAndKey.keyId)
-                    );
+                    logger.trace(() -> "Try to generate a new key to replace the key with id [" + nonceAndKey.keyId + "]");
                     synchronized (lock) {
                         if (keyCurrentlyInUse.get().nonce == MAX_NONCE) {
                             final Tuple<BytesReference, SecretKey> newKey = keyGenerator.get();

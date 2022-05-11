@@ -293,7 +293,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
     private void testAddUserAndRoleThenAuth(String username, String roleName) {
         logger.error("--> creating role");
-        preparePutRole(roleName).cluster("all")
+        preparePutRole(roleName).cluster("none")
             .addIndices(
                 new String[] { "*" },
                 new String[] { "read" },
@@ -320,6 +320,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
         assertEquals(1L, searchResp.getHits().getTotalHits().value);
+
+        assertClusterHealthOnlyAuthorizesWhenAnonymousRoleActive(token);
     }
 
     public void testUpdatingUserAndAuthentication() throws Exception {
@@ -422,21 +424,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                     randomBoolean()
                 )
                 .get();
-            if (anonymousEnabled && roleExists) {
-                assertNoTimeout(
-                    client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get()
-                );
-            } else {
-                ElasticsearchSecurityException e = expectThrows(
-                    ElasticsearchSecurityException.class,
-                    () -> client().filterWithHeader(Collections.singletonMap("Authorization", token))
-                        .admin()
-                        .cluster()
-                        .prepareHealth()
-                        .get()
-                );
-                assertThat(e.status(), is(RestStatus.FORBIDDEN));
-            }
+            assertClusterHealthOnlyAuthorizesWhenAnonymousRoleActive(token);
         } else {
             final TransportRequest request = mock(TransportRequest.class);
             final Authentication authentication = AuthenticationTestHelper.builder().build();
@@ -470,6 +458,21 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                     .cluster()
                     .check("cluster:admin/bar", request, authentication)
             );
+        }
+    }
+
+    private void assertClusterHealthOnlyAuthorizesWhenAnonymousRoleActive(String token) {
+        if (anonymousEnabled && roleExists) {
+            // native anonymous user has ALL on cluster permissions, so should authorize
+            assertNoTimeout(
+                client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get()
+            );
+        } else {
+            ElasticsearchSecurityException e = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get()
+            );
+            assertThat(e.status(), is(RestStatus.FORBIDDEN));
         }
     }
 
@@ -582,17 +585,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             .get();
         assertFalse(response.isTimedOut());
         new DeleteRoleRequestBuilder(client()).name("test_role").get();
-        if (anonymousEnabled && roleExists) {
-            assertNoTimeout(
-                client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get()
-            );
-        } else {
-            ElasticsearchSecurityException e = expectThrows(
-                ElasticsearchSecurityException.class,
-                () -> client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get()
-            );
-            assertThat(e.status(), is(RestStatus.FORBIDDEN));
-        }
+        assertClusterHealthOnlyAuthorizesWhenAnonymousRoleActive(token);
     }
 
     public void testPutUserWithoutPassword() {

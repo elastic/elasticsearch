@@ -202,9 +202,6 @@ class AuthenticatorChain {
             return;
         }
 
-        // Run-as is supported for authentication with realm or api_key. Run-as for other authentication types is ignored.
-        // Both realm user and api_key can create tokens. They can also run-as another user and create tokens.
-        // In both cases, the created token will have a TOKEN authentication type and hence does not support run-as.
         if (false == authentication.supportsRunAs(anonymousUser)) {
             logger.info("ignore run-as header since it is currently not supported for authentication [{}]", authentication);
             finishAuthentication(context, authentication, listener);

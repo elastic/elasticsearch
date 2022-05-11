@@ -1,6 +1,5 @@
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
-//apply plugin: 'elasticsearch.standalone-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {

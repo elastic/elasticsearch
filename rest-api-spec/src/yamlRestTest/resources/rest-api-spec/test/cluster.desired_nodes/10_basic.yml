@@ -768,10 +768,7 @@ teardown:
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }
 ---
-"Test update desired nodes using legacy processors field":
-  - skip:
-      reason: "contains is a newly added assertion"
-      features: contains
+"Test update desired nodes using processors range field":
   - do:
       cluster.state: {}
 
@@ -788,7 +785,7 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.name": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors_range: {min: 16.0, max: 20.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -798,12 +795,9 @@ teardown:
         history_id: "test"
         version: 1
         nodes:
-          - { settings: { node: { name: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
+          - { settings: { node: { name: "instance-000187" } }, processors_range: {min: 16.0, max: 20.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
 ---
 "Test processors min and max are required":
-  - skip:
-      reason: "contains is a newly added assertion"
-      features: contains
   - do:
       cluster.state: {}
 

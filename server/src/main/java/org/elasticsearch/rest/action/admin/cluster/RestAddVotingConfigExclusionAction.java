@@ -55,7 +55,7 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
         );
     }
 
-    AddVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
+    static AddVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
         String nodeIds = null;
         String nodeNames = null;
 
@@ -71,11 +71,13 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
             nodeNames = request.param("node_names");
         }
 
-        return new AddVotingConfigExclusionsRequest(
+        final var resolvedRequest = new AddVotingConfigExclusionsRequest(
             Strings.splitStringByCommaToArray(nodeIds),
             Strings.splitStringByCommaToArray(nodeNames),
-            TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
+            request.paramAsTime("timeout", DEFAULT_TIMEOUT)
         );
+
+        return resolvedRequest.masterNodeTimeout(request.paramAsTime("master_timeout", resolvedRequest.masterNodeTimeout()));
     }
 
 }

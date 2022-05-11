@@ -7,12 +7,10 @@
   - do:
       _internal.health:
         component: cluster_coordination
-        feature: instance_has_master
+        feature: stable_master
 
   - is_true: cluster_name
-  - match:   { components.cluster_coordination.indicators.instance_has_master.status: "green" }
-  - match:   { components.cluster_coordination.indicators.instance_has_master.summary: "Health coordinating instance has a master node." }
-  - is_true: components.cluster_coordination.indicators.instance_has_master.details.coordinating_node.node_id
-  - is_true: components.cluster_coordination.indicators.instance_has_master.details.coordinating_node.name
-  - is_true: components.cluster_coordination.indicators.instance_has_master.details.master_node.node_id
-  - is_true: components.cluster_coordination.indicators.instance_has_master.details.master_node.name
+  - match:   { components.cluster_coordination.indicators.stable_master.status: "green" }
+  - match:   { components.cluster_coordination.indicators.stable_master.summary: "The cluster has a stable master node" }
+  - is_true: components.cluster_coordination.indicators.stable_master.details.current_master
+  - is_true: components.cluster_coordination.indicators.stable_master.details.recent_masters

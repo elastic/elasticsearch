@@ -154,11 +154,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
                             if (e instanceof NotMasterException || e instanceof FailedToCommitClusterStateException) {
                                 logLevel = Level.DEBUG;
                             }
-                            logger.log(
-                                logLevel,
-                                "unsuccessful reroute after migration to data tiers routing",
-                                e
-                            );
+                            logger.log(logLevel, "unsuccessful reroute after migration to data tiers routing", e);
                         }
                     });
                 MigratedEntities entities = migratedEntities.get();

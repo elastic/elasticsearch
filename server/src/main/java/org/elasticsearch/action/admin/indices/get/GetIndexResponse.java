@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
@@ -35,20 +35,20 @@ import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER
  */
 public class GetIndexResponse extends ActionResponse implements ToXContentObject {
 
-    private ImmutableOpenMap<String, MappingMetadata> mappings = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.of();
+    private Map<String, MappingMetadata> mappings = Map.of();
+    private Map<String, List<AliasMetadata>> aliases = Map.of();
+    private Map<String, Settings> settings = Map.of();
+    private Map<String, Settings> defaultSettings = Map.of();
+    private Map<String, String> dataStreams = Map.of();
     private final String[] indices;
 
     public GetIndexResponse(
         String[] indices,
-        ImmutableOpenMap<String, MappingMetadata> mappings,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases,
-        ImmutableOpenMap<String, Settings> settings,
-        ImmutableOpenMap<String, Settings> defaultSettings,
-        ImmutableOpenMap<String, String> dataStreams
+        Map<String, MappingMetadata> mappings,
+        Map<String, List<AliasMetadata>> aliases,
+        Map<String, Settings> settings,
+        Map<String, Settings> defaultSettings,
+        Map<String, String> dataStreams
     ) {
         this.indices = indices;
         // to have deterministic order
@@ -99,31 +99,31 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         return indices();
     }
 
-    public ImmutableOpenMap<String, MappingMetadata> mappings() {
+    public Map<String, MappingMetadata> mappings() {
         return mappings;
     }
 
-    public ImmutableOpenMap<String, MappingMetadata> getMappings() {
+    public Map<String, MappingMetadata> getMappings() {
         return mappings();
     }
 
-    public ImmutableOpenMap<String, List<AliasMetadata>> aliases() {
+    public Map<String, List<AliasMetadata>> aliases() {
         return aliases;
     }
 
-    public ImmutableOpenMap<String, List<AliasMetadata>> getAliases() {
+    public Map<String, List<AliasMetadata>> getAliases() {
         return aliases();
     }
 
-    public ImmutableOpenMap<String, Settings> settings() {
+    public Map<String, Settings> settings() {
         return settings;
     }
 
-    public ImmutableOpenMap<String, String> dataStreams() {
+    public Map<String, String> dataStreams() {
         return dataStreams;
     }
 
-    public ImmutableOpenMap<String, String> getDataStreams() {
+    public Map<String, String> getDataStreams() {
         return dataStreams();
     }
 
@@ -135,11 +135,11 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
      * via {@link #settings()}.
      * See also {@link GetIndexRequest#includeDefaults(boolean)}
      */
-    public ImmutableOpenMap<String, Settings> defaultSettings() {
+    public Map<String, Settings> defaultSettings() {
         return defaultSettings;
     }
 
-    public ImmutableOpenMap<String, Settings> getSettings() {
+    public Map<String, Settings> getSettings() {
         return settings();
     }
 

@@ -72,6 +72,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.IntPredicate;
@@ -1134,5 +1135,34 @@ public class TextFieldMapper extends FieldMapper {
         b.freqFilter.toXContent(builder, includeDefaults);
         b.indexPrefixes.toXContent(builder, includeDefaults);
         b.indexPhrases.toXContent(builder, includeDefaults);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        for (Mapper sub : this) {
+            if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
+                if (kwd.fieldType().hasDocValues()
+                    && kwd.hasNormalizer() == false
+                    && kwd.fieldType().ignoreAbove() == KeywordFieldMapper.Defaults.IGNORE_ABOVE) {
+
+                    return kwd.syntheticFieldLoader(simpleName());
+                }
+            }
+        }
+        throw new IllegalArgumentException(
+            String.format(
+                Locale.ROOT,
+                "field [%s] of type [%s] doesn't support synthetic source unless it has a sub-field of"
+                    + " type [keyword] with doc values enabled and without ignore_above or a normalizer",
+                name(),
+                typeName()
+            )
+        );
     }
 }

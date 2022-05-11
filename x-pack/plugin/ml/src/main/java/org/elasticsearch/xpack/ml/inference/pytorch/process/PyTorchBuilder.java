@@ -26,14 +26,14 @@ public class PyTorchBuilder {
 
     private final NativeController nativeController;
     private final ProcessPipes processPipes;
-    private final int inferenceThreads;
-    private final int modelThreads;
+    private final int threadsPerAllocation;
+    private final int numberOfAllocations;
 
-    public PyTorchBuilder(NativeController nativeController, ProcessPipes processPipes, int inferenceThreads, int modelThreads) {
+    public PyTorchBuilder(NativeController nativeController, ProcessPipes processPipes, int threadPerAllocation, int numberOfAllocations) {
         this.nativeController = Objects.requireNonNull(nativeController);
         this.processPipes = Objects.requireNonNull(processPipes);
-        this.inferenceThreads = inferenceThreads;
-        this.modelThreads = modelThreads;
+        this.threadsPerAllocation = threadPerAllocation;
+        this.numberOfAllocations = numberOfAllocations;
     }
 
     public void build() throws IOException, InterruptedException {
@@ -49,8 +49,8 @@ public class PyTorchBuilder {
         // License was validated when the trained model was started
         command.add(LICENSE_KEY_VALIDATED_ARG + true);
 
-        command.add(NUM_THREADS_PER_ALLOCATION_ARG + inferenceThreads);
-        command.add(NUM_ALLOCATIONS_ARG + modelThreads);
+        command.add(NUM_THREADS_PER_ALLOCATION_ARG + threadsPerAllocation);
+        command.add(NUM_ALLOCATIONS_ARG + numberOfAllocations);
 
         return command;
     }

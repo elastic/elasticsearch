@@ -89,15 +89,15 @@ final class RerunTestResultProcessor implements TestResultProcessor {
     }
 
     @Override
-    public void failure(Object testId, org.gradle.api.tasks.testing.TestFailure failure) {
-        // if (activeDescriptorsById.containsKey(testId)) {
-        // activeDescriptorsById.remove(testId);
-        // try {
-        // delegate.failure(testId, throwable);
-        // } catch (IllegalArgumentException illegalArgumentException) {
-        // logTracing(testId, illegalArgumentException);
-        // }
-        // }
+    public void failure(Object testId, Throwable throwable) {
+        if (activeDescriptorsById.containsKey(testId)) {
+            activeDescriptorsById.remove(testId);
+            try {
+                delegate.failure(testId, throwable);
+            } catch (IllegalArgumentException illegalArgumentException) {
+                logTracing(testId, illegalArgumentException);
+            }
+        }
     }
 
     private void logTracing(Object testId, IllegalArgumentException illegalArgumentException) {

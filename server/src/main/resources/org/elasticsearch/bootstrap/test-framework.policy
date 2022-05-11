@@ -78,6 +78,8 @@ grant codeBase "${codebase.mocksocket}" {
   permission java.net.SocketPermission "*", "accept,connect";
 };
 
+// the test framework can dynamically remove the security manager
+// for tests that need to run without it
 grant codeBase "${codebase.elasticsearch}" {
   permission java.lang.RuntimePermission "setSecurityManager";
 };

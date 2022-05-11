@@ -378,8 +378,9 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @AfterClass
     public static void maybeRestoreClassSecurityManager() throws IOException {
-        if (getTestClass().isAnnotationPresent(NoSecurityManager.class)) {
+        if (securityManagerRestorer != null) {
             securityManagerRestorer.close();
+            securityManagerRestorer = null;
         }
     }
 

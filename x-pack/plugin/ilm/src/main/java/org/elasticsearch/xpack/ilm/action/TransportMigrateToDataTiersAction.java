@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
@@ -146,7 +148,11 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn("unsuccessful reroute after migration to data tiers routing", e);
+                            logger.log(
+                                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                                "unsuccessful reroute after migration to data tiers routing",
+                                e
+                            );
                         }
                     });
                 MigratedEntities entities = migratedEntities.get();

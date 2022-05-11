@@ -60,10 +60,7 @@ public class PluginsUtilsTests extends ESTestCase {
             false
         );
         PluginBundle bundle = new PluginBundle(info, pluginDir);
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> PluginsUtils.sortBundles(Collections.singleton(bundle))
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsUtils.sortBundles(Collections.singleton(bundle)));
         assertEquals("Cycle found in plugin dependencies: foo -> foo", e.getMessage());
     }
 

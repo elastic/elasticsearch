@@ -760,7 +760,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             .field("relocating_node", relocatingNodeId())
             .field("shard", id())
             .field("index", getIndexName());
-        if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
+        if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE && state != ShardRoutingState.STARTED) {
             builder.field("expected_shard_size_in_bytes", expectedShardSize);
         }
         if (recoverySource != null) {

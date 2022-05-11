@@ -13,15 +13,14 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.AbstractExecutorService;
-import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -37,7 +36,7 @@ public class ProcessWorkerExecutorService extends AbstractExecutorService {
     private final ThreadContext contextHolder;
     private final String processName;
     private final CountDownLatch awaitTermination = new CountDownLatch(1);
-    private final BlockingDeque<Runnable> queue;
+    private final BlockingQueue<Runnable> queue;
     private final AtomicReference<Exception> error = new AtomicReference<>();
 
     private volatile boolean running = true;
@@ -52,7 +51,7 @@ public class ProcessWorkerExecutorService extends AbstractExecutorService {
     public ProcessWorkerExecutorService(ThreadContext contextHolder, String processName, int queueCapacity) {
         this.contextHolder = Objects.requireNonNull(contextHolder);
         this.processName = Objects.requireNonNull(processName);
-        this.queue = new LinkedBlockingDeque<>(queueCapacity);
+        this.queue = new LinkedBlockingQueue<>(queueCapacity);
     }
 
     public int queueSize() {
@@ -87,20 +86,6 @@ public class ProcessWorkerExecutorService extends AbstractExecutorService {
     @Override
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         return awaitTermination.await(timeout, unit);
-    }
-
-    /**
-     * Skip to the front of the queue and execute first.
-     * @param command The command to run
-     * @param timeout Time to wait to put the command at the head of
-     *                the queue.
-     * @throws InterruptedException If interrupted
-     */
-    public void executeFirst(Runnable command, TimeValue timeout) throws InterruptedException {
-        boolean added = queue.offerFirst(contextHolder.preserveContext(command), timeout.millis(), TimeUnit.MILLISECONDS);
-        if (added == false) {
-            throw new EsRejectedExecutionException(processName + " queue is full. Unable to execute command", false);
-        }
     }
 
     @Override

@@ -76,7 +76,7 @@ indices and shards each individual data node will be able to hold,
 all other things being equal. In addition to the per field overhead you should
 have heap available for the base Elasticsearch heap usage as well as the heap
 usage of the workload. For a small workload, 512MB of heap in addition to the
-per field overhead suffice in many cases. For tight workloads, it is possible to
+per field overhead suffice in many cases. For light workloads, it may be possible to
 go even lower.
 For example, holding 1000 indices that each contain 4000 fields will require
 1000 × 4000 × 1024B = 4GB for the fields and another 512MB for a total of

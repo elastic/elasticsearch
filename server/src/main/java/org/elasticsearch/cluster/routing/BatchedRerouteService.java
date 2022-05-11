@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
@@ -127,17 +128,6 @@ public class BatchedRerouteService implements RerouteService {
                 }
 
                 @Override
-                public void onNoLongerMaster() {
-                    synchronized (mutex) {
-                        if (pendingRerouteListeners == currentListeners) {
-                            pendingRerouteListeners = null;
-                        }
-                    }
-                    ActionListener.onFailure(currentListeners, new NotMasterException("delayed reroute [" + reason + "] cancelled"));
-                    // no big deal, the new master will reroute again
-                }
-
-                @Override
                 public void onFailure(Exception e) {
                     synchronized (mutex) {
                         if (pendingRerouteListeners == currentListeners) {
@@ -145,7 +135,13 @@ public class BatchedRerouteService implements RerouteService {
                         }
                     }
                     final ClusterState state = clusterService.state();
-                    if (logger.isTraceEnabled()) {
+                    if (MasterService.isPublishFailureException(e)) {
+                        logger.debug(
+                            () -> new ParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state),
+                            e
+                        );
+                        // no big deal, the new master will reroute again
+                    } else if (logger.isTraceEnabled()) {
                         logger.error(
                             () -> new ParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state),
                             e

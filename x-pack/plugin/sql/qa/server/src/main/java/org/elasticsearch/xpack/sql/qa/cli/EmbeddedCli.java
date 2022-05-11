@@ -77,10 +77,6 @@ public class EmbeddedCli implements Closeable {
             false
         );
         cli = new Cli(cliTerminal) {
-            @Override
-            protected boolean addShutdownHook() {
-                return false;
-            }
         };
         out = new BufferedWriter(new OutputStreamWriter(outgoing, StandardCharsets.UTF_8));
         in = new BufferedReader(new InputStreamReader(incoming, StandardCharsets.UTF_8));

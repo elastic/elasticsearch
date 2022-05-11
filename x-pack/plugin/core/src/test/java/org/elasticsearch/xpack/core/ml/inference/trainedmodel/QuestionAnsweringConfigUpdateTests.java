@@ -108,7 +108,7 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
             RobertaTokenizationTests.createRandom()
         );
         QuestionAnsweringConfig originalConfig = new QuestionAnsweringConfig(
-            randomBoolean() ? null : randomIntBetween(-1, 10),
+            randomBoolean() ? null : randomIntBetween(0, 10),
             randomBoolean() ? null : randomIntBetween(1, 20),
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             tokenizationConfig,

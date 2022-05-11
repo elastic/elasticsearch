@@ -215,9 +215,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             xContentRegistry
         );
         ilmTemplateRegistry.initialize();
-        ilmHistoryStore.set(
-            new ILMHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService, threadPool)
-        );
+        ilmHistoryStore.set(new ILMHistoryStore(new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService, threadPool));
         /*
          * Here we use threadPool::absoluteTimeInMillis rather than System::currentTimeInMillis because snapshot start time is set using
          * ThreadPool.absoluteTimeInMillis(). ThreadPool.absoluteTimeInMillis() returns a cached time that can be several hundred
@@ -248,9 +246,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             xContentRegistry
         );
         templateRegistry.initialize();
-        snapshotHistoryStore.set(
-            new SnapshotHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService)
-        );
+        snapshotHistoryStore.set(new SnapshotHistoryStore(new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService));
         snapshotLifecycleService.set(
             new SnapshotLifecycleService(
                 settings,

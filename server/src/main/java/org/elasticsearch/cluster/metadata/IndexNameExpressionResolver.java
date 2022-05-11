@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.Type;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
@@ -735,7 +734,7 @@ public class IndexNameExpressionResolver {
                 .map(DataStreamAlias::getName)
                 .toArray(String[]::new);
         } else {
-            final ImmutableOpenMap<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
+            final Map<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
             final AliasMetadata[] aliasCandidates;
             if (iterateIndexAliases(indexAliases.size(), resolvedExpressions.size())) {
                 // faster to iterate indexAliases

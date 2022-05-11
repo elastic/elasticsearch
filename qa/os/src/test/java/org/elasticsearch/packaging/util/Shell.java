@@ -204,23 +204,23 @@ public class Shell {
             long size = Files.size(path);
             if (size > 100 * 1024) {
                 // file is really big, truncate at 100k
+                char[] data = new char[100 * 1024];
+                char[] buf = new char[4096];
+                int end = 0;
                 try (var br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-                    char[] buf = new char[100 * 1024];
-                    int start = 0;
                     int nRead = br.read(buf);
                     while (nRead != -1) {
-                        while (start < nRead) {
-                            if (buf[start] != '\u0000') {
-                                break;
+                        for (int i = 0; i < nRead && end < data.length; ++i) {
+                            if (Character.isISOControl(buf[i]) == false) {
+                                data[end++] = buf[i];
                             }
-                            ++start;
                         }
-                        if (start < nRead) {
+                        if (end == data.length) {
                             break;
                         }
                         nRead = br.read(buf);
                     }
-                    return new String(buf, start, nRead) + "\n<<Too large to read (" + size + " bytes), truncated>>";
+                    return new String(data, 0, end) + "\n<<Too large to read (" + size + " bytes), truncated>>";
                 }
             }
             try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {

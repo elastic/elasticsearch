@@ -61,7 +61,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
 `components`::
     (object) Information about the health of the cluster components.
 
-[[cluster-health-api-example]]
+[[health-api-example]]
 ==== {api-examples-title}
 
 [source,console]

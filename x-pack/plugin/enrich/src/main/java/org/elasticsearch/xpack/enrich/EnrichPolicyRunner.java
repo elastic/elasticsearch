@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.MapperService;
@@ -142,7 +141,7 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private Map<String, Object> getMappings(final GetIndexResponse getIndexResponse, final String sourceIndexName) {
-        ImmutableOpenMap<String, MappingMetadata> mappings = getIndexResponse.mappings();
+        Map<String, MappingMetadata> mappings = getIndexResponse.mappings();
         MappingMetadata indexMapping = mappings.get(sourceIndexName);
         if (indexMapping == MappingMetadata.EMPTY_MAPPINGS) {
             throw new ElasticsearchException(

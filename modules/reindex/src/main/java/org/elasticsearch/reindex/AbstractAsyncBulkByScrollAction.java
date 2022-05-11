@@ -976,8 +976,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
     }
 
-    // reindex and update by query
-
     /**
      * Metadata reindex and update-by-query with an {@link UpdateScript}.
      *

@@ -104,7 +104,7 @@ public class UpdateHelper {
         UpsertMetadata metadata = new UpsertMetadata(ctx, Op.CREATE, nowInMillis.getAsLong());
         ctx = executeScript(script, metadata, ctx);
 
-        Op operation = getOp(metadata, script.getIdOrCode());
+        Op operation = metadata.getOp();
         @SuppressWarnings("unchecked")
         Map<String, Object> newSource = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
 
@@ -116,24 +116,6 @@ public class UpdateHelper {
         }
 
         return new Tuple<>(operation, newSource);
-    }
-
-    // Get the operation from metadata, if an unknown operation, throw an IllegalArgumentException
-    // Previously, unknown operations would be changed to noop.
-    protected Op getOp(Metadata md, String scriptId) {
-        Op op = md.getOp();
-        if (op != Op.UNKOWN) {
-            return op;
-        }
-        throw new IllegalArgumentException(
-            "Operation type ["
-                + md.rawOp()
-                + "] not allowed for script ["
-                + scriptId
-                + "], only "
-                + String.join(",", md.validOps())
-                + " are allowed"
-        );
     }
 
     /**
@@ -279,7 +261,7 @@ public class UpdateHelper {
         );
         ctx = executeScript(request.script, metadata, ctx);
 
-        Op operation = getOp(metadata, request.script.getIdOrCode());
+        Op operation = metadata.getOp();
 
         @SuppressWarnings("unchecked")
         final Map<String, Object> updatedSourceAsMap = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
@@ -436,32 +418,9 @@ public class UpdateHelper {
     /**
      * Field names used to populate the script context
      */
-    // TODO(stu): do we need this other than SOURCE?
     public static class ContextFields {
-        public static final String CTX = "ctx";
-        public static final String OP = "op";
         public static final String SOURCE = "_source";
-        public static final String NOW = "_now";
-        public static final String INDEX = "_index";
         public static final String TYPE = "_type";
-        public static final String ID = "_id";
-        public static final String VERSION = "_version";
-        public static final String ROUTING = "_routing";
-    }
-
-    /**
-     * The old way of spelling Op.NOOP, Metadata will read this String but does not write it.
-     */
-    private static final String LEGACY_NOOP_STRING = "none";
-
-    private static Op opFromString(String opStr) {
-        if (opStr == null) {
-            return null;
-        } else if (LEGACY_NOOP_STRING.equals(opStr.toLowerCase(Locale.ROOT))) {
-            return Op.NOOP;
-        } else {
-            return Op.fromString(opStr);
-        }
     }
 
     /**
@@ -473,27 +432,14 @@ public class UpdateHelper {
      *
      * _version_type is unavailable.
      */
-    private static class UpdateMetadata extends org.elasticsearch.script.field.Metadata {
-        private final ZonedDateTime timestamp;
+    private static class UpdateMetadata extends AbstractUpdateMetadata {
 
         UpdateMetadata(Map<String, Object> ctx, String index, String id, String routing, Long version, Op op, long timestamp) {
-            super(
-                ctx,
-                ContextFields.INDEX,
-                ContextFields.ID,
-                ContextFields.ROUTING,
-                ContextFields.VERSION,
-                null,
-                ContextFields.OP,
-                EnumSet.of(Op.NOOP, Op.INDEX, Op.DELETE, Op.CREATE)
-            );
-            this.timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneOffset.UTC);
-            put(ContextFields.NOW, timestamp);
+            super(ctx, INDEX, ID, ROUTING, VERSION, EnumSet.of(Op.NOOP, Op.INDEX, Op.DELETE, Op.CREATE), op, timestamp);
             put(indexKey, index);
             put(idKey, id);
             put(routingKey, routing);
             put(versionKey, version);
-            setOp(Objects.requireNonNull(op));
         }
 
         @Override
@@ -515,31 +461,6 @@ public class UpdateHelper {
         public void setVersion(Long version) {
             unsupported(VERSION, true);
         }
-
-        @Override
-        public Op getOp() {
-            return opFromString(getString(opKey));
-        }
-
-        @Override
-        public void setOp(Op op) {
-            validateOp(op);
-            put(opKey, op.toString());
-        }
-
-        @Override
-        public ZonedDateTime getTimestamp() {
-            return timestamp;
-        }
-
-        @Override
-        public List<String> validOps() {
-            List<String> enumOps = super.validOps();
-            List<String> ops = new ArrayList<>(enumOps.size() + 1);
-            ops.addAll(enumOps);
-            ops.add("none");
-            return ops;
-        }
     }
 
     /**
@@ -550,25 +471,51 @@ public class UpdateHelper {
      *
      * _index, _id, _routing, _version, _version_type are unavailable.
      */
-    private static class UpsertMetadata extends org.elasticsearch.script.field.Metadata {
-        private final ZonedDateTime timestamp;
-
+    private static class UpsertMetadata extends AbstractUpdateMetadata {
         UpsertMetadata(Map<String, Object> ctx, Op op, long timestamp) {
-            super(ctx, null, null, null, null, null, ContextFields.OP, EnumSet.of(Op.CREATE, Op.NOOP));
+            super(ctx, null, null, null, null, EnumSet.of(Op.CREATE, Op.NOOP), op, timestamp);
+        }
+    }
+
+    private abstract static class AbstractUpdateMetadata extends org.elasticsearch.script.field.Metadata {
+        public static final String OP = "op";
+        public static final String NOW = "_now";
+        public static final String INDEX = "_index";
+        public static final String ID = "_id";
+        public static final String VERSION = "_version";
+        public static final String ROUTING = "_routing";
+
+        /**
+         * The old way of spelling Op.NOOP, Metadata will read this String but does not write it.
+         */
+        private static final String LEGACY_NOOP_STRING = "none";
+
+        protected final ZonedDateTime timestamp;
+
+        AbstractUpdateMetadata(
+            Map<String, Object> ctx,
+            String indexKey,
+            String idKey,
+            String routingKey,
+            String versionKey,
+            EnumSet<Op> validOps,
+            Op op,
+            long timestamp
+        ) {
+            super(ctx, indexKey, idKey, routingKey, versionKey, null, OP, validOps);
             this.timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneOffset.UTC);
-            put(ContextFields.NOW, timestamp);
-            setOp(op);
+            ;
+            put(NOW, timestamp);
+            setOp(Objects.requireNonNull(op));
         }
 
         @Override
-        public Op getOp() {
-            return opFromString(getString(opKey));
-        }
-
-        @Override
-        public void setOp(Op op) {
-            validateOp(op);
-            put(opKey, op.toString());
+        protected Op opFromString(String opStr) {
+            if (LEGACY_NOOP_STRING.equals(opStr.toLowerCase(Locale.ROOT))) {
+                return Op.NOOP;
+            } else {
+                return Op.fromString(opStr);
+            }
         }
 
         @Override

@@ -11,7 +11,6 @@ package org.elasticsearch.script.field;
 import org.elasticsearch.index.VersionType;
 
 import java.time.ZonedDateTime;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -138,42 +137,52 @@ public abstract class Metadata {
         }
     }
 
-    public Object rawOp() {
-        return get(opKey);
+    protected Op opFromString(String opStr) {
+        return Op.fromString(opStr);
     }
 
     public Op getOp() {
-        return objectToOp(rawOp());
+        Object raw = get(opKey);
+        if (raw == null) {
+            throw new IllegalStateException("Operation type must be non-null");
+        }
+
+        Op op;
+        String str;
+
+        if (raw instanceof Op rawOp) {
+            str = rawOp.name;
+            op = rawOp;
+        } else if (raw instanceof String rawStr) {
+            str = rawStr;
+            op = opFromString(str);
+        } else {
+            throw new IllegalStateException("Invalid type [" + raw.getClass().getName() + "] for Op [" + raw + "], expected String or Op");
+        }
+
+        if (isValidOp(op) == false) {
+            throw new IllegalStateException("Operation type [" + str + "] not allowed, only " + validOps() + " are allowed");
+        }
+
+        return op;
     }
 
     public void setOp(Op op) {
         validateOp(op);
         // to string keeps compatibility with existing string APIs
-        put(opKey, objectToOp(op).toString());
+        put(opKey, op.toString());
+    }
+
+    protected boolean isValidOp(Op op) {
+        return op != null && (VALID_OPS == null || VALID_OPS.contains(op));
     }
 
     protected void validateOp(Op op) {
         if (op == null) {
             throw new IllegalStateException("Operation type must be non-null");
         } else if (VALID_OPS != null && VALID_OPS.contains(op) == false) {
-            throw new IllegalArgumentException(
-                "Operation type [" + op.name + "] not allowed, only " + Arrays.toString(VALID_OPS.toArray()) + " are allowed"
-            );
+            throw new IllegalArgumentException("Operation type [" + op.name + "] not allowed, only " + validOps() + " are allowed");
         }
-    }
-
-    protected Op objectToOp(Object obj) {
-        if (obj == null) {
-            // TODO(stu): Should this be Op.NOOP so that setOp and getOp are symmetric?
-            return null;
-        }
-        if (obj instanceof Op op) {
-            return op;
-        }
-        if (obj instanceof String str) {
-            return Op.fromString(str);
-        }
-        throw new IllegalArgumentException("Invalid type [" + obj.getClass().getName() + "] for Op [" + obj + "], expected String or Op");
     }
 
     public List<String> validOps() {

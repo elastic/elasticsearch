@@ -26,6 +26,7 @@ public abstract class UpdateScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
+    /** The metadata about the update available to the script */
     private final Metadata metadata;
 
     /** The update context for the script. */

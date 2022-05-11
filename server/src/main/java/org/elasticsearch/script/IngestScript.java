@@ -37,6 +37,7 @@ public abstract class IngestScript {
     /** The update context for the script. */
     private final Map<String, Object> ctx;
 
+    /** The metadata available to callers */
     private final Metadata metadata;
 
     public IngestScript(Map<String, Object> params, Metadata metadata, Map<String, Object> ctx) {

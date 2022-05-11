@@ -40,7 +40,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
                     if (UPGRADE_FROM_VERSION.onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
                         assertThat(statusCode, equalTo(200));
                     } else {
-                        // Processor ranges or float processors are forbidden in mixed mode
+                        // Processor ranges or float processors are forbidden during upgrades: 8.2 -> 8.3 clusters
                         assertThat(statusCode, equalTo(400));
                     }
                 } else {

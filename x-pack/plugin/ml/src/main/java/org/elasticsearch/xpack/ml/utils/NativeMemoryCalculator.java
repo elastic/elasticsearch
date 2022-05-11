@@ -214,7 +214,7 @@ public final class NativeMemoryCalculator {
         int maxLazyNodes = clusterSettings.get(MAX_LAZY_ML_NODES);
         // Even if all the lazy nodes have been added to the cluster, we make
         // the assumption that if any were configured they'll be able to grow
-        // to the maximum ML node size. (We assuming that lazy nodes always
+        // to the maximum ML node size. (We are assuming that lazy nodes always
         // behave like they do with Elastic Cloud autoscaling, where vertical
         // scaling is possible.)
         if (maxMlNodeSize > 0 && maxLazyNodes > 0) {

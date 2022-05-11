@@ -162,7 +162,9 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         if(allArgs.isEmpty()) {
             assert expectedEntries.size() == 0
         } else {
-            def modulePathEntries = allArgs.find("(?<=.*--module-path=)[^;]*(?=;)?")
+            def modulePathEntries = OperatingSystem.current.isWindows() ?
+                allArgs.find(/(?<=.*--module-path=)[^;]*(?=;)?/) :
+                allArgs.find(/(?<=.*--module-path=).*/).minus(";--module-version=${ES_VERSION}")
             doClasspathAssertion(modulePathEntries, expectedEntries)
         }
         true

@@ -243,7 +243,14 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         verify(
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
-            new ReactiveStorageDeciderService.BytesShardIds(subjectShards.size(), Collections.emptySortedSet()),
+            new ReactiveStorageDeciderService.BytesShardIds(
+                subjectShards.size(),
+                RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)
+                    .stream()
+                    .map(ShardRouting::shardId)
+                    .filter(sr -> subjectShards.contains(sr))
+                    .collect(Collectors.toCollection(TreeSet::new))
+            ),
             mockCanAllocateDiskDecider
         );
         verify(
@@ -283,11 +290,16 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         Set<IndexMetadata> candidates = new HashSet<>(randomSubsetOf(allIndices()));
         int allocatedCandidateShards = candidates.stream().mapToInt(IndexMetadata::getNumberOfShards).sum();
+        SortedSet<ShardId> allocatedShardIds = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)
+            .stream()
+            .filter(sr -> candidates.stream().anyMatch(c -> c.getIndex().equals(sr.index())))
+            .map(ShardRouting::shardId)
+            .collect(Collectors.toCollection(TreeSet::new));
 
         verify(
             moveToCold(candidates),
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
-            new ReactiveStorageDeciderService.BytesShardIds(allocatedCandidateShards, Collections.emptySortedSet()),
+            new ReactiveStorageDeciderService.BytesShardIds(allocatedCandidateShards, allocatedShardIds),
             DiscoveryNodeRole.DATA_COLD_NODE_ROLE
         );
     }

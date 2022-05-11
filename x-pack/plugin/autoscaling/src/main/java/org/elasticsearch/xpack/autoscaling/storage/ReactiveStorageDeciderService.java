@@ -281,7 +281,12 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
             return new BytesShardIds(
                 unallocatableBytes + unmovableBytes,
-                unmovableShards.stream().map(ShardRouting::shardId).collect(Collectors.toCollection(TreeSet::new))
+                Stream.concat(
+                    unmovableShards.stream(),
+                    candidates.stream()
+                        .filter(Predicate.not(unmovableShards::contains))
+                        .filter(s -> cannotAllocateDueToStorage(s, allocation))
+                ).map(ShardRouting::shardId).collect(Collectors.toCollection(TreeSet::new))
             );
         }
 

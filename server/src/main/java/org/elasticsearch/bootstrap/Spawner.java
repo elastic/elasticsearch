@@ -13,7 +13,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.PluginsUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -60,7 +60,7 @@ final class Spawner implements Closeable {
          * For each module, attempt to spawn the controller daemon. Silently ignore any module that doesn't include a controller for the
          * correct platform.
          */
-        List<Path> paths = PluginsService.findPluginDirs(environment.modulesFile());
+        List<Path> paths = PluginsUtils.findPluginDirs(environment.modulesFile());
         for (final Path modules : paths) {
             final PluginInfo info = PluginInfo.readFromProperties(modules);
             final Path spawnPath = Platforms.nativeControllerPath(modules);

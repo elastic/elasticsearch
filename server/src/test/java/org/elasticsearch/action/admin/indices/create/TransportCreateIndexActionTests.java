@@ -60,7 +60,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
                         .setAliasName(SYSTEM_ALIAS_NAME)
                         .build(),
                     SystemIndexDescriptor.builder()
-                        .setIndexPattern(MANAGED_SYSTEM_INDEX_NAME)
+                        .setIndexPattern(MANAGED_SYSTEM_INDEX_NAME + "*")
                         .setPrimaryIndex(MANAGED_SYSTEM_INDEX_NAME + "-primary")
                         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
                         .setSettings(SystemIndexDescriptor.DEFAULT_SETTINGS)
@@ -163,7 +163,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
 
         assertThat(
             e.getMessage(),
-            equalTo("Cannot create system index with name .managed-alternate; " + "descriptor primary index is .managed-primary")
+            equalTo("Cannot create system index with name .my-managed-alternate; descriptor primary index is .my-managed-primary")
         );
     }
 

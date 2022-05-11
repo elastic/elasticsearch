@@ -140,7 +140,7 @@ public final class ApplicationPrivilege extends Privilege {
             if (Strings.validFileName(suffix) == false) {
                 throw new IllegalArgumentException(
                     "An application name suffix may not contain any of the characters '"
-                        + Strings.collectionToDelimitedString(Strings.INVALID_FILENAME_CHARS, "")
+                        + Strings.INVALID_FILENAME_CHARS
                         + "' (found '"
                         + suffix
                         + "')"

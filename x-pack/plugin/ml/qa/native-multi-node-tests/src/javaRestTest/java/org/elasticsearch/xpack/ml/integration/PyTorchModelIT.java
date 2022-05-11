@@ -19,7 +19,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
@@ -121,7 +121,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("""
             {"persistent" : {
-                    "logger.org.elasticsearch.xpack.ml.inference.allocation" : "TRACE",
+                    "logger.org.elasticsearch.xpack.ml.inference.assignment" : "TRACE",
                     "logger.org.elasticsearch.xpack.ml.inference.deployment" : "TRACE",
                     "logger.org.elasticsearch.xpack.ml.process.logging" : "TRACE"
                 }}""");
@@ -135,7 +135,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("""
             {"persistent" : {
-                    "logger.org.elasticsearch.xpack.ml.inference.allocation": null,
+                    "logger.org.elasticsearch.xpack.ml.inference.assignment": null,
                     "logger.org.elasticsearch.xpack.ml.inference.deployment" : null,
                     "logger.org.elasticsearch.xpack.ml.process.logging" : null
                 }}""");
@@ -159,7 +159,10 @@ public class PyTorchModelIT extends ESRestTestCase {
                 executorService.execute(() -> {
                     try {
                         Response inference = infer("my words", modelId);
-                        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"predicted_value\":[[1.0,1.0]]}"));
+                        assertThat(
+                            EntityUtils.toString(inference.getEntity()),
+                            equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}")
+                        );
                     } catch (IOException ex) {
                         failures.add(ex.getMessage());
                     } finally {
@@ -184,7 +187,10 @@ public class PyTorchModelIT extends ESRestTestCase {
         startDeployment(modelId);
         String resultsField = randomAlphaOfLength(10);
         Response inference = infer("my words", modelId, resultsField);
-        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"" + resultsField + "\":[[1.0,1.0]]}"));
+        assertThat(
+            EntityUtils.toString(inference.getEntity()),
+            equalTo("{\"inference_results\":[{\"" + resultsField + "\":[[1.0,1.0]]}]}")
+        );
         stopDeployment(modelId);
     }
 
@@ -251,7 +257,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                 stats.get(0)
             );
             assertThat(responseMap.toString(), requiredNativeMemory, is(not(nullValue())));
-            assertThat(requiredNativeMemory, equalTo((int) (ByteSizeValue.ofMb(270).getBytes() + 2 * RAW_MODEL_SIZE)));
+            assertThat(requiredNativeMemory, equalTo((int) (ByteSizeValue.ofMb(240).getBytes() + 2 * RAW_MODEL_SIZE)));
 
             Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
             var humanResponseMap = entityAsMap(humanResponse);
@@ -273,7 +279,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                 stringRequiredNativeMemory,
                 is(not(nullValue()))
             );
-            assertThat(stringRequiredNativeMemory, equalTo("270mb"));
+            assertThat(stringRequiredNativeMemory, equalTo("240mb"));
             stopDeployment(modelId);
         };
 
@@ -555,7 +561,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
         );
 
-        request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+        request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
         request.setJsonEntity("""
             {
               "docs": [
@@ -682,7 +688,7 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         deleteModel(modelId, true);
 
-        assertThatTrainedModelAllocationMetadataIsEmpty();
+        assertThatTrainedModelAssignmentMetadataIsEmpty();
     }
 
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
@@ -744,7 +750,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                 + modelId
                 + "/deployment/_start?timeout=40s&wait_for="
                 + waitForState
-                + "&inference_threads=1&model_threads=1"
+                + "&threads_per_allocation=1&number_of_allocations=1"
         );
         return client().performRequest(request);
     }
@@ -768,7 +774,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response infer(String input, String modelId, TimeValue timeout) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer?timeout=" + timeout.toString());
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=" + timeout.toString());
         request.setJsonEntity("""
             {  "docs": [{"input":"%s"}] }
             """.formatted(input));
@@ -776,7 +782,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
         request.setJsonEntity("""
             {  "docs": [{"input":"%s"}] }
             """.formatted(input));
@@ -784,7 +790,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response infer(String input, String modelId, String resultsField) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
         request.setJsonEntity("""
             {
               "docs": [ { "input": "%s" } ],
@@ -802,15 +808,19 @@ public class PyTorchModelIT extends ESRestTestCase {
         return client().performRequest(request);
     }
 
-    private void assertThatTrainedModelAllocationMetadataIsEmpty() throws IOException {
-        Request getTrainedModelAllocationMetadataRequest = new Request(
+    private void assertThatTrainedModelAssignmentMetadataIsEmpty() throws IOException {
+        Request getTrainedModelAssignmentMetadataRequest = new Request(
             "GET",
-            "_cluster/state?filter_path=metadata.trained_model_allocation"
+            "_cluster/state?filter_path=metadata.trained_model_assignment"
         );
-        Response getTrainedModelAllocationMetadataResponse = client().performRequest(getTrainedModelAllocationMetadataRequest);
+        Response getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
         assertThat(
-            EntityUtils.toString(getTrainedModelAllocationMetadataResponse.getEntity()),
-            containsString("\"trained_model_allocation\":{}")
+            EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()),
+            containsString("\"trained_model_assignment\":{}")
         );
+
+        getTrainedModelAssignmentMetadataRequest = new Request("GET", "_cluster/state?filter_path=metadata.trained_model_allocation");
+        getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
+        assertThat(EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()), equalTo("{}"));
     }
 }

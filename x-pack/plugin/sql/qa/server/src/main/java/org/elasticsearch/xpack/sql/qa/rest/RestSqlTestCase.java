@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.qa.rest;
 
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -14,6 +15,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -278,7 +280,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         assertNull(cursor);
 
-        deleteIndex("test_date_timezone");
+        deleteIndexWithProvisioningClient("test_date_timezone");
     }
 
     @AwaitsFix(bugUrl = "Unclear status, https://github.com/elastic/x-pack-elasticsearch/issues/2074")
@@ -1152,7 +1154,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         expected.put("rows", singletonList(singletonList(nullId)));
         assertResponse(expected, runSql(mode, "SELECT id FROM " + indexPattern("test_binary") + " WHERE binary IS NULL", false));
 
-        deleteIndex("test_binary");
+        deleteIndexWithProvisioningClient("test_binary");
     }
 
     public void testPreventedUnsignedLongMaskedAccess() throws IOException {
@@ -1585,7 +1587,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
             String mode = randomMode();
             Map<String, Object> answer = toMap(runSql(query(sql).mode(mode)), mode);
-            List<String> expected = Arrays.asList("integTest", dataStreamName, "VIEW", "ALIAS");
+            List<String> expected = Arrays.asList("javaRestTest", dataStreamName, "VIEW", "ALIAS");
             @SuppressWarnings("unchecked")
             List<List<String>> rows = (List<List<String>>) (answer.get("rows"));
             assertTrue(rows.contains(expected));
@@ -1610,6 +1612,67 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             deleteDataStream(dataStreamName);
         }
 
+    }
+
+    public void testAllowPartialSearchResults() throws IOException {
+        final String mappingTemplate = """
+            {
+              "mappings": {
+                "properties": {
+                  "bool": {
+                    "type": "boolean",
+                      "index": %s,
+                      "doc_values": %s
+                  }
+                }
+              }
+            }""";
+
+        // must match org.elasticsearch.xpack.sql.execution.search.Querier.BaseActionListener.MAX_WARNING_HEADERS
+        final int maxWarningHeaders = 20;
+        final int extraBadShards = randomIntBetween(1, 5);
+        final int okShards = randomIntBetween(1, 5);
+
+        final String suppressMessage = " remaining shard failure" + (extraBadShards > 1 ? "s" : "") + " suppressed";
+        final String reason = "Cannot search on field [bool] since it is not indexed nor has doc values";
+        final String warnMessage = "org.elasticsearch.index.query.QueryShardException: failed to create query: " + reason;
+
+        for (int i = 0; i < maxWarningHeaders - 1 + okShards + extraBadShards; i++) {
+            Request request = new Request("PUT", "/test" + i);
+            boolean indexWithDocVals = i < okShards;
+            request.setJsonEntity(String.format(Locale.ROOT, mappingTemplate, indexWithDocVals, indexWithDocVals));
+            assertOK(provisioningClient().performRequest(request));
+            indexWithIndexName("test" + i, "{\"bool\": " + randomBoolean() + "}");
+        }
+
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        RequestObjectBuilder builder = query("SELECT * FROM " + indexPattern("\\\"test*\\\"") + " WHERE bool=" + randomBoolean());
+
+        // first, the negative test: allowPartialSearchResults=false leads to an error
+        request.setEntity(new StringEntity(builder.toString(), ContentType.APPLICATION_JSON));
+        ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertTrue(exception.getMessage().contains(reason));
+
+        // then, allowPartialSearchResults=true will generate a response with shard failures warnings
+        request.setEntity(new StringEntity(builder.allowPartialSearchResults(true).toString(), ContentType.APPLICATION_JSON));
+        Response response = client().performRequest(request);
+        assertOK(response);
+
+        int failedShards = 0;
+        boolean hasSupressMessage = false;
+        for (Header header : response.getHeaders()) {
+            if (header.getName().toLowerCase(Locale.ROOT).equals("warning")) {
+                String headerVal = header.getValue();
+                if (headerVal.contains(warnMessage)) {
+                    failedShards++;
+                } else if (headerVal.contains(extraBadShards + suppressMessage)) {
+                    hasSupressMessage = true;
+                }
+            }
+        }
+        assertEquals(maxWarningHeaders - 1, failedShards);
+        assertTrue(hasSupressMessage);
     }
 
     static Map<String, Object> runSql(RequestObjectBuilder builder, String mode) throws IOException {

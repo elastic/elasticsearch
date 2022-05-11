@@ -209,8 +209,8 @@ determined and is given a value of -1 to indicate this.
 ==== Order
 
 By default, the `terms` aggregation orders terms by descending document
-`_count`.  This produces bounded error, which elasticsearch can report (see
-<<terms-agg-doc-count-error>>.)
+`_count`.  This produces a bounded <<terms-agg-doc-count-error,document count>>
+error that {es} can report.
 
 You can use the `order` parameter to specify a different sort order.  It is extremely
 easy to create a terms ordering that will just return wrong results, and not
@@ -225,10 +225,10 @@ shards>>, sorting by ascending doc count often produces inaccurate results.
 
 
 ===== Ordering by the term value
-In this case, the buckets are ordered by the actual term values, e.g.
-Lexicographically for keywords or numerically for numbers.  This sorting is
-safe in both ascending and descending directions, and will always produce
-correct results.
+In this case, the buckets are ordered by the actual term values, such as
+lexicographic order for keywords or numerically for numbers. This sorting is
+safe in both ascending and descending directions, and produces accurate
+results.
 
 Example of ordering the buckets alphabetically by their terms in an ascending manner:
 
@@ -385,9 +385,9 @@ tie-breaker in ascending alphabetical order to prevent non-deterministic orderin
 
 ===== Ordering by count ascending
 
-Ordering by count ascending has unbounded error, and elasticsearch is unable to
-accurately report the error in the doc counts.  We strongly recommend not doing
-this.  If you really must, this is how you sort on doc count ascending:
+Ordering terms by ascending document `_count` produces an unbounded error that
+{es} can't accurately report. We therefore strongly recommend against using
+`"order": { "_count": "asc" }` as shown in the following example:
 
 [source,console,id=terms-aggregation-count-example]
 --------------------------------------------------

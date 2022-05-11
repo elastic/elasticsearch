@@ -100,6 +100,14 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterService createClusterService(ThreadPool threadPool) {
+        return createClusterService(threadPool, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+    }
+
+    public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode) {
+        return createClusterService(threadPool, localNode, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+    }
+
+    public static ClusterService createClusterService(ThreadPool threadPool, ClusterSettings clusterSettings) {
         DiscoveryNode discoveryNode = new DiscoveryNode(
             "node",
             "node",
@@ -108,11 +116,7 @@ public class ClusterServiceUtils {
             DiscoveryNodeRole.roles(),
             Version.CURRENT
         );
-        return createClusterService(threadPool, discoveryNode);
-    }
-
-    public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode) {
-        return createClusterService(threadPool, localNode, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        return createClusterService(threadPool, discoveryNode, clusterSettings);
     }
 
     public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode, ClusterSettings clusterSettings) {
@@ -158,6 +162,12 @@ public class ClusterServiceUtils {
 
     public static ClusterService createClusterService(ClusterState initialState, ThreadPool threadPool) {
         ClusterService clusterService = createClusterService(threadPool);
+        setState(clusterService, initialState);
+        return clusterService;
+    }
+
+    public static ClusterService createClusterService(ClusterState initialState, ThreadPool threadPool, ClusterSettings clusterSettings) {
+        ClusterService clusterService = createClusterService(threadPool, clusterSettings);
         setState(clusterService, initialState);
         return clusterService;
     }

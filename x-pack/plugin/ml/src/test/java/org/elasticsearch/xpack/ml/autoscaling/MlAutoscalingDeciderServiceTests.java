@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 import org.junit.Before;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -137,7 +136,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     @Before
     public void setup() {
         mlMemoryTracker = mock(MlMemoryTracker.class);
-        when(mlMemoryTracker.isRecentlyRefreshed(any())).thenReturn(true);
+        when(mlMemoryTracker.isRecentlyRefreshed()).thenReturn(true);
         when(mlMemoryTracker.asyncRefresh()).thenReturn(true);
         when(mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(any())).thenReturn(TEST_JOB_SIZE);
         when(mlMemoryTracker.getDataFrameAnalyticsJobMemoryRequirement(any())).thenReturn(TEST_JOB_SIZE);
@@ -1138,7 +1137,6 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         Collection<DiscoveryNode> nodesInCluster = clusterState.getNodes().getNodes().values();
         Optional<NativeMemoryCapacity> nativeMemoryCapacity = service.calculateFutureAvailableCapacity(
             clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE),
-            Duration.ofMillis(randomIntBetween(1, 10000)), // exact value shouldn't matter
             nodesInCluster,
             clusterState
         );

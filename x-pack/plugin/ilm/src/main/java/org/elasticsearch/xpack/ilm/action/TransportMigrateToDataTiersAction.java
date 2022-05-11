@@ -17,8 +17,10 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -136,7 +138,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             }
 
             @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 clusterService.getRerouteService()
                     .reroute("cluster migrated to data tiers routing", Priority.NORMAL, new ActionListener<ClusterState>() {
                         @Override

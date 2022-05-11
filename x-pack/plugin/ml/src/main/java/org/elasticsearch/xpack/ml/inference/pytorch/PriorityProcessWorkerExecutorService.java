@@ -7,34 +7,41 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xpack.ml.job.process.AbstractProcessWorkerExecutorService;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.AbstractExecutorService;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
-public class PriorityProcessWorkerExecutorService extends AbstractExecutorService {
+/**
+ * An {@link AbstractProcessWorkerExecutorService} where the runnables
+ * are have a priority and are executed in priority order with a tie breaker
+ * value for requests of equal priority. The tie breaker can be used to
+ * preserve insertion order.
+ *
+ * Order is maintained by a PriorityQueue
+ */
+public class PriorityProcessWorkerExecutorService extends AbstractProcessWorkerExecutorService<
+    PriorityProcessWorkerExecutorService.OrderedRunnable> {
 
     public enum RequestPriority {
+        HIGHEST,
         HIGH,
         NORMAL
     };
 
-    private static record OrderRunnable(RequestPriority priority, long tieBreaker, Runnable runnable) implements Comparable<OrderRunnable> {
+    /**
+     * A Runnable sorted first by RequestPriority then a tie breaker which in
+     * most cases will be the insertion order
+     */
+    public static record OrderedRunnable(RequestPriority priority, long tieBreaker, Runnable runnable)
+        implements
+            Comparable<OrderedRunnable>,
+            Runnable {
         @Override
-        public int compareTo(OrderRunnable o) {
+        public int compareTo(OrderedRunnable o) {
             int p = this.priority.compareTo(o.priority);
             if (p == 0) {
                 return (int) (this.tieBreaker - o.tieBreaker);
@@ -42,67 +49,34 @@ public class PriorityProcessWorkerExecutorService extends AbstractExecutorServic
 
             return p;
         }
+
+        @Override
+        public void run() {
+            runnable.run();
+        }
     };
 
-    private static final Logger logger = LogManager.getLogger(PriorityProcessWorkerExecutorService.class);
-
-    private final ThreadContext contextHolder;
-    private final String processName;
-    private final CountDownLatch awaitTermination = new CountDownLatch(1);
-    private final PriorityBlockingQueue<OrderRunnable> priorityQueue;
-    private final AtomicReference<Exception> error = new AtomicReference<>();
     private final int queueCapacity;
 
-    private volatile boolean running = true;
-
     /**
-         * @param contextHolder the thread context holder
-         * @param processName the name of the process to be used in logging
-         * @param queueCapacity the capacity of the queue holding operations. If an operation is added
-         *                  for execution when the queue is full a 429 error is thrown.
-         */
+     * @param contextHolder the thread context holder
+     * @param processName the name of the process to be used in logging
+     * @param queueCapacity the capacity of the queue holding operations. If an operation is added
+     *                  for execution when the queue is full a 429 error is thrown.
+     */
     @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
     public PriorityProcessWorkerExecutorService(ThreadContext contextHolder, String processName, int queueCapacity) {
-        this.contextHolder = Objects.requireNonNull(contextHolder);
-        this.processName = Objects.requireNonNull(processName);
-        this.priorityQueue = new PriorityBlockingQueue<>(queueCapacity);
+        super(contextHolder, processName, queueCapacity, PriorityBlockingQueue::new);
         this.queueCapacity = queueCapacity;
     }
 
-    public int queueSize() {
-        return priorityQueue.size();
-    }
-
-    public void shutdownWithError(Exception e) {
-        error.set(e);
-        shutdown();
-    }
-
-    @Override
-    public void shutdown() {
-        running = false;
-    }
-
-    @Override
-    public List<Runnable> shutdownNow() {
-        throw new UnsupportedOperationException("not supported");
-    }
-
-    @Override
-    public boolean isShutdown() {
-        return running == false;
-    }
-
-    @Override
-    public boolean isTerminated() {
-        return awaitTermination.getCount() == 0;
-    }
-
-    @Override
-    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-        return awaitTermination.await(timeout, unit);
-    }
-
+    /**
+     * Insert a runnable into the executor queue.
+     *
+     * @param command The runnable
+     * @param priority Request priority
+     * @param tieBreaker For sorting requests of equal priority
+     */
     public void executeWithPriority(AbstractRunnable command, RequestPriority priority, long tieBreaker) {
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(processName + " worker service has shutdown", true);
@@ -110,54 +84,14 @@ public class PriorityProcessWorkerExecutorService extends AbstractExecutorServic
             return;
         }
 
-        if (priorityQueue.size() == queueCapacity
-            || priorityQueue.add(new OrderRunnable(priority, tieBreaker, contextHolder.preserveContext(command))) == false) {
-            throw new EsRejectedExecutionException(processName + " queue is full. Unable to execute command", false);
+        if (queue.size() == queueCapacity
+            || queue.add(new OrderedRunnable(priority, tieBreaker, contextHolder.preserveContext(command))) == false) {
+            command.onRejection(new EsRejectedExecutionException(processName + " queue is full. Unable to execute command", false));
         }
     }
 
     @Override
     public synchronized void execute(Runnable command) {
         throw new UnsupportedOperationException("use executeWithPriority");
-    }
-
-    public void start() {
-        try {
-            while (running) {
-                var runnable = priorityQueue.poll(500, java.util.concurrent.TimeUnit.MILLISECONDS);
-                if (runnable != null) {
-                    try {
-                        runnable.runnable().run();
-                    } catch (Exception e) {
-                        logger.error(() -> new ParameterizedMessage("error handling process [{}] operation", processName), e);
-                    }
-                    EsExecutors.rethrowErrors(ThreadContext.unwrap(runnable.runnable()));
-                }
-            }
-
-            synchronized (this) {
-                // if shutdown with tasks pending notify the handlers
-                if (priorityQueue.isEmpty() == false) {
-                    List<OrderRunnable> notExecuted = new ArrayList<>();
-                    priorityQueue.drainTo(notExecuted);
-
-                    String msg = "unable to process as " + processName + " worker service has shutdown";
-                    Exception ex = error.get();
-                    for (var runnable : notExecuted) {
-                        if (runnable.runnable()instanceof AbstractRunnable ar) {
-                            if (ex != null) {
-                                ar.onFailure(ex);
-                            } else {
-                                ar.onRejection(new EsRejectedExecutionException(msg, true));
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } finally {
-            awaitTermination.countDown();
-        }
     }
 }

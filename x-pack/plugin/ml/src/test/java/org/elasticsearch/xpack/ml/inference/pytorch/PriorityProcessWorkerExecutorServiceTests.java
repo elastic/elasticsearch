@@ -28,8 +28,22 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testOrderedRunnables_NormalPriority() throws InterruptedException {
-        var executor = createProcessWorkerExecutorService();
+    public void testQueueCapacityReached() {
+        var executor = createProcessWorkerExecutorService(2);
+
+        var counter = new AtomicInteger();
+        var r1 = new RunOrderValidator(1, counter);
+        executor.executeWithPriority(r1, RequestPriority.NORMAL, 100L);
+        var r2 = new RunOrderValidator(2, counter);
+        executor.executeWithPriority(r2, RequestPriority.NORMAL, 101L);
+        var r3 = new RunOrderValidator(3, counter);
+        executor.executeWithPriority(r3, RequestPriority.NORMAL, 101L);
+
+        assertTrue(r3.hasBeenRejected);
+    }
+
+    public void testOrderedRunnables_NormalPriority() {
+        var executor = createProcessWorkerExecutorService(100);
 
         var counter = new AtomicInteger();
 
@@ -41,18 +55,7 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         executor.executeWithPriority(r3, RequestPriority.NORMAL, 102L);
 
         // final action stops the executor
-        executor.executeWithPriority(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                executor.shutdown();
-                fail(e.getMessage());
-            }
-
-            @Override
-            protected void doRun() {
-                executor.shutdown();
-            }
-        }, RequestPriority.NORMAL, 10000L);
+        executor.executeWithPriority(new ShutdownExecutorRunnable(executor), RequestPriority.NORMAL, 10000L);
 
         executor.start();
 
@@ -61,8 +64,8 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         assertTrue(r3.hasBeenRun);
     }
 
-    public void testOrderedRunnables_MixedPriorities() throws InterruptedException {
-        var executor = createProcessWorkerExecutorService();
+    public void testOrderedRunnables_MixedPriorities() {
+        var executor = createProcessWorkerExecutorService(100);
 
         assertThat(RequestPriority.HIGH.compareTo(RequestPriority.NORMAL), lessThan(0));
 
@@ -77,37 +80,36 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         executor.executeWithPriority(new RunOrderValidator(6, counter), RequestPriority.NORMAL, requestId++);
 
         // final action stops the executor
-        executor.executeWithPriority(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                executor.shutdown();
-                fail(e.getMessage());
-            }
-
-            @Override
-            protected void doRun() {
-                executor.shutdown();
-            }
-        }, RequestPriority.NORMAL, 10000L);
+        executor.executeWithPriority(new ShutdownExecutorRunnable(executor), RequestPriority.NORMAL, 10000L);
 
         executor.start();
 
         assertTrue(r1.hasBeenRun);
     }
 
-    private PriorityProcessWorkerExecutorService createProcessWorkerExecutorService() {
-        return new PriorityProcessWorkerExecutorService(threadPool.getThreadContext(), "PriorityProcessWorkerExecutorServiceTests", 100);
+    private PriorityProcessWorkerExecutorService createProcessWorkerExecutorService(int queueSize) {
+        return new PriorityProcessWorkerExecutorService(
+            threadPool.getThreadContext(),
+            "PriorityProcessWorkerExecutorServiceTests",
+            queueSize
+        );
     }
 
     private static class RunOrderValidator extends AbstractRunnable {
 
         private boolean hasBeenRun = false;
+        private boolean hasBeenRejected = false;
         private final int expectedOrder;
         private final AtomicInteger counter;
 
         RunOrderValidator(int expectedOrder, AtomicInteger counter) {
             this.expectedOrder = expectedOrder;
             this.counter = counter;
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            hasBeenRejected = true;
         }
 
         @Override
@@ -120,5 +122,26 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
             hasBeenRun = true;
             assertThat(expectedOrder, equalTo(counter.incrementAndGet()));
         }
+    }
+
+    private static class ShutdownExecutorRunnable extends AbstractRunnable {
+
+        PriorityProcessWorkerExecutorService executor;
+
+        ShutdownExecutorRunnable(PriorityProcessWorkerExecutorService executor) {
+            this.executor = executor;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            executor.shutdown();
+            fail(e.getMessage());
+        }
+
+        @Override
+        protected void doRun() {
+            executor.shutdown();
+        }
+
     }
 }

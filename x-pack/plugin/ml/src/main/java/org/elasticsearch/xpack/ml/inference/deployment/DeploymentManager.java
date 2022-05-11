@@ -257,7 +257,11 @@ public class DeploymentManager {
             listener
         );
 
-        executePyTorchAction(processContext, skipQueue, inferenceAction);
+        PriorityProcessWorkerExecutorService.RequestPriority priority = skipQueue
+            ? PriorityProcessWorkerExecutorService.RequestPriority.HIGH
+            : PriorityProcessWorkerExecutorService.RequestPriority.NORMAL;
+
+        executePyTorchAction(processContext, priority, inferenceAction);
     }
 
     public void updateNumAllocations(
@@ -283,14 +287,15 @@ public class DeploymentManager {
             listener
         );
 
-        executePyTorchAction(processContext, false, controlMessageAction);
+        executePyTorchAction(processContext, PriorityProcessWorkerExecutorService.RequestPriority.HIGHEST, controlMessageAction);
     }
 
-    public void executePyTorchAction(ProcessContext processContext, boolean skipQueue, AbstractPyTorchAction<?> action) {
+    public void executePyTorchAction(
+        ProcessContext processContext,
+        PriorityProcessWorkerExecutorService.RequestPriority priority,
+        AbstractPyTorchAction<?> action
+    ) {
         try {
-            PriorityProcessWorkerExecutorService.RequestPriority priority = skipQueue
-                ? PriorityProcessWorkerExecutorService.RequestPriority.HIGH
-                : PriorityProcessWorkerExecutorService.RequestPriority.NORMAL;
             processContext.getExecutorService().executeWithPriority(action, priority, action.getRequestId());
         } catch (EsRejectedExecutionException e) {
             processContext.getRejectedExecutionCount().incrementAndGet();

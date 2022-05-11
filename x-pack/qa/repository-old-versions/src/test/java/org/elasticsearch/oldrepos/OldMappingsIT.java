@@ -255,6 +255,22 @@ public class OldMappingsIT extends ESRestTestCase {
         assertEquals(1.0d, (double) hit.get("_score"), 0.01d);
     }
 
+    public void testFieldsExistQueryOnTextField() throws IOException {
+        Request search = new Request("POST", "/" + "custom" + "/_search");
+        XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
+            .startObject()
+            .startObject("query")
+            .startObject("exists")
+            .field("field", "apache2.access.agent")
+            .endObject()
+            .endObject()
+            .endObject();
+        search.setJsonEntity(Strings.toString(query));
+        Map<String, Object> response = entityAsMap(client().performRequest(search));
+        List<?> hits = (List<?>) (XContentMapValues.extractValue("hits.hits", response));
+        assertThat(hits, hasSize(2));
+    }
+
     public void testSearchFieldsOnPlaceholderField() throws IOException {
         Request search = new Request("POST", "/" + "custom" + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())

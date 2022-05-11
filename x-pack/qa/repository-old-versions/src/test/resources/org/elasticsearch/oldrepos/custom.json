@@ -5,7 +5,6 @@
         "access": {
           "properties": {
             "agent": {
-              "norms": false,
               "type": "text"
             },
             "url": {

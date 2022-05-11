@@ -438,7 +438,14 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public TextFieldMapper build(MapperBuilderContext context) {
-            FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
+            FieldType fieldType = TextParams.buildFieldType(
+                index,
+                store,
+                indexOptions,
+                // legacy indices do not have access to norms
+                indexCreatedVersion.isLegacyIndexVersion() ? () -> false : norms,
+                termVectors
+            );
             TextFieldType tft = buildFieldType(fieldType, context, indexCreatedVersion);
             SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
             SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft);

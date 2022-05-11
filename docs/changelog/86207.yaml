@@ -1,0 +1,5 @@
+pr: 86207
+summary: Better failure for source-only snapshots of partially/fully mounted indices
+area: Snapshot/Restore
+type: bug
+issues: []

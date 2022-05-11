@@ -11,22 +11,39 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.shard.ShardId;
 
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
 
 public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
     private final Logger logger = LogManager.getLogger(IndexBalanceTests.class);
@@ -158,14 +175,14 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
-        assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(3));
+        assertThat(clusterState.routingTable().index("test").size(), equalTo(3));
 
         newState = startInitializingShardsAndReroute(strategy, clusterState);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
-        assertThat(clusterState.routingTable().index("test1").shards().size(), equalTo(3));
+        assertThat(clusterState.routingTable().index("test1").size(), equalTo(3));
 
         assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), equalTo(4));
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(4));
@@ -284,7 +301,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         assertThat(routingNodes.hasInactivePrimaries(), equalTo(false));
         assertThat(routingNodes.hasUnassignedPrimaries(), equalTo(true));
 
-        assertThat(clusterState.routingTable().index("test1").shards().size(), equalTo(3));
+        assertThat(clusterState.routingTable().index("test1").size(), equalTo(3));
 
         clusterState = strategy.reroute(clusterState, "reroute");
 
@@ -357,6 +374,81 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         assertThat(routingNodes.hasInactivePrimaries(), equalTo(false));
         assertThat(routingNodes.hasUnassignedPrimaries(), equalTo(false));
 
+    }
+
+    public void testNodeInterleavedShardIterator() {
+        final var numberOfShards = between(1, 5);
+        final var numberOfReplicas = between(0, 4);
+        final var indexMetadata = IndexMetadata.builder("index")
+            .settings(
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            )
+            .build();
+        final var metadata = Metadata.builder().put(indexMetadata, true).build();
+        final var routingTable = RoutingTable.builder().addAsNew(indexMetadata).build();
+
+        final var nodeCount = between(numberOfReplicas + 1, 6);
+        final var discoveryNodes = DiscoveryNodes.builder();
+        for (var i = 0; i < nodeCount; i++) {
+            final var transportAddress = buildNewFakeTransportAddress();
+            final var discoveryNode = new DiscoveryNode(
+                "node-" + i,
+                "node-" + i,
+                UUIDs.randomBase64UUID(random()),
+                transportAddress.address().getHostString(),
+                transportAddress.getAddress(),
+                transportAddress,
+                Map.of(),
+                Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
+                Version.CURRENT
+            );
+            discoveryNodes.add(discoveryNode);
+        }
+        discoveryNodes.masterNodeId("node-0").localNodeId("node-0");
+
+        final var allocationService = createAllocationService(Settings.EMPTY);
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes)
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+        boolean changed;
+        do {
+            final var newState = startInitializingShardsAndReroute(allocationService, clusterState);
+            changed = newState != clusterState;
+            clusterState = newState;
+        } while (changed);
+
+        final Map<String, Set<ShardId>> shardsByNode = Maps.newMapWithExpectedSize(nodeCount);
+        for (final var indexRoutingTable : clusterState.routingTable()) {
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
+                    assertTrue(shardRouting.started());
+                    shardsByNode.computeIfAbsent(shardRouting.currentNodeId(), ignored -> new HashSet<>()).add(shardRouting.shardId());
+                }
+            }
+        }
+
+        final var iterationCountsByNode = shardsByNode.keySet().stream().collect(Collectors.toMap(Function.identity(), ignored -> 0));
+        final var interleavingIterator = clusterState.getRoutingNodes().nodeInterleavedShardIterator();
+        while (interleavingIterator.hasNext()) {
+            final var shardRouting = interleavingIterator.next();
+            final var expectedShards = shardsByNode.get(shardRouting.currentNodeId());
+            assertTrue(expectedShards.remove(shardRouting.shardId()));
+            iterationCountsByNode.computeIfPresent(shardRouting.currentNodeId(), (ignored, i) -> i + 1);
+            final var minNodeCount = iterationCountsByNode.values().stream().mapToInt(i -> i).min().orElseThrow();
+            final var maxNodeCount = iterationCountsByNode.values().stream().mapToInt(i -> i).max().orElseThrow();
+            assertThat(maxNodeCount - minNodeCount, oneOf(0, 1));
+            if (expectedShards.isEmpty()) {
+                iterationCountsByNode.remove(shardRouting.currentNodeId());
+            }
+        }
+        assertTrue(shardsByNode.values().stream().allMatch(Set::isEmpty));
     }
 
     private boolean assertShardStats(RoutingNodes routingNodes) {

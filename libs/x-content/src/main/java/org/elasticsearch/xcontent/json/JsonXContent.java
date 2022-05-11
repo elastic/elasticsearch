@@ -8,92 +8,30 @@
 
 package org.elasticsearch.xcontent.json;
 
-import com.fasterxml.jackson.core.JsonEncoding;
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParser;
-
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentGenerator;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.spi.XContentProvider;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.Reader;
-import java.util.Set;
 
 /**
- * A JSON based content implementation using Jackson.
+ * JSON based XContent.
  */
-public class JsonXContent implements XContent {
+public final class JsonXContent {
 
-    public static XContentBuilder contentBuilder() throws IOException {
-        return XContentBuilder.builder(jsonXContent);
-    }
-
-    private static final JsonFactory jsonFactory;
-
-    public static final JsonXContent jsonXContent;
-
-    static {
-        jsonFactory = new JsonFactory();
-        jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
-        jsonFactory.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
-        jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
-        // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.core.json.UTF8JsonGenerator#close() method
-        jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
-        jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
-        jsonXContent = new JsonXContent();
-    }
+    private static final XContentProvider.FormatProvider provider = XContentProvider.provider().getJsonXContent();
 
     private JsonXContent() {}
 
-    @Override
-    public XContentType type() {
-        return XContentType.JSON;
+    /**
+     * Returns a {@link XContentBuilder} for building JSON XContent.
+     */
+    public static XContentBuilder contentBuilder() throws IOException {
+        return provider.getContentBuilder();
     }
 
-    @Override
-    public byte streamSeparator() {
-        return '\n';
-    }
-
-    @Override
-    public boolean detectContent(byte[] bytes, int offset, int length) {
-        return bytes[offset] == '{';
-    }
-
-    @Override
-    public boolean detectContent(CharSequence chars) {
-        return chars.charAt(0) == '{';
-    }
-
-    @Override
-    public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
-        return new JsonXContentGenerator(jsonFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
-    }
-
-    @Override
-    public XContentParser createParser(XContentParserConfiguration config, String content) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(content));
-    }
-
-    @Override
-    public XContentParser createParser(XContentParserConfiguration config, InputStream is) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(is));
-    }
-
-    @Override
-    public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(data, offset, length));
-    }
-
-    @Override
-    public XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(reader));
-    }
+    /**
+     * A JSON based XContent.
+     */
+    public static final XContent jsonXContent = provider.XContent();
 }

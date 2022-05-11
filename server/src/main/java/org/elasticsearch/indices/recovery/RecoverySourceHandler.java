@@ -40,12 +40,12 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -827,13 +827,24 @@ public class RecoverySourceHandler {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn(
-                            new ParameterizedMessage(
-                                "failed to recover file [{}] from snapshot, " + "will recover from primary instead",
-                                snapshotFileToRecover.metadata()
-                            ),
-                            e
-                        );
+                        if (cancelled.get() || e instanceof CancellableThreads.ExecutionCancelledException) {
+                            logger.debug(
+                                new ParameterizedMessage(
+                                    "cancelled while recovering file [{}] from snapshot",
+                                    snapshotFileToRecover.metadata()
+                                ),
+                                e
+                            );
+                        } else {
+                            logger.warn(
+                                new ParameterizedMessage(
+                                    "failed to recover file [{}] from snapshot{}",
+                                    snapshotFileToRecover.metadata(),
+                                    shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode() ? ", will recover from primary instead" : ""
+                                ),
+                                e
+                            );
+                        }
                         if (shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode()) {
                             onRequestCompletion(snapshotFileToRecover.metadata(), e);
                         } else {

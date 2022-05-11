@@ -24,8 +24,7 @@ public class Max extends InternalNumericMetricsAggregation.SingleValue {
     private final double max;
 
     public Max(String name, double max, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
-        this.format = formatter;
+        super(name, formatter, metadata);
         this.max = max;
     }
 
@@ -34,7 +33,6 @@ public class Max extends InternalNumericMetricsAggregation.SingleValue {
      */
     public Max(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         max = in.readDouble();
     }
 

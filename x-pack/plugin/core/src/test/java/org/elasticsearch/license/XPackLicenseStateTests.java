@@ -99,7 +99,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testSecurityAckStandardToBasic() {
-        assertAckMessages(XPackField.SECURITY, STANDARD, BASIC, 0);
+        assertAckMessages(XPackField.SECURITY, STANDARD, BASIC, 1);
     }
 
     public void testSecurityAckAnyToStandard() {

@@ -1,0 +1,5 @@
+pr: 84832
+summary: Resolve wildcards in disk usage API
+area: Search
+type: feature
+issues: []

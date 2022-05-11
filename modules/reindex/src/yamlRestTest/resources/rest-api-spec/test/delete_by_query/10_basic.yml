@@ -499,12 +499,9 @@ tsdb:
           - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434521831, "rx": 530575198}}}}'
 
   - do:
-      catch: bad_request
       delete_by_query:
         index: tsdb
         body:
           query:
             match_all: {}
-
-  - match: {failures.0.status: 400}
-  - match: {failures.0.cause.reason: "delete is not supported because the destination index [tsdb] is in time series mode"}
+  - match: {deleted: 1}

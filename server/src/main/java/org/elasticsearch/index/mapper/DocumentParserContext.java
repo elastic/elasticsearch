@@ -12,7 +12,6 @@ import org.apache.lucene.document.Field;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.xcontent.DotExpandingXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -90,6 +89,7 @@ public abstract class DocumentParserContext {
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final List<RuntimeField> dynamicRuntimeFields;
     private final DocumentDimensions dimensions;
+    private String id;
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
 
@@ -104,6 +104,7 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = in.newFieldsSeen;
         this.dynamicObjectMappers = in.dynamicObjectMappers;
         this.dynamicRuntimeFields = in.dynamicRuntimeFields;
+        this.id = in.id;
         this.version = in.version;
         this.seqID = in.seqID;
         this.dimensions = in.dimensions;
@@ -192,12 +193,33 @@ public abstract class DocumentParserContext {
         this.version = version;
     }
 
+    public final String id() {
+        if (id == null) {
+            assert false : "id field mapper has not set the id";
+            throw new IllegalStateException("id field mapper has not set the id");
+        }
+        return id;
+    }
+
+    public final void id(String id) {
+        this.id = id;
+    }
+
     public final SeqNoFieldMapper.SequenceIDFields seqID() {
         return this.seqID;
     }
 
     public final void seqID(SeqNoFieldMapper.SequenceIDFields seqID) {
         this.seqID = seqID;
+    }
+
+    /**
+     * Description on the document being parsed used in error messages. Not
+     * called unless there is an error.
+     */
+    public final String documentDescription() {
+        IdFieldMapper idMapper = (IdFieldMapper) getMetadataMapper(IdFieldMapper.NAME);
+        return idMapper.documentDescription(this);
     }
 
     /**
@@ -223,10 +245,6 @@ public abstract class DocumentParserContext {
      */
     public final List<Mapper> getDynamicMappers() {
         return dynamicMappers;
-    }
-
-    public final boolean isShadowed(String field) {
-        return mappingLookup.isShadowed(field);
     }
 
     public final ObjectMapper getDynamicObjectMapper(String name) {

@@ -14,6 +14,7 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
@@ -65,8 +66,9 @@ public class TestingConventionsTasks extends DefaultTask {
     }
 
     @Inject
-    public TestingConventionsTasks(ProjectLayout projectLayout) {
+    public TestingConventionsTasks(ProjectLayout projectLayout, ObjectFactory objectFactory) {
         this.projectLayout = projectLayout;
+        this.naming = objectFactory.domainObjectContainer(TestingConventionRule.class);
         setDescription("Tests various testing conventions");
     }
 
@@ -416,9 +418,5 @@ public class TestingConventionsTasks extends DefaultTask {
 
     public void setSourceSets(SourceSetContainer sourceSets) {
         this.sourceSets = sourceSets;
-    }
-
-    public void setNaming(NamedDomainObjectContainer<TestingConventionRule> naming) {
-        this.naming = naming;
     }
 }

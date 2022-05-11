@@ -1,12 +1,11 @@
 [role="xpack"]
 [[security-api-update-user-profile-data]]
 === Update user profile data API
-
-beta::[]
-
 ++++
 <titleabbrev>Update user profile data</titleabbrev>
 ++++
+
+beta::[]
 
 Updates specific data for the user profile that's associated with the specified
 unique ID.
@@ -14,7 +13,7 @@ unique ID.
 [[security-api-update-user-profile-data-request]]
 ==== {api-request-title}
 
-`POST /_security/profile/_data/<uid>`
+`POST /_security/profile/<uid>/_data`
 
 [[security-api-update-user-profile-data-prereqs]]
 ==== {api-prereq-title}
@@ -28,12 +27,12 @@ referenced in the request.
 [[security-api-update-user-profile-data-desc]]
 ==== {api-description-title}
 
-The update user profile API updates the `access` and `data` fields of an
+The update user profile API updates the `labels` and `data` fields of an
 existing user profile document with JSON objects. New keys and their values are
 added to the profile document, and conflicting keys are replaced by data that's
 included in the request.
 
-For both `access` and `data`, content is namespaced by the top-level fields.
+For both `labels` and `data`, content is namespaced by the top-level fields.
 The `update_profile_data` global privilege grants privileges for updating only
 the allowed namespaces.
 
@@ -58,10 +57,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 [[security-api-update-user-profile-data-request-body]]
 ==== {api-request-body-title}
 
-`access`::
+`labels`::
 (Required*, object)
 Searchable data that you want to associate with the user profile.
-This field supports a nested data structure. Within the `access` object,
+This field supports a nested data structure. Within the `labels` object,
 top-level keys cannot begin with an underscore (`_`) or contain a period (`.`).
 
 `data`::
@@ -69,7 +68,7 @@ top-level keys cannot begin with an underscore (`_`) or contain a period (`.`).
 Non-searchable data that you want to associate with the user profile.
 This field supports a nested data structure. Within the `data` object, top-level
 keys cannot begin with an underscore (`_`) or contain a period (`.`)
-The `data` object is not searchable, but can be retrieved with the 
+The `data` object is not searchable, but can be retrieved with the
 <<security-api-get-user-profile,Get user profile API>>.
 
 *Indicates that the setting is required in some, but not all situations.
@@ -91,14 +90,14 @@ indicating that the request is acknowledged:
 [[security-api-update-user-profile-data-example]]
 ==== {api-examples-title}
 
-The following request updates a profile document for a `uid` matching 
+The following request updates a profile document for a `uid` matching
 `u_kd2JMqwUQwSCCOxMv7M1vw`:
 
 [source,console]
 ----
-POST /_security/profile/_data/u_kd2JMqwUQwSCCOxMv7M1vw
+POST /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw/_data
 {
-  "access": {
+  "labels": {
     "app1": {
       "tag": "prod"
     }
@@ -116,9 +115,9 @@ You can update the profile data to replace some keys and add new keys:
 
 [source,console]
 ----
-POST /_security/profile/_data/u_kd2JMqwUQwSCCOxMv7M1vw
+POST /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw/_data
 {
-  "access": {
+  "labels": {
     "app1": {
       "tag": "dev"
     }
@@ -148,10 +147,9 @@ If you run the request again, the consolidated profile data is returned:
       ],
       "realm_name": "native1",
       "full_name": "Jack Nicholson",
-      "email": "jacknich@example.com",
-      "active": true
+      "email": "jacknich@example.com"
     },
-    "access": {
+    "labels": {
       "app1": {
         "tag": "dev"
       }

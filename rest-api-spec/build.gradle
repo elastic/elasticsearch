@@ -37,11 +37,9 @@ artifacts {
 testClusters.configureEach {
   module ':modules:mapper-extras'
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-  requiresFeature 'es.random_sampler_feature_flag_registered', Version.fromString("8.1.0")
 }
 
 tasks.named("test").configure { enabled = false }
-tasks.named("jarHell").configure { enabled = false }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 

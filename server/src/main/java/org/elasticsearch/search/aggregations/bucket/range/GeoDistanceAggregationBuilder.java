@@ -193,7 +193,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
                 } else if (TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     to = parser.doubleValue();
                 } else {
-                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser);
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (KEY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -203,7 +203,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
                 } else if (TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     toAsStr = parser.text();
                 } else {
-                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser);
                 }
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())
@@ -211,10 +211,10 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
                     || KEY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     // ignore null value
                 } else {
-                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser);
                 }
             } else {
-                XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
+                XContentParserUtils.throwUnknownToken(token, parser);
             }
         }
         if (fromAsStr != null || toAsStr != null) {

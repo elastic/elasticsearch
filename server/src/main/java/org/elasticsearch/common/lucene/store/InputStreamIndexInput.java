@@ -29,11 +29,7 @@ public class InputStreamIndexInput extends InputStream {
     public InputStreamIndexInput(IndexInput indexInput, long limit) {
         this.indexInput = indexInput;
         this.limit = limit;
-        if ((indexInput.length() - indexInput.getFilePointer()) > limit) {
-            actualSizeToRead = limit;
-        } else {
-            actualSizeToRead = indexInput.length() - indexInput.getFilePointer();
-        }
+        actualSizeToRead = Math.min((indexInput.length() - indexInput.getFilePointer()), limit);
     }
 
     public long actualSizeToRead() {

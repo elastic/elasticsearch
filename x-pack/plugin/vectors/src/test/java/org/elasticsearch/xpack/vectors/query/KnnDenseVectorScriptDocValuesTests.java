@@ -23,7 +23,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         float[] expectedMagnitudes = { 1.7320f, 2.4495f, 3.3166f };
 
         DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(wrap(vectors), "test", dims);
-        DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
+        DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
             assertEquals(1, field.size());
@@ -65,7 +65,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         int dims = 3;
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(wrap(vectors), "test", dims);
-        DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
+        DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(3);
         Exception e = expectThrows(IllegalArgumentException.class, () -> scriptDocValues.getVectorValue());
@@ -79,7 +79,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         int dims = 3;
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(wrap(vectors), "test", dims);
-        DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
+        DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(0);
         Exception e = expectThrows(UnsupportedOperationException.class, () -> scriptDocValues.get(0));
@@ -97,7 +97,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         float[] queryVector = new float[] { 0.5f, 111.3f, -13.0f, 14.8f, -156.0f };
 
         DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(wrap(new float[][] { docVector }), "test", dims);
-        DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
+        DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
         field.setNextDocId(0);
 
         assertEquals("dotProduct result is not equal to the expected value!", 65425.624, scriptDocValues.dotProduct(queryVector), 0.001);
@@ -110,8 +110,8 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         KnnDenseVectorDocValuesField emptyKnn = new KnnDenseVectorDocValuesField(null, "test", dims);
 
         emptyKnn.setNextDocId(0);
-        assertEquals(0, emptyKnn.getScriptDocValues().size());
-        assertTrue(emptyKnn.getScriptDocValues().isEmpty());
+        assertEquals(0, emptyKnn.toScriptDocValues().size());
+        assertTrue(emptyKnn.toScriptDocValues().isEmpty());
         assertEquals(DenseVector.EMPTY, emptyKnn.get());
         assertNull(emptyKnn.get(null));
         assertNull(emptyKnn.getInternal());

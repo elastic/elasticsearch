@@ -36,7 +36,6 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongConsumer;
-import java.util.stream.Collectors;
 
 /**
  * Implementation of {@link Histogram}.
@@ -509,7 +508,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         return new InternalDateHistogram(
             getName(),
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).collect(Collectors.toList()),
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
             order,
             minDocCount,
             offset,

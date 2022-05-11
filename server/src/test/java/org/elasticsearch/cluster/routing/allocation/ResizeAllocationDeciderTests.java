@@ -77,26 +77,26 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertEquals(prevRoutingTable.index("source").shards().size(), 2);
-        assertEquals(prevRoutingTable.index("source").shard(0).shards().get(0).state(), UNASSIGNED);
-        assertEquals(prevRoutingTable.index("source").shard(1).shards().get(0).state(), UNASSIGNED);
+        assertEquals(prevRoutingTable.index("source").size(), 2);
+        assertEquals(prevRoutingTable.index("source").shard(0).shard(0).state(), UNASSIGNED);
+        assertEquals(prevRoutingTable.index("source").shard(1).shard(0).state(), UNASSIGNED);
 
-        assertEquals(routingTable.index("source").shards().size(), 2);
+        assertEquals(routingTable.index("source").size(), 2);
 
-        assertEquals(routingTable.index("source").shard(0).shards().get(0).state(), INITIALIZING);
-        assertEquals(routingTable.index("source").shard(1).shards().get(0).state(), INITIALIZING);
+        assertEquals(routingTable.index("source").shard(0).shard(0).state(), INITIALIZING);
+        assertEquals(routingTable.index("source").shard(1).shard(0).state(), INITIALIZING);
 
         if (startShards) {
             clusterState = startShardsAndReroute(
                 strategy,
                 clusterState,
-                routingTable.index("source").shard(0).shards().get(0),
-                routingTable.index("source").shard(1).shards().get(0)
+                routingTable.index("source").shard(0).shard(0),
+                routingTable.index("source").shard(1).shard(0)
             );
             routingTable = clusterState.routingTable();
-            assertEquals(routingTable.index("source").shards().size(), 2);
-            assertEquals(routingTable.index("source").shard(0).shards().get(0).state(), STARTED);
-            assertEquals(routingTable.index("source").shard(1).shards().get(0).state(), STARTED);
+            assertEquals(routingTable.index("source").size(), 2);
+            assertEquals(routingTable.index("source").shard(0).shard(0).state(), STARTED);
+            assertEquals(routingTable.index("source").shard(1).shard(0).state(), STARTED);
 
         }
         return clusterState;

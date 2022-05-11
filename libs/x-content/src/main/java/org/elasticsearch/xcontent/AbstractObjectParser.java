@@ -25,6 +25,8 @@ import java.util.function.Function;
  */
 public abstract class AbstractObjectParser<Value, Context> {
 
+    protected AbstractObjectParser() {}
+
     /**
      * Declare some field. Usually it is easier to use {@link #declareString(BiConsumer, ParseField)} or
      * {@link #declareObject(BiConsumer, ContextParser, ParseField)} rather than call this directly.

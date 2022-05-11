@@ -22,7 +22,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -245,7 +244,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 FOLLOWER_CHECK_RETRY_COUNT_SETTING
             )
             // then wait for the new leader to commit a state without the old leader
-            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY;
+            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+            // then wait for the join validation service to become idle
+            + defaultMillis(JoinValidationService.JOIN_VALIDATION_CACHE_TIMEOUT_SETTING);
 
     public class Cluster implements Releasable {
 
@@ -535,10 +536,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
 
         public void stabilise() {
-            stabilise(DEFAULT_STABILISATION_TIME);
+            stabilise(DEFAULT_STABILISATION_TIME, true);
         }
 
-        void stabilise(long stabilisationDurationMillis) {
+        public void stabilise(long stabilisationDurationMillis) {
+            stabilise(stabilisationDurationMillis, false);
+        }
+
+        private void stabilise(long stabilisationDurationMillis, boolean expectIdleJoinValidationService) {
             assertThat(
                 "stabilisation requires default delay variability (and proper cleanup of raised variability)",
                 deterministicTaskQueue.getExecutionDelayVariabilityMillis(),
@@ -572,6 +577,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 equalTo(false)
             );
             assertThat(leaderId + " has applied its state ", leader.getLastAppliedClusterState().getVersion(), isEqualToLeaderVersion);
+
+            final var clusterUuid = leader.getLastAppliedClusterState().metadata().clusterUUID();
 
             for (final ClusterNode clusterNode : clusterNodes) {
                 final String nodeId = clusterNode.getId();
@@ -626,6 +633,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         clusterNode.getLastAppliedClusterState().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK),
                         equalTo(false)
                     );
+                    assertTrue(
+                        nodeId + " has locked into the cluster",
+                        clusterNode.getLastAppliedClusterState().metadata().clusterUUIDCommitted()
+                    );
+                    assertThat(
+                        nodeId + " has the correct cluster UUID",
+                        clusterNode.getLastAppliedClusterState().metadata().clusterUUID(),
+                        equalTo(clusterUuid)
+                    );
 
                     for (final ClusterNode otherNode : clusterNodes) {
                         if (isConnectedPair(leader, otherNode) && isConnectedPair(otherNode, clusterNode)) {
@@ -656,6 +672,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             );
                         }
                     }
+                }
+
+                if (expectIdleJoinValidationService) {
+                    // Tests run stabilise(long stabilisationDurationMillis) to assert timely recovery from a disruption. There's no need
+                    // to wait for the JoinValidationService cache to be cleared in these cases, we have enough checks that this eventually
+                    // happens anyway.
+                    assertTrue(nodeId + " has an idle join validation service", clusterNode.coordinator.hasIdleJoinValidationService());
                 }
             }
 
@@ -1138,8 +1161,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 chanType,
                                 equalTo(TransportRequestOptions.Type.PING)
                             );
-                            case JoinHelper.JOIN_VALIDATE_ACTION_NAME, PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
-                                 PublicationTransportHandler.COMMIT_STATE_ACTION_NAME -> assertThat(
+                            case JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
+                                 PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
+                                 Coordinator.COMMIT_STATE_ACTION_NAME -> assertThat(
                                 action,
                                 chanType,
                                 equalTo(TransportRequestOptions.Type.STATE)
@@ -1270,10 +1294,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 Function<Long, Long> adaptCurrentTerm,
                 Settings settings
             ) {
-                final Set<DiscoveryNodeRole> allExceptVotingOnlyRole = DiscoveryNodeRole.roles()
-                    .stream()
-                    .filter(r -> r.equals(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false)
-                    .collect(Collectors.toUnmodifiableSet());
                 final TransportAddress address = randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress();
                 final DiscoveryNode newLocalNode = new DiscoveryNode(
                     localNode.getName(),
@@ -1283,7 +1303,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     address.getAddress(),
                     address,
                     Collections.emptyMap(),
-                    localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? allExceptVotingOnlyRole : emptySet(),
+                    localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet(),
                     Version.CURRENT
                 );
                 try {
@@ -1391,16 +1411,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     }
 
                     @Override
-                    public void onNoLongerMaster() {
-                        // in this case, we know for sure that event was not processed by the system and will not change history
-                        // remove event to help avoid bloated history and state space explosion in linearizability checker
-                        history.remove(eventId);
-                    }
-
-                    @Override
                     public void onFailure(Exception e) {
-                        // do not remove event from history, the write might still take place
-                        // instead, complete history when checking for linearizability
+                        if (e instanceof FailedToCommitClusterStateException == false) {
+                            // In this case, we know for sure that event was not processed by the system and will not change history.
+                            // Therefore remove event to help avoid bloated history and state space explosion in linearizability checker.
+                            history.remove(eventId);
+                        }
+
+                        // Else do not remove event from history, the write might still take effect. Instead, complete history when checking
+                        // for linearizability.
                     }
                 });
             }
@@ -1431,7 +1450,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 onNode(() -> {
                     logger.trace("[{}] submitUpdateTask: enqueueing [{}]", localNode.getId(), source);
                     final long submittedTerm = coordinator.getCurrentTerm();
-                    masterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
+                    masterService.submitUnbatchedStateUpdateTask(source, new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
                             assertThat(currentState.term(), greaterThanOrEqualTo(submittedTerm));
@@ -1446,12 +1465,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         }
 
                         @Override
-                        public void onNoLongerMaster() {
-                            logger.trace("no longer master");
-                            taskListener.onNoLongerMaster();
-                        }
-
-                        @Override
                         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             updateCommittedStates();
                             ClusterState state = committedStatesByVersion.get(newState.version());
@@ -1460,7 +1473,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             logger.trace("successfully published: [{}]", newState);
                             taskListener.clusterStateProcessed(oldState, newState);
                         }
-                    }, ClusterStateTaskExecutor.unbatched());
+                    });
                 }).run();
                 return ackCollector;
             }
@@ -1683,9 +1696,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             if (clusterStateApplyResponse == ClusterStateApplyResponse.HANG) {
                 if (randomBoolean()) {
                     // apply cluster state, but don't notify listener
-                    super.onNewClusterState(source, clusterStateSupplier, ActionListener.wrap(() -> {
-                        // ignore result
-                    }));
+                    super.onNewClusterState(source, clusterStateSupplier, ActionListener.noop());
                 }
             } else {
                 super.onNewClusterState(source, clusterStateSupplier, listener);
@@ -1710,6 +1721,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
     }
 
+    private static final Set<DiscoveryNodeRole> ALL_ROLES_EXCEPT_VOTING_ONLY = DiscoveryNodeRole.roles()
+        .stream()
+        .filter(r -> r.equals(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false)
+        .collect(Collectors.toUnmodifiableSet());
+
     protected DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {
         final TransportAddress address = buildNewFakeTransportAddress();
         return new DiscoveryNode(
@@ -1720,7 +1736,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             address.getAddress(),
             address,
             Collections.emptyMap(),
-            masterEligible ? DiscoveryNodeRole.roles() : emptySet(),
+            masterEligible ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet(),
             Version.CURRENT
         );
     }
@@ -1861,8 +1877,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
                 @Override
                 public void close() {
-                    innerRef.close();
-                    trackedRefs.remove(this);
+                    if (trackedRefs.remove(this)) {
+                        innerRef.close();
+                    }
                 }
             };
             trackedRefs.add(trackedRef);

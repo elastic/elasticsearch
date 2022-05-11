@@ -1,7 +1,0 @@
-pr: 84376
-summary: Allow removing unreferenced composable data stream templates
-area: Indices APIs
-type: bug
-issues:
- - 84171
- - 84188

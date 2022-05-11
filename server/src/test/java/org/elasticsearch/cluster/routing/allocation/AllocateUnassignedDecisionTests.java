@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -83,7 +82,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         } else {
             assertEquals(Explanations.Allocation.ALL_NODES_FORBIDDEN, noDecision.getExplanation());
         }
-        assertEquals(nodeDecisions.stream().sorted().collect(Collectors.toList()), noDecision.getNodeDecisions());
+        assertEquals(nodeDecisions.stream().sorted().toList(), noDecision.getNodeDecisions());
         // node1 should be sorted first b/c of better weight ranking
         assertEquals("node1", noDecision.getNodeDecisions().iterator().next().getNode().getId());
         assertNull(noDecision.getTargetNode());
@@ -102,7 +101,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(AllocationDecision.THROTTLED, throttleDecision.getAllocationDecision());
         assertEquals(AllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
         assertThat(throttleDecision.getExplanation(), equalTo(Explanations.Allocation.THROTTLED));
-        assertEquals(nodeDecisions.stream().sorted().collect(Collectors.toList()), throttleDecision.getNodeDecisions());
+        assertEquals(nodeDecisions.stream().sorted().toList(), throttleDecision.getNodeDecisions());
         // node2 should be sorted first b/c a THROTTLE is higher than a NO decision
         assertEquals("node2", throttleDecision.getNodeDecisions().iterator().next().getNode().getId());
         assertNull(throttleDecision.getTargetNode());
@@ -119,7 +118,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(AllocationDecision.YES, yesDecision.getAllocationDecision());
         assertNull(yesDecision.getAllocationStatus());
         assertEquals(Explanations.Allocation.YES, yesDecision.getExplanation());
-        assertEquals(nodeDecisions.stream().sorted().collect(Collectors.toList()), yesDecision.getNodeDecisions());
+        assertEquals(nodeDecisions.stream().sorted().toList(), yesDecision.getNodeDecisions());
         assertEquals("node2", yesDecision.getTargetNode().getId());
         assertEquals(allocId, yesDecision.getAllocationId());
         // node1 should be sorted first b/c YES decisions are the highest

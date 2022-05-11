@@ -125,13 +125,18 @@ public class JwkValidateUtil {
     static OctetSequenceKey loadHmacJwkFromJwkString(final String jwkSetConfigKey, final CharSequence hmacKeyContents) {
         if (Strings.hasText(hmacKeyContents)) {
             try {
-                final String hmacKeyString = hmacKeyContents.toString();
-                final byte[] utf8Bytes = hmacKeyString.getBytes(StandardCharsets.UTF_8); // OIDC spec: UTF8 encoding of HMAC keys
-                return new OctetSequenceKey.Builder(utf8Bytes).build(); // Note: JWK has no attributes (kid, alg, use, ops)
+                return buildHmacKeyFromString(hmacKeyContents);
             } catch (Exception e) {
                 throw new SettingsException("HMAC Key parse failed for setting [" + jwkSetConfigKey + "]", e);
             }
         }
         return null;
+    }
+
+    static OctetSequenceKey buildHmacKeyFromString(CharSequence hmacKeyContents) {
+        final String hmacKeyString = hmacKeyContents.toString();
+        final byte[] utf8Bytes = hmacKeyString.getBytes(StandardCharsets.UTF_8); // OIDC spec: UTF8 encoding of HMAC keys
+        // Note: JWK has no attributes (kid, alg, use, ops)
+        return new OctetSequenceKey.Builder(utf8Bytes).build();
     }
 }

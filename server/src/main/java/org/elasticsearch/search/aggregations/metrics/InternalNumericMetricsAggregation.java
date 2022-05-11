@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.search.sort.SortValue;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -22,11 +23,11 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
 
     private static final DocValueFormat DEFAULT_FORMAT = DocValueFormat.RAW;
 
-    protected DocValueFormat format = DEFAULT_FORMAT;
+    protected final DocValueFormat format;
 
     public abstract static class SingleValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.SingleValue {
-        protected SingleValue(String name, Map<String, Object> metadata) {
-            super(name, metadata);
+        protected SingleValue(String name, DocValueFormat format, Map<String, Object> metadata) {
+            super(name, format, metadata);
         }
 
         /**
@@ -34,6 +35,15 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
          */
         protected SingleValue(StreamInput in) throws IOException {
             super(in);
+        }
+
+        /**
+         * Read from a stream.
+         *
+         * @param readFormat whether to read the "format" field
+         */
+        protected SingleValue(StreamInput in, boolean readFormat) throws IOException {
+            super(in, readFormat);
         }
 
         @Override
@@ -53,7 +63,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
         }
 
         @Override
-        public final double sortValue(String key) {
+        public final SortValue sortValue(String key) {
             if (key != null && false == key.equals("value")) {
                 throw new IllegalArgumentException(
                     "Unknown value key ["
@@ -63,13 +73,13 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
                         + "]. Either use [value] as key or drop the key all together"
                 );
             }
-            return value();
+            return SortValue.from(value());
         }
     }
 
     public abstract static class MultiValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.MultiValue {
-        protected MultiValue(String name, Map<String, Object> metadata) {
-            super(name, metadata);
+        protected MultiValue(String name, DocValueFormat format, Map<String, Object> metadata) {
+            super(name, format, metadata);
         }
 
         /**
@@ -77,6 +87,15 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
          */
         protected MultiValue(StreamInput in) throws IOException {
             super(in);
+        }
+
+        /**
+         * Read from a stream.
+         *
+         * @param readFormat whether to read the "format" field
+         */
+        protected MultiValue(StreamInput in, boolean readFormat) throws IOException {
+            super(in, readFormat);
         }
 
         public abstract double value(String name);
@@ -97,27 +116,38 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
         }
 
         @Override
-        public final double sortValue(String key) {
+        public final SortValue sortValue(String key) {
             if (key == null) {
                 throw new IllegalArgumentException("Missing value key in [" + key + "] which refers to a multi-value metric aggregation");
             }
-            return value(key);
+            return SortValue.from(value(key));
         }
     }
 
-    private InternalNumericMetricsAggregation(String name, Map<String, Object> metadata) {
+    private InternalNumericMetricsAggregation(String name, DocValueFormat format, Map<String, Object> metadata) {
         super(name, metadata);
+        this.format = format != null ? format : DEFAULT_FORMAT;
     }
 
     /**
      * Read from a stream.
      */
     protected InternalNumericMetricsAggregation(StreamInput in) throws IOException {
+        this(in, true);
+    }
+
+    /**
+     * Read from a stream.
+     * @param readFormat whether to read the "format" field
+     *                   Should be {@code true} iff the "format" field is being written to the wire by the agg
+     */
+    protected InternalNumericMetricsAggregation(StreamInput in, boolean readFormat) throws IOException {
         super(in);
+        this.format = readFormat ? in.readNamedWriteable(DocValueFormat.class) : DEFAULT_FORMAT;
     }
 
     @Override
-    public final double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+    public final SortValue sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
         throw new IllegalArgumentException("Metrics aggregations cannot have sub-aggregations (at [>" + head + "]");
     }
 

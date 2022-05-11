@@ -6,11 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
@@ -30,6 +25,10 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
@@ -259,17 +258,17 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private Set<String> collectFieldNames(String mapping) throws IOException {
         BufferedInputStream inputStream = new BufferedInputStream(new ByteArrayInputStream(mapping.getBytes(StandardCharsets.UTF_8)));
-        JsonParser parser = new JsonFactory().createParser(inputStream);
+        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, inputStream);
         Set<String> fieldNames = new HashSet<>();
         boolean isAfterPropertiesStart = false;
         try {
-            JsonToken token = parser.nextToken();
+            XContentParser.Token token = parser.nextToken();
             while (token != null) {
                 switch (token) {
                     case START_OBJECT:
                         break;
                     case FIELD_NAME:
-                        String fieldName = parser.getCurrentName();
+                        String fieldName = parser.currentName();
                         if (isAfterPropertiesStart) {
                             fieldNames.add(fieldName);
                         } else {
@@ -283,7 +282,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 }
                 token = parser.nextToken();
             }
-        } catch (JsonParseException e) {
+        } catch (XContentParseException e) {
             fail("Cannot parse JSON: " + e);
         }
 

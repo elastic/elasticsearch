@@ -10,16 +10,14 @@ package org.elasticsearch.gradle.internal
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
-import org.junit.Ignore
 import org.xmlunit.builder.DiffBuilder
 import org.xmlunit.builder.Input
-import spock.lang.IgnoreRest
 
 class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         // required for JarHell to work
-        addSubProject(":libs:elasticsearch-core") << "apply plugin:'java'"
+        subProject(":libs:elasticsearch-core") << "apply plugin:'java'"
     }
     def "artifacts and tweaked pom is published"() {
         given:

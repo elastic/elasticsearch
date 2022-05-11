@@ -37,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 
@@ -134,7 +133,7 @@ public abstract class PeerFinder {
         synchronized (mutex) {
             logger.trace("deactivating and setting leader to {}", leader);
             active = false;
-            connectionReferences = peersByAddress.values().stream().map(Peer::getConnectionReference).collect(Collectors.toList());
+            connectionReferences = peersByAddress.values().stream().map(Peer::getConnectionReference).toList();
             peersRemoved = handleWakeUp();
             this.leader = Optional.of(leader);
             assert assertInactiveWithNoKnownPeers();
@@ -242,12 +241,7 @@ public abstract class PeerFinder {
 
     private List<DiscoveryNode> getFoundPeersUnderLock() {
         assert holdsLock() : "PeerFinder mutex not held";
-        return peersByAddress.values()
-            .stream()
-            .map(Peer::getDiscoveryNode)
-            .filter(Objects::nonNull)
-            .distinct()
-            .collect(Collectors.toList());
+        return peersByAddress.values().stream().map(Peer::getDiscoveryNode).filter(Objects::nonNull).distinct().toList();
     }
 
     /**

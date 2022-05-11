@@ -43,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
@@ -56,7 +55,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    private final Predicate<String> metadataFieldPred;
     private final IndicesService indicesService;
     private final boolean ccsCheckCompatibility;
 
@@ -75,8 +73,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indicesService = indicesService;
-        final Set<String> metadataFields = indicesService.getAllMetadataFields();
-        this.metadataFieldPred = metadataFields::contains;
         transportService.registerRequestHandler(
             ACTION_NODE_NAME,
             ThreadPool.Names.SEARCH_COORDINATION,
@@ -169,7 +165,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    private void checkIndexBlocks(ClusterState clusterState, String[] concreteIndices) {
+    private static void checkIndexBlocks(ClusterState clusterState, String[] concreteIndices) {
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
         for (String index : concreteIndices) {
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index);
@@ -221,7 +217,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         remoteRequest.indices(originalIndices.indices());
         remoteRequest.fields(request.fields());
         remoteRequest.filters(request.filters());
-        remoteRequest.allowedTypes(request.allowedTypes());
+        remoteRequest.types(request.types());
         remoteRequest.runtimeFields(request.runtimeFields());
         remoteRequest.indexFilter(request.indexFilter());
         remoteRequest.nowInMillis(nowInMillis);
@@ -258,7 +254,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), failures);
     }
 
-    private void addUnmappedFields(String[] indices, String field, Map<String, FieldCapabilities.Builder> typeMap) {
+    private static void addUnmappedFields(String[] indices, String field, Map<String, FieldCapabilities.Builder> typeMap) {
         final Set<String> mappedIndices = new HashSet<>();
         typeMap.values().forEach(t -> t.getIndices(mappedIndices));
         if (mappedIndices.size() != indices.length) {
@@ -281,8 +277,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             response.getOriginVersion(),
             response.get(),
             request.filters(),
-            request.allowedTypes(),
-            metadataFieldPred
+            request.types()
         );
         for (Map.Entry<String, IndexFieldCapabilities> entry : fields.entrySet()) {
             final String field = entry.getKey();

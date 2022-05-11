@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 
 public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
@@ -29,7 +30,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     public Settings getAdditionalIndexSettings(
         String indexName,
         String dataStreamName,
-        IndexMode templateIndexMode,
+        boolean timeSeries,
         Metadata metadata,
         Instant resolvedAt,
         Settings allSettings
@@ -41,26 +42,26 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             // so checking that index_mode==null|standard and templateIndexMode == TIME_SERIES
             boolean migrating = dataStream != null
                 && (dataStream.getIndexMode() == null || dataStream.getIndexMode() == IndexMode.STANDARD)
-                && templateIndexMode == IndexMode.TIME_SERIES;
+                && timeSeries;
             IndexMode indexMode;
             if (migrating) {
                 indexMode = IndexMode.TIME_SERIES;
             } else if (dataStream != null) {
                 indexMode = dataStream.getIndexMode();
+            } else if (timeSeries) {
+                indexMode = IndexMode.TIME_SERIES;
             } else {
-                indexMode = templateIndexMode;
+                indexMode = null;
             }
             if (indexMode != null) {
-                Settings.Builder builder = Settings.builder();
-                builder.put(IndexSettings.MODE.getKey(), indexMode);
-
                 if (indexMode == IndexMode.TIME_SERIES) {
+                    Settings.Builder builder = Settings.builder();
                     TimeValue lookAheadTime = IndexSettings.LOOK_AHEAD_TIME.get(allSettings);
                     final Instant start;
                     final Instant end;
                     if (dataStream == null || migrating) {
-                        start = resolvedAt.minusMillis(lookAheadTime.getMillis());
-                        end = resolvedAt.plusMillis(lookAheadTime.getMillis());
+                        start = resolvedAt.minusMillis(lookAheadTime.getMillis()).truncatedTo(ChronoUnit.SECONDS);
+                        end = resolvedAt.plusMillis(lookAheadTime.getMillis()).truncatedTo(ChronoUnit.SECONDS);
                     } else {
                         IndexMetadata currentLatestBackingIndex = metadata.index(dataStream.getWriteIndex());
                         if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
@@ -75,16 +76,16 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         }
                         start = IndexSettings.TIME_SERIES_END_TIME.get(currentLatestBackingIndex.getSettings());
                         if (start.isAfter(resolvedAt)) {
-                            end = start.plusMillis(lookAheadTime.getMillis());
+                            end = start.plusMillis(lookAheadTime.getMillis()).truncatedTo(ChronoUnit.SECONDS);
                         } else {
-                            end = resolvedAt.plusMillis(lookAheadTime.getMillis());
+                            end = resolvedAt.plusMillis(lookAheadTime.getMillis()).truncatedTo(ChronoUnit.SECONDS);
                         }
                     }
                     assert start.isBefore(end) : "data stream backing index's start time is not before end time";
                     builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
                     builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
+                    return builder.build();
                 }
-                return builder.build();
             }
         }
 

@@ -193,6 +193,25 @@ public class Task {
         return null;
     }
 
+    @Override
+    public String toString() {
+        return "Task{id="
+            + id
+            + ", type='"
+            + type
+            + "', action='"
+            + action
+            + "', description='"
+            + description
+            + "', parentTask="
+            + parentTask
+            + ", startTime="
+            + startTime
+            + ", startTimeNanos="
+            + startTimeNanos
+            + '}';
+    }
+
     /**
      * Report of the internal status of a task. These can vary wildly from task
      * to task because each task is implemented differently but we should try

@@ -3,7 +3,7 @@
 == Tutorial: Automate rollover with {ilm-init}
 
 ++++
-<titleabbrev>Automate rollover</titleabbrev>
+<titleabbrev>Tutorial: Automate rollover</titleabbrev>
 ++++
 
 When you continuously index timestamped documents into {es},

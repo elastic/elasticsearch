@@ -48,7 +48,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
@@ -147,7 +146,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.mapperRegistry = mapperRegistry;
         Function<DateFormatter, MappingParserContext> parserContextFunction = dateFormatter -> new MappingParserContext(
             similarityService::getSimilarity,
-            mapperRegistry.getMapperParsers()::get,
+            type -> mapperRegistry.getMapperParser(type, indexVersionCreated),
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexVersionCreated,
             searchExecutionContextSupplier,
@@ -452,7 +451,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns all mapped field types.
+     * Returns field types that have eager global ordinals.
      */
     public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
         DocumentMapper mapper = this.mapper;
@@ -464,7 +463,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             .stream()
             .map(mappingLookup::getFieldType)
             .filter(MappedFieldType::eagerGlobalOrdinals)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     /**
@@ -506,6 +505,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mapperRegistry.getMetadataMapperParsers(indexVersionCreated).containsKey(field);
     }
 
+    /**
+     * @return If this field is defined as a multifield of another field
+     */
     public boolean isMultiField(String field) {
         return mappingLookup().isMultiField(field);
     }

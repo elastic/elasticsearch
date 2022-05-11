@@ -41,7 +41,7 @@ public class CreateIndexResponse extends ShardsAcknowledgedResponse {
 
     protected static <T extends CreateIndexResponse> void declareFields(ConstructingObjectParser<T, Void> objectParser) {
         declareAcknowledgedAndShardsAcknowledgedFields(objectParser);
-        objectParser.declareField(constructorArg(), (parser, context) -> parser.textOrNull(), INDEX, ObjectParser.ValueType.STRING_OR_NULL);
+        objectParser.declareField(constructorArg(), (parser, context) -> parser.textOrNull(), INDEX, ObjectParser.ValueType.STRING);
     }
 
     private final String index;
@@ -53,7 +53,7 @@ public class CreateIndexResponse extends ShardsAcknowledgedResponse {
 
     public CreateIndexResponse(boolean acknowledged, boolean shardsAcknowledged, String index) {
         super(acknowledged, shardsAcknowledged);
-        this.index = index;
+        this.index = Objects.requireNonNull(index);
     }
 
     @Override

@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.analytics.mapper;
 
-import com.carrotsearch.hppc.DoubleArrayList;
-import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.BinaryDocValues;
@@ -38,7 +35,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -50,6 +47,7 @@ import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -207,7 +205,7 @@ public class HistogramFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public DocValuesField<?> getScriptField(String name) {
+                        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
                             throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " + "support scripts");
                         }
 
@@ -283,8 +281,8 @@ public class HistogramFieldMapper extends FieldMapper {
                 context.path().remove();
                 return;
             }
-            DoubleArrayList values = null;
-            IntArrayList counts = null;
+            ArrayList<Double> values = null;
+            ArrayList<Integer> counts = null;
             // should be an object
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
             subParser = new XContentSubParser(context.parser());
@@ -297,7 +295,7 @@ public class HistogramFieldMapper extends FieldMapper {
                     token = subParser.nextToken();
                     // should be an array
                     ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
-                    values = new DoubleArrayList();
+                    values = new ArrayList<>();
                     token = subParser.nextToken();
                     double previousVal = -Double.MAX_VALUE;
                     while (token != XContentParser.Token.END_ARRAY) {
@@ -326,7 +324,7 @@ public class HistogramFieldMapper extends FieldMapper {
                     token = subParser.nextToken();
                     // should be an array
                     ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
-                    counts = new IntArrayList();
+                    counts = new ArrayList<>();
                     token = subParser.nextToken();
                     while (token != XContentParser.Token.END_ARRAY) {
                         // should be a number

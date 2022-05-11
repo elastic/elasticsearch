@@ -15,7 +15,7 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -35,10 +35,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     /**
      * Supplies values to different ScriptDocValues as we
-     * convert them to wrappers around {@link DocValuesField}.
-     * This allows for different {@link DocValuesField} to implement
+     * convert them to wrappers around {@link DocValuesScriptFieldFactory}.
+     * This allows for different {@link DocValuesScriptFieldFactory} to implement
      * this supplier class in many-to-one relationship since
-     * {@link DocValuesField} are more specific where
+     * {@link DocValuesScriptFieldFactory} are more specific where
      * ({byte, short, int, long, _version, murmur3, etc.} -> {long})
      */
     public interface Supplier<T> {
@@ -232,6 +232,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         /** Returns the bounding box of this geometry  */
         public abstract GeoBoundingBox getBoundingBox();
 
+        /** Returns the suggested label position  */
+        public abstract GeoPoint getLabelPosition();
+
         /** Returns the centroid of this geometry  */
         public abstract GeoPoint getCentroid();
 
@@ -247,6 +250,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         GeoPoint getInternalCentroid();
 
         GeoBoundingBox getInternalBoundingBox();
+
+        GeoPoint getInternalLabelPosition();
     }
 
     public static class GeoPoints extends Geometry<GeoPoint> {
@@ -363,6 +368,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public GeoBoundingBox getBoundingBox() {
             return size() == 0 ? null : geometrySupplier.getInternalBoundingBox();
         }
+
+        @Override
+        public GeoPoint getLabelPosition() {
+            return size() == 0 ? null : geometrySupplier.getInternalLabelPosition();
+        }
     }
 
     public static class Booleans extends ScriptDocValues<Boolean> {
@@ -428,7 +438,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             }
         }
 
-        protected String bytesToString(BytesRef bytesRef) {
+        protected static String bytesToString(BytesRef bytesRef) {
             return bytesRef.utf8ToString();
         }
 

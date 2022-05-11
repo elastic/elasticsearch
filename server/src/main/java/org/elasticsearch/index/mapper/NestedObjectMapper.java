@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
@@ -134,7 +133,7 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     public Map<String, Mapper> getChildren() {
-        return Collections.unmodifiableMap(this.mappers);
+        return this.mappers;
     }
 
     @Override
@@ -191,5 +190,10 @@ public class NestedObjectMapper extends ObjectMapper {
         }
         toMerge.doMerge(mergeWithObject, reason);
         return toMerge;
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        throw new IllegalArgumentException("field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source");
     }
 }

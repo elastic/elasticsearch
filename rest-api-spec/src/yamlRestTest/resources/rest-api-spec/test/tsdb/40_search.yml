@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       indices.create:
@@ -63,8 +63,8 @@ setup:
 ---
 query a dimension:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -79,8 +79,8 @@ query a dimension:
 ---
 query a metric:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -96,8 +96,8 @@ query a metric:
 ---
 "query tsid fails":
   - skip:
-      version: " - 8.0.99"
-      reason: _tsid support introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       catch: /\[_tsid\] is not searchable/
@@ -111,8 +111,8 @@ query a metric:
 ---
 fetch a dimension:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -130,8 +130,8 @@ fetch a dimension:
 ---
 fetch a metric:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -150,8 +150,8 @@ fetch a metric:
 ---
 fetch a tag:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -170,8 +170,8 @@ fetch a tag:
 ---
 "fetch the tsid":
   - skip:
-      version: " - 8.0.99"
-      reason: _tsid support introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -189,8 +189,8 @@ fetch a tag:
 ---
 aggregate a dimension:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -211,8 +211,8 @@ aggregate a dimension:
 ---
 aggregate a metric:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -239,8 +239,8 @@ aggregate a metric:
 ---
 aggregate a tag:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -265,8 +265,8 @@ aggregate a tag:
 ---
 "aggregate the tsid":
   - skip:
-      version: " - 8.0.99"
-      reason: _tsid support introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -289,8 +289,8 @@ aggregate a tag:
 ---
 "aggregate filter the tsid fails":
   - skip:
-      version: " - 8.0.99"
-      reason: _tsid support introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       catch: /\[_tsid\] is not searchable/
@@ -307,8 +307,8 @@ aggregate a tag:
 ---
 field capabilities:
   - skip:
-      version: " - 8.0.99"
-      reason: _tsid support introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       field_caps:
@@ -345,45 +345,10 @@ field capabilities:
   - is_false: fields._tsid._tsid.non_aggregatable_indices
 
 ---
-ids query:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
-
-  # Ingest documents assigning custom ids so we can query them
-  - do:
-      bulk:
-        refresh: true
-        body:
-          - '{"index": {"_index": "test", "_id": "u1"}}'
-          - '{"@timestamp": "2021-04-28T18:45:04.467Z", "metricset": "foo", "k8s": {"pod": {"name": "cat", "uid":"6483d28c-24ee-44f2-926b-63b89d6d8b1b", "ip": "10.10.55.1", "network": {"tx": 2001828691, "rx": 802133794}}}}'
-          - '{"index": {"_index": "test", "_id": "u2"}}'
-          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "foo", "k8s": {"pod": {"name": "cat", "uid":"6483d28c-24ee-44f2-926b-63b89d6d8b1b", "ip": "10.10.55.1", "network": {"tx": 2001838691, "rx": 801479970}}}}'
-          - '{"index": {"_index": "test", "_id": "u3"}}'
-          - '{"@timestamp": "2021-04-28T18:55:24.467Z", "metricset": "foo", "k8s": {"pod": {"name": "cat", "uid":"6483d28c-24ee-44f2-926b-63b89d6d8b1b", "ip": "10.10.55.1", "network": {"tx": 2001848691, "rx": 801479970}}}}'
-
-  - do:
-      search:
-        index: test
-        body:
-          fields:
-            - field: k8s.pod.network.tx
-          query:
-            ids:
-              values: ["u1", "u3"]
-          sort: ["@timestamp"]
-
-  - match: {hits.total.value: 2}
-  - match: {hits.hits.0._id: "u1"}
-  - match: {hits.hits.0.fields.k8s\.pod\.network\.tx: [2001828691]}
-  - match: {hits.hits.1._id: "u3"}
-  - match: {hits.hits.1.fields.k8s\.pod\.network\.tx: [2001848691]}
-
----
 sort by tsid:
   - skip:
-      version: " - 8.0.99"
-      reason: _tsid introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:

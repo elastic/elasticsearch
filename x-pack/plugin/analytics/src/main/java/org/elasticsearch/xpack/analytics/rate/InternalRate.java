@@ -26,10 +26,9 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
     final double divisor;
 
     public InternalRate(String name, double sum, double divisor, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.sum = sum;
         this.divisor = divisor;
-        this.format = formatter;
     }
 
     /**
@@ -37,7 +36,6 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
      */
     public InternalRate(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         sum = in.readDouble();
         divisor = in.readDouble();
     }

@@ -207,7 +207,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     /**
-     * FlatMap a function over all plugins
+     * Map a function over all plugins
      * @param function a function that takes a plugin and returns a result
      * @return A stream of results
      * @param <T> The generic type of the result

@@ -286,7 +286,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(
             e.getMessage(),
-            containsString("" + "unable to authenticate with provided credentials and anonymous access is not allowed for this request")
+            containsString("unable to authenticate with provided credentials and anonymous access is not allowed for this request")
         );
         assertThat(
             e.getMetadata("es.additional_unsuccessful_credentials"),
@@ -358,7 +358,7 @@ public class AuthenticatorChainTests extends ESTestCase {
                     "run-as",
                     AuthenticatorChain.class.getName(),
                     Level.INFO,
-                    "ignore run-as header since the authentication does not support it [" + authentication + "]"
+                    "ignore run-as header since it is currently not supported for authentication [" + authentication + "]"
                 )
             );
             final PlainActionFuture<Authentication> future = new PlainActionFuture<>();

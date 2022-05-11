@@ -212,11 +212,12 @@ By default, the `terms` aggregation orders terms by descending document
 `_count`.  This produces a bounded <<terms-agg-doc-count-error,document count>>
 error that {es} can report.
 
-You can use the `order` parameter to specify a different sort order.  It is extremely
-easy to create a terms ordering that will just return wrong results, and not
-obvious to see when you have done so.  Change this only with caution.
+You can use the `order` parameter to specify a different sort order, but we
+don't recommend it.  It is extremely easy to create a terms ordering that will
+just return wrong results, and not obvious to see when you have done so.
+Change this only with caution.
 
-WARNING: Avoid using `"order": { "_count": "asc" }`. If you need to find rare
+WARNING: Especially avoid using `"order": { "_count": "asc" }`. If you need to find rare
 terms, use the
 <<search-aggregations-bucket-rare-terms-aggregation,`rare_terms`>> aggregation
 instead. Due to the way the `terms` aggregation
@@ -253,11 +254,17 @@ WARNING: Sorting by a sub aggregation generally produces incorrect ordering, due
 <<search-aggregations-bucket-terms-aggregation-shard-size,gets results from
 shards>>.
 
-There are two cases when sub-aggregation sorting is safe.  Sorting by a maximum
-in descending order, or a minimum in ascending order will be correct.  This
-works only because the sort order aligns with the behavior of the sub
-aggregations, i.e. sorting maxes by largest value first or mins by lowest value
-first.
+There are two cases when sub-aggregation ordering is safe and returns correct
+results: sorting by a maximum in descending order, or sorting by a minimum in
+ascending order. These approaches work because they align with the behavior of
+sub aggregations. That is, if you're looking for the largest maximum or the
+smallest minimum, the global answer (from combined shards) must be included in
+one of the local shard answers. Conversely, the smallest maximum and largest
+minimum wouldn't be accurately computed.
+
+Note also that in these cases, the ordering is correct but the doc counts and
+non-ordering sub aggregations may still have errors (and {es} does not calculate a
+bound for those errors).
 
 Ordering the buckets by single value metrics sub-aggregation (identified by the aggregation name):
 

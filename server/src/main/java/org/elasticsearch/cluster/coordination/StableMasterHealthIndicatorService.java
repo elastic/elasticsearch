@@ -392,9 +392,13 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     details.put("current_master", new DiscoveryNodeXContentObject(currentMaster.get()));
                     // Having the nulls in the recent masters xcontent list is not helpful, so we filter them out:
                     details.put("recent_masters", recentMasters.stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList());
-                    discoveryModule.getCoordinator().getJoinHelper().getLastFailedJoinAttempt();
-                    details.put("recent_masters", recentMasters.stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList());
+                    JoinHelper.FailedJoinAttempt failedJoinAttempt =
+                        discoveryModule.getCoordinator().getJoinHelper().getLastFailedJoinAttempt();
+                    if (failedJoinAttempt != null) {
+                        details.put("failed_join_attempt", failedJoinAttempt);
+                    }
                     List<JoinStatus> inFlightJoinAttempts = discoveryModule.getCoordinator().getJoinHelper().getInFlightJoinStatuses();
+                    details.put("in_flight_join_attempts", inFlightJoinAttempts);
                 }
             } else if (clusterService.localNode().isMasterNode() == false) { // none is elected master and we aren't master eligible
                 stableMasterStatus = HealthStatus.RED;

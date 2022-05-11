@@ -39,7 +39,10 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -167,7 +170,7 @@ public class JoinHelper {
     }
 
     // package-private for testing
-    static class FailedJoinAttempt {
+    static class FailedJoinAttempt implements ToXContentObject {
         private final DiscoveryNode destination;
         private final JoinRequest joinRequest;
         private final TransportException exception;
@@ -207,6 +210,26 @@ public class JoinHelper {
                 ),
                 exception
             );
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+
+            builder.startObject("source");
+            joinRequest.getSourceNode().toXContent(builder, params);
+            builder.endObject();
+
+            builder.startObject("destination");
+            destination.toXContent(builder, params);
+            builder.endObject();
+
+            builder.startObject("exception");
+            exception.toXContent(builder, params);
+            builder.endObject();
+
+            builder.endObject();
+            return builder;
         }
     }
 

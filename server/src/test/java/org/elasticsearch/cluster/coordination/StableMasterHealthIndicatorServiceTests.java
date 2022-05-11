@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
@@ -357,6 +358,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         when(localNode.isMasterNode()).thenReturn(false);
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
-        return new StableMasterHealthIndicatorService(clusterService, masterHistoryService);
+        DiscoveryModule discoveryModule = mock(DiscoveryModule.class);
+        return new StableMasterHealthIndicatorService(clusterService, discoveryModule, masterHistoryService);
     }
 }

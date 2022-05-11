@@ -46,6 +46,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -78,6 +79,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /** A {@link FieldMapper} for full-text fields. */
 public class TextFieldMapper extends FieldMapper {
@@ -992,13 +995,27 @@ public class TextFieldMapper extends FieldMapper {
 
     static class LegacyTextFieldType extends ConstantScoreTextFieldType {
 
+        private final MappedFieldType existQueryFieldType;
+
         LegacyTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
             super(name, indexed, stored, tsi, meta);
+            // norms are not available, neither are doc-values, so fall back to _source to run exists query
+            existQueryFieldType = KeywordScriptFieldType.sourceOnly(name()).asMappedFieldTypes().findFirst().get();
         }
 
         @Override
         public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
             throw new IllegalArgumentException("Cannot use span prefix queries on text field " + name() + " of a legacy index");
+        }
+
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "runtime-computed exists query cannot be executed while [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to [false]."
+                );
+            }
+            return existQueryFieldType.existsQuery(context);
         }
 
     }

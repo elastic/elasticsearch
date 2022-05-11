@@ -76,13 +76,14 @@ public class PriorityProcessWorkerExecutorService extends AbstractProcessWorkerE
      * @param priority Request priority
      * @param tieBreaker For sorting requests of equal priority
      */
-    public void executeWithPriority(AbstractRunnable command, RequestPriority priority, long tieBreaker) {
+    public synchronized void executeWithPriority(AbstractRunnable command, RequestPriority priority, long tieBreaker) {
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(processName + " worker service has shutdown", true);
             command.onRejection(rejected);
             return;
         }
 
+        // PriorityBlockingQueue is an unbounded queue so check it has not reached capacity.
         // highest priority requests are always accepted even if the queue is full
         if (queue.size() >= queueCapacity && priority != RequestPriority.HIGHEST) {
             command.onRejection(new EsRejectedExecutionException(processName + " queue is full. Unable to execute command", false));

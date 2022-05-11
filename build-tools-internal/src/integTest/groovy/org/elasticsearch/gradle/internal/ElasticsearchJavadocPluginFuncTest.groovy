@@ -125,7 +125,8 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         def result = gradleRunner(':some-depending-lib:javadoc').build()
 
         then:
-        def options = normalized(file('some-depending-lib/build/tmp/javadoc/javadoc.options').text)
+        println "given options " + file('some-depending-lib/build/tmp/javadoc/javadoc.options').text
+        def options = normalized(file('some-depending-lib/build/tmp/javadoc/javadoc.options').text).replaceAll('//', '/')
         options.contains('-notimestamp')
         options.contains('-quiet')
 
@@ -176,7 +177,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         result.task(":some-lib:javadoc").outcome == TaskOutcome.SKIPPED
         result.task(":some-depending-lib:javadoc").outcome == TaskOutcome.SUCCESS
 
-        def options = normalized(file('some-depending-lib/build/tmp/javadoc/javadoc.options').text)
+        def options = normalized(file('some-depending-lib/build/tmp/javadoc/javadoc.options').text).replaceAll('//', '/')
         options.contains('-notimestamp')
         options.contains('-quiet')
         options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' './some-lib/build/docs/javadoc'") == false

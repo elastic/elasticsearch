@@ -20,8 +20,8 @@ public class TestUtils {
             String normalizedPathPrefix = projectRootDir.getAbsolutePath().replaceAll("\\\\", "/");
             return input.lines()
                 .map(it -> it.replaceAll("\\\\", "/"))
-                .map(it -> it.replaceAll(normalizedPathPrefix, "."))
                 .map(it -> it.replaceAll(cannonicalNormalizedPathPrefix, "."))
+                .map(it -> it.replaceAll(normalizedPathPrefix, "."))
                 .map(it -> it.replaceAll("Gradle Test Executor \\d", "Gradle Test Executor 1"))
                 .collect(Collectors.joining("\n"));
         } catch (IOException e) {

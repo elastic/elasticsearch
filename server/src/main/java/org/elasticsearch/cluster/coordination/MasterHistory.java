@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 /**
  * This class represents a node's view of the history of which nodes have been elected master over the last 30 minutes. It is kept in

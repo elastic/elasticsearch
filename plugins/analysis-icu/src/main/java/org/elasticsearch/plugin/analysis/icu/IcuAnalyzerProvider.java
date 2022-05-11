@@ -27,7 +27,7 @@ public class IcuAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer>
     private final Normalizer2 normalizer;
 
     public IcuAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         String method = settings.get("method", "nfkc_cf");
         String mode = settings.get("mode", "compose");
         if ("compose".equals(mode) == false && "decompose".equals(mode) == false) {

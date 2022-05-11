@@ -640,8 +640,8 @@ teardown:
 ---
 "terms order by top metrics numeric not null double values":
   - skip:
-      version: " - 8.1.99"
-      reason: Bug fixed in 8.2.0
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/86377"
 
   - do:
       cluster.put_settings:

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.fixtures
 
+import org.apache.commons.io.FileUtils
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.gradle.testkit.runner.GradleRunner
@@ -39,9 +40,19 @@ abstract class AbstractGradleFuncTest extends Specification {
             "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
     }
 
-    File addSubProject(String subProjectPath) {
+    File subProject(String subProjectPath) {
         def subProjectBuild = file(subProjectPath.replace(":", "/") + "/build.gradle")
-        settingsFile << "include \"${subProjectPath}\"\n"
+        if (subProjectBuild.exists() == false) {
+            settingsFile << "include \"${subProjectPath}\"\n"
+        }
+        subProjectBuild
+    }
+
+    File subProject(String subProjectPath, Closure configAction) {
+        def subProjectBuild = subProject(subProjectPath)
+        configAction.setDelegate(new ProjectConfigurer(subProjectBuild.parentFile))
+        configAction.setResolveStrategy(Closure.DELEGATE_ONLY)
+        configAction.call()
         subProjectBuild
     }
 
@@ -113,7 +124,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     ) {
         buildFile << """plugins {
           id 'elasticsearch.global-build-info'
-          ${extraPlugins.collect {p -> "id '$p'" }.join('\n')}
+          ${extraPlugins.collect { p -> "id '$p'" }.join('\n')}
         }
         import org.elasticsearch.gradle.Architecture
         import org.elasticsearch.gradle.internal.info.BuildParams
@@ -150,5 +161,30 @@ abstract class AbstractGradleFuncTest extends Specification {
             System.err.println("Error running command ${command}:")
             System.err.println("Syserr: " + proc.errorStream.text)
         }
+    }
+
+    def cleanup() {
+        if (Boolean.getBoolean('test.keep.samplebuild')) {
+            FileUtils.copyDirectory(testProjectDir.root, new File("build/test-debug/" + testProjectDir.root.name))
+        }
+    }
+
+    static class ProjectConfigurer {
+        private File projectDir
+
+        ProjectConfigurer(File projectDir) {
+            this.projectDir = projectDir
+        }
+
+        File classFile(String fullQualifiedName) {
+            File sourceRoot = new File(projectDir, 'src/main/java');
+            File file = new File(sourceRoot, fullQualifiedName.replace('.', '/') + '.java')
+            file.getParentFile().mkdirs()
+            file
+        }
+
+        File getBuildFile() {
+            return new File(projectDir, 'build.gradle')
+        };
     }
 }

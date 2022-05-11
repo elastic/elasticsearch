@@ -28,6 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matchers;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -161,5 +162,15 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         assumeFalse("We don't have a way to assert things here", true);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

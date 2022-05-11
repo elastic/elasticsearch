@@ -101,7 +101,7 @@ public abstract class SearchProgressListener {
         try {
             onListShards(shards, skippedShards, clusters, fetchPhase);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("Failed to execute progress listener on list shards"), e);
+            logger.warn("Failed to execute progress listener on list shards", e);
         }
     }
 
@@ -131,7 +131,7 @@ public abstract class SearchProgressListener {
         try {
             onPartialReduce(shards, totalHits, aggs, reducePhase);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("Failed to execute progress listener on partial reduce"), e);
+            logger.warn("Failed to execute progress listener on partial reduce", e);
         }
     }
 
@@ -139,7 +139,7 @@ public abstract class SearchProgressListener {
         try {
             onFinalReduce(shards, totalHits, aggs, reducePhase);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("Failed to execute progress listener on reduce"), e);
+            logger.warn("Failed to execute progress listener on reduce", e);
         }
     }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -205,7 +204,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.debug(new ParameterizedMessage("failed to perform [{}]", REROUTE_TASK_SOURCE), e);
+                        logger.debug(() -> "failed to perform [" + REROUTE_TASK_SOURCE + "]", e);
                         if (MasterService.isPublishFailureException(e)) {
                             listener.onResponse(
                                 new ClusterUpdateSettingsResponse(
@@ -223,7 +222,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", UPDATE_TASK_SOURCE), e);
+                logger.debug(() -> "failed to perform [" + UPDATE_TASK_SOURCE + "]", e);
                 super.onFailure(e);
             }
 

@@ -419,6 +419,38 @@ public class AuthenticationTests extends ESTestCase {
         }
     }
 
+    public void testSupportsRunAs() {
+        final Settings.Builder settingsBuilder = Settings.builder();
+        if (randomBoolean()) {
+            settingsBuilder.putList(AnonymousUser.ROLES_SETTING.getKey(), randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8)));
+        }
+        final AnonymousUser anonymousUser = new AnonymousUser(settingsBuilder.build());
+
+        // Both realm authentication and a token for it can run-as
+        assertThat(AuthenticationTestHelper.builder().realm().build(false).supportsRunAs(anonymousUser), is(true));
+        assertThat(AuthenticationTestHelper.builder().realm().build(false).token().supportsRunAs(anonymousUser), is(true));
+        // but not when it is already a run-as
+        assertThat(AuthenticationTestHelper.builder().realm().build(true).supportsRunAs(anonymousUser), is(false));
+        assertThat(AuthenticationTestHelper.builder().realm().build(true).token().supportsRunAs(anonymousUser), is(false));
+
+        // API Key or its token both can run-as
+        assertThat(AuthenticationTestHelper.builder().apiKey().build(false).supportsRunAs(anonymousUser), is(true));
+        assertThat(AuthenticationTestHelper.builder().apiKey().build(false).token().supportsRunAs(anonymousUser), is(true));
+        // But not when it already run-as another user
+        assertThat(AuthenticationTestHelper.builder().apiKey().runAs().build().supportsRunAs(anonymousUser), is(false));
+
+        // Service account cannot run-as
+        assertThat(AuthenticationTestHelper.builder().serviceAccount().build().supportsRunAs(anonymousUser), is(false));
+
+        // Neither internal user nor its token can run-as
+        assertThat(AuthenticationTestHelper.builder().internal().build().supportsRunAs(anonymousUser), is(false));
+        assertThat(AuthenticationTestHelper.builder().internal().build().token().supportsRunAs(anonymousUser), is(false));
+
+        // Neither anonymous user nor its token can run-as
+        assertThat(AuthenticationTestHelper.builder().anonymous(anonymousUser).build().supportsRunAs(anonymousUser), is(false));
+        assertThat(AuthenticationTestHelper.builder().anonymous(anonymousUser).build().token().supportsRunAs(anonymousUser), is(false));
+    }
+
     private void assertCanAccessResources(Authentication authentication0, Authentication authentication1) {
         assertTrue(authentication0.canAccessResourcesOf(authentication1));
         assertTrue(authentication1.canAccessResourcesOf(authentication0));

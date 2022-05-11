@@ -144,21 +144,21 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // Count the STARTED shards which are unaccounted in the cluster info for searchable snapshots
-        for (ShardRouting routing : node.shardsWithState(ShardRoutingState.STARTED)) {
-            IndexMetadata indexMetadata = metadata.index(routing.index());
+        for (ShardRouting shard : node.shardsWithState(ShardRoutingState.STARTED)) {
+            IndexMetadata indexMetadata = metadata.index(shard.index());
             if (indexMetadata == null) {
                 continue;
             }
             if (indexMetadata.isSearchableSnapshot() == false) {
                 continue;
             }
-            if (reservedSpace.containsShardId(routing.shardId())) {
+            if (reservedSpace.containsShardId(shard.shardId())) {
                 continue;
             }
-            if (clusterInfo.getShardSize(routing) != null) {
+            if (clusterInfo.getShardSize(shard) != null) {
                 continue;
             }
-            totalSize += Math.max(routing.getExpectedShardSize(), 0L);
+            totalSize += Math.max(shard.getExpectedShardSize(), 0L);
         }
 
         if (subtractShardsMovingAway) {

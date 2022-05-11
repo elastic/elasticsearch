@@ -1001,9 +1001,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             // Implied by the overall view_index_metadata and monitor privilege
             assertViewIndexMetadata(kibanaRole, indexName);
             assertThat(
-                kibanaRole.indices()
-                    .allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8))
-                    .test(indexAbstraction),
+                kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
                 is(true)
             );
         });

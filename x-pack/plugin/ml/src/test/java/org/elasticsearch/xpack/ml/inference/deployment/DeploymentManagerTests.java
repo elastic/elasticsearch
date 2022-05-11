@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -17,9 +18,9 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.ml.inference.pytorch.PriorityProcessWorkerExecutorService;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
-import org.elasticsearch.xpack.ml.job.process.ProcessWorkerExecutorService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -31,6 +32,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAM
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -80,8 +82,9 @@ public class DeploymentManagerTests extends ESTestCase {
             mock(PyTorchProcessFactory.class)
         );
 
-        ProcessWorkerExecutorService executorService = mock(ProcessWorkerExecutorService.class);
-        doThrow(new EsRejectedExecutionException("mock executor rejection")).when(executorService).execute(any(Runnable.class));
+        PriorityProcessWorkerExecutorService executorService = mock(PriorityProcessWorkerExecutorService.class);
+        doThrow(new EsRejectedExecutionException("mock executor rejection")).when(executorService)
+            .executeWithPriority(any(AbstractRunnable.class), any(), anyLong());
 
         AtomicInteger rejectedCount = new AtomicInteger();
 

@@ -160,7 +160,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
      * @param maxNumInQueue  The number of unassigned jobs allowed.
      * @return The capacity needed to reduce the length of `unassignedJobs` to `maxNumInQueue`
      */
-    static Optional<NativeMemoryCapacity> requiredCapacityForUnassignedJobs(
+    static Optional<NativeMemoryCapacity> requiredCapacityExcludingPerNodeOverheadForUnassignedJobs(
         List<String> unassignedJobs,
         Function<String, Long> sizeFunction,
         int maxNumInQueue
@@ -176,7 +176,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
         long tierMemory = 0L;
         // Node memory needs to be AT LEAST the size of the largest job + the required overhead.
-        long nodeMemory = jobSizes.get(0) + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+        long nodeMemory = jobSizes.get(0);
         Iterator<Long> iter = jobSizes.iterator();
         while (jobSizes.size() > maxNumInQueue && iter.hasNext()) {
             tierMemory += iter.next();
@@ -632,9 +632,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             currentScale,
             reasonBuilder
         )
-            // Due to weird rounding errors, it may be that a scale down result COULD cause a scale up
+            // Due to rounding bugs, it may be that a scale down result COULD cause a scale up.
             // Ensuring the scaleDown here forces the scale down result to always be lower than the current capacity.
-            // This is safe as we know that ALL jobs are assigned at the current capacity
+            // This is safe as we know that ALL jobs are assigned at the current capacity.
             .map(result -> {
                 AutoscalingCapacity capacity = ensureScaleDown(result.requiredCapacity(), context.currentCapacity());
                 if (capacity == null) {
@@ -657,7 +657,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                     String msg = String.format(
                         Locale.ROOT,
                         "not scaling down as the total number of jobs [%d] exceeds the setting [%s (%d)]. "
-                            + " To allow a scale down [%s] must be increased.",
+                            + "To allow a scale down [%s] must be increased.",
                         totalAssignedJobs,
                         MAX_OPEN_JOBS_PER_NODE.getKey(),
                         maxOpenJobsCopy,
@@ -693,7 +693,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 reasonBuilder.setSimpleReason(
                     String.format(
                         Locale.ROOT,
-                        "Passing currently perceived capacity as down scale delay has not been satisfied; configured delay [%s]"
+                        "Passing currently perceived capacity as down scale delay has not been satisfied; configured delay [%s] "
                             + "last detected scale down event [%s]. Will request scale down in approximately [%s]",
                         downScaleDelay.getStringRep(),
                         XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(scaleDownDetected)),
@@ -705,7 +705,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
         return new AutoscalingDeciderResult(
             context.currentCapacity(),
-            reasonBuilder.setSimpleReason("Passing currently perceived capacity as no scaling changes were detected to be possible").build()
+            reasonBuilder.setSimpleReason("Passing currently perceived capacity as no scaling changes are necessary").build()
         );
     }
 
@@ -743,22 +743,22 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         List<String> waitingAllocatedModels,
         MlScalingReason.Builder reasonBuilder
     ) {
-        final Optional<NativeMemoryCapacity> analyticsCapacity = requiredCapacityForUnassignedJobs(
+        final Optional<NativeMemoryCapacity> analyticsCapacity = requiredCapacityExcludingPerNodeOverheadForUnassignedJobs(
             waitingAnalyticsJobs,
             this::getAnalyticsMemoryRequirement,
             0
         );
-        final Optional<NativeMemoryCapacity> anomalyCapacity = requiredCapacityForUnassignedJobs(
+        final Optional<NativeMemoryCapacity> anomalyCapacity = requiredCapacityExcludingPerNodeOverheadForUnassignedJobs(
             waitingAnomalyJobs,
             this::getAnomalyMemoryRequirement,
             0
         );
-        final Optional<NativeMemoryCapacity> snapshotUpgradeCapacity = requiredCapacityForUnassignedJobs(
+        final Optional<NativeMemoryCapacity> snapshotUpgradeCapacity = requiredCapacityExcludingPerNodeOverheadForUnassignedJobs(
             waitingSnapshotUpgrades,
             this::getAnomalyMemoryRequirement,
             0
         );
-        final Optional<NativeMemoryCapacity> allocatedModelCapacity = requiredCapacityForUnassignedJobs(
+        final Optional<NativeMemoryCapacity> allocatedModelCapacity = requiredCapacityExcludingPerNodeOverheadForUnassignedJobs(
             waitingAllocatedModels,
             this::getAllocatedModelRequirement,
             0
@@ -1087,6 +1087,14 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         MlScalingReason.Builder reasonBuilder
     ) {
         long currentlyNecessaryTier = nodeLoads.stream().mapToLong(NodeLoad::getAssignedJobMemoryExcludingPerNodeOverhead).sum();
+        logger.info(
+            "TEMP - REMOVE! largestJob: "
+                + largestJob
+                + " currentlyNecessaryTier: "
+                + currentlyNecessaryTier
+                + " currentCapacity: "
+                + currentCapacity
+        );
         // We consider a scale down if we are not fully utilizing the tier
         // Or our largest job could be on a smaller node (meaning the same size tier but smaller nodes are possible).
         if (currentlyNecessaryTier < currentCapacity.getTierMlNativeMemoryRequirementExcludingOverhead()

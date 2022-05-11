@@ -28,6 +28,11 @@ public class RestClearVotingConfigExclusionsAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
+    @Override
     public String getName() {
         return "clear_voting_config_exclusions_action";
     }

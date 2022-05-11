@@ -70,6 +70,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
     ) {
         super(
             AddVotingConfigExclusionsAction.NAME,
+            false,
             transportService,
             clusterService,
             threadPool,

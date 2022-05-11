@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetB
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ActionClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -73,9 +74,12 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleKey;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceResolver;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -147,6 +151,7 @@ import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isA;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
@@ -1392,6 +1397,28 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
     }
 
+    public void testRoleWithInternalRoleNameResolvesToRoleDefinedInRoleStore() {
+        String roleName = AuthenticationTestHelper.randomInternalRoleName();
+        RoleDescriptor expected = new RoleDescriptor(roleName, null, null, null);
+        final Consumer<ActionListener<RoleRetrievalResult>> rolesHandler = callback -> {
+            callback.onResponse(RoleRetrievalResult.success(Set.of(expected)));
+        };
+        final Consumer<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> privilegesHandler = callback -> callback.onResponse(
+            Collections.emptyList()
+        );
+
+        final CompositeRolesStore compositeRolesStore = setupRolesStore(rolesHandler, privilegesHandler);
+        final Set<String> roles = Set.of(roleName);
+        PlainActionFuture<Role> future = new PlainActionFuture<>();
+        getRoleForRoleNames(compositeRolesStore, roles, future);
+
+        final Role role = future.actionGet();
+        assertThat(role.names(), arrayContaining(roleName));
+        assertThat(role.application().getApplicationNames(), empty());
+        assertThat(role.cluster().privileges(), empty());
+        assertThat(role.indices(), is(IndicesPermission.NONE));
+    }
+
     public void testGetRolesForSystemUserThrowsException() {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
@@ -2004,6 +2031,38 @@ public class CompositeRolesStoreTests extends ESTestCase {
             RoleDescriptor expectedRoleDescriptor = userAndDescriptor.v2();
             assertThat(future.actionGet(), equalTo(List.of(Set.of(expectedRoleDescriptor))));
         }
+    }
+
+    public void testGetRoleDescriptorsListForRolesMatchingInternalRoleNames() {
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            mock(ServiceAccountService.class),
+            null,
+            null
+        );
+
+        Subject subject = mock(Subject.class, RETURNS_DEEP_STUBS);
+        when(subject.getRoleReferenceIntersection(any()).getRoleReferences()).thenReturn(List.of(new RoleReference() {
+            @Override
+            public RoleKey id() {
+                return null;
+            }
+
+            @Override
+            public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
+
+            }
+        }));
+        final PlainActionFuture<Collection<Set<RoleDescriptor>>> future = new PlainActionFuture<>();
+        compositeRolesStore.getRoleDescriptorsList(subject, future);
+        RoleDescriptor expectedRoleDescriptor = null;
+        assertThat(future.actionGet(), equalTo(List.of(Set.of(expectedRoleDescriptor))));
     }
 
     private void getRoleForRoleNames(CompositeRolesStore rolesStore, Collection<String> roleNames, ActionListener<Role> listener) {

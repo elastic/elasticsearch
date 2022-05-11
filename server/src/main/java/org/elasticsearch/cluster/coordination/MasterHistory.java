@@ -76,9 +76,11 @@ public class MasterHistory implements ClusterStateListener {
             int startIndex = Math.max(0, sizeAfterAddingNewMaster - MAX_HISTORY_SIZE);
             for (int i = startIndex; i < masterHistory.size(); i++) {
                 TimeAndMaster timeAndMaster = masterHistory.get(i);
-                long endTime = Long.MAX_VALUE;
+                final long endTime;
                 if (i < masterHistory.size() - 1) {
                     endTime = masterHistory.get(i + 1).startTimeMillis;
+                } else {
+                    endTime = Long.MAX_VALUE;
                 }
                 if (endTime >= oldestRelevantHistoryTime) {
                     newMasterHistory.add(timeAndMaster);
@@ -192,6 +194,11 @@ public class MasterHistory implements ClusterStateListener {
         TimeValue nSecondsTimeValue = new TimeValue(nSeconds, TimeUnit.SECONDS);
         long nSecondsAgo = now - nSecondsTimeValue.getMillis();
 
+        /*
+         * We traverse the list backwards (since it is ordered by time ascending). Once we find an entry whose
+         * timeAndMaster.startTimeMillis was more than nSeconds ago we can stop because it is not possible that any more of the nodes
+         * we'll see have ended within the last nSeconds.
+         */
         for (int i = masterHistoryCopy.size() - 1; i >= 0; i--) {
             TimeAndMaster timeAndMaster = masterHistoryCopy.get(i);
             if (timeAndMaster.master != null) {
@@ -220,6 +227,10 @@ public class MasterHistory implements ClusterStateListener {
         for (int i = 0; i < history.size(); i++) {
             TimeAndMaster timeAndMaster = history.get(i);
             final long endTime;
+            /*
+             * The end time of this timeAndMaster is the start time of the next one in the list. If there is no next one, this is the
+             * current timeAndMaster, so there is no endTime (so it is set to Long.MAX_VALUE).
+             */
             if (i < history.size() - 1) {
                 endTime = history.get(i + 1).startTimeMillis;
             } else {

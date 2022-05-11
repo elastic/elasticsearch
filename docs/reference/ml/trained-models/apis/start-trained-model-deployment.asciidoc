@@ -38,18 +38,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 [[start-trained-model-deployment-query-params]]
 == {api-query-parms-title}
 
-`inference_threads`::
+`number_of_allocations`::
 (Optional, integer)
-Sets the number of threads used by the inference process. This generally increases
-the inference speed. The inference process is a compute-bound process; any number
-greater than the number of available hardware threads on the machine does not increase the
-inference speed. If this setting is greater than the number of hardware threads
-it will automatically be changed to a value less than the number of hardware threads.
-Defaults to 1.
-
-`model_threads`::
-(Optional, integer)
-The number of threads used when sending inference requests to the model.
+The number of model allocations on each node where the model is deployed.
+All allocations on a node share the same copy of the model in memory but use
+a separate set of threads to evaluate the model. 
 Increasing this value generally increases the throughput.
 If this setting is greater than the number of hardware threads
 it will automatically be changed to a value less than the number of hardware threads.
@@ -57,7 +50,7 @@ Defaults to 1.
 
 [NOTE]
 =============================================
-If the sum of `inference_threads` and `model_threads` is greater than the number of
+If the sum of `threads_per_allocation` and `number_of_allocations` is greater than the number of
 hardware threads then the number of `inference_threads` will be reduced.
 =============================================
 
@@ -67,6 +60,15 @@ Controls how many inference requests are allowed in the queue at a time.
 Every machine learning node in the cluster where the model can be allocated
 has a queue of this size; when the number of requests exceeds the total value,
 new requests are rejected with a 429 error. Defaults to 1024.
+
+`threads_per_allocation`::
+(Optional, integer)
+Sets the number of threads used by each model allocation during inference. This generally increases
+the inference speed. The inference process is a compute-bound process; any number
+greater than the number of available hardware threads on the machine does not increase the
+inference speed. If this setting is greater than the number of hardware threads
+it will automatically be changed to a value less than the number of hardware threads.
+Defaults to 1.
 
 `timeout`::
 (Optional, time)

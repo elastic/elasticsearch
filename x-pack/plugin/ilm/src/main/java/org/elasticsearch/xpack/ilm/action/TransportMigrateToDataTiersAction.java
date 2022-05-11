@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -19,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
@@ -31,7 +35,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersRequest;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersResponse;
-import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService;
 import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.MigratedEntities;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
@@ -39,6 +42,8 @@ import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTier
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 
 public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction<MigrateToDataTiersRequest, MigrateToDataTiersResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportMigrateToDataTiersAction.class);
 
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
@@ -88,7 +93,6 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
                 licenseState,
                 request.isDryRun()
             ).v2();
-            MetadataMigrateToDataTiersRoutingService.MigratedTemplates migratedTemplates = entities.migratedTemplates;
             listener.onResponse(
                 new MigrateToDataTiersResponse(
                     entities.removedIndexTemplateName,
@@ -138,7 +142,20 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                super.clusterStateProcessed(oldState, newState);
+                clusterService.getRerouteService()
+                    .reroute("cluster migrated to data tiers routing", Priority.NORMAL, new ActionListener<ClusterState>() {
+                        @Override
+                        public void onResponse(ClusterState clusterState) {}
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.log(
+                                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                                "unsuccessful reroute after migration to data tiers routing",
+                                e
+                            );
+                        }
+                    });
                 MigratedEntities entities = migratedEntities.get();
                 listener.onResponse(
                     new MigrateToDataTiersResponse(

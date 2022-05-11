@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -63,6 +64,7 @@ import java.util.stream.Stream;
 public class MlMemoryTracker implements LocalNodeMasterListener {
 
     private static final Duration RECENT_UPDATE_THRESHOLD = Duration.ofMinutes(1);
+    private static final Duration DEFAULT_AUTOSCALING_CHECK_INTERVAL = Duration.ofMinutes(5);
 
     private final Logger logger = LogManager.getLogger(MlMemoryTracker.class);
     private final Map<String, Long> memoryRequirementByAnomalyDetectorJob = new ConcurrentHashMap<>();
@@ -81,6 +83,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     private volatile boolean stopped;
     private volatile Instant lastUpdateTime;
     private volatile Duration reassignmentRecheckInterval;
+    private volatile Duration autoscalingCheckInterval = DEFAULT_AUTOSCALING_CHECK_INTERVAL;
 
     public MlMemoryTracker(
         Settings settings,
@@ -115,6 +118,10 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
     private void setReassignmentRecheckInterval(TimeValue recheckInterval) {
         reassignmentRecheckInterval = Duration.ofNanos(recheckInterval.getNanos());
+    }
+
+    public void setAutoscalingCheckInterval(Duration autoscalingCheckInterval) {
+        this.autoscalingCheckInterval = Objects.requireNonNull(autoscalingCheckInterval);
     }
 
     @Override
@@ -192,18 +199,21 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      * for valid task assignment decisions to be made using it?
      */
     public boolean isRecentlyRefreshed() {
-        return isRecentlyRefreshed(reassignmentRecheckInterval);
+        Instant localLastUpdateTime = lastUpdateTime;
+        return isMaster && localLastUpdateTime != null && localLastUpdateTime.plus(getStalenessDuration()).isAfter(Instant.now());
     }
 
     /**
-     * Is the information in this object sufficiently up to date
-     * for valid task assignment decisions to be made using it?
+     * @return The definition of "staleness" used by {@link #isRecentlyRefreshed()}. This method is intended only as
+     *         a debugging aid, as calling it separately to {@link #isRecentlyRefreshed()} could return a different
+     *         number if settings were modified in between the two calls.
      */
-    public boolean isRecentlyRefreshed(Duration customDuration) {
-        Instant localLastUpdateTime = lastUpdateTime;
-        return isMaster
-            && localLastUpdateTime != null
-            && localLastUpdateTime.plus(RECENT_UPDATE_THRESHOLD).plus(customDuration).isAfter(Instant.now());
+    public Duration getStalenessDuration() {
+        return max(reassignmentRecheckInterval, autoscalingCheckInterval).plus(RECENT_UPDATE_THRESHOLD);
+    }
+
+    static Duration max(Duration first, Duration second) {
+        return first.compareTo(second) > 0 ? first : second;
     }
 
     /**
@@ -372,12 +382,13 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
                         listener.onResponse(null);
                     }
-                    logger.trace("ML memory tracker last update time now [{}] and listeners called", lastUpdateTime);
+                    logger.debug("ML memory tracker last update time now [{}] and listeners called", lastUpdateTime);
                 } else {
                     Exception e = new NotMasterException("Node ceased to be master during ML memory tracker refresh");
                     for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
                         listener.onFailure(e);
                     }
+                    logger.debug(e.getMessage());
                 }
                 fullRefreshCompletionListeners.clear();
             }
@@ -482,7 +493,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         if (stopPhaser.register() != phase.get()) {
             // Phases above not equal to `phase` mean we've been stopped, so don't do any operations that involve external interaction
             stopPhaser.arriveAndDeregister();
-            logger.info(() -> new ParameterizedMessage("[{}] not refreshing anomaly detector memory as node is shutting down", jobId));
+            logger.info("[{}] not refreshing anomaly detector memory as node is shutting down", jobId);
             listener.onFailure(new EsRejectedExecutionException("Couldn't run ML memory update - node is shutting down"));
             return;
         }

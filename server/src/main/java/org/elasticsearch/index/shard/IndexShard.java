@@ -1185,6 +1185,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mappingLookup.hasMappings() == false) {
             return GetResult.NOT_EXISTS;
         }
+        if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
+            throw new IllegalStateException("get operations not allowed on a legacy index");
+        }
         return getEngine().get(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
     }
 

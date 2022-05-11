@@ -16,9 +16,11 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.ReaderSlice;
@@ -61,6 +63,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -1036,5 +1039,94 @@ public final class KeywordFieldMapper extends FieldMapper {
                 TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
             );
         }
+    }
+
+    boolean hasNormalizer() {
+        return normalizerName != null;
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return syntheticFieldLoader(simpleName());
+    }
+
+    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
+        if (hasScript()) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
+        }
+        if (ignoreAbove != Defaults.IGNORE_ABOVE) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares ignore_above"
+            );
+        }
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        if (hasNormalizer()) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
+            );
+        }
+        return new BytesSyntheticFieldLoader(name(), simpleName) {
+            @Override
+            protected void loadNextValue(XContentBuilder b, BytesRef value) throws IOException {
+                b.value(value.utf8ToString());
+            }
+        };
+    }
+
+    public abstract static class BytesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private final String name;
+        private final String simpleName;
+
+        public BytesSyntheticFieldLoader(String name, String simpleName) {
+            this.name = name;
+            this.simpleName = simpleName;
+        }
+
+        @Override
+        public Leaf leaf(LeafReader reader) throws IOException {
+            SortedSetDocValues leaf = DocValues.getSortedSet(reader, name);
+            return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                private boolean hasValue;
+
+                @Override
+                public void advanceToDoc(int docId) throws IOException {
+                    hasValue = leaf.advanceExact(docId);
+                }
+
+                @Override
+                public boolean hasValue() {
+                    return hasValue;
+                }
+
+                @Override
+                public void load(XContentBuilder b) throws IOException {
+                    long first = leaf.nextOrd();
+                    long next = leaf.nextOrd();
+                    if (next == SortedSetDocValues.NO_MORE_ORDS) {
+                        b.field(simpleName);
+                        loadNextValue(b, leaf.lookupOrd(first));
+                        return;
+                    }
+                    b.startArray(simpleName);
+                    loadNextValue(b, leaf.lookupOrd(first));
+                    loadNextValue(b, leaf.lookupOrd(next));
+                    while ((next = leaf.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {
+                        loadNextValue(b, leaf.lookupOrd(next));
+                    }
+                    b.endArray();
+                }
+            };
+        }
+
+        protected abstract void loadNextValue(XContentBuilder b, BytesRef value) throws IOException;
     }
 }

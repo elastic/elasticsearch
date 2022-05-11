@@ -7,8 +7,9 @@
 
 package org.elasticsearch.integration;
 
+import joptsimple.internal.Strings;
+
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -22,7 +23,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
-import java.util.Arrays;
 
 public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
     private static final String[] INTERNAL_USERNAMES = new String[] {
@@ -39,35 +39,24 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
         UsernamesField.ASYNC_SEARCH_ROLE,
         UsernamesField.SECURITY_PROFILE_ROLE };
 
-    private static final String USERS_ROLES = """
-        %s:user
-        %s:user
-        %s:user
-        %s:user
-        %s:user
-        _custom_role:%s
-        """.formatted(
-        UsernamesField.SYSTEM_ROLE,
-        UsernamesField.XPACK_ROLE,
-        UsernamesField.XPACK_SECURITY_ROLE,
-        UsernamesField.ASYNC_SEARCH_ROLE,
-        UsernamesField.SECURITY_PROFILE_ROLE,
-        Arrays.toString(INTERNAL_USERNAMES)
-    );
-
     @Override
     protected String configRoles() {
         StringBuilder builder = new StringBuilder(super.configRoles());
         for (String roleName : INTERNAL_ROLE_NAMES) {
-            builder.append("""
-                %s:
-                  cluster: [ none ]
-                  indices:
-                    - names: 'a'
-                      privileges: [ all ]
-                """.formatted(roleName));
+            builder.append(defaultRole(roleName));
         }
+        builder.append(defaultRole("_custom_role"));
         return builder.toString();
+    }
+
+    private String defaultRole(String roleName) {
+        return """
+            %s:
+              cluster: [ none ]
+              indices:
+                - names: 'a'
+                  privileges: [ all ]
+            """.formatted(roleName);
     }
 
     @Override
@@ -85,10 +74,10 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
     protected String configUsersRoles() {
         StringBuilder builder = new StringBuilder(super.configUsersRoles());
         for (String roleName : INTERNAL_ROLE_NAMES) {
-            builder.append("%s:user\n".formatted(roleName));
+            builder.append("%s:%s\n".formatted(roleName, "user"));
         }
         // all internal users are mapped to custom role
-        return builder + "_custom_role:%s\n".formatted(Arrays.toString(INTERNAL_USERNAMES));
+        return builder + "%s:%s\n".formatted("_custom_role", Strings.join(INTERNAL_USERNAMES, ","));
     }
 
     private static Path repositoryLocation;

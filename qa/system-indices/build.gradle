@@ -23,3 +23,5 @@ testClusters.configureEach {
   setting 'xpack.security.autoconfiguration.enabled', 'false'
   user username: 'rest_user', password: 'rest-user-password'
 }
+
+tasks.named('test').configure { enabled = false}

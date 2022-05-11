@@ -10,10 +10,8 @@ package org.elasticsearch.gradle.internal
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
-import spock.lang.IgnoreIf
 import spock.lang.Unroll
 
-@IgnoreIf({ os.windows })
 class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
 
     @Unroll
@@ -125,8 +123,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         def result = gradleRunner(':some-depending-lib:javadoc').build()
 
         then:
-        println "given options " + file('some-depending-lib/build/tmp/javadoc/javadoc.options').text
-        def options = normalized(file('some-depending-lib/build/tmp/javadoc/javadoc.options').text).replaceAll('//', '/')
+        def options = normalized(file('some-depending-lib/build/tmp/javadoc/javadoc.options').text)
         options.contains('-notimestamp')
         options.contains('-quiet')
 
@@ -177,12 +174,15 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         result.task(":some-lib:javadoc").outcome == TaskOutcome.SKIPPED
         result.task(":some-depending-lib:javadoc").outcome == TaskOutcome.SUCCESS
 
-        def options = normalized(file('some-depending-lib/build/tmp/javadoc/javadoc.options').text).replaceAll('//', '/')
+        def options = normalized(file('some-depending-lib/build/tmp/javadoc/javadoc.options').text)
         options.contains('-notimestamp')
         options.contains('-quiet')
         options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' './some-lib/build/docs/javadoc'") == false
     }
 
+    String normalized(String input) {
+        return super.normalized(input.replaceAll("\\\\\\\\", "\\"))
+    }
 
     private File someLibProject() {
         subProject("some-lib") {

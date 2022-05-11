@@ -681,7 +681,7 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+            () -> PluginsService.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell! duplicate codebases with extended plugin"));
@@ -714,7 +714,7 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+            () -> PluginsService.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
@@ -745,7 +745,7 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, new HashMap<>())
+            () -> PluginsService.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, new HashMap<>())
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
@@ -780,7 +780,7 @@ public class PluginsServiceTests extends ESTestCase {
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls)
+            () -> PluginsService.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveUrls)
         );
 
         assertEquals("failed to load plugin dummy while checking for jar hell", e.getMessage());
@@ -812,7 +812,7 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+            () -> PluginsService.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
@@ -849,7 +849,7 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+            () -> PluginsService.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
@@ -884,7 +884,7 @@ public class PluginsServiceTests extends ESTestCase {
             false
         );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
+        PluginsService.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps);
         Set<URL> deps = transitiveDeps.get("myplugin");
         assertNotNull(deps);
         assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dep1Jar.toUri().toURL(), dep2Jar.toUri().toURL()));

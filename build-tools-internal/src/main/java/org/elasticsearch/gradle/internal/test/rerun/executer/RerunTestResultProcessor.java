@@ -12,7 +12,6 @@ import org.gradle.api.internal.tasks.testing.TestCompleteEvent;
 import org.gradle.api.internal.tasks.testing.TestDescriptorInternal;
 import org.gradle.api.internal.tasks.testing.TestResultProcessor;
 import org.gradle.api.internal.tasks.testing.TestStartEvent;
-import org.gradle.api.tasks.testing.TestFailure;
 import org.gradle.api.tasks.testing.TestOutputEvent;
 
 import java.util.ArrayList;
@@ -90,15 +89,15 @@ final class RerunTestResultProcessor implements TestResultProcessor {
     }
 
     @Override
-    public void failure(Object testId, TestFailure failure) {
-        if (activeDescriptorsById.containsKey(testId)) {
-            activeDescriptorsById.remove(testId);
-            try {
-                delegate.failure(testId, failure);
-            } catch (IllegalArgumentException illegalArgumentException) {
-                logTracing(testId, illegalArgumentException);
-            }
-        }
+    public void failure(Object testId, org.gradle.api.tasks.testing.TestFailure failure) {
+        // if (activeDescriptorsById.containsKey(testId)) {
+        // activeDescriptorsById.remove(testId);
+        // try {
+        // delegate.failure(testId, throwable);
+        // } catch (IllegalArgumentException illegalArgumentException) {
+        // logTracing(testId, illegalArgumentException);
+        // }
+        // }
     }
 
     private void logTracing(Object testId, IllegalArgumentException illegalArgumentException) {

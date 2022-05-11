@@ -44,10 +44,9 @@ RestHighLevelClient esClient = new RestHighLevelClientBuilder(restClient)
     .build()
 --------------------------------------------------
 
+When compatibility mode is enabled, the client can also communicate with Elasticsearch version 7.11 and higher.
+
 NOTE: Starting with version 7.17.4, compatibility mode is enabled by default.
-
-When compatibility mode is enabled, the client can also communicate with Elasticsearch version 7.16 and higher.
-
 
 [[java-rest-high-javadoc]]
 === Javadoc

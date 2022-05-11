@@ -18,11 +18,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
@@ -149,8 +150,12 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
 
                         @Override
                         public void onFailure(Exception e) {
+                            Level logLevel = Level.WARN;
+                            if (e instanceof NotMasterException || e instanceof FailedToCommitClusterStateException) {
+                                logLevel = Level.DEBUG;
+                            }
                             logger.log(
-                                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                                logLevel,
                                 "unsuccessful reroute after migration to data tiers routing",
                                 e
                             );

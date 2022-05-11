@@ -18,7 +18,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * A "bundle" is a group of jars that will be loaded in a single classloader
+ * A "bundle" is a group of jars that will be loaded in their own classloader
  */
 public class PluginBundle {
     public final PluginInfo plugin;

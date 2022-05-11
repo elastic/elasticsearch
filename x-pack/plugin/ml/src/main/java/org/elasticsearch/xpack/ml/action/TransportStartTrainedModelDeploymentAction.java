@@ -223,8 +223,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     TaskParams taskParams = new TaskParams(
                         trainedModelConfig.getModelId(),
                         modelBytes,
-                        request.getInferenceThreads(),
-                        request.getModelThreads(),
+                        request.getThreadsPerAllocation(),
+                        request.getNumberOfAllocations(),
                         request.getQueueCapacity()
                     );
                     PersistentTasksCustomMetadata persistentTasks = clusterService.state()

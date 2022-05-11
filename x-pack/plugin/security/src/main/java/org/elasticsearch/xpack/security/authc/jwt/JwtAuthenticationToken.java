@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
@@ -24,24 +26,30 @@ import java.util.stream.Collectors;
  * An {@link AuthenticationToken} to hold JWT authentication related content.
  */
 public class JwtAuthenticationToken implements AuthenticationToken {
+    private static final Logger LOGGER = LogManager.getLogger(JwtAuthenticationToken.class);
 
     // Stored members
     protected SecureString endUserSignedJwt; // required
     protected SecureString clientAuthenticationSharedSecret; // optional, nullable
-    protected String principal; // "iss/aud/sub"
+    protected String principal; // Defaults to "iss/aud/sub", with an ordered "aud" list
 
     /**
      * Store a mandatory JWT and optional Shared Secret. Parse the JWT, and extract the header, claims set, and signature.
-     * Throws IllegalArgumentException if bearerString is missing, or if JWT parsing fails.
+     * Compute a token principal, for use as a realm order cache key. Default for OIDC ID Tokens is iss/aud/sub.
+     * For other JWTs, the endUserIdClaimNames supports using other claims to replace sub.
+     * Throws IllegalArgumentException if endUserIfClaimNames is empty, JWT is missing, or if JWT parsing fails.
+     * @param endUserIdClaimNames Ordered list of string claims to use for endUserIdValue. The first claim in that list is used (ex: sub).
      * @param endUserSignedJwt Base64Url-encoded JWT for End-user authentication. Required by all JWT realms.
      * @param clientAuthenticationSharedSecret URL-safe Shared Secret for Client authentication. Required by some JWT realms.
      */
     public JwtAuthenticationToken(
+        final List<String> endUserIdClaimNames,
         final SecureString endUserSignedJwt,
-        final List<String> userIdClaims,
         @Nullable final SecureString clientAuthenticationSharedSecret
     ) {
-        if (endUserSignedJwt.isEmpty()) {
+        if (endUserIdClaimNames.isEmpty()) {
+            throw new IllegalArgumentException("JWT token endUserId claim names list must be non-empty");
+        } else if (endUserSignedJwt.isEmpty()) {
             throw new IllegalArgumentException("JWT bearer token must be non-empty");
         } else if ((clientAuthenticationSharedSecret != null) && (clientAuthenticationSharedSecret.isEmpty())) {
             throw new IllegalArgumentException("Client shared secret must be non-empty");
@@ -55,40 +63,50 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         } catch (ParseException e) {
             throw new IllegalArgumentException("Failed to parse JWT bearer token", e);
         }
+
+        // get and validate iss and aud claims
         final String issuer = jwtClaimsSet.getIssuer();
         final List<String> audiences = jwtClaimsSet.getAudience();
-
         if (Strings.hasText(issuer) == false) {
             throw new IllegalArgumentException("Issuer claim 'iss' is missing.");
         } else if ((audiences == null) || (audiences.isEmpty())) {
             throw new IllegalArgumentException("Audiences claim 'aud' is missing.");
         }
 
-        final String userId = resolveUserId(jwtClaimsSet, userIdClaims);
-        this.principal = issuer + "/" + String.join(",", new TreeSet<>(audiences)) + "/" + userId;
+        // get and validate sub claim, or the first configured backup claim (if sub is absent)
+        final String endUserIdClaimValue = resolveEndUserId(jwtClaimsSet, endUserIdClaimNames);
+        this.principal = issuer + "/" + String.join(",", new TreeSet<>(audiences)) + "/" + endUserIdClaimValue;
     }
 
-    private String resolveUserId(JWTClaimsSet jwtClaimsSet, List<String> userIdClaims) {
-        for (String claim : userIdClaims) {
-            final Object value = jwtClaimsSet.getClaim(claim);
-            if (value instanceof String userid) {
-                return userid;
-            } else if (value != null) {
-                throw new IllegalArgumentException("User identifier claim '" + claim + "' exists but is not a string");
+    private String resolveEndUserId(final JWTClaimsSet jwtClaimsSet, final List<String> endUserIdClaimNames) {
+        for (final String endUserIdClaimName : endUserIdClaimNames) {
+            final Object claimValue = jwtClaimsSet.getClaim(endUserIdClaimName);
+            if (claimValue instanceof String endUserIdClaimValue) {
+                if (endUserIdClaimValue.isEmpty()) {
+                    throw new IllegalArgumentException("User identifier claim '" + endUserIdClaimName
+                        + "' exists but cannot be used due to empty string value");
+                }
+                LOGGER.trace("Found endUserId claim name [{}] with value [{}]", endUserIdClaimName, endUserIdClaimValue);
+                return endUserIdClaimValue;
+            } else if (claimValue != null) {
+                throw new IllegalArgumentException("User identifier claim '" + endUserIdClaimName
+                    + "' exists but cannot be used due to non-string value type '" + claimValue.getClass().getCanonicalName() + "'");
             }
         }
 
-        final String stringClaimNames = jwtClaimsSet.getClaims()
+        // at this point, none of the endUserIdClaimNames were found
+        // throw an exception with a detailed log message about available claims with string values
+        final String allClaimNamesWithStringValues = jwtClaimsSet.getClaims()
             .entrySet()
             .stream()
             .filter(e -> e.getValue() instanceof String)
             .map(Map.Entry::getKey)
             .collect(Collectors.joining(","));
         throw new IllegalArgumentException(
-            "None of the user identifier claims ["
-                + String.join(",", userIdClaims)
-                + "] exist - available claims are ["
-                + stringClaimNames
+            "None of these end user identifier claims were found in the JWT Claims Set ["
+                + String.join(",", endUserIdClaimNames)
+                + "] - available claims with string values are ["
+                + allClaimNamesWithStringValues
                 + "]"
         );
     }

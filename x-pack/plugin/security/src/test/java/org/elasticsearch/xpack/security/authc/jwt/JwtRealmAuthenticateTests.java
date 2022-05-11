@@ -119,8 +119,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         );
         final User unresolvableUser = new User(unresolvableUsername);
         JwtAuthenticationToken token = new JwtAuthenticationToken(
-            randomJwt(jwtIssuerAndRealm, unresolvableUser),
             List.of("sub"),
+            randomJwt(jwtIssuerAndRealm, unresolvableUser),
             clientSecret
         );
 

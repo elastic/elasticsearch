@@ -32,11 +32,8 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
         final SecureString jwt = JwtTestCase.randomJwt(jwk, signatureAlgorithm);
         final SecureString clientSharedSecret = randomBoolean() ? null : new SecureString(randomAlphaOfLengthBetween(10, 20).toCharArray());
 
-        final JwtAuthenticationToken jwtAuthenticationToken = new JwtAuthenticationToken(
-            jwt,
-            List.of("sub", randomAlphaOfLength(3)),
-            clientSharedSecret
-        );
+        final List<String> userIdClaims = List.of(randomAlphaOfLength(4), "sub", randomAlphaOfLength(4));
+        final JwtAuthenticationToken jwtAuthenticationToken = new JwtAuthenticationToken(userIdClaims, jwt, clientSharedSecret);
         final SecureString endUserSignedJwt = jwtAuthenticationToken.getEndUserSignedJwt();
         final SecureString clientAuthenticationSharedSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
 
@@ -91,7 +88,8 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
         );
         final SecureString jwt = JwtValidateUtil.signJwt(jwk, unsignedJwt);
 
-        final JwtAuthenticationToken jwtAuthenticationToken = new JwtAuthenticationToken(jwt, List.of("sub", principalClaim), null);
+        final List<String> userIdClaims = List.of(randomAlphaOfLength(4), "sub", principalClaim);
+        final JwtAuthenticationToken jwtAuthenticationToken = new JwtAuthenticationToken(userIdClaims, jwt, null);
         Assert.assertEquals(issuer + "/" + audience + "/" + principalValue, jwtAuthenticationToken.principal());
     }
 }

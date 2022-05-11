@@ -17,31 +17,30 @@ import java.util.function.Function;
 
 /**
  * A factory class for {@link JwtAuthenticationToken}.
- * This factory exists to support the configurable {@link #USERID_CLAIMS_SETTING}.
+ * This factory exists to support the configurable {@link #ENDUSERID_CLAIMS_SETTING}.
  */
 public class JwtAuthenticationTokenFactory {
 
-    static final List<String> DEFAULT_USERID_CLAIMS = List.of("sub", "client_id", "appid", "azp");
-    public static final Setting<List<String>> USERID_CLAIMS_SETTING = Setting.listSetting(
-        "xpack.security.authc.jwt.userid_claims",
-        DEFAULT_USERID_CLAIMS,
+    static final List<String> DEFAULT_ENDUSERID_CLAIMS = List.of("sub", "oid", "client_id", "appid", "azp");
+    public static final Setting<List<String>> ENDUSERID_CLAIMS_SETTING = Setting.listSetting(
+        "xpack.security.authc.jwt.enduserid_claims", DEFAULT_ENDUSERID_CLAIMS,
         Function.identity(),
         Setting.Property.NodeScope
     );
 
-    private final List<String> userIdClaims;
+    public static Collection<Setting<?>> getSettings() {
+        return List.of(ENDUSERID_CLAIMS_SETTING);
+    }
 
-    public JwtAuthenticationTokenFactory(Settings settings) {
-        this(USERID_CLAIMS_SETTING.get(settings));
+    private final List<String> endUserIdClaimNames;
+
+    public JwtAuthenticationTokenFactory(final Settings settings) {
+        this(ENDUSERID_CLAIMS_SETTING.get(settings));
     }
 
     // Package protected for testing
-    JwtAuthenticationTokenFactory(List<String> userIdClaims) {
-        this.userIdClaims = userIdClaims;
-    }
-
-    public static Collection<Setting<?>> getSettings() {
-        return List.of(USERID_CLAIMS_SETTING);
+    JwtAuthenticationTokenFactory(final List<String> endUserIdClaimNames) {
+        this.endUserIdClaimNames = endUserIdClaimNames;
     }
 
     public JwtAuthenticationToken getToken(final ThreadContext threadContext) {
@@ -61,6 +60,6 @@ public class JwtAuthenticationTokenFactory {
             JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
             true
         );
-        return new JwtAuthenticationToken(authenticationParameterValue, userIdClaims, clientAuthenticationSharedSecretValue);
+        return new JwtAuthenticationToken(this.endUserIdClaimNames, authenticationParameterValue, clientAuthenticationSharedSecretValue);
     }
 }

@@ -43,7 +43,6 @@ import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.prepareR
 
 public class SampleIterator implements Executable {
 
-    public static final int MAX_PAGE_SIZE = 1000;
     private final Logger log = LogManager.getLogger(SampleIterator.class);
 
     private final QueryClient client;
@@ -51,13 +50,15 @@ public class SampleIterator implements Executable {
     private final Stack<Page> stack = new Stack<>();
     private final int maxStages;
     private final List<Sample> samples;
+    private final int fetchSize;
 
     private long startTime;
 
-    public SampleIterator(QueryClient client, List<SampleCriterion> criteria) {
+    public SampleIterator(QueryClient client, List<SampleCriterion> criteria, int fetchSize) {
         this.client = client;
         this.criteria = criteria;
         this.maxStages = criteria.size();
+        this.fetchSize = fetchSize;
         this.samples = new ArrayList<>();
     }
 
@@ -185,7 +186,7 @@ public class SampleIterator implements Executable {
             log.trace("Final stage... found [{}] new Samples", samples.size() - initialSize);
             // if this final page is max_page_size in size it means: either it's the last page and it happens to have max_page_size elements
             // or it's just not the last page and we should advance
-            var next = page.size() == MAX_PAGE_SIZE ? page : stack.pop();
+            var next = page.size() == fetchSize ? page : stack.pop();
             log.trace("Final stage... getting next page of the " + (next == page ? "current" : "previous") + " page");
             nextPage(listener, next);
         }, listener::onFailure));

@@ -37,4 +37,14 @@ public abstract class EqlSampleTestCase extends BaseEqlSpecTestCase {
     protected String idField() {
         return "id";
     }
+
+    @Override
+    protected int requestFetchSize() {
+        // a more relevant fetch_size value for Samples, from algorithm point of view, so we'll mostly test this value
+        if (frequently()) {
+            return 2;
+        } else {
+            return super.requestFetchSize();
+        }
+    }
 }

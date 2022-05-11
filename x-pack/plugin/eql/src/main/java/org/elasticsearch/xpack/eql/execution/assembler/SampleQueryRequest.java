@@ -21,7 +21,6 @@ import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceB
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
-import org.elasticsearch.xpack.eql.execution.sample.SampleIterator;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
@@ -53,11 +52,13 @@ public class SampleQueryRequest implements QueryRequest {
     private CompositeAggregationBuilder agg;
     private List<QueryBuilder> multipleKeyFilters;
     private List<QueryBuilder> singleKeyPairFilters;
+    private final int fetchSize;
 
-    public SampleQueryRequest(QueryRequest original, List<String> keyNames, List<Attribute> keyFields) {
+    public SampleQueryRequest(QueryRequest original, List<String> keyNames, List<Attribute> keyFields, int fetchSize) {
         this.searchSource = original.searchSource();
         this.keys = keyNames;
         this.keyFields = keyFields;
+        this.fetchSize = fetchSize;
     }
 
     @Override
@@ -190,7 +191,7 @@ public class SampleQueryRequest implements QueryRequest {
             compositeAggSources.add(new TermsValuesSourceBuilder(key).field(key).missingBucket(isOptionalKey));
         }
         agg = new CompositeAggregationBuilder(COMPOSITE_AGG_NAME, compositeAggSources);
-        agg.size(SampleIterator.MAX_PAGE_SIZE);
+        agg.size(fetchSize);
         searchSource.aggregation(agg);
     }
 

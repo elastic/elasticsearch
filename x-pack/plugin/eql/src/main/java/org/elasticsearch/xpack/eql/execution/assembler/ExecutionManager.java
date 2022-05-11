@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.wrapAsFi
 
 public class ExecutionManager {
 
+    private static final int SAMPLE_MAX_PAGE_SIZE = 1000;
     private final EqlSession session;
     private final EqlConfiguration cfg;
 
@@ -158,6 +159,10 @@ public class ExecutionManager {
      * Sample assembler
      */
     public Executable assemble(List<List<Attribute>> listOfKeys, List<PhysicalPlan> plans) {
+        if (cfg.fetchSize() > SAMPLE_MAX_PAGE_SIZE) {
+            throw new EqlIllegalArgumentException("Fetch size cannot be greater than [{}]", SAMPLE_MAX_PAGE_SIZE);
+        }
+
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
         List<SampleCriterion> criteria = new ArrayList<>(plans.size() - 1);
 
@@ -182,17 +187,20 @@ public class ExecutionManager {
                 SampleQueryRequest firstQuery = new SampleQueryRequest(
                     () -> wrapAsFilter(esQueryExec.source(session, false)),
                     keyFields,
-                    keys
+                    keys,
+                    cfg.fetchSize()
                 );
                 SampleQueryRequest midQuery = new SampleQueryRequest(
                     () -> wrapAsFilter(esQueryExec.source(session, false)),
                     keyFields,
-                    keys
+                    keys,
+                    cfg.fetchSize()
                 );
                 SampleQueryRequest finalQuery = new SampleQueryRequest(
                     () -> wrapAsFilter(esQueryExec.source(session, false)),
                     keyFields,
-                    keys
+                    keys,
+                    cfg.fetchSize()
                 );
                 firstQuery.withCompositeAggregation();
                 midQuery.withCompositeAggregation();
@@ -203,7 +211,7 @@ public class ExecutionManager {
             }
         }
 
-        return new SampleIterator(new PITAwareQueryClient(session), criteria);
+        return new SampleIterator(new PITAwareQueryClient(session), criteria, cfg.fetchSize());
     }
 
     private HitExtractor timestampExtractor(HitExtractor hitExtractor) {

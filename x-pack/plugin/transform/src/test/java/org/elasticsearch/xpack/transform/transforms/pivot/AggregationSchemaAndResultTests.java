@@ -144,7 +144,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
         this.<Map<String, String>>assertAsync(
             listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
             mappings -> {
-                assertEquals("Mappings were: " + mappings, numGroupsWithoutScripts + 10, mappings.size());
+                assertEquals("Mappings were: " + mappings, numGroupsWithoutScripts + 15, mappings.size());
                 assertEquals("long", mappings.get("max_rating"));
                 assertEquals("double", mappings.get("avg_rating"));
                 assertEquals("long", mappings.get("count_rating"));
@@ -154,6 +154,11 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                 assertEquals("double", mappings.get("p_rating.5"));
                 assertEquals("double", mappings.get("p_rating.10"));
                 assertEquals("double", mappings.get("p_rating.99_9"));
+                assertEquals("object", mappings.get("some_range"));
+                assertEquals("long", mappings.get("some_range.*-10_5"));
+                assertEquals("long", mappings.get("some_range.10_5-19_5"));
+                assertEquals("long", mappings.get("some_range.19_5-20"));
+                assertEquals("long", mappings.get("some_range.20-*"));
 
                 Aggregation agg = AggregationResultUtilsTests.createSingleMetricAgg("avg_rating", 33.3, "33.3");
                 assertThat(AggregationResultUtils.getExtractor(agg).value(agg, mappings, ""), equalTo(33.3));

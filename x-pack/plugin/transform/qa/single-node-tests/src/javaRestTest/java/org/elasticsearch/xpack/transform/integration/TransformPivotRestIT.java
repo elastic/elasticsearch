@@ -1997,6 +1997,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     public void testPivotWithRanges() throws Exception {
         String transformId = "range_pivot";
         String transformIndex = "range_pivot_reviews";
+        boolean keyed = randomBoolean();
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
         final Request createTransformRequest = createRequestWithAuth(
             "PUT",
@@ -2043,13 +2044,33 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex, randomBoolean(), randomBoolean());
+            }""".formatted(REVIEWS_INDEX_NAME, transformIndex, keyed, keyed);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
         startAndWaitForTransform(transformId, transformIndex);
         assertTrue(indexExists(transformIndex));
+
+        // check destination index mappings
+        Map<String, Object> mappingsResult = getAsMap(transformIndex + "/_mapping");
+        assertThat(
+            XContentMapValues.extractValue("range_pivot_reviews.mappings.properties.ranges.properties", mappingsResult),
+            is(equalTo(Map.of(
+                "4-*", Map.of("type", "long"),
+                "2-3_99", Map.of("type", "long"),
+                "*-2", Map.of("type", "long")
+            )))
+        );
+        assertThat(
+            XContentMapValues.extractValue("range_pivot_reviews.mappings.properties.ranges-avg.properties", mappingsResult),
+            is(equalTo(Map.of(
+                "4-*", Map.of("properties", Map.of("avg_stars", Map.of("type", "double"))),
+                "2-3_99", Map.of("properties", Map.of("avg_stars", Map.of("type", "double"))),
+                "*-2", Map.of("properties", Map.of("avg_stars", Map.of("type", "double")))
+            )))
+        );
+
         // get and check some users
         Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_11");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));

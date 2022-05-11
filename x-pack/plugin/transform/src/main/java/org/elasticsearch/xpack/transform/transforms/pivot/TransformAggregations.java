@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.transform.utils.OutputFieldNameConverter;
@@ -112,7 +113,7 @@ public final class TransformAggregations {
         BUCKET_SELECTOR("bucket_selector", DYNAMIC),
         BUCKET_SCRIPT("bucket_script", DYNAMIC),
         PERCENTILES("percentiles", DOUBLE),
-        RANGE("range", SOURCE),
+        RANGE("range", LONG),
         FILTER("filter", LONG),
         TERMS("terms", FLATTENED),
         RARE_TERMS("rare_terms", FLATTENED),
@@ -218,20 +219,26 @@ public final class TransformAggregations {
         }
 
         if (agg instanceof RangeAggregationBuilder rangeAgg) {
-
-            // the merge function (p1, p2) -> p1 ignores duplicates
-            return new Tuple<>(
-                Collections.emptyMap(),
-                rangeAgg.ranges()
-                    .stream()
-                    .collect(
-                        Collectors.toMap(
-                            r -> rangeAgg.getName() + "." + AggregationResultUtils.generateKeyForRange(r.getFrom(), r.getTo()),
-                            r -> "range",
-                            (p1, p2) -> p1
-                        )
-                    )
-            );
+            HashMap<String, String> outputTypes = new HashMap<>();
+            HashMap<String, String> inputTypes = new HashMap<>();
+            for (Range range : rangeAgg.ranges()) {
+                String fieldName = rangeAgg.getName() + "." + AggregationResultUtils.generateKeyForRange(range.getFrom(), range.getTo());
+                if (rangeAgg.getSubAggregations().isEmpty()) {
+                    outputTypes.put(fieldName, AggregationType.RANGE.getName());
+                    continue;
+                }
+                for (AggregationBuilder subAgg : rangeAgg.getSubAggregations()) {
+                    Tuple<Map<String, String>, Map<String, String>> subAggregationTypes = getAggregationInputAndOutputTypes(subAgg);
+                    System.out.println("XXX 1.5 rangeAgg outputTypes: " + subAggregationTypes);
+                    for (Entry<String, String> subAggOutputType : subAggregationTypes.v2().entrySet()) {
+                        outputTypes.put(String.join(".", fieldName, subAggOutputType.getKey()), subAggOutputType.getValue());
+                    }
+                    for (Entry<String, String> subAggInputType : subAggregationTypes.v1().entrySet()) {
+                        inputTypes.put(String.join(".", fieldName, subAggInputType.getKey()), subAggInputType.getValue());
+                    }
+                }
+            }
+            return new Tuple<>(inputTypes, outputTypes);
         }
 
         // does the agg specify output field names

@@ -13,6 +13,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin;
@@ -27,6 +28,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class TransformAggregationsTests extends ESTestCase {
     public void testResolveTargetMapping() {
@@ -65,10 +69,10 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("double", TransformAggregations.resolveTargetMapping("sum", null));
 
         // range
-        assertEquals("int", TransformAggregations.resolveTargetMapping("range", "int"));
-        assertEquals("double", TransformAggregations.resolveTargetMapping("range", "double"));
-        assertEquals("half_float", TransformAggregations.resolveTargetMapping("range", "half_float"));
-        assertEquals("float", TransformAggregations.resolveTargetMapping("range", "scaled_float"));
+        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "int"));
+        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "double"));
+        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "half_float"));
+        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "scaled_float"));
 
         // geo_centroid
         assertEquals("geo_point", TransformAggregations.resolveTargetMapping("geo_centroid", "geo_point"));
@@ -213,30 +217,76 @@ public class TransformAggregationsTests extends ESTestCase {
             AggregationBuilder rangeAggregationBuilder = new RangeAggregationBuilder("range_agg_name").addUnboundedTo(100)
                 .addRange(100, 200)
                 .addUnboundedFrom(200);
-
-            Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(
-                rangeAggregationBuilder
+            var inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(rangeAggregationBuilder);
+            assertThat(
+                inputAndOutputTypes,
+                is(
+                    equalTo(
+                        Tuple.tuple(
+                            Map.of(),
+                            Map.of("range_agg_name.*-100", "range", "range_agg_name.100-200", "range", "range_agg_name.200-*", "range")
+                        )
+                    )
+                )
             );
-            Map<String, String> outputTypes = inputAndOutputTypes.v2();
-            assertEquals(3, outputTypes.size());
-            assertEquals("range", outputTypes.get("range_agg_name.*-100"));
-            assertEquals("range", outputTypes.get("range_agg_name.100-200"));
-            assertEquals("range", outputTypes.get("range_agg_name.200-*"));
         }
 
         {
             AggregationBuilder rangeAggregationBuilder = new RangeAggregationBuilder("range_agg_name").addUnboundedTo(100.5)
                 .addRange(100.5, 200.7)
                 .addUnboundedFrom(200.7);
-
-            Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(
-                rangeAggregationBuilder
+            var inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(rangeAggregationBuilder);
+            assertThat(
+                inputAndOutputTypes,
+                is(
+                    equalTo(
+                        Tuple.tuple(
+                            Map.of(),
+                            Map.of(
+                                "range_agg_name.*-100_5",
+                                "range",
+                                "range_agg_name.100_5-200_7",
+                                "range",
+                                "range_agg_name.200_7-*",
+                                "range"
+                            )
+                        )
+                    )
+                )
             );
-            Map<String, String> outputTypes = inputAndOutputTypes.v2();
-            assertEquals(3, outputTypes.size());
-            assertEquals("range", outputTypes.get("range_agg_name.*-100_5"));
-            assertEquals("range", outputTypes.get("range_agg_name.100_5-200_7"));
-            assertEquals("range", outputTypes.get("range_agg_name.200_7-*"));
+        }
+
+        {
+            AggregationBuilder rangeAggregationBuilder = new RangeAggregationBuilder("range_agg_name").addUnboundedTo(100.5)
+                .addRange(100.5, 200.7)
+                .addUnboundedFrom(200.7)
+                .subAggregation(AggregationBuilders.avg("my-avg").field("my-field"));
+            var inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(rangeAggregationBuilder);
+            assertThat(
+                inputAndOutputTypes,
+                is(
+                    equalTo(
+                        Tuple.tuple(
+                            Map.of(
+                                "range_agg_name.*-100_5.my-avg",
+                                "my-field",
+                                "range_agg_name.100_5-200_7.my-avg",
+                                "my-field",
+                                "range_agg_name.200_7-*.my-avg",
+                                "my-field"
+                            ),
+                            Map.of(
+                                "range_agg_name.*-100_5.my-avg",
+                                "avg",
+                                "range_agg_name.100_5-200_7.my-avg",
+                                "avg",
+                                "range_agg_name.200_7-*.my-avg",
+                                "avg"
+                            )
+                        )
+                    )
+                )
+            );
         }
     }
 

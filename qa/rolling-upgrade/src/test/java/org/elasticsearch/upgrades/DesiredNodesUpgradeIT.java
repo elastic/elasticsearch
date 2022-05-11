@@ -11,10 +11,8 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DesiredNode;
-import org.elasticsearch.test.rest.ObjectPath;
-
-import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -34,19 +32,18 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
             }
             case MIXED -> {
                 final var historyVersion = FIRST_MIXED_ROUND ? 2 : 3;
-                if (getMasterVersion().onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
+                if (UPGRADE_FROM_VERSION.onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
                     var response = updateDesiredNodes(historyVersion, desiredNodesWithRangeOrFloatProcessors());
                     var statusCode = response.getStatusLine().getStatusCode();
-                    if (UPGRADE_FROM_VERSION.onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
-                        assertThat(statusCode, equalTo(200));
-                    } else {
-                        // Processor ranges or float processors are forbidden during upgrades: 8.2 -> 8.3 clusters
-                        assertThat(statusCode, equalTo(400));
-                    }
-                } else {
-                    var response = updateDesiredNodes(historyVersion, desiredNodesWithIntegerProcessor());
-                    var statusCode = response.getStatusLine().getStatusCode();
                     assertThat(statusCode, equalTo(200));
+                } else {
+                    // Processor ranges or float processors are forbidden during upgrades: 8.2 -> 8.3 clusters
+                    final var responseException = expectThrows(
+                        ResponseException.class,
+                        () -> updateDesiredNodes(historyVersion, desiredNodesWithRangeOrFloatProcessors())
+                    );
+                    var statusCode = responseException.getResponse().getStatusLine().getStatusCode();
+                    assertThat(statusCode, is(equalTo(400)));
                 }
             }
             case UPGRADED -> {
@@ -116,23 +113,5 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
                     }
                 ]
             }""";
-    }
-
-    private Version getMasterVersion() throws Exception {
-        final var masterId = getMasterNodeId();
-        return getVersion(masterId);
-    }
-
-    private String getMasterNodeId() throws IOException {
-        final var request = new Request("GET", "/_cluster/state");
-        final var response = client().performRequest(request);
-        return ObjectPath.createFromResponse(response).evaluate("master_node").toString();
-    }
-
-    private Version getVersion(String nodeId) throws IOException {
-        final var request = new Request("GET", "/_nodes");
-        final var response = client().performRequest(request);
-
-        return Version.fromString(ObjectPath.createFromResponse(response).evaluate("nodes." + nodeId + ".version").toString());
     }
 }

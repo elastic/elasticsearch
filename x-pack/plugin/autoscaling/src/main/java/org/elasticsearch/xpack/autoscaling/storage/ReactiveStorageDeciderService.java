@@ -112,9 +112,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         AllocationState allocationState = allocationState(context);
         var assignedBytesUnmovableShards = allocationState.storagePreventsRemainOrMove();
+        long assignedBytes = assignedBytesUnmovableShards.bytes();
         var unassignedBytesUnassignedShards = allocationState.storagePreventsAllocation();
         long unassignedBytes = unassignedBytesUnassignedShards.bytes();
-        long assignedBytes = assignedBytesUnmovableShards.bytes();
         long maxShardSize = allocationState.maxShardSize();
         assert assignedBytes >= 0;
         assert unassignedBytes >= 0;

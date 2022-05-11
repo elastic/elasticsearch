@@ -178,7 +178,7 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
                 AuthorizationEngine.PrivilegesCheckResult>) invocation.getArguments()[4];
             listener.onFailure(new ElasticsearchException("Privileges should not be checked when there are no subjects found"));
             return null;
-        }).when(authorizationService).checkPrivileges(any(), any(), any(), any(), any());
+        }).when(authorizationService).checkPrivileges(any(), any(), anyBoolean(), any(), any());
 
         final PlainActionFuture<ProfileHasPrivilegesResponse> listener = new PlainActionFuture<>();
         transportProfileHasPrivilegesAction.doExecute(mock(Task.class), request, listener);

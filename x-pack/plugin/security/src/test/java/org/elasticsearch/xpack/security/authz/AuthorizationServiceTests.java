@@ -2714,7 +2714,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             SOME_CHECKS_FAILURE_NO_DETAILS
         );
         doAnswer(i -> {
-            assertThat(i.getArguments().length, equalTo(4));
+            assertThat(i.getArguments().length, equalTo(5));
             final Object arg1 = i.getArguments()[0];
             assertThat(arg1, instanceOf(AuthorizationInfo.class));
             AuthorizationInfo authorizationInfoArg = (AuthorizationInfo) arg1;

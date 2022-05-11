@@ -16,8 +16,9 @@ cluster, authenticates to {es} with the built-in `kibana` service account, and w
 security configuration to `kibana.yml`.
 
 NOTE: There are <<stack-skip-auto-configuration,some cases>> where security
-can't be configured automatically because an existing environment or existing
-settings are detected when starting {es}.
+can't be configured automatically because the node startup process detects that
+the node is already part of a cluster, or that security is already configured or
+explicitly disabled.
 
 [discrete]
 === Prerequisites
@@ -129,12 +130,18 @@ Certificate Authority (CA) for the HTTP layer.
 [discrete]
 [[stack-skip-auto-configuration]]
 === Cases when security auto configuration is skipped
-When you start {es} for the first time, we try to automatically configure
-security for you. We run some checks to determine whether this is the first time
-that the node is starting. If any of those checks fail, there's a good
-indication that you <<<<manually-configure-security,manually configured security>>,
-or don't want security to be configured automatically. In these cases, we'll
-respect your existing configuration and skip the auto-configuration process. 
+When you start {es} for the first time, the node startup process tries to
+automatically configure security for you. The process runs some checks to
+determine: 
+
+* If this is the first time that the node is starting
+* Whether security is already configured
+* If the startup process can modify the node configuration
+
+If any of those checks fail, there's a good indication that you
+<<manually-configure-security,manually configured security>>, or don't want
+security to be configured automatically. In these cases, the node starts
+normally using the existing configuration. 
 
 [discrete]
 [[stack-existing-environment-detected]]
@@ -148,29 +155,27 @@ automatically.
 
 The {es} `/data` directory exists and isn't empty::
 The existence of this directory is a strong indicator that the node was started 
-previously, and we don't want to overwrite your existing configuration.
+previously, and might already be part of a cluster.
 
 The `elasticsearch.yml` file doesn't exist (or isn't readable), or the `elasticsearch.keystore` isn't readable::
 If either of these files aren't readable, we can't determine whether {es} security 
-features are already enabled. This state also indicates that we're probably not 
-running as a user who has sufficient privileges.
+features are already enabled. This state can also indicate that the node startup
+process isn't running as a user with sufficient privileges to modify the
+node configuration.
 
 The {es} configuration directory isn't writable::
 This state likely indicates that an administrator made this directory read-only,
 or that the user who is starting {es} is not the user that installed {es}.
 
-Indices are read-only::
-It's likely that there's not enough disk space, so we can't write the `elastic`
-user password and API key to the `.security` index.
-
 [discrete]
 [[stack-existing-settings-detected]]
 ==== Existing settings detected
-If {es} detects any of the following settings, then we'll assume that you want
-to configure security on your own and we won't configure security automatically.
+The following settings are incompatible with security auto configuration. If any
+of these settings exist, the node startup process skips configuring security
+automatically and the node starts normally.
 
-* {ref}/modules-node.html#node-roles[`node.roles`] is set to a value other than 
-`master`
+* {ref}/modules-node.html#node-roles[`node.roles`] is set to a value where the
+node can't be elected as `master`, or if the node can't hold data
 * {ref}/security-settings.html#general-security-settings[`xpack.security.autoconfiguration.enabled`] is set to `false`
 * {ref}/security-settings.html#general-security-settings[`xpack.security.enabled`] has a value set
 * Any of the

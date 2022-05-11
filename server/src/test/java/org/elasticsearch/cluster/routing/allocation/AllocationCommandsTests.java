@@ -772,7 +772,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            DesiredNodes.ClusterMembers.EMPTY,
+            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
         logger.info("--> executing move allocation command to non-data node");
@@ -840,7 +840,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            DesiredNodes.ClusterMembers.EMPTY,
+            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
         logger.info("--> executing move allocation command from non-data node");

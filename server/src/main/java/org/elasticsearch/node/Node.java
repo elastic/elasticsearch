@@ -529,9 +529,7 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 rerouteServiceReference::get
             );
-            final DesiredNodesMembershipService desiredNodesMembershipService = InternalDesiredNodesMembershipService.create(
-                clusterService
-            );
+            final DesiredNodesMembershipService desiredNodesMembershipService = new InternalDesiredNodesMembershipService(clusterService);
             final ClusterModule clusterModule = new ClusterModule(
                 settings,
                 clusterService,

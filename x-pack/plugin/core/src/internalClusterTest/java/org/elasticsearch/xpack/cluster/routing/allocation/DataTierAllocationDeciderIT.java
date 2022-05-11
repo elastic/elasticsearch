@@ -133,6 +133,59 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         ensureGreen(index);
     }
 
+    public void testGrowAndShrinkSingleNodeInTier() throws Exception {
+        final var initialNodes = client().admin().cluster().prepareState().get().getState().nodes().stream().toList();
+
+        assertThat(initialNodes.size(), is(equalTo(1)));
+
+        final var masterNode = initialNodes.get(0);
+
+        final var warmDesiredNode = desiredNode(randomAlphaOfLength(10), DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
+        final var coldDesiredNode = desiredNode(randomAlphaOfLength(15), DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
+        final var masterDesiredNode = desiredNode(masterNode.getName(), DiscoveryNodeRole.MASTER_ROLE);
+        updateDesiredNodes(warmDesiredNode, coldDesiredNode, masterDesiredNode);
+
+        startWarmOnlyNode(warmDesiredNode.externalId());
+        final var coldNodeName = startColdOnlyNode(coldDesiredNode.externalId());
+
+        client().admin()
+            .indices()
+            .prepareCreate(index)
+            .setWaitForActiveShards(0)
+            .setSettings(
+                Settings.builder()
+                    .put(DataTier.TIER_PREFERENCE, String.join(",", DataTier.DATA_COLD, DataTier.DATA_WARM))
+                    .put("index.routing.allocation.exclude._name", masterNode.getName()) // Exclude nodes we're not interested in
+                    .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            )
+            .get();
+
+        ensureGreen(index);
+
+        assertPrimaryShardIsAllocatedInNode(0, coldDesiredNode);
+
+        final var newColdDesiredNode = desiredNode(randomAlphaOfLength(15), DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
+        updateDesiredNodes(warmDesiredNode, newColdDesiredNode, masterDesiredNode);
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(index)
+            .setSettings(
+                Settings.builder()
+                    .put("index.routing.allocation.exclude._name", String.join(",", masterNode.getName(), coldNodeName))
+                    .build()
+            )
+            .get();
+
+        assertBusy(() -> assertPrimaryShardIsAllocatedInNode(0, coldDesiredNode));
+
+        startColdOnlyNode(newColdDesiredNode.externalId());
+
+        assertBusy(() -> assertPrimaryShardIsAllocatedInNode(0, newColdDesiredNode));
+
+        ensureGreen(index);
+    }
+
     public void testOverrideDefaultAllocation() {
         startWarmOnlyNode();
         startColdOnlyNode();

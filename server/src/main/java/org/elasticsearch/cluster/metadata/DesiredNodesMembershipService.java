@@ -9,5 +9,5 @@
 package org.elasticsearch.cluster.metadata;
 
 public interface DesiredNodesMembershipService {
-    DesiredNodes.ClusterMembers getMembers();
+    DesiredNodes.MembershipInformation getMembershipInformation();
 }

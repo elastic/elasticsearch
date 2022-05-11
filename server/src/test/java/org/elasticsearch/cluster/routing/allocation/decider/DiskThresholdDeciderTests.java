@@ -934,7 +934,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
-            DesiredNodes.ClusterMembers.EMPTY,
+            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
@@ -967,7 +967,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
-            DesiredNodes.ClusterMembers.EMPTY,
+            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
@@ -1129,7 +1129,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
-            DesiredNodes.ClusterMembers.EMPTY,
+            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);

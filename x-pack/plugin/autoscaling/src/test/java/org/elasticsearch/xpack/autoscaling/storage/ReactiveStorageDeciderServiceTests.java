@@ -237,7 +237,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             initialClusterState,
             null,
             null,
-            DesiredNodes.ClusterMembers.EMPTY,
+            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
         ShardRouting primaryShard = subjectRoutings.primaryShard();

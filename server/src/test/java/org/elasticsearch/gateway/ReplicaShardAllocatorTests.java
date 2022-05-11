@@ -582,7 +582,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             state,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            DesiredNodes.ClusterMembers.EMPTY,
+            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
     }
@@ -628,7 +628,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             state,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            DesiredNodes.ClusterMembers.EMPTY,
+            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
     }

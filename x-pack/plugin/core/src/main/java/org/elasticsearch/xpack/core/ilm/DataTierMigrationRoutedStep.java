@@ -61,7 +61,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             // less "preferable" tiers (i.e. move from cold back to warm)
             // meaning that it's ok not providing desired node membership info
             // here as the desired nodes won't change the preferred tier in this use case.
-            DesiredNodes.ClusterMembers.EMPTY
+            DesiredNodes.MembershipInformation.EMPTY
         );
 
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {

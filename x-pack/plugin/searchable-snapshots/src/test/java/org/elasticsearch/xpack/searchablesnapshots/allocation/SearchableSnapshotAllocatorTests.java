@@ -262,7 +262,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
                     return shardSize;
                 }
             },
-            DesiredNodes.ClusterMembers.EMPTY,
+            DesiredNodes.MembershipInformation.EMPTY,
             TimeUnit.MILLISECONDS.toNanos(deterministicTaskQueue.getCurrentTimeMillis())
         );
     }

@@ -305,7 +305,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             state,
             null,
             null,
-            DesiredNodes.ClusterMembers.EMPTY,
+            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
         randomAllocate(allocation);
@@ -337,7 +337,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             state,
             null,
             null,
-            DesiredNodes.ClusterMembers.EMPTY,
+            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
         startAll(allocation);

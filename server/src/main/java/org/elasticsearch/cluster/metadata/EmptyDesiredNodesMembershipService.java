@@ -15,7 +15,7 @@ public class EmptyDesiredNodesMembershipService implements DesiredNodesMembershi
     private EmptyDesiredNodesMembershipService() {}
 
     @Override
-    public DesiredNodes.ClusterMembers getMembers() {
-        return DesiredNodes.ClusterMembers.EMPTY;
+    public DesiredNodes.MembershipInformation getMembershipInformation() {
+        return DesiredNodes.MembershipInformation.EMPTY;
     }
 }

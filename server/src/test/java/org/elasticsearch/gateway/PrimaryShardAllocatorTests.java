@@ -498,7 +498,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                     return shardSize;
                 }
             },
-            DesiredNodes.ClusterMembers.EMPTY,
+            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
     }
@@ -535,7 +535,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             state,
             null,
             null,
-            DesiredNodes.ClusterMembers.EMPTY,
+            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
     }

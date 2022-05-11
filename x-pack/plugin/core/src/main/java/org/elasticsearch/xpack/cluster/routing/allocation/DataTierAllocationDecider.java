@@ -68,7 +68,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     }
 
     public interface PreferredTierFunction {
-        Optional<String> apply(List<String> tierPreference, DiscoveryNodes nodes, DesiredNodes.ClusterMembers desiredNodes);
+        Optional<String> apply(List<String> tierPreference, DiscoveryNodes nodes, DesiredNodes.MembershipInformation desiredNodes);
     }
 
     private static final Decision YES_PASSES = Decision.single(Decision.YES.type(), NAME, "node passes tier preference filters");
@@ -83,7 +83,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         if (tierPreference.isEmpty() != false) {
             return YES_PASSES;
         }
-        Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes(), allocation.getDesiredNodesClusterMembers());
+        Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes(), allocation.getDesiredNodesMembershipInfo());
         if (tier.isPresent()) {
             String tierName = tier.get();
             if (allocationAllowed(tierName, roles)) {
@@ -141,27 +141,39 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     public static Optional<String> preferredAvailableTier(
         List<String> prioritizedTiers,
         DiscoveryNodes nodes,
-        DesiredNodes.ClusterMembers desiredNodesMembers
+        DesiredNodes.MembershipInformation desiredNodes
     ) {
-        final var desiredNodesPreferredTier = preferredAvailableTier(prioritizedTiers, desiredNodesMembers);
+        final var desiredNodesPreferredTier = getPreferredTierFromDesiredNodes(prioritizedTiers, nodes, desiredNodes);
 
         if (desiredNodesPreferredTier.isPresent()) {
             return desiredNodesPreferredTier;
         }
 
-        return preferredAvailableTier(prioritizedTiers, nodes);
+        return getPreferredAvailableTierFromClusterMembers(prioritizedTiers, nodes);
     }
 
-    public static Optional<String> preferredAvailableTier(List<String> prioritizedTiers, DesiredNodes.ClusterMembers nodes) {
+    public static Optional<String> getPreferredTierFromDesiredNodes(
+        List<String> prioritizedTiers,
+        DiscoveryNodes discoveryNodes,
+        DesiredNodes.MembershipInformation membershipInformation
+    ) {
         for (String tier : prioritizedTiers) {
-            if (tierNodesPresent(tier, nodes.members())) {
+            if (tierNodesPresent(tier, membershipInformation.members())
+                || isDesiredNodeWithTierJoining(tier, discoveryNodes, membershipInformation.allDesiredNodes())) {
                 return Optional.of(tier);
             }
         }
         return Optional.empty();
     }
 
-    public static Optional<String> preferredAvailableTier(List<String> prioritizedTiers, DiscoveryNodes nodes) {
+    public static boolean isDesiredNodeWithTierJoining(String tier, DiscoveryNodes discoveryNodes, List<DesiredNode> allDesiredNodes) {
+        // Take into account the case when the desired nodes have been updated and the node in the tier would be replaced by
+        // a new one. In that case the desired node in the tier won't be a member as it has to join, but we still need to ensure
+        // that at least one cluster member has the requested tier as we would prefer to minimize the shard movements in these cases.
+        return tierNodesPresent(tier, allDesiredNodes) && tierNodesPresent(tier, discoveryNodes);
+    }
+
+    public static Optional<String> getPreferredAvailableTierFromClusterMembers(List<String> prioritizedTiers, DiscoveryNodes nodes) {
         for (String tier : prioritizedTiers) {
             if (tierNodesPresent(tier, nodes)) {
                 return Optional.of(tier);

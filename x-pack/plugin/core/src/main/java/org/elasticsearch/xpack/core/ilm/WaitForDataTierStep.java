@@ -42,7 +42,7 @@ public class WaitForDataTierStep extends ClusterStateWaitStep {
             // less "preferable" tiers (i.e. move from cold back to warm)
             // meaning that it's ok not providing desired node membership info
             // here as the desired nodes won't change the preferred tier in this use case.
-            DesiredNodes.ClusterMembers.EMPTY
+            DesiredNodes.MembershipInformation.EMPTY
         ).isPresent();
         SingleMessageFieldInfo info = present ? null : new SingleMessageFieldInfo("no nodes for tiers [" + tierPreference + "] available");
         return new Result(present, info);

@@ -379,7 +379,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         private Optional<String> highestPreferenceTier(
             List<String> preferredTiers,
             DiscoveryNodes unused,
-            DesiredNodes.ClusterMembers desiredNodes
+            DesiredNodes.MembershipInformation desiredNodes
         ) {
             assert preferredTiers.isEmpty() == false;
             return Optional.of(preferredTiers.get(0));

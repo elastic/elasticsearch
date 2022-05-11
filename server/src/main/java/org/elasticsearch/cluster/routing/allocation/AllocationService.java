@@ -137,7 +137,7 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            desiredNodesMembershipService.getMembers(),
+            desiredNodesMembershipService.getMembershipInformation(),
             currentNanoTime()
         );
         // as starting a primary relocation target can reinitialize replica shards, start replicas first
@@ -217,7 +217,7 @@ public class AllocationService {
             tmpState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            desiredNodesMembershipService.getMembers(),
+            desiredNodesMembershipService.getMembershipInformation(),
             currentNanoTime
         );
 
@@ -292,7 +292,7 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            desiredNodesMembershipService.getMembers(),
+            desiredNodesMembershipService.getMembershipInformation(),
             currentNanoTime()
         );
 
@@ -455,7 +455,7 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            desiredNodesMembershipService.getMembers(),
+            desiredNodesMembershipService.getMembershipInformation(),
             currentNanoTime()
         );
         // don't short circuit deciders, we want a full explanation
@@ -496,7 +496,7 @@ public class AllocationService {
             fixedClusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            desiredNodesMembershipService.getMembers(),
+            desiredNodesMembershipService.getMembershipInformation(),
             currentNanoTime()
         );
         reroute(allocation);

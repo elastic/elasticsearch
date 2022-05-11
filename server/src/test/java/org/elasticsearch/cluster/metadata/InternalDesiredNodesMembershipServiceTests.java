@@ -61,23 +61,23 @@ public class InternalDesiredNodesMembershipServiceTests extends DesiredNodesTest
     }
 
     public void testDesiredNodeIsConsideredAsMemberOnceSeen() {
-        final var tracker = InternalDesiredNodesMembershipService.create(clusterService);
+        final var tracker = new InternalDesiredNodesMembershipService(clusterService);
 
         applyClusterState("add new nodes", this::withNewNodes);
 
         assertThat(DesiredNodesMetadata.fromClusterState(clusterService.state()), is(equalTo(DesiredNodesMetadata.EMPTY)));
 
-        final var membersBeforeDesiredNodesAreAdded = tracker.getMembers();
-        assertThat(membersBeforeDesiredNodesAreAdded.count(), is(equalTo(0)));
+        final var membersBeforeDesiredNodesAreAdded = tracker.getMembershipInformation();
+        assertThat(membersBeforeDesiredNodesAreAdded.memberCount(), is(equalTo(0)));
 
         applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
 
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
         assertThat(desiredNodes.nodes(), is(not(empty())));
 
-        final var membersAfterDesiredNodesAreAdded = tracker.getMembers();
+        final var membersAfterDesiredNodesAreAdded = tracker.getMembershipInformation();
         for (var desiredNode : desiredNodes) {
-            assertThat(membersAfterDesiredNodesAreAdded.contains(desiredNode), is(equalTo(true)));
+            assertThat(membersAfterDesiredNodesAreAdded.isMember(desiredNode), is(equalTo(true)));
         }
 
         final var clusterState = clusterService.state();
@@ -87,30 +87,30 @@ public class InternalDesiredNodesMembershipServiceTests extends DesiredNodesTest
 
         applyClusterState("remove some nodes", state -> ClusterState.builder(state).nodes(discoveryNodes).build());
 
-        final var membersAfterNodeLeaves = tracker.getMembers();
+        final var membersAfterNodeLeaves = tracker.getMembershipInformation();
         // As long as the node remains in the DesiredNodes we consider it as member
-        assertThat(membersAfterNodeLeaves.contains(leavingDesiredNode), is(equalTo(true)));
+        assertThat(membersAfterNodeLeaves.isMember(leavingDesiredNode), is(equalTo(true)));
     }
 
     public void testMembershipIsUpdatedAfterDesiredNodesAreUpdated() {
-        final var tracker = InternalDesiredNodesMembershipService.create(clusterService);
+        final var tracker = new InternalDesiredNodesMembershipService(clusterService);
 
         applyClusterState("add new nodes", this::withNewNodes);
 
         assertThat(DesiredNodesMetadata.fromClusterState(clusterService.state()), is(equalTo(DesiredNodesMetadata.EMPTY)));
 
-        final var membersBeforeDesiredNodesAreAdded = tracker.getMembers();
-        assertThat(membersBeforeDesiredNodesAreAdded.count(), is(equalTo(0)));
+        final var membersBeforeDesiredNodesAreAdded = tracker.getMembershipInformation();
+        assertThat(membersBeforeDesiredNodesAreAdded.memberCount(), is(equalTo(0)));
 
         applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
 
-        final var membersAfterDesiredNodesAreAdded = tracker.getMembers();
-        assertThat(membersAfterDesiredNodesAreAdded.count(), is(greaterThan(0)));
+        final var membersAfterDesiredNodesAreAdded = tracker.getMembershipInformation();
+        assertThat(membersAfterDesiredNodesAreAdded.memberCount(), is(greaterThan(0)));
 
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
         assertThat(desiredNodes.nodes(), is(not(empty())));
         for (var desiredNode : desiredNodes) {
-            assertThat(membersAfterDesiredNodesAreAdded.contains(desiredNode), is(equalTo(true)));
+            assertThat(membersAfterDesiredNodesAreAdded.isMember(desiredNode), is(equalTo(true)));
         }
 
         final var removedDesiredNodes = randomSubsetOf(randomInt(desiredNodes.nodes().size() - 1), desiredNodes.nodes());
@@ -130,30 +130,30 @@ public class InternalDesiredNodesMembershipServiceTests extends DesiredNodesTest
                 .build()
         );
 
-        final var membersAfterUpdatingDesiredNodes = tracker.getMembers();
+        final var membersAfterUpdatingDesiredNodes = tracker.getMembershipInformation();
 
         for (DesiredNode survivingDesiredNode : survivingDesiredNodes) {
-            assertThat(membersAfterUpdatingDesiredNodes.contains(survivingDesiredNode), is(equalTo(true)));
+            assertThat(membersAfterUpdatingDesiredNodes.isMember(survivingDesiredNode), is(equalTo(true)));
         }
 
         for (DesiredNode removedDesiredNode : removedDesiredNodes) {
-            assertThat(membersAfterUpdatingDesiredNodes.contains(removedDesiredNode), is(equalTo(false)));
+            assertThat(membersAfterUpdatingDesiredNodes.isMember(removedDesiredNode), is(equalTo(false)));
         }
     }
 
     public void testMoveToNewHistoryIdClearsPreviousMembers() {
-        final var tracker = InternalDesiredNodesMembershipService.create(clusterService);
+        final var tracker = new InternalDesiredNodesMembershipService(clusterService);
 
         applyClusterState("add a few nodes", this::withNewNodes);
 
-        final var membersBeforeAddingDesiredNodes = tracker.getMembers();
+        final var membersBeforeAddingDesiredNodes = tracker.getMembershipInformation();
 
-        assertThat(membersBeforeAddingDesiredNodes.count(), is(equalTo(0)));
+        assertThat(membersBeforeAddingDesiredNodes.memberCount(), is(equalTo(0)));
 
         applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
 
-        final var membersAfterAddingDesiredNodes = tracker.getMembers();
-        assertThat(membersAfterAddingDesiredNodes.count(), is(greaterThan(0)));
+        final var membersAfterAddingDesiredNodes = tracker.getMembershipInformation();
+        assertThat(membersAfterAddingDesiredNodes.memberCount(), is(greaterThan(0)));
 
         final var clusterState = clusterService.state();
         final var originalDesiredNodes = DesiredNodes.latestFromClusterState(clusterState);
@@ -175,17 +175,17 @@ public class InternalDesiredNodesMembershipServiceTests extends DesiredNodesTest
                 .build()
         );
 
-        final var membersAfterUpgradingHistoryId = tracker.getMembers();
+        final var membersAfterUpgradingHistoryId = tracker.getMembershipInformation();
 
         for (DesiredNode desiredNode : originalDesiredNodes) {
             if (desiredNodesWithNewHistoryId.nodes().contains(desiredNode)) {
                 continue;
             }
-            assertThat(membersAfterUpgradingHistoryId.contains(desiredNode), is(equalTo(false)));
+            assertThat(membersAfterUpgradingHistoryId.isMember(desiredNode), is(equalTo(false)));
         }
 
         for (DesiredNode desiredNode : desiredNodesWithNewHistoryId) {
-            assertThat(membersAfterUpgradingHistoryId.contains(desiredNode), is(equalTo(true)));
+            assertThat(membersAfterUpgradingHistoryId.isMember(desiredNode), is(equalTo(true)));
         }
     }
 
@@ -193,29 +193,29 @@ public class InternalDesiredNodesMembershipServiceTests extends DesiredNodesTest
         applyClusterState("add new nodes", this::withNewNodes);
         applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
 
-        final var tracker = InternalDesiredNodesMembershipService.create(clusterService);
+        final var tracker = new InternalDesiredNodesMembershipService(clusterService);
 
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
 
         applyClusterState("Unrelated update", clusterState -> ClusterState.builder(clusterState).incrementVersion().build());
 
-        final var members = tracker.getMembers();
+        final var members = tracker.getMembershipInformation();
         for (DesiredNode desiredNode : desiredNodes) {
-            assertThat(members.contains(desiredNode), is(equalTo(true)));
+            assertThat(members.isMember(desiredNode), is(equalTo(true)));
         }
     }
 
     public void testRemoveDesiredNodes() {
-        final var tracker = InternalDesiredNodesMembershipService.create(clusterService);
+        final var tracker = new InternalDesiredNodesMembershipService(clusterService);
 
         applyClusterState("add new nodes", this::withNewNodes);
         applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
 
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
 
-        final var members = tracker.getMembers();
+        final var members = tracker.getMembershipInformation();
         for (DesiredNode desiredNode : desiredNodes) {
-            assertThat(members.contains(desiredNode), is(true));
+            assertThat(members.isMember(desiredNode), is(true));
         }
 
         applyClusterState(
@@ -225,9 +225,9 @@ public class InternalDesiredNodesMembershipServiceTests extends DesiredNodesTest
                 .build()
         );
 
-        final var membersAfterRemovingDesiredNodes = tracker.getMembers();
+        final var membersAfterRemovingDesiredNodes = tracker.getMembershipInformation();
         for (DesiredNode desiredNode : desiredNodes) {
-            assertThat(membersAfterRemovingDesiredNodes.contains(desiredNode), is(false));
+            assertThat(membersAfterRemovingDesiredNodes.isMember(desiredNode), is(false));
         }
     }
 

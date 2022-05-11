@@ -17,17 +17,14 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class InternalDesiredNodesMembershipService implements ClusterStateListener, DesiredNodesMembershipService {
+    private final ClusterService clusterService;
     private final Set<DesiredNode> members;
     private String latestHistoryId = null;
 
-    InternalDesiredNodesMembershipService() {
+    public InternalDesiredNodesMembershipService(ClusterService clusterService) {
+        this.clusterService = clusterService;
         this.members = new HashSet<>();
-    }
-
-    public static InternalDesiredNodesMembershipService create(ClusterService clusterService) {
-        var tracker = new InternalDesiredNodesMembershipService();
-        clusterService.addListener(tracker);
-        return tracker;
+        clusterService.addListener(this);
     }
 
     @Override
@@ -69,12 +66,13 @@ public class InternalDesiredNodesMembershipService implements ClusterStateListen
     }
 
     @Override
-    public synchronized DesiredNodes.ClusterMembers getMembers() {
+    public synchronized DesiredNodes.MembershipInformation getMembershipInformation() {
         if (members.isEmpty()) {
-            return DesiredNodes.ClusterMembers.EMPTY;
+            return DesiredNodes.MembershipInformation.EMPTY;
         }
+        final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
 
-        return new DesiredNodes.ClusterMembers(Set.copyOf(members));
+        return new DesiredNodes.MembershipInformation(desiredNodes, Set.copyOf(members));
     }
 
 }

@@ -51,7 +51,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     // the remote cluster is the one we write index operations etc... to
     private static final String REMOTE_CLUSTER_NAME = "remote_cluster";
     // the following are the CCS api calls that we run against the "search" cluster in this test setup
-    private static final Set<String> CCS_APIS = Set.of("search", "field_caps", "msearch");
+    private static final Set<String> CCS_APIS = Set.of("search", "field_caps", "msearch", "scroll", "clear_scroll");
 
     @Before
     public void initSearchClient() throws IOException {
@@ -99,19 +99,20 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                     NodeSelector nodeSelector
                 ) throws IOException {
                     // on request, we need to replace index specifications by prefixing the remote cluster
-                    String originalIndices = params.get("index");
-                    String expandedIndices = REMOTE_CLUSTER_NAME + ":*";
-                    if (originalIndices != null && (originalIndices.isEmpty() == false)) {
-                        String[] indices = originalIndices.split(",");
-                        List<String> newIndices = new ArrayList<>();
-                        for (String indexName : indices) {
-                            newIndices.add(REMOTE_CLUSTER_NAME + ":" + indexName);
+                    if (apiName.equals("scroll") == false && apiName.equals("clear_scroll") == false) {
+                        String originalIndices = params.get("index");
+                        String expandedIndices = REMOTE_CLUSTER_NAME + ":*";
+                        if (originalIndices != null && (originalIndices.isEmpty() == false)) {
+                            String[] indices = originalIndices.split(",");
+                            List<String> newIndices = new ArrayList<>();
+                            for (String indexName : indices) {
+                                newIndices.add(REMOTE_CLUSTER_NAME + ":" + indexName);
+                            }
+                            expandedIndices = String.join(",", newIndices);
                         }
-                        expandedIndices = String.join(",", newIndices);
+                        params.put("index", String.join(",", expandedIndices));
                     }
-                    params.put("index", String.join(",", expandedIndices));
-                    ClientYamlTestResponse clientYamlTestResponse = super.callApi(apiName, params, entity, headers, nodeSelector);
-                    return clientYamlTestResponse;
+                    return super.callApi(apiName, params, entity, headers, nodeSelector);
                 };
             };
 

@@ -19,10 +19,10 @@ apply plugin: 'elasticsearch.rest-resources'
 restResources {
   restApi {
     include '_common', 'bulk', 'count', 'cluster', 'index', 'indices', 'field_caps', 'msearch',
-      'search', 'async_search', 'graph', '*_point_in_time', "info"
+      'search', 'async_search', 'graph', '*_point_in_time', 'info', 'scroll', "clear_scroll"
   }
   restTests {
-    includeCore 'field_caps', 'msearch', 'search', 'suggest'
+    includeCore 'field_caps', 'msearch', 'search', 'suggest', 'scroll'
   }
 }
 
@@ -64,6 +64,7 @@ tasks.register("ccs-write", RestIntegTestTask) {
     [
       'field_caps',
       "msearch",
+      "scroll",
       'search',
       'search.aggregation',
       'search.highlight',
@@ -79,6 +80,7 @@ tasks.register("ccs-write", RestIntegTestTask) {
       'search/170_terms_query/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', // terms lookup query with index
       'search/350_point_in_time/basic', // [indices] cannot be used with point in time
       'search/350_point_in_time/point-in-time with slicing', // [indices] cannot be used with point in time
+      'search/350_point_in_time/msearch', // [indices] cannot be used with point in time
       'search/350_point_in_time/wildcard', // [indices] cannot be used with point in time
       'search.aggregation/220_filters_bucket/cache busting', // node_selector?
       'search.aggregation/220_filters_bucket/cache hits', // node_selector?

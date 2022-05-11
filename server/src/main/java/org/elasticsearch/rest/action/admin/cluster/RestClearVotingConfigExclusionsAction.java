@@ -34,7 +34,9 @@ public class RestClearVotingConfigExclusionsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ClearVotingConfigExclusionsRequest req = new ClearVotingConfigExclusionsRequest();
+        final var req = new ClearVotingConfigExclusionsRequest();
+        req.masterNodeTimeout(request.paramAsTime("master_timeout", req.masterNodeTimeout()));
+        req.setTimeout(req.masterNodeTimeout());
         if (request.hasParam("wait_for_removal")) {
             req.setWaitForRemoval(request.paramAsBoolean("wait_for_removal", true));
         }

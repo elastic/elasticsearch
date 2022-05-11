@@ -238,16 +238,15 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()
-            && indexSettings.getIndexMetadata().isSearchableSnapshot() == false) {
+            && indexSettings.getIndexMetadata().isSearchableSnapshot() == false
+            && indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY) == false) {
             return Optional.of(
                 engineConfig -> new ReadOnlyEngine(
                     engineConfig,
                     null,
                     new TranslogStats(),
                     true,
-                    indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
-                        ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
-                        : Function.identity(),
+                    Function.identity(),
                     true,
                     false
                 )

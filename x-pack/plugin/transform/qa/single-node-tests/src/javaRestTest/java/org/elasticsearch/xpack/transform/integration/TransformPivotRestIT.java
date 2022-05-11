@@ -2056,19 +2056,22 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         Map<String, Object> mappingsResult = getAsMap(transformIndex + "/_mapping");
         assertThat(
             XContentMapValues.extractValue("range_pivot_reviews.mappings.properties.ranges.properties", mappingsResult),
-            is(equalTo(Map.of(
-                "4-*", Map.of("type", "long"),
-                "2-3_99", Map.of("type", "long"),
-                "*-2", Map.of("type", "long")
-            )))
+            is(equalTo(Map.of("4-*", Map.of("type", "long"), "2-3_99", Map.of("type", "long"), "*-2", Map.of("type", "long"))))
         );
         assertThat(
             XContentMapValues.extractValue("range_pivot_reviews.mappings.properties.ranges-avg.properties", mappingsResult),
-            is(equalTo(Map.of(
-                "4-*", Map.of("properties", Map.of("avg_stars", Map.of("type", "double"))),
-                "2-3_99", Map.of("properties", Map.of("avg_stars", Map.of("type", "double"))),
-                "*-2", Map.of("properties", Map.of("avg_stars", Map.of("type", "double")))
-            )))
+            is(
+                equalTo(
+                    Map.of(
+                        "4-*",
+                        Map.of("properties", Map.of("avg_stars", Map.of("type", "double"))),
+                        "2-3_99",
+                        Map.of("properties", Map.of("avg_stars", Map.of("type", "double"))),
+                        "*-2",
+                        Map.of("properties", Map.of("avg_stars", Map.of("type", "double")))
+                    )
+                )
+            )
         );
 
         // get and check some users

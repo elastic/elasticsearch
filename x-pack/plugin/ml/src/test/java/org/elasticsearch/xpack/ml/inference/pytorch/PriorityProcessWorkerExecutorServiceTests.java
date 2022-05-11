@@ -42,6 +42,25 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         assertTrue(r3.hasBeenRejected);
     }
 
+    public void testQueueCapacityReached_HighestPriority() {
+        var executor = createProcessWorkerExecutorService(2);
+
+        var counter = new AtomicInteger();
+        executor.executeWithPriority(new RunOrderValidator(1, counter), RequestPriority.NORMAL, 100L);
+        executor.executeWithPriority(new RunOrderValidator(2, counter), RequestPriority.NORMAL, 102L);
+        // queue is now full
+        var r3 = new RunOrderValidator(3, counter);
+        executor.executeWithPriority(r3, RequestPriority.HIGH, 103L);
+        var highestPriorityAlwaysAccepted = new RunOrderValidator(4, counter);
+        executor.executeWithPriority(highestPriorityAlwaysAccepted, RequestPriority.HIGHEST, 104L);
+        var r5 = new RunOrderValidator(5, counter);
+        executor.executeWithPriority(r5, RequestPriority.NORMAL, 105L);
+
+        assertTrue(r3.hasBeenRejected);
+        assertFalse(highestPriorityAlwaysAccepted.hasBeenRejected);
+        assertTrue(r5.hasBeenRejected);
+    }
+
     public void testOrderedRunnables_NormalPriority() {
         var executor = createProcessWorkerExecutorService(100);
 

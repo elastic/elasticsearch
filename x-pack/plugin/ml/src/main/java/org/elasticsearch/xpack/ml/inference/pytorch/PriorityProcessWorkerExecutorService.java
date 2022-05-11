@@ -83,10 +83,14 @@ public class PriorityProcessWorkerExecutorService extends AbstractProcessWorkerE
             return;
         }
 
-        if (queue.size() == queueCapacity
-            || queue.add(new OrderedRunnable(priority, tieBreaker, contextHolder.preserveContext(command))) == false) {
+        // highest priority requests are always accepted even if the queue is full
+        if (queue.size() >= queueCapacity && priority != RequestPriority.HIGHEST) {
             command.onRejection(new EsRejectedExecutionException(processName + " queue is full. Unable to execute command", false));
+            return;
         }
+
+        // PriorityBlockingQueue::offer always returns true
+        queue.offer(new OrderedRunnable(priority, tieBreaker, contextHolder.preserveContext(command)));
     }
 
     @Override

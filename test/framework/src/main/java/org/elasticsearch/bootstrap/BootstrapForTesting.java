@@ -362,8 +362,8 @@ public class BootstrapForTesting {
             return null;
         });
         return () -> AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                Security.setSecurityManager(sm);
-                return null;
-            });
+            Security.setSecurityManager(sm);
+            return null;
+        });
     }
 }

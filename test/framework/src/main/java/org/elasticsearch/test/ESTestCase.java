@@ -127,8 +127,6 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -361,9 +359,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Marks a test suite or a test method that should run without security manager enabled.
      */
     @Retention(RetentionPolicy.RUNTIME)
-    @Target({ElementType.TYPE})
+    @Target({ ElementType.TYPE })
     @Inherited
-    public @interface NoSecurityManager {}
+    public @interface NoSecurityManager {
+    }
 
     private static Closeable securityManagerRestorer;
 

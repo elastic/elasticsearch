@@ -59,6 +59,7 @@ public class APM extends Plugin implements NetworkPlugin {
         return List.of(
             APMAgentSettings.APM_ENABLED_SETTING,
             APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING,
+            APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING,
             APMAgentSettings.APM_AGENT_SETTINGS
         );
     }

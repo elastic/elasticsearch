@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_AGENT_DEFAULT_SETTINGS;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_AGENT_SETTINGS;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_ENABLED_SETTING;
+import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
 
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
@@ -54,6 +55,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private volatile APMServices services;
 
     private List<String> includeNames;
+    private List<String> excludeNames;
     private final APMAgentSettings apmAgentSettings;
 
     /**
@@ -64,6 +66,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     public APMTracer(Settings settings, ClusterService clusterService, APMAgentSettings apmAgentSettings) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
+        this.excludeNames = APM_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
         this.apmAgentSettings = apmAgentSettings;
 
         this.enabled = APM_ENABLED_SETTING.get(settings);
@@ -86,6 +89,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, this::setEnabled);
         clusterSettings.addSettingsUpdateConsumer(APM_TRACING_NAMES_INCLUDE_SETTING, this::setIncludeNames);
+        clusterSettings.addSettingsUpdateConsumer(APM_TRACING_NAMES_EXCLUDE_SETTING, this::setExcludeNames);
         clusterSettings.addAffixMapUpdateConsumer(APM_AGENT_SETTINGS, map -> map.forEach(apmAgentSettings::setAgentSetting), (x, y) -> {});
     }
 
@@ -103,6 +107,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     private void setIncludeNames(List<String> includeNames) {
         this.includeNames = includeNames;
+    }
+
+    private void setExcludeNames(List<String> excludeNames) {
+        this.excludeNames = excludeNames;
     }
 
     @Override
@@ -289,7 +297,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private boolean isSpanNameIncluded(String name) {
         // Alternatively we could use automata here but it is much more complex
         // and it needs wrapping like done for use in the security plugin.
-        return includeNames.isEmpty() || Regex.simpleMatch(includeNames, name);
+        final boolean include = includeNames.isEmpty() || Regex.simpleMatch(includeNames, name);
+        final boolean exclude = excludeNames.isEmpty() == false && Regex.simpleMatch(excludeNames, name);
+        return include && exclude == false;
     }
 
     @Override

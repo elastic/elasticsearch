@@ -278,6 +278,14 @@ class APMAgentSettings {
         NodeScope
     );
 
+    static final Setting<List<String>> APM_TRACING_NAMES_EXCLUDE_SETTING = Setting.listSetting(
+        APM_SETTING_PREFIX + "names.exclude",
+        Collections.emptyList(),
+        Function.identity(),
+        OperatorDynamic,
+        NodeScope
+    );
+
     static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting(
         APM_SETTING_PREFIX + "enabled",
         false,

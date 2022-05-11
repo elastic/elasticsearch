@@ -22,10 +22,12 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_AGENT_SETTINGS;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_ENABLED_SETTING;
+import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -174,6 +176,84 @@ public class APMTracerTests extends ESTestCase {
         buildTracer(settings, apmAgentSettings);
 
         verify(apmAgentSettings, atLeastOnce()).setAgentSetting("recording", "false");
+    }
+
+    /**
+     * Check that when a tracer has a list of include names configured, then those
+     * names are used to filter spans.
+     */
+    public void test_whenTraceStarted_andSpanNameIncluded_thenSpanIsStarted() {
+        final List<String> includePatterns = List.of(
+            // exact name
+            "test-span-name-aaa",
+            // regex
+            "test-span-name-b*"
+        );
+        Settings settings = Settings.builder()
+            .put(APM_ENABLED_SETTING.getKey(), true)
+            .putList(APM_TRACING_NAMES_INCLUDE_SETTING.getKey(), includePatterns)
+            .build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        Traceable traceableA = new TestTraceable("aaa");
+        Traceable traceableB = new TestTraceable("bbb");
+        Traceable traceableC = new TestTraceable("ccc");
+        apmTracer.onTraceStarted(new ThreadContext(settings), traceableA);
+        apmTracer.onTraceStarted(new ThreadContext(settings), traceableB);
+        apmTracer.onTraceStarted(new ThreadContext(settings), traceableC);
+
+        assertThat(apmTracer.getSpans(), hasKey(traceableA.getSpanId()));
+        assertThat(apmTracer.getSpans(), hasKey(traceableB.getSpanId()));
+        assertThat(apmTracer.getSpans(), not(hasKey(traceableC.getSpanId())));
+    }
+
+    /**
+     * Check that when a tracer has a list of include and exclude names configured, and
+     * a span matches both, then the exclude filters take precedence.
+     */
+    public void test_whenTraceStarted_andSpanNameIncludedAndExcluded_thenSpanIsNotStarted() {
+        final List<String> includePatterns = List.of("test-span-name-a*");
+        final List<String> excludePatterns = List.of("test-span-name-a*");
+        Settings settings = Settings.builder()
+            .put(APM_ENABLED_SETTING.getKey(), true)
+            .putList(APM_TRACING_NAMES_INCLUDE_SETTING.getKey(), includePatterns)
+            .putList(APM_TRACING_NAMES_EXCLUDE_SETTING.getKey(), excludePatterns)
+            .build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        Traceable traceableA = new TestTraceable("aaa");
+        apmTracer.onTraceStarted(new ThreadContext(settings), traceableA);
+
+        assertThat(apmTracer.getSpans(), not(hasKey(traceableA.getSpanId())));
+    }
+
+    /**
+     * Check that when a tracer has a list of exclude names configured, then those
+     * names are used to filter spans.
+     */
+    public void test_whenTraceStarted_andSpanNameExcluded_thenSpanIsNotStarted() {
+        final List<String> excludePatterns = List.of(
+            // exact name
+            "test-span-name-aaa",
+            // regex
+            "test-span-name-b*"
+        );
+        Settings settings = Settings.builder()
+            .put(APM_ENABLED_SETTING.getKey(), true)
+            .putList(APM_TRACING_NAMES_EXCLUDE_SETTING.getKey(), excludePatterns)
+            .build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        Traceable traceableA = new TestTraceable("aaa");
+        Traceable traceableB = new TestTraceable("bbb");
+        Traceable traceableC = new TestTraceable("ccc");
+        apmTracer.onTraceStarted(new ThreadContext(settings), traceableA);
+        apmTracer.onTraceStarted(new ThreadContext(settings), traceableB);
+        apmTracer.onTraceStarted(new ThreadContext(settings), traceableC);
+
+        assertThat(apmTracer.getSpans(), not(hasKey(traceableA.getSpanId())));
+        assertThat(apmTracer.getSpans(), not(hasKey(traceableB.getSpanId())));
+        assertThat(apmTracer.getSpans(), hasKey(traceableC.getSpanId()));
     }
 
     private APMTracer buildTracer(Settings settings) {

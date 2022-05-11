@@ -33,7 +33,7 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
         SecurityProfileUser.NAME };
 
     private static final String[] INTERNAL_ROLE_NAMES = new String[] {
-        SystemUser.ROLE_NAME,
+        UsernamesField.SYSTEM_ROLE,
         UsernamesField.XPACK_ROLE,
         UsernamesField.XPACK_SECURITY_ROLE,
         UsernamesField.ASYNC_SEARCH_ROLE,

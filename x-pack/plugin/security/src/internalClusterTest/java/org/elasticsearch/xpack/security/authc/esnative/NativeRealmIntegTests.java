@@ -463,7 +463,6 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
     private void assertClusterHealthOnlyAuthorizesWhenAnonymousRoleActive(String token) {
         if (anonymousEnabled && roleExists) {
-            // native anonymous user has ALL on cluster permissions, so should authorize
             assertNoTimeout(
                 client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get()
             );

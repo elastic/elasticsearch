@@ -263,6 +263,7 @@ public class UpdateHelper {
         );
         ctx = executeScript(request.script, metadata, ctx);
 
+        // TODO(stu): should this come from Metadata?
         UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, request.script.getIdOrCode());
 
         @SuppressWarnings("unchecked")
@@ -476,8 +477,8 @@ public class UpdateHelper {
         public static final String ROUTING = "_routing";
     }
 
-    // Op.NOOP is UpdateOpType.NONE here, so Op.NOOP is spelled "none"
-    private static Op opFromUpdateOpType(UpdateOpType updateOpType) {
+    // Op and UpdateOpType have the same naming except UpdateOpType.NONE ("none") and Op.NOOP ("noop").
+    private static Op fromUpdateOpType(UpdateOpType updateOpType) {
         if (updateOpType == null) {
             return null;
         } else if (updateOpType == UpdateOpType.NONE) {
@@ -486,7 +487,7 @@ public class UpdateHelper {
         return Op.fromString(updateOpType.name);
     }
 
-    private static Op opFromString(String opStr) {
+    private static Op fromUpdateOpTypeString(String opStr) {
         if (opStr == null) {
             return null;
         } else if (UpdateOpType.NONE.name.equals(opStr.toLowerCase(Locale.ROOT))) {
@@ -495,7 +496,8 @@ public class UpdateHelper {
         return Op.fromString(opStr);
     }
 
-    private static String opStringFromOp(Op op) {
+    // Op.name except Op.NOOP's name is replaced with "none"
+    private static String toUpdateOpTypeString(Op op) {
         if (op == null) {
             return null;
         } else if (op == Op.NOOP) {
@@ -504,7 +506,15 @@ public class UpdateHelper {
         return op.name;
     }
 
-    // Update with script, update with upsert
+    /**
+     * Metadata for Updates via {@link UpdateScript} with script and upsert.
+     *
+     * _index, _id, _routing, _version and _now (timestamp) are read-only.
+     *
+     * _op is read/write with valid values: NOOP ("none"), INDEX, DELETE, CREATE
+     *
+     * _version_type is unavailable.
+     */
     private static class UpdateMetadata extends org.elasticsearch.script.field.Metadata {
         private final ZonedDateTime timestamp;
 
@@ -525,7 +535,7 @@ public class UpdateHelper {
             put(idKey, id);
             put(routingKey, routing);
             put(versionKey, version);
-            setOp(opFromUpdateOpType(Objects.requireNonNull(op)));
+            setOp(fromUpdateOpType(Objects.requireNonNull(op)));
         }
 
         @Override
@@ -550,13 +560,13 @@ public class UpdateHelper {
 
         @Override
         public Op getOp() {
-            return opFromString(getString(opKey));
+            return fromUpdateOpTypeString(getString(opKey));
         }
 
         @Override
         public void setOp(Op op) {
             validateOp(op);
-            put(opKey, opStringFromOp(op));
+            put(opKey, toUpdateOpTypeString(op));
         }
 
         @Override
@@ -565,7 +575,14 @@ public class UpdateHelper {
         }
     }
 
-    // This is an _update with scripted_upsert: true and the document does not exist
+    /**
+     * Metadata for insertions done via scripted upsert with an {@link UpdateScript}
+     *
+     * The only metadata available is the timestamp and the Op.
+     * The Op must be either "create" or "none" (Op.NOOP).
+     *
+     * _index, _id, _routing, _version, _version_type are unavailable.
+     */
     private static class UpsertMetadata extends org.elasticsearch.script.field.Metadata {
         private final ZonedDateTime timestamp;
 
@@ -573,18 +590,18 @@ public class UpdateHelper {
             super(ctx, null, null, null, null, null, ContextFields.OP, EnumSet.of(Op.CREATE, Op.NOOP));
             this.timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneOffset.UTC);
             put(ContextFields.NOW, timestamp);
-            setOp(opFromUpdateOpType(op));
+            setOp(fromUpdateOpType(op));
         }
 
         @Override
         public Op getOp() {
-            return opFromString(getString(opKey));
+            return fromUpdateOpTypeString(getString(opKey));
         }
 
         @Override
         public void setOp(Op op) {
             validateOp(op);
-            put(opKey, opStringFromOp(op));
+            put(opKey, toUpdateOpTypeString(op));
         }
 
         @Override

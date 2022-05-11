@@ -1011,6 +1011,15 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     // reindex and update by query
+
+    /**
+     * Metadata reindex and update-by-query with an {@link UpdateScript}.
+     *
+     * _index, _id, _routing, _version and _op are read/write.
+     * _op accepts NOOP, INDEX and DELETE.
+     *
+     * _version_key is unavailable.
+     */
     private static class ReindexMetadata extends org.elasticsearch.script.field.Metadata {
 
         ReindexMetadata(Map<String, Object> ctx, String index, String id, String routing, Long version, OpType op) {

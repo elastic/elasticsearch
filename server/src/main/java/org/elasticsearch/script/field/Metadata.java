@@ -147,7 +147,9 @@ public abstract class Metadata {
     }
 
     protected void validateOp(Op op) {
-        if (op != null && VALID_OPS != null && VALID_OPS.contains(op) == false) {
+        if (op == null) {
+            throw new IllegalStateException("Operation type must be non-null");
+        } else if (VALID_OPS != null && VALID_OPS.contains(op) == false) {
             throw new IllegalArgumentException(
                 "Operation type [" + op.name + "] not allowed, only " + Arrays.toString(VALID_OPS.toArray()) + " are allowed"
             );
@@ -156,6 +158,7 @@ public abstract class Metadata {
 
     protected Op objectToOp(Object obj) {
         if (obj == null) {
+            // TODO(stu): Should this be Op.NOOP so that setOp and getOp are symmetric?
             return null;
         }
         if (obj instanceof Op op) {

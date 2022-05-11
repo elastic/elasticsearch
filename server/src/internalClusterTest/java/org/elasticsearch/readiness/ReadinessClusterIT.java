@@ -8,6 +8,7 @@
 package org.elasticsearch.readiness;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -132,6 +133,8 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
                 expectMasterNotFound();
 
                 for (String dataNode : dataNodes) {
+                    MasterHistoryService mh = internalCluster().getInstance(MasterHistoryService.class, dataNode);
+                    waitUntil(() -> mh.getLocalMasterHistory().getMostRecentMaster() == null);
                     ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
                     tcpReadinessProbeFalse(s);
                 }

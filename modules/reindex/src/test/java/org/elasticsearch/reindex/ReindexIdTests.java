@@ -10,8 +10,11 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -21,6 +24,8 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.xcontent.XContentType;
+
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -34,15 +39,27 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
     }
 
     public void testStandardIndexCopiesId() throws Exception {
-        Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD);
-        assertThat(action(stateWithIndex(settings)).buildRequest(doc()).getId(), equalTo(doc().getId()));
+        assertThat(action(stateWithIndex(standardSettings())).buildRequest(doc()).getId(), equalTo(doc().getId()));
     }
 
     public void testTsdbIndexClearsId() throws Exception {
-        Settings.Builder settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
-        assertThat(action(stateWithIndex(settings)).buildRequest(doc()).getId(), nullValue());
+        assertThat(action(stateWithIndex(tsdbSettings())).buildRequest(doc()).getId(), nullValue());
+    }
+
+    public void testMissingIndexWithStandardTemplateClearsId() throws Exception {
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.put("c", new ComponentTemplate(new Template(standardSettings().build(), null, null), null, null));
+        metadata.put("c", new ComposableIndexTemplate(List.of("dest_index"), null, List.of("c"), null, null, null));
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
+        assertThat(action(state).buildRequest(doc()).getId(), equalTo(doc().getId()));
+    }
+
+    public void testMissingIndexWithTsdbTemplateClearsId() throws Exception {
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.put("c", new ComponentTemplate(new Template(tsdbSettings().build(), null, null), null, null));
+        metadata.put("c", new ComposableIndexTemplate(List.of("dest_index"), null, List.of("c"), null, null, null));
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
+        assertThat(action(state).buildRequest(doc()).getId(), nullValue());
     }
 
     private ClusterState stateWithIndex(Settings.Builder settings) {
@@ -51,6 +68,16 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             .numberOfReplicas(0)
             .numberOfShards(1);
         return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta)).build();
+    }
+
+    private Settings.Builder standardSettings() {
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD);
+    }
+
+    private Settings.Builder tsdbSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
     }
 
     private ScrollableHitSource.BasicHit doc() {

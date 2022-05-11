@@ -1,5 +1,0 @@
-pr: 86647
-summary: "TSDB: Initial reindex fix"
-area: "TSDB, Reindex"
-type: feature
-issues: []

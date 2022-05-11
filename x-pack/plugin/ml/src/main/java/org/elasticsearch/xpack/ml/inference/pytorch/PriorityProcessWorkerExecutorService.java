@@ -17,9 +17,8 @@ import java.util.concurrent.PriorityBlockingQueue;
 
 /**
  * An {@link AbstractProcessWorkerExecutorService} where the runnables
- * are have a priority and are executed in priority order with a tie breaker
- * value for requests of equal priority. The tie breaker can be used to
- * preserve insertion order.
+ * are executed in priority order with a tie breaker value for requests
+ * of equal priority. The tie breaker can be used to preserve insertion order.
  *
  * Order is maintained by a PriorityQueue
  */

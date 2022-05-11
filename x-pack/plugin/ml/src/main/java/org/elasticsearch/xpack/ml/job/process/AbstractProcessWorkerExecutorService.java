@@ -26,9 +26,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+/**
+ * A worker service that executes runnables sequentially in
+ * a single worker thread.
+ * @param <T> implements Runnable
+ */
 public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> extends AbstractExecutorService {
 
-    private static final Logger logger = LogManager.getLogger(ProcessWorkerExecutorService.class);
+    private static final Logger logger = LogManager.getLogger(AbstractProcessWorkerExecutorService.class);
 
     protected final ThreadContext contextHolder;
     protected final String processName;

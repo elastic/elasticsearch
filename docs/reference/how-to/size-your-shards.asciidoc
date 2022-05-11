@@ -69,7 +69,7 @@ heap memory.
 
 Every mapped field also carries some overhead in terms of memory usage and disk
 space. While the exact amount resource usage of each additional field depends
-on the type of field, an additional 1KB in memory use  for each additional
+on the type of field, an additional 1KB in memory use for each additional
 mapped field on data nodes is a good approximation in most cases.
 As a result, the more mapped fields you have per index, the fewer
 indices and shards each individual data node will be able to hold,

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,6 +33,8 @@ import java.util.Objects;
 public class DataStreamMetadata implements Metadata.Custom {
 
     public static final String TYPE = "data_stream";
+
+    public static final DataStreamMetadata EMPTY = new DataStreamMetadata(Map.of(), Map.of());
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
     private static final ParseField DATA_STREAM_ALIASES = new ParseField("data_stream_aliases");
     @SuppressWarnings("unchecked")
@@ -72,7 +75,21 @@ public class DataStreamMetadata implements Metadata.Custom {
     }
 
     public DataStreamMetadata(StreamInput in) throws IOException {
-        this(in.readMap(StreamInput::readString, DataStream::new), in.readMap(StreamInput::readString, DataStreamAlias::new));
+        this(
+            in.readImmutableMap(StreamInput::readString, DataStream::new),
+            in.readImmutableMap(StreamInput::readString, DataStreamAlias::new)
+        );
+    }
+
+    public DataStreamMetadata withAddedDatastream(DataStream datastream) {
+        final String name = datastream.getName();
+        final DataStream existing = dataStreams.get(name);
+        if (existing == null) {
+            return new DataStreamMetadata(Maps.copyMapWithAddedEntry(dataStreams, name, datastream), dataStreamAliases);
+        } else if (existing.equals(datastream)) {
+            return this;
+        }
+        return new DataStreamMetadata(Maps.copyMapWithAddedOrReplacedEntry(dataStreams, name, datastream), dataStreamAliases);
     }
 
     public Map<String, DataStream> dataStreams() {

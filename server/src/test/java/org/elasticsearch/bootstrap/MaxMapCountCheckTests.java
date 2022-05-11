@@ -202,11 +202,9 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
 
         @Override
         public void match(final LogEvent event) {
-            if (event.getLevel().equals(level)
-                && event.getLoggerName().equals(loggerName)) {
+            if (event.getLevel().equals(level) && event.getLoggerName().equals(loggerName)) {
                 Message message = event.getMessage();
-                saw = message.getFormattedMessage().equals(this.message)
-                    && throwablePredicate.test(event.getThrown());
+                saw = message.getFormattedMessage().equals(this.message) && throwablePredicate.test(event.getThrown());
             }
         }
 

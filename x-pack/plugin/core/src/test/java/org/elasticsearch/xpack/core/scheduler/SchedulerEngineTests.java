@@ -218,7 +218,8 @@ public class SchedulerEngineTests extends ESTestCase {
         final ArgumentCaptor<Supplier> messageCaptor = ArgumentCaptor.forClass(Supplier.class);
         final ArgumentCaptor<Throwable> throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
         verify(mockLogger, times(times)).warn(messageCaptor.capture(), throwableCaptor.capture());
-        for (@SuppressWarnings("rawtypes") final Supplier supplier : messageCaptor.getAllValues()) {
+        for (@SuppressWarnings("rawtypes")
+        final Supplier supplier : messageCaptor.getAllValues()) {
             assertThat(supplier.get().toString(), equalTo("listener failed while handling triggered event [" + getTestName() + "]"));
         }
         for (final Throwable throwable : throwableCaptor.getAllValues()) {

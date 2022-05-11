@@ -392,12 +392,12 @@ public final class DateFieldMapper extends FieldMapper {
         protected final Resolution resolution;
         protected final String nullValue;
         protected final FieldValues<Long> scriptValues;
-        private final boolean isLegacyIndexed;
+        private final boolean pointsMetadataAvailable;
 
         public DateFieldType(
             String name,
             boolean isIndexed,
-            boolean isLegacyIndexed,
+            boolean pointsMetadataAvailable,
             boolean isStored,
             boolean hasDocValues,
             DateFormatter dateTimeFormatter,
@@ -412,7 +412,7 @@ public final class DateFieldMapper extends FieldMapper {
             this.resolution = resolution;
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
-            this.isLegacyIndexed = isLegacyIndexed;
+            this.pointsMetadataAvailable = pointsMetadataAvailable;
         }
 
         public DateFieldType(
@@ -679,7 +679,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateMathParser dateParser,
             QueryRewriteContext context
         ) throws IOException {
-            if (isIndexed() == false && isLegacyIndexed == false && hasDocValues()) {
+            if (isIndexed() == false && pointsMetadataAvailable == false && hasDocValues()) {
                 // we don't have a quick way to run this check on doc values, so fall back to default assuming we are within bounds
                 return Relation.INTERSECTS;
             }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -35,16 +36,17 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -338,18 +340,18 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
     public void testConcurrency() throws InterruptedException {
 
+        var discoveryNode = createDiscoveryNode();
+        var state = new AtomicReference<>(ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).masterNodeId(discoveryNode.getId()))
+            .build());
+
         var createdIndices = new CopyOnWriteArraySet<String>();
         var allocatedIndices = new CopyOnWriteArraySet<String>();
         var reroutedIndices = new CopyOnWriteArraySet<String>();
 
         var threadPool = new TestThreadPool(getTestName());
-        RerouteService rerouteService = (r, p, l) -> {
-            final var localCreatedIndices = Set.copyOf(createdIndices);
-            threadPool.executor(ThreadPool.Names.GENERIC).submit(() -> {
-                reroutedIndices.addAll(localCreatedIndices);
-                l.onResponse(null);
-            });
-        };
+        var rerouteServiceSupplier = new SetOnce<RerouteService>();
+
         var allocator = new ShardsAllocator() {
             @Override
             public void allocate(RoutingAllocation allocation) {// TODO attempt to count up-to-date allocations
@@ -373,12 +375,19 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                 throw new AssertionError("only used for allocation explain");
             }
         };
-        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(allocator, threadPool, () -> rerouteService);
-
-        var discoveryNode = createDiscoveryNode();
-        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).masterNodeId(discoveryNode.getId()))
-            .build();
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(allocator, threadPool, rerouteServiceSupplier::get);
+        var rerouteExecutor = Executors.newSingleThreadExecutor(r -> new Thread(r, "TEST-executor"));
+        rerouteServiceSupplier.set((r, p, l) -> {
+            final var localCreatedIndices = Set.copyOf(createdIndices);
+            rerouteExecutor.submit(() -> {
+                reroutedIndices.addAll(localCreatedIndices);
+                if (randomInt(9) == 0) {
+                    desiredBalanceShardsAllocator.allocate(createAllocationFrom(state.get()), l.map(ignore -> null));
+                } else {
+                    l.onResponse(null);
+                }
+            });
+        });
 
         var indexNameGenerator = new AtomicInteger();
 
@@ -389,14 +398,14 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             if (addNewIndex) {
                 var indexName = "index-" + indexNameGenerator.incrementAndGet();
                 var indexMetadata = createIndex(indexName);
-                clusterState = ClusterState.builder(clusterState)
+                state.getAndUpdate(clusterState -> ClusterState.builder(clusterState)
                     .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadata, true))
                     .routingTable(RoutingTable.builder(clusterState.routingTable()).addAsNew(indexMetadata))
-                    .build();
+                    .build());
                 createdIndices.add(indexName);
             }
             var indexName = "index-" + indexNameGenerator;
-            desiredBalanceShardsAllocator.allocate(createAllocationFrom(clusterState), ActionListener.wrap(() -> {
+            desiredBalanceShardsAllocator.allocate(createAllocationFrom(state.get()), ActionListener.wrap(() -> {
                 assertThat("Listener should be called after index is rerouted", reroutedIndices, hasItem(indexName));
                 listenersCountdown.countDown();
             }));
@@ -407,7 +416,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         assertThat(allocatedIndices.size(), equalTo(indexNameGenerator.get()));
         assertThat(reroutedIndices.size(), equalTo(indexNameGenerator.get()));
 
-        terminate(threadPool);
+        rerouteExecutor.shutdown();
     }
 
     private static RoutingAllocation createAllocationFrom(ClusterState clusterState) {

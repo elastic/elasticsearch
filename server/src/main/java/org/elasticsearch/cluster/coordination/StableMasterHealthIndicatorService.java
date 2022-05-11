@@ -77,12 +77,15 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     private static final Logger logger = LogManager.getLogger(StableMasterHealthIndicatorService.class);
 
+    // This is the default amount of time we look back to see if we have had a master at all, before moving on with other checks
     private static final TimeValue DEFAULT_VERY_RECENT_PAST = new TimeValue(30, TimeUnit.SECONDS);
     private static final TimeValue SMALLEST_ALLOWED_VERY_RECENT_PAST = new TimeValue(1, TimeUnit.SECONDS);
 
+    // This is the default number of times that it is OK to have a master go null. Any more than this will be reported as a problem
     private static final int DEFAULT_ACCEPTABLE_NULL_TRANSITIONS = 3;
     private static final int SMALLEST_ALLOWED_ACCEPTABLE_NULL_TRANSITIONS = 0;
 
+    // This is the default number of times that it is OK to have a master change identity. Any more than this will be reported as a problem
     private static final int DEFAULT_ACCEPTABLE_IDENTITY_CHANGES = 3;
     private static final int SMALLEST_ALLOWED_ACCEPTABLE_IDENTITY_CHANGES = 0;
 
@@ -98,11 +101,6 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private static final String UNSTABLE_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT = "Scheduled tasks such as Watcher, ILM, and SLM will not "
         + "work. The _cat APIs will not work.";
     private static final String UNSTABLE_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work.";
-
-    /**
-     * The severity to use for a low-severity impact in this indicator
-     */
-    private static final int LOW_IMPACT_SEVERITY = 3;
 
     public static final Setting<TimeValue> VERY_RECENT_PAST_SETTING = Setting.timeSetting(
         "health.master_history.very_recent_past",
@@ -157,7 +155,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     /**
      * Returns the health result for the case when we have seen a master recently (at some point in the last 30 seconds).
      * @param localMasterHistory The master history as seen from the local machine
-     * @param explain Whether to calculate and include the details in the result
+     * @param explain Whether to calculate and include the details and user actions in the result
      * @return The HealthIndicatorResult for the given localMasterHistory
      */
     private HealthIndicatorResult calculateWhenHaveSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
@@ -175,8 +173,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     }
 
     /**
-     * Returns the health result when we have detected locally that the master has changed identity repeatedly (more than 3 times in the
-     * last 30 minutes)
+     * Returns the health result when we have detected locally that the master has changed identity repeatedly (by default more than 3
+     * times in the last 30 minutes)
      * @param localMasterHistory The master history as seen from the local machine
      * @param masterChanges The number of times that the local machine has seen the master identity change in the last 30 minutes
      * @param explain Whether to calculate and include the details in the result
@@ -260,9 +258,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     }
 
     /**
-     * Returns the health result when we have detected locally that the master has changed to null repeatedly (more than 3 times in the last
-     * 30 minutes). This method attemtps to use the master history from a remote node to confirm what we are seeing locally. If the
-     * information from the remote node confirms that the master history has been unstable, a YELLOW status is returned. If the
+     * Returns the health result when we have detected locally that the master has changed to null repeatedly (by default more than 3 times
+     * in the last 30 minutes). This method attemtps to use the master history from a remote node to confirm what we are seeing locally.
+     * If the information from the remote node confirms that the master history has been unstable, a YELLOW status is returned. If the
      * information from the remote node shows that the master history has been stable, then we assume that the problem is with this node
      * and a GREEN status is returned (the problems with this node will be covered in a different health indicator). If there had been
      * problems fetching the remote master history, the exception seen will be included in the details of the result.
@@ -271,13 +269,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @return The HealthIndicatorResult for the given localMasterHistory
      */
     private HealthIndicatorResult calculateWhenMasterHasFlappedNull(MasterHistory localMasterHistory, boolean explain) {
-        final HealthStatus stableMasterStatus;
-        final String summary;
-        Map<String, Object> details = new HashMap<>();
-        final Collection<HealthIndicatorImpact> impacts;
-        final List<UserAction> userActions;
         DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
-        logger.trace("One master has gone null {} or more times recently: {}", acceptableNullTransitions + 1, master);
         boolean localNodeIsMaster = clusterService.localNode().equals(master);
         List<DiscoveryNode> remoteHistory;
         Exception remoteHistoryException = null;
@@ -291,24 +283,36 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 remoteHistoryException = e;
             }
         }
-        if (localNodeIsMaster
+        /*
+         * If the local node is master, then we have a confirmed problem (since we now know that from this node's point of view the
+         * master is unstable).
+         * If the local node is not master but the remote history is null then we have a problem (since from this node's point of view the
+         * master is unstable, and we were unable to get the master's own view of its history). It could just be a short-lived problem
+         * though if the remote history has not arrived yet.
+         * If the local node is not master and the master history from the master itself reports that the master has gone null repeatedly
+         *  or changed identity repeatedly, then we have a problem (the master has confirmed what the local node saw).
+         */
+        boolean masterConfirmedUnstable = localNodeIsMaster
             || remoteHistory == null
             || MasterHistory.hasMasterGoneNullAtLeastNTimes(remoteHistory, acceptableNullTransitions + 1)
-            || MasterHistory.getNumberOfMasterIdentityChanges(remoteHistory) > acceptableIdentityChanges) {
+            || MasterHistory.getNumberOfMasterIdentityChanges(remoteHistory) > acceptableIdentityChanges;
+        if (masterConfirmedUnstable) {
             if (localNodeIsMaster == false && remoteHistory == null) {
                 logger.trace("Unable to get master history from {}}", master);
             } else {
                 logger.trace("The master node {} thinks it is unstable", master);
             }
-            stableMasterStatus = HealthStatus.YELLOW;
-            summary = String.format(
+            final HealthStatus stableMasterStatus = HealthStatus.YELLOW;
+            String summary = String.format(
                 Locale.ROOT,
                 "The cluster's master has alternated between %s and no master multiple times in the last %s",
                 localMasterHistory.getNodes().stream().filter(Objects::nonNull).collect(Collectors.toSet()),
                 localMasterHistory.getMaxHistoryAge()
             );
-            impacts = getUnstableMasterImpacts();
+            final Collection<HealthIndicatorImpact> impacts = getUnstableMasterImpacts();
+            Map<String, Object> details;
             if (explain) {
+                details = new HashMap<>();
                 details.put(DETAILS_CURRENT_MASTER, new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
                 if (remoteHistoryException != null) {
                     details.put(DETAILS_EXCEPTION_FETCHING_HISTORY, remoteHistoryException.getMessage());
@@ -317,22 +321,21 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     String remoteHistoryExceptionStackTrace = stringWriter.toString();
                     details.put(DETAILS_EXCEPTION_FETCHING_HISTORY_STACK_TRACE, remoteHistoryExceptionStackTrace);
                 }
+            } else {
+                details = Map.of();
             }
-            userActions = getContactSupportUserActions(explain);
+            final List<UserAction> userActions = getContactSupportUserActions(explain);
+            return createIndicator(
+                stableMasterStatus,
+                summary,
+                explain ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
+                impacts,
+                userActions
+            );
         } else {
             logger.trace("This node thinks the master is unstable, but the master node {} thinks it is stable", master);
-            stableMasterStatus = HealthStatus.GREEN;
-            summary = "The cluster has a stable master node";
-            impacts = List.of();
-            userActions = List.of();
+            return getMasterIsStableResult(explain, localMasterHistory);
         }
-        return createIndicator(
-            stableMasterStatus,
-            summary,
-            explain ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
-            impacts,
-            userActions
-        );
     }
 
     /**
@@ -358,7 +361,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private HealthIndicatorResult calculateWhenHaveNotSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
         // NOTE: The logic in this method will be implemented in a future PR
         HealthStatus stableMasterStatus = HealthStatus.RED;
-        String summary = "Placeholder summary";
+        String summary = "No master has been observed recently";
         Map<String, Object> details = new HashMap<>();
         Collection<HealthIndicatorImpact> impacts = getUnstableMasterImpacts();
         List<UserAction> userActions = getContactSupportUserActions(explain);
@@ -371,7 +374,12 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         );
     }
 
+    /**
+     * This returns true if this node has seen a master node within the last few seconds
+     * @return true if this node has seen a master node within the last few seconds, false otherwise
+     */
     private boolean hasSeenMasterInVeryRecentPast() {
+        // If there is currently a master, there's no point in looking at the history:
         if (clusterService.state().nodes().getMasterNode() != null) {
             return true;
         }
@@ -379,8 +387,11 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     }
 
     /*
-     * If we detect that the same master has gone null 3 or more times, we ask the MasterHistoryService to fetch the master history
-     * as seen from that node so that it is ready in case a health API request comes in.
+     * If we detect that the master has gone null 3 or more times (by default), we ask the MasterHistoryService to fetch the master
+     * history as seen from the most recent master node so that it is ready in case a health API request comes in. The request to the
+     * MasterHistoryService is made asynchronously, and populates the value that MasterHistoryService.getRemoteMasterHistory() will return.
+     * The remote master history is ordinarily returned very quickly if it is going to be returned, so the odds are very good it will be
+     * in place by the time a request for it comes in. If not, this indicator will briefly switch to yellow.
      */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
@@ -389,6 +400,10 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         if (currentMaster == null && previousMaster != null) {
             if (masterHistoryService.getLocalMasterHistory().hasMasterGoneNullAtLeastNTimes(acceptableNullTransitions + 1)) {
                 DiscoveryNode master = masterHistoryService.getLocalMasterHistory().getMostRecentNonNullMaster();
+                /*
+                 * If the most recent master was this box, there is no point in making a transport request -- we already know what this
+                 * box's view of the master history is
+                 */
                 if (master != null && clusterService.localNode().equals(master) == false) {
                     masterHistoryService.refreshRemoteMasterHistory(master);
                 }

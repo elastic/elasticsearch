@@ -8,101 +8,87 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 
 public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
-    private static final String[] INTERNAL_USER_NAMES = new String[] {
-        SystemUser.INSTANCE.principal(),
-        XPackUser.INSTANCE.principal(),
-        XPackSecurityUser.INSTANCE.principal(),
-        AsyncSearchUser.INSTANCE.principal(),
-        SecurityProfileUser.INSTANCE.principal() };
+    private static final String[] INTERNAL_USERNAMES = new String[] {
+        SystemUser.NAME,
+        XPackUser.NAME,
+        XPackSecurityUser.NAME,
+        AsyncSearchUser.NAME,
+        SecurityProfileUser.NAME };
 
-    private static final String ROLES = """
-        _system:
-          cluster: [ none ]
-          indices:
-            - names: 'a'
-              privileges: [ all ]
-
-        _xpack:
-          cluster: [ none ]
-          indices:
-            - names: 'a'
-              privileges: [ all ]
-
-        _xpack_security:
-          cluster: [ none ]
-          indices:
-            - names: 'a'
-              privileges: [ all ]
-
-        _security_profile:
-          cluster: [ none ]
-          indices:
-            - names: 'a'
-              privileges: [ all ]
-
-        _async_search:
-          cluster: [ none ]
-          indices:
-            - names: 'a'
-              privileges: [ all ]
-
-        _custom_role:
-          indices:
-            - names: 'a'
-              privileges: [ all ]
-        """;
+    private static final String[] INTERNAL_ROLE_NAMES = new String[] {
+        SystemUser.ROLE_NAME,
+        UsernamesField.XPACK_ROLE,
+        UsernamesField.XPACK_SECURITY_ROLE,
+        UsernamesField.ASYNC_SEARCH_ROLE,
+        UsernamesField.SECURITY_PROFILE_ROLE };
 
     private static final String USERS_ROLES = """
-        _system:user
-        _xpack:user
-        _xpack_security:user
-        _security_profile:user
-        _async_search:user
-        _custom_role:_system,_xpack,_xpack_security,_security_profile,_async_search
-        """;
+        %s:user
+        %s:user
+        %s:user
+        %s:user
+        %s:user
+        _custom_role:%s
+        """.formatted(
+        UsernamesField.SYSTEM_ROLE,
+        UsernamesField.XPACK_ROLE,
+        UsernamesField.XPACK_SECURITY_ROLE,
+        UsernamesField.ASYNC_SEARCH_ROLE,
+        UsernamesField.SECURITY_PROFILE_ROLE,
+        Arrays.toString(INTERNAL_USERNAMES)
+    );
 
     @Override
     protected String configRoles() {
-        return super.configRoles() + "\n" + ROLES;
+        StringBuilder builder = new StringBuilder(super.configRoles());
+        for (String roleName : INTERNAL_ROLE_NAMES) {
+            builder.append("""
+                %s:
+                  cluster: [ none ]
+                  indices:
+                    - names: 'a'
+                      privileges: [ all ]
+                """.formatted(roleName));
+        }
+        return builder.toString();
     }
 
     @Override
     protected String configUsers() {
         final Hasher passwdHasher = getFastStoredHashAlgoForTests();
         final String usersPasswdHashed = new String(passwdHasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
-        return super.configUsers()
-            + "user:"
-            + usersPasswdHashed
-            + "\n"
-            + "_system:"
-            + usersPasswdHashed
-            + "\n"
-            + "_xpack:"
-            + usersPasswdHashed
-            + "\n"
-            + "_security_profile:"
-            + usersPasswdHashed
-            + "\n"
-            + "_xpack_security:"
-            + usersPasswdHashed
-            + "\n"
-            + "_async_search:"
-            + usersPasswdHashed
-            + "\n";
+        StringBuilder builder = new StringBuilder(super.configUsers());
+        for (String username : INTERNAL_USERNAMES) {
+            builder.append(username).append(":").append(usersPasswdHashed).append("\n");
+        }
+        return builder + "user:" + usersPasswdHashed + "\n";
+    }
+
+    @Override
+    protected String configUsersRoles() {
+        StringBuilder builder = new StringBuilder(super.configUsersRoles());
+        for (String roleName : INTERNAL_ROLE_NAMES) {
+            builder.append("%s:user\n".formatted(roleName));
+        }
+        // all internal users are mapped to custom role
+        return builder + "_custom_role:%s\n".formatted(Arrays.toString(INTERNAL_USERNAMES));
     }
 
     private static Path repositoryLocation;
@@ -127,11 +113,6 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
         return Settings.builder().put(super.nodeSettings()).put("path.repo", repositoryLocation).build();
     }
 
-    @Override
-    protected String configUsersRoles() {
-        return super.configUsersRoles() + USERS_ROLES;
-    }
-
     public void testInternalRoleNamesDoNotResultInInternalUserPermissions() throws Exception {
         assertAccessIsDenied("user", "GET", "/_cluster/health");
         assertAccessIsDenied("user", "PUT", "/" + XPackPlugin.ASYNC_RESULTS_INDEX + "/_doc/1", "{}");
@@ -140,7 +121,7 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
     }
 
     public void testInternalUsernamesDoNotResultInInternalUserPermissions() throws Exception {
-        for (final var internalUsername : INTERNAL_USER_NAMES) {
+        for (final var internalUsername : INTERNAL_USERNAMES) {
             assertAccessIsDenied(internalUsername, "GET", "/_cluster/health");
             assertAccessIsDenied("user", "PUT", "/" + XPackPlugin.ASYNC_RESULTS_INDEX + "/_doc/1", "{}");
             assertAccessIsDenied("user", "PUT", "/.security-profile/_doc/1", "{}");

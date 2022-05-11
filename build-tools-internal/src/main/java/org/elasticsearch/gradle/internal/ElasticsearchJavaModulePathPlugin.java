@@ -200,6 +200,6 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
     }
 
     static boolean isIdea() {
-        return System.getProperty("idea.active", "false").equals("true");
+        return System.getProperty("idea.sync.active", "false").equals("true");
     }
 }

@@ -53,14 +53,12 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -852,16 +850,16 @@ public abstract class AbstractAsyncBulkByScrollAction<
             Map<String, Object> context = new HashMap<>();
             context.put(SourceFieldMapper.NAME, request.getSource());
 
-            OpType oldOpType = OpType.INDEX;
+            Op oldOp = Op.INDEX;
             String oldRouting = doc.getRouting();
             Long oldVersion = doc.getVersion();
-            ReindexMetadata metadata = new ReindexMetadata(context, doc.getIndex(), doc.getId(), oldRouting, oldVersion, oldOpType);
+            ReindexMetadata metadata = new ReindexMetadata(context, doc.getIndex(), doc.getId(), oldRouting, oldVersion, oldOp);
 
             UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
             UpdateScript updateScript = factory.newInstance(params, metadata, context);
             updateScript.execute();
 
-            String newOp = (String) context.remove("op");
+            Op newOp = metadata.getOp();
             if (newOp == null) {
                 throw new IllegalArgumentException("Script cleared operation type");
             }
@@ -872,40 +870,40 @@ public abstract class AbstractAsyncBulkByScrollAction<
              */
             request.setSource((Map<String, Object>) context.remove(SourceFieldMapper.NAME));
 
-            Object newValue = context.remove(IndexFieldMapper.NAME);
+            String newValue = metadata.getIndex();
             if (false == doc.getIndex().equals(newValue)) {
                 scriptChangedIndex(request, newValue);
             }
-            newValue = context.remove(IdFieldMapper.NAME);
+            newValue = metadata.getId();
             if (false == doc.getId().equals(newValue)) {
                 scriptChangedId(request, newValue);
             }
-            newValue = context.remove(VersionFieldMapper.NAME);
-            if (false == Objects.equals(oldVersion, newValue)) {
-                scriptChangedVersion(request, newValue);
+            Long newVersion = metadata.getVersion();
+            if (false == Objects.equals(oldVersion, newVersion)) {
+                scriptChangedVersion(request, newVersion);
             }
             /*
              * Its important that routing comes after parent in case you want to
              * change them both.
              */
-            newValue = context.remove(RoutingFieldMapper.NAME);
+            newValue = metadata.getRouting();
             if (false == Objects.equals(oldRouting, newValue)) {
                 scriptChangedRouting(request, newValue);
             }
 
-            OpType newOpType = OpType.fromString(newOp);
-            if (newOpType != oldOpType) {
-                return scriptChangedOpType(request, oldOpType, newOpType);
+            if (newOp != oldOp) {
+                return scriptChangedOpType(request, oldOp, newOp);
             }
 
-            if (false == context.isEmpty()) {
-                throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", context.keySet()) + ']');
+            List<String> extraKeys = context.keySet().stream().filter(k -> metadata.isMetadataKey(k) == false).sorted().toList();
+            if (false == extraKeys.isEmpty()) {
+                throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", extraKeys) + ']');
             }
             return request;
         }
 
-        protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, OpType oldOpType, OpType newOpType) {
-            switch (newOpType) {
+        protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, Op oldOp, Op newOp) {
+            switch (newOp) {
                 case NOOP -> {
                     taskWorker.countNoop();
                     return null;
@@ -917,9 +915,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                     delete.setRouting(request.getRouting());
                     return delete;
                 }
-                default -> throw new IllegalArgumentException(
-                    "Unsupported operation type change from [" + oldOpType + "] to [" + newOpType + "]"
-                );
+                default -> throw new IllegalArgumentException("Unsupported operation type change from [" + oldOp + "] to [" + newOp + "]");
             }
         }
 
@@ -931,36 +927,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
         protected abstract void scriptChangedRouting(RequestWrapper<?> request, Object to);
 
-    }
-
-    public enum OpType {
-
-        NOOP("noop"),
-        INDEX("index"),
-        DELETE("delete");
-
-        private final String id;
-
-        OpType(String id) {
-            this.id = id;
-        }
-
-        public static OpType fromString(String opType) {
-            String lowerOpType = opType.toLowerCase(Locale.ROOT);
-            return switch (lowerOpType) {
-                case "noop" -> OpType.NOOP;
-                case "index" -> OpType.INDEX;
-                case "delete" -> OpType.DELETE;
-                default -> throw new IllegalArgumentException(
-                    "Operation type [" + lowerOpType + "] not allowed, only " + Arrays.toString(values()) + " are allowed"
-                );
-            };
-        }
-
-        @Override
-        public String toString() {
-            return id.toLowerCase(Locale.ROOT);
-        }
     }
 
     static class ScrollConsumableHitsResponse {
@@ -1022,7 +988,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     private static class ReindexMetadata extends org.elasticsearch.script.field.Metadata {
 
-        ReindexMetadata(Map<String, Object> ctx, String index, String id, String routing, Long version, OpType op) {
+        ReindexMetadata(Map<String, Object> ctx, String index, String id, String routing, Long version, Op op) {
             super(
                 ctx,
                 IndexFieldMapper.NAME,
@@ -1037,7 +1003,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             setId(id);
             setRouting(routing);
             setVersion(version);
-            setOp(Op.fromString(Objects.requireNonNull(op).id));
+            setOp(op);
         }
     }
 }

@@ -12,7 +12,9 @@ import org.elasticsearch.index.VersionType;
 
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -136,8 +138,12 @@ public abstract class Metadata {
         }
     }
 
+    public Object rawOp() {
+        return get(opKey);
+    }
+
     public Op getOp() {
-        return objectToOp(get(opKey));
+        return objectToOp(rawOp());
     }
 
     public void setOp(Op op) {
@@ -168,6 +174,13 @@ public abstract class Metadata {
             return Op.fromString(str);
         }
         throw new IllegalArgumentException("Invalid type [" + obj.getClass().getName() + "] for Op [" + obj + "], expected String or Op");
+    }
+
+    public List<String> validOps() {
+        if (VALID_OPS == null) {
+            return Collections.emptyList();
+        }
+        return VALID_OPS.stream().map(Op::getName).sorted().toList();
     }
 
     public ZonedDateTime getTimestamp() {
@@ -203,5 +216,22 @@ public abstract class Metadata {
 
     protected void unsupported(String field, boolean write) {
         throw new UnsupportedOperationException((write ? "writing " : "") + field + " is not supported for this action");
+    }
+
+    /**
+     * Is the key a metadata key?
+     */
+    public boolean isMetadataKey(String key) {
+        // This uses equality checks rather than a Set to avoid Set construction cost because it is expected to be rarely used.
+        return isKey(indexKey, key)
+            || isKey(idKey, key)
+            || isKey(routingKey, key)
+            || isKey(versionKey, key)
+            || isKey(versionTypeKey, key)
+            || isKey(opKey, key);
+    }
+
+    protected static boolean isKey(String key, String that) {
+        return key != null && key.equals(that);
     }
 }

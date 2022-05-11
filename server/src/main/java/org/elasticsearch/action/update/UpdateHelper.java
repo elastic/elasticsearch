@@ -43,9 +43,10 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -96,24 +97,43 @@ public class UpdateHelper {
      * Execute a scripted upsert, where there is an existing upsert document and a script to be executed. The script is executed and a new
      * Tuple of operation and updated {@code _source} is returned.
      */
-    Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Map<String, Object> upsertDoc, Script script, LongSupplier nowInMillis) {
-        Map<String, Object> ctx = Maps.newMapWithExpectedSize(3);
+    Tuple<Op, Map<String, Object>> executeScriptedUpsert(Map<String, Object> upsertDoc, Script script, LongSupplier nowInMillis) {
+        Map<String, Object> ctx = Maps.newMapWithExpectedSize(3); // source, op,
         ctx.put(ContextFields.SOURCE, upsertDoc);
         // Tell the script that this is a create and not an update
-        ctx = executeScript(script, new UpsertMetadata(ctx, UpdateOpType.CREATE, nowInMillis.getAsLong()), ctx);
+        UpsertMetadata metadata = new UpsertMetadata(ctx, Op.CREATE, nowInMillis.getAsLong());
+        ctx = executeScript(script, metadata, ctx);
 
-        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, script.getIdOrCode());
+        Op operation = getOp(metadata, script.getIdOrCode());
         @SuppressWarnings("unchecked")
         Map<String, Object> newSource = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
 
-        // TODO(stu): should we disallow setting update type to null?
-        if (operation != UpdateOpType.CREATE && operation != UpdateOpType.NONE) {
+        // TODO(stu): should we disallow setting operation to null?
+        if (operation != Op.CREATE && operation != Op.NOOP) {
             // Only valid options for an upsert script are "create" (the default) or "none", meaning abort upsert
             logger.warn("Invalid upsert operation [{}] for script [{}], doing nothing...", operation, script.getIdOrCode());
-            operation = UpdateOpType.NONE;
+            operation = Op.NOOP;
         }
 
         return new Tuple<>(operation, newSource);
+    }
+
+    // Get the operation from metadata, if an unknown operation, throw an IllegalArgumentException
+    // Previously, unknown operations would be changed to noop.
+    protected Op getOp(Metadata md, String scriptId) {
+        Op op = md.getOp();
+        if (op != Op.UNKOWN) {
+            return op;
+        }
+        throw new IllegalArgumentException(
+            "Operation type ["
+                + md.rawOp()
+                + "] not allowed for script ["
+                + scriptId
+                + "], only "
+                + String.join(",", md.validOps())
+                + " are allowed"
+        );
     }
 
     /**
@@ -128,14 +148,10 @@ public class UpdateHelper {
         if (request.scriptedUpsert() && request.script() != null) {
             // Run the script to perform the create logic
             IndexRequest upsert = request.upsertRequest();
-            Tuple<UpdateOpType, Map<String, Object>> upsertResult = executeScriptedUpsert(
-                upsert.sourceAsMap(),
-                request.script,
-                nowInMillis
-            );
+            Tuple<Op, Map<String, Object>> upsertResult = executeScriptedUpsert(upsert.sourceAsMap(), request.script, nowInMillis);
             switch (upsertResult.v1()) {
                 case CREATE -> indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
-                case NONE -> {
+                case NOOP -> {
                     UpdateResponse update = new UpdateResponse(
                         shardId,
                         getResult.getId(),
@@ -258,13 +274,12 @@ public class UpdateHelper {
             getResult.getId(),
             routing,
             getResult.getVersion(),
-            UpdateOpType.INDEX,
+            Op.INDEX,
             nowInMillis.getAsLong()
         );
         ctx = executeScript(request.script, metadata, ctx);
 
-        // TODO(stu): should this come from Metadata?
-        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, request.script.getIdOrCode());
+        Op operation = getOp(metadata, request.script.getIdOrCode());
 
         @SuppressWarnings("unchecked")
         final Map<String, Object> updatedSourceAsMap = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
@@ -419,52 +434,9 @@ public class UpdateHelper {
     }
 
     /**
-     * After executing the script, this is the type of operation that will be used for subsequent actions. This corresponds to the "ctx.op"
-     * variable inside of scripts.
-     */
-    enum UpdateOpType {
-        CREATE("create"),
-        INDEX("index"),
-        DELETE("delete"),
-        NONE("none");
-
-        private final String name;
-
-        UpdateOpType(String name) {
-            this.name = name;
-        }
-
-        public static UpdateOpType fromString(String operation) {
-            return switch (operation) {
-                case "create" -> UpdateOpType.CREATE;
-                case "index" -> UpdateOpType.INDEX;
-                case "delete" -> UpdateOpType.DELETE;
-                case "none" -> UpdateOpType.NONE;
-                default -> throw new IllegalArgumentException(
-                    "Operation type [" + operation + "] not allowed, only " + Arrays.toString(values()) + " are allowed"
-                );
-            };
-        }
-
-        public static UpdateOpType lenientFromString(String operation, Logger logger, String scriptId) {
-            try {
-                return fromString(operation);
-            } catch (IllegalArgumentException err) {
-                // TODO: can we remove this leniency yet??
-                logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", operation, scriptId);
-                return UpdateOpType.NONE;
-            }
-        }
-
-        @Override
-        public String toString() {
-            return name;
-        }
-    }
-
-    /**
      * Field names used to populate the script context
      */
+    // TODO(stu): do we need this other than SOURCE?
     public static class ContextFields {
         public static final String CTX = "ctx";
         public static final String OP = "op";
@@ -477,33 +449,19 @@ public class UpdateHelper {
         public static final String ROUTING = "_routing";
     }
 
-    // Op and UpdateOpType have the same naming except UpdateOpType.NONE ("none") and Op.NOOP ("noop").
-    private static Op fromUpdateOpType(UpdateOpType updateOpType) {
-        if (updateOpType == null) {
-            return null;
-        } else if (updateOpType == UpdateOpType.NONE) {
-            return Op.NOOP;
-        }
-        return Op.fromString(updateOpType.name);
-    }
+    /**
+     * The old way of spelling Op.NOOP, Metadata will read this String but does not write it.
+     */
+    private static final String LEGACY_NOOP_STRING = "none";
 
-    private static Op fromUpdateOpTypeString(String opStr) {
+    private static Op opFromString(String opStr) {
         if (opStr == null) {
             return null;
-        } else if (UpdateOpType.NONE.name.equals(opStr.toLowerCase(Locale.ROOT))) {
+        } else if (LEGACY_NOOP_STRING.equals(opStr.toLowerCase(Locale.ROOT))) {
             return Op.NOOP;
+        } else {
+            return Op.fromString(opStr);
         }
-        return Op.fromString(opStr);
-    }
-
-    // Op.name except Op.NOOP's name is replaced with "none"
-    private static String toUpdateOpTypeString(Op op) {
-        if (op == null) {
-            return null;
-        } else if (op == Op.NOOP) {
-            return UpdateOpType.NONE.name;
-        }
-        return op.name;
     }
 
     /**
@@ -518,7 +476,7 @@ public class UpdateHelper {
     private static class UpdateMetadata extends org.elasticsearch.script.field.Metadata {
         private final ZonedDateTime timestamp;
 
-        UpdateMetadata(Map<String, Object> ctx, String index, String id, String routing, Long version, UpdateOpType op, long timestamp) {
+        UpdateMetadata(Map<String, Object> ctx, String index, String id, String routing, Long version, Op op, long timestamp) {
             super(
                 ctx,
                 ContextFields.INDEX,
@@ -535,7 +493,7 @@ public class UpdateHelper {
             put(idKey, id);
             put(routingKey, routing);
             put(versionKey, version);
-            setOp(fromUpdateOpType(Objects.requireNonNull(op)));
+            setOp(Objects.requireNonNull(op));
         }
 
         @Override
@@ -560,18 +518,27 @@ public class UpdateHelper {
 
         @Override
         public Op getOp() {
-            return fromUpdateOpTypeString(getString(opKey));
+            return opFromString(getString(opKey));
         }
 
         @Override
         public void setOp(Op op) {
             validateOp(op);
-            put(opKey, toUpdateOpTypeString(op));
+            put(opKey, op.toString());
         }
 
         @Override
         public ZonedDateTime getTimestamp() {
             return timestamp;
+        }
+
+        @Override
+        public List<String> validOps() {
+            List<String> enumOps = super.validOps();
+            List<String> ops = new ArrayList<>(enumOps.size() + 1);
+            ops.addAll(enumOps);
+            ops.add("none");
+            return ops;
         }
     }
 
@@ -586,27 +553,36 @@ public class UpdateHelper {
     private static class UpsertMetadata extends org.elasticsearch.script.field.Metadata {
         private final ZonedDateTime timestamp;
 
-        UpsertMetadata(Map<String, Object> ctx, UpdateOpType op, long timestamp) {
+        UpsertMetadata(Map<String, Object> ctx, Op op, long timestamp) {
             super(ctx, null, null, null, null, null, ContextFields.OP, EnumSet.of(Op.CREATE, Op.NOOP));
             this.timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneOffset.UTC);
             put(ContextFields.NOW, timestamp);
-            setOp(fromUpdateOpType(op));
+            setOp(op);
         }
 
         @Override
         public Op getOp() {
-            return fromUpdateOpTypeString(getString(opKey));
+            return opFromString(getString(opKey));
         }
 
         @Override
         public void setOp(Op op) {
             validateOp(op);
-            put(opKey, toUpdateOpTypeString(op));
+            put(opKey, op.toString());
         }
 
         @Override
         public ZonedDateTime getTimestamp() {
             return timestamp;
+        }
+
+        @Override
+        public List<String> validOps() {
+            List<String> enumOps = super.validOps();
+            List<String> ops = new ArrayList<>(enumOps.size() + 1);
+            ops.addAll(enumOps);
+            ops.add("none");
+            return ops;
         }
     }
 }

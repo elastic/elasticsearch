@@ -15,10 +15,10 @@ import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
 import org.elasticsearch.index.reindex.AbstractBulkIndexByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
-import org.elasticsearch.reindex.AbstractAsyncBulkByScrollAction.OpType;
 import org.elasticsearch.reindex.AbstractAsyncBulkByScrollAction.RequestWrapper;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateScript;
+import org.elasticsearch.script.field.Op;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -78,7 +78,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
     }
 
     public void testSetOpTypeDelete() throws Exception {
-        DeleteRequest delete = applyScript((Map<String, Object> ctx) -> ctx.put("op", OpType.DELETE.toString()));
+        DeleteRequest delete = applyScript((Map<String, Object> ctx) -> ctx.put("op", Op.DELETE.toString()));
         assertThat(delete.index(), equalTo("index"));
         assertThat(delete.id(), equalTo("1"));
     }

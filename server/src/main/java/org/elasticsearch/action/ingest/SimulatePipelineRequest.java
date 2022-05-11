@@ -169,6 +169,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             @SuppressWarnings("unchecked")
             Map<String, Object> dataMap = (Map<String, Object>) object;
             Map<String, Object> document = ConfigurationUtils.readMap(null, null, dataMap, Fields.SOURCE);
+            // TODO(stu): should this use Metadata instead?
             String index = ConfigurationUtils.readStringOrIntProperty(null, null, dataMap, Metadata.INDEX.getFieldName(), "_index");
             String id = ConfigurationUtils.readStringOrIntProperty(null, null, dataMap, Metadata.ID.getFieldName(), "_id");
             String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null, dataMap, Metadata.ROUTING.getFieldName());

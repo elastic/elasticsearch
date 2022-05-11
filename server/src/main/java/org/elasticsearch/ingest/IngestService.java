@@ -909,6 +909,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     handler.accept(ex);
                     return;
                 }
+                // TODO(stu): should this use Metadata?
                 Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
 
                 String newIndex = (String) metadataMap.get(IngestDocument.Metadata.INDEX);

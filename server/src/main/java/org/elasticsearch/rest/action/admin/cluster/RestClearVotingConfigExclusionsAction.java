@@ -34,12 +34,16 @@ public class RestClearVotingConfigExclusionsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final var req = new ClearVotingConfigExclusionsRequest();
-        req.masterNodeTimeout(request.paramAsTime("master_timeout", req.masterNodeTimeout()));
-        req.setTimeout(req.masterNodeTimeout());
-        if (request.hasParam("wait_for_removal")) {
-            req.setWaitForRemoval(request.paramAsBoolean("wait_for_removal", true));
-        }
+        final var req = resolveVotingConfigExclusionsRequest(request);
         return channel -> client.execute(ClearVotingConfigExclusionsAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
+
+    static ClearVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
+        final var resolvedRequest = new ClearVotingConfigExclusionsRequest();
+        resolvedRequest.masterNodeTimeout(request.paramAsTime("master_timeout", resolvedRequest.masterNodeTimeout()));
+        resolvedRequest.setTimeout(resolvedRequest.masterNodeTimeout());
+        resolvedRequest.setWaitForRemoval(request.paramAsBoolean("wait_for_removal", resolvedRequest.getWaitForRemoval()));
+        return resolvedRequest;
+    }
+
 }

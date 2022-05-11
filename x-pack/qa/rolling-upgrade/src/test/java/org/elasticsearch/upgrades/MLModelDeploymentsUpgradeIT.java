@@ -207,6 +207,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                 + waitForState
                 + "&inference_threads=1&model_threads=1"
         );
+        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);
         return response;

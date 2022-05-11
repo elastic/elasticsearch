@@ -24,7 +24,7 @@ indices to switch to node roles.
 [[cloud-migrate-to-node-roles]]
 === Automatically migrate to node roles on {ess} or {ece}
 
-If you are using node attributes on {ess} or {ece}, you will be
+If you are using node attributes from the default deployment template in {ess} or {ece}, you will be
 prompted to switch to node roles when you:
 
 * Upgrade to {es} 7.10 or higher

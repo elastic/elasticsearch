@@ -57,11 +57,13 @@ For more information, see <<modules-discovery-removing-nodes>>.
 
 `node_names`::
 A comma-separated list of the names of the nodes to exclude from the voting
-configuration. If specified, you may not also specify `?node_ids`.
+configuration. If specified, you may not also specify `?node_ids`. Only applies
+to the `POST` form of this API.
 
 `node_ids`::
 A comma-separated list of the persistent ids of the nodes to exclude from the
 voting configuration. If specified, you may not also specify `?node_names`.
+Only applies to the `POST` form of this API.
 
 `timeout`::
 (Optional, <<time-units, time units>>) When adding a voting configuration
@@ -69,7 +71,12 @@ exclusion, the API waits for the specified nodes to be excluded from the voting
 configuration before returning. The period of time to wait is specified by the
 `?timeout` query parameter. If the timeout expires before the appropriate
 condition is satisfied, the request fails and returns an error. Defaults to
-`30s`.
+`30s`. Only applies to the `POST` form of this API.
+
+`master_timeout`::
+(Optional, <<time-units, time units>>) Defines how long to wait while trying to
+route the request to the current master node in the cluster. Defaults to `30s`.
+Applies to both `POST` and `DELETE` forms of this API.
 
 `wait_for_removal`::
 (Optional, Boolean) Specifies whether to wait for all excluded nodes to be
@@ -77,7 +84,7 @@ removed from the cluster before clearing the voting configuration exclusions
 list. Defaults to `true`, meaning that all excluded nodes must be removed from
 the cluster before this API takes any action. If set to `false` then the voting
 configuration exclusions list is cleared even if some excluded nodes are still
-in the cluster.
+in the cluster. Only applies to the `DELETE` form of this API.
   
 [[voting-config-exclusions-api-example]]
 ==== {api-examples-title}

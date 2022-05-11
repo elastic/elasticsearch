@@ -115,12 +115,20 @@ import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -348,6 +356,32 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** called after a test is finished, but only if successful */
     protected void afterIfSuccessful() throws Exception {}
+
+    /**
+     * Marks a test suite or a test method that should run without security manager enabled.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ElementType.TYPE})
+    @Inherited
+    public @interface NoSecurityManager {}
+
+    private static Closeable securityManagerRestorer;
+
+    // disable security manager if test is annotated to run without it
+
+    @BeforeClass
+    public static void maybeStashClassSecurityManager() {
+        if (getTestClass().isAnnotationPresent(NoSecurityManager.class)) {
+            securityManagerRestorer = BootstrapForTesting.disableTestSecurityManager();
+        }
+    }
+
+    @AfterClass
+    public static void maybeRestoreClassSecurityManager() throws IOException {
+        if (getTestClass().isAnnotationPresent(NoSecurityManager.class)) {
+            securityManagerRestorer.close();
+        }
+    }
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers

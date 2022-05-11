@@ -39,6 +39,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+@ESTestCase.NoSecurityManager
 public class SchedulerEngineTests extends ESTestCase {
 
     public void testListenersThrowingExceptionsDoNotCauseOtherListenersToBeSkipped() throws InterruptedException {

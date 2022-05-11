@@ -78,6 +78,13 @@ grant codeBase "${codebase.mocksocket}" {
   permission java.net.SocketPermission "*", "accept,connect";
 };
 
+grant codeBase "${codebase.elasticsearch}" {
+  permission java.lang.RuntimePermission "setSecurityManager";
+};
+grant codeBase "${codebase.elasticsearch-test-framework}" {
+  permission java.lang.RuntimePermission "setSecurityManager";
+};
+
 grant codeBase "${codebase.elasticsearch-rest-client}" {
   // rest makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";

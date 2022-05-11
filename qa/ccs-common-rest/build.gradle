@@ -22,7 +22,7 @@ restResources {
       'search', 'async_search', 'graph', '*_point_in_time', "info"
   }
   restTests {
-    includeCore 'field_caps', 'search', 'suggest'
+    includeCore 'field_caps', 'msearch', 'search', 'suggest'
   }
 }
 
@@ -63,6 +63,7 @@ tasks.register("ccs-write", RestIntegTestTask) {
   systemProperty 'tests.rest.suite',
     [
       'field_caps',
+      "msearch",
       'search',
       'search.aggregation',
       'search.highlight',

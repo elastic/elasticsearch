@@ -25,6 +25,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
+import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
 import org.junit.AfterClass;
@@ -34,6 +35,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -46,7 +48,10 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static List<HttpHost> clusterHosts;
     private static ClientYamlTestClient searchYamlTestClient;
 
+    // the remote cluster is the one we write index operations etc... to
     private static final String REMOTE_CLUSTER_NAME = "remote_cluster";
+    // the following are the CCS api calls that we run against the "search" cluster in this test setup
+    private static final Set<String> CCS_APIS = Set.of("search", "field_caps", "msearch");
 
     @Before
     public void initSearchClient() throws IOException {
@@ -141,6 +146,17 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                         new MatchAssertion(matchSection.getLocation(), matchSection.getField(), modifiedExpectedValue)
                     );
                 }
+            } else if (section instanceof DoSection && ((DoSection) section).getApiCallSection().getApi().equals("msearch")) {
+                // modify "msearch" body sections so the "index" part is targeting the remote cluster
+                DoSection doSection = ((DoSection) section);
+                List<Map<String, Object>> bodies = doSection.getApiCallSection().getBodies();
+                for (Map<String, Object> body : bodies) {
+                    if (body.containsKey("index")) {
+                        String modifiedIndex = REMOTE_CLUSTER_NAME + ":" + body.get("index");
+                        body.put("index", modifiedIndex);
+                    }
+                }
+                modifiedExecutableSections.add(section);
             } else {
                 modifiedExecutableSections.add(section);
             }
@@ -168,7 +184,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     ) {
         return new ClientYamlTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType()) {
             protected ClientYamlTestClient clientYamlTestClient(String apiName) {
-                if (apiName.equals("search") || apiName.equals("field_caps")) {
+                if (CCS_APIS.contains(apiName)) {
                     return searchYamlTestClient;
                 } else {
                     return super.clientYamlTestClient(apiName);

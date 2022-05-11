@@ -444,6 +444,14 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             && snapshotUpgradeTasks.isEmpty()
             && dataframeAnalyticsTasks.isEmpty()
             && modelAssignments.isEmpty()) {
+            // We might be in a need zero, have zero situation, in which case it's nicer to pass a "no change" explanation
+            if (currentScale.getTierMlNativeMemoryRequirementExcludingOverhead() == 0
+                && currentScale.getNodeMlNativeMemoryRequirementExcludingOverhead() == 0) {
+                return new AutoscalingDeciderResult(
+                    context.currentCapacity(),
+                    reasonBuilder.setSimpleReason("Passing currently perceived capacity as no scaling changes are necessary").build()
+                );
+            }
             long msLeftToScale = msLeftToDownScale(configuration);
             if (msLeftToScale > 0) {
                 return new AutoscalingDeciderResult(

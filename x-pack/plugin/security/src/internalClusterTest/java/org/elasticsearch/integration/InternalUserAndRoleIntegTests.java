@@ -38,6 +38,8 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
         UsernamesField.XPACK_SECURITY_ROLE,
         UsernamesField.ASYNC_SEARCH_ROLE,
         UsernamesField.SECURITY_PROFILE_ROLE };
+    public static final String NON_INTERNAL_USERNAME = "user";
+    public static final String NON_INTERNAL_ROLE_NAME = "role";
 
     @Override
     protected String configRoles() {
@@ -45,7 +47,7 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
         for (String roleName : INTERNAL_ROLE_NAMES) {
             builder.append(defaultRole(roleName));
         }
-        builder.append(defaultRole("_custom_role"));
+        builder.append(defaultRole(NON_INTERNAL_ROLE_NAME));
         return builder.toString();
     }
 
@@ -65,7 +67,7 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
         final String usersPasswdHashed = new String(passwdHasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         StringBuilder builder = new StringBuilder(super.configUsers());
         for (String username : INTERNAL_USERNAMES) {
-            builder.append(username).append(":").append(usersPasswdHashed).append("\n");
+            builder.append("%s:%s\n".formatted(username, usersPasswdHashed));
         }
         return builder + "user:" + usersPasswdHashed + "\n";
     }
@@ -73,11 +75,12 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
     @Override
     protected String configUsersRoles() {
         StringBuilder builder = new StringBuilder(super.configUsersRoles());
+        // non-internal username maps to all internal role names
         for (String roleName : INTERNAL_ROLE_NAMES) {
-            builder.append("%s:%s\n".formatted(roleName, "user"));
+            builder.append("%s:%s\n".formatted(roleName, NON_INTERNAL_USERNAME));
         }
-        // all internal users are mapped to custom role
-        return builder + "%s:%s\n".formatted("_custom_role", Strings.join(INTERNAL_USERNAMES, ","));
+        // all internal usernames are mapped to custom role
+        return builder + "%s:%s\n".formatted(NON_INTERNAL_ROLE_NAME, Strings.join(INTERNAL_USERNAMES, ","));
     }
 
     private static Path repositoryLocation;
@@ -103,17 +106,17 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
     }
 
     public void testInternalRoleNamesDoNotResultInInternalUserPermissions() throws Exception {
-        assertAccessIsDenied("user", "GET", "/_cluster/health");
-        assertAccessIsDenied("user", "PUT", "/" + XPackPlugin.ASYNC_RESULTS_INDEX + "/_doc/1", "{}");
-        assertAccessIsDenied("user", "PUT", "/.security-profile/_doc/1", "{}");
-        assertAccessIsAllowed("user", "PUT", "/a/_doc/1", "{}");
+        assertAccessIsDenied(NON_INTERNAL_USERNAME, "GET", "/_cluster/health");
+        assertAccessIsDenied(NON_INTERNAL_USERNAME, "PUT", "/" + XPackPlugin.ASYNC_RESULTS_INDEX + "/_doc/1", "{}");
+        assertAccessIsDenied(NON_INTERNAL_USERNAME, "PUT", "/.security-profile/_doc/1", "{}");
+        assertAccessIsAllowed(NON_INTERNAL_USERNAME, "PUT", "/a/_doc/1", "{}");
     }
 
     public void testInternalUsernamesDoNotResultInInternalUserPermissions() throws Exception {
         for (final var internalUsername : INTERNAL_USERNAMES) {
             assertAccessIsDenied(internalUsername, "GET", "/_cluster/health");
-            assertAccessIsDenied("user", "PUT", "/" + XPackPlugin.ASYNC_RESULTS_INDEX + "/_doc/1", "{}");
-            assertAccessIsDenied("user", "PUT", "/.security-profile/_doc/1", "{}");
+            assertAccessIsDenied(internalUsername, "PUT", "/" + XPackPlugin.ASYNC_RESULTS_INDEX + "/_doc/1", "{}");
+            assertAccessIsDenied(internalUsername, "PUT", "/.security-profile/_doc/1", "{}");
             assertAccessIsAllowed(internalUsername, "PUT", "/a/_doc/1", "{}");
         }
     }

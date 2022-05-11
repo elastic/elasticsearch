@@ -352,7 +352,7 @@ public class PluginsUtilsTests extends ESTestCase {
         try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(jarFile))) {
             for (Class<?> clazz : classes) {
                 String relativePath = clazz.getCanonicalName().replaceAll("\\.", "/") + ".class";
-                if (relativePath.contains(PluginsServiceTests.class.getSimpleName())) {
+                if (relativePath.contains(PluginsUtilsTests.class.getSimpleName())) {
                     // static inner class of this test
                     relativePath = relativePath.replace("/" + clazz.getSimpleName(), "$" + clazz.getSimpleName());
                 }

@@ -206,8 +206,21 @@ public class Shell {
                 // file is really big, truncate at 100k
                 try (var br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
                     char[] buf = new char[100 * 1024];
+                    int start = 0;
                     int nRead = br.read(buf);
-                    return new String(buf, 0, nRead) + "\n<<Too large to read (" + size + " bytes), truncated>>";
+                    while (nRead != -1) {
+                        while (start < nRead) {
+                            if (buf[start] != '\u0000') {
+                                break;
+                            }
+                            ++start;
+                        }
+                        if (start < nRead) {
+                            break;
+                        }
+                        nRead = br.read(buf);
+                    }
+                    return new String(buf, start, nRead) + "\n<<Too large to read (" + size + " bytes), truncated>>";
                 }
             }
             try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {

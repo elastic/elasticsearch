@@ -142,8 +142,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -1417,6 +1420,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(role.application().getApplicationNames(), empty());
         assertThat(role.cluster().privileges(), empty());
         assertThat(role.indices(), is(IndicesPermission.NONE));
+        assertThat(role, not(is(oneOf(
+            compositeRolesStore.getAsyncSearchUserRole(),
+            compositeRolesStore.getSecurityProfileRole(),
+            compositeRolesStore.getXpackUserRole(),
+            compositeRolesStore.getXpackSecurityRole()
+        ))));
     }
 
     public void testGetRolesForSystemUserThrowsException() {

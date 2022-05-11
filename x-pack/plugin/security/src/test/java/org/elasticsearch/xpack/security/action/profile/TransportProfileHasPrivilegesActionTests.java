@@ -41,9 +41,12 @@ import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.action.profile.ProfileHasPrivilegesRequestTests.randomValidPrivilegesToCheckRequest;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -120,20 +123,20 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
         doAnswer(invocation -> {
             Subject subject = (Subject) invocation.getArguments()[0];
             ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener = (ActionListener<
-                AuthorizationEngine.PrivilegesCheckResult>) invocation.getArguments()[3];
+                AuthorizationEngine.PrivilegesCheckResult>) invocation.getArguments()[4];
             // run this asynchronously to test concurrency
             threadPool.generic().submit(() -> {
                 if (errorProfileUids.contains(subject.getUser().principal().substring("user_for_profile_".length()))) {
                     listener.onFailure(new ElasticsearchException("failed to verify privileges for " + subject));
                 } else if (noPrivilegesProfileUids.contains(subject.getUser().principal().substring("user_for_profile_".length()))) {
-                    listener.onResponse(new AuthorizationEngine.PrivilegesCheckResult(false, Map.of(), Map.of(), Map.of()));
+                    listener.onResponse(SOME_CHECKS_FAILURE_NO_DETAILS);
                 } else {
-                    listener.onResponse(new AuthorizationEngine.PrivilegesCheckResult(true, Map.of(), Map.of(), Map.of()));
+                    listener.onResponse(ALL_CHECKS_SUCCESS_NO_DETAILS);
                 }
             });
             return null;
         }).when(authorizationService)
-            .checkPrivileges(any(Subject.class), eq(request.privilegesToCheck()), eq(List.of()), anyActionListener());
+            .checkPrivileges(any(Subject.class), eq(request.privilegesToCheck()), anyBoolean(), eq(List.of()), anyActionListener());
 
         final PlainActionFuture<ProfileHasPrivilegesResponse> listener = new PlainActionFuture<>();
         transportProfileHasPrivilegesAction.doExecute(mock(Task.class), request, listener);
@@ -172,10 +175,10 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
 
         doAnswer(invocation -> {
             ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener = (ActionListener<
-                AuthorizationEngine.PrivilegesCheckResult>) invocation.getArguments()[3];
+                AuthorizationEngine.PrivilegesCheckResult>) invocation.getArguments()[4];
             listener.onFailure(new ElasticsearchException("Privileges should not be checked when there are no subjects found"));
             return null;
-        }).when(authorizationService).checkPrivileges(any(), any(), any(), any());
+        }).when(authorizationService).checkPrivileges(any(), any(), any(), any(), any());
 
         final PlainActionFuture<ProfileHasPrivilegesResponse> listener = new PlainActionFuture<>();
         transportProfileHasPrivilegesAction.doExecute(mock(Task.class), request, listener);

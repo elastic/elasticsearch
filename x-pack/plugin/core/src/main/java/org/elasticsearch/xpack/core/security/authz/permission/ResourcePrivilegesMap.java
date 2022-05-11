@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -100,26 +99,5 @@ public final class ResourcePrivilegesMap {
 
     public static Builder builder() {
         return new Builder();
-    }
-
-    /**
-     * Takes an intersection of resource privileges and returns a new instance of {@link ResourcePrivilegesMap}. If one of the resource
-     * privileges map does not allow access to a resource then the resulting map would also not allow access.
-     *
-     * @param left an instance of {@link ResourcePrivilegesMap}
-     * @param right an instance of {@link ResourcePrivilegesMap}
-     * @return a new instance of {@link ResourcePrivilegesMap}, an intersection of resource privileges.
-     */
-    public static ResourcePrivilegesMap intersection(final ResourcePrivilegesMap left, final ResourcePrivilegesMap right) {
-        Objects.requireNonNull(left);
-        Objects.requireNonNull(right);
-        final ResourcePrivilegesMap.Builder builder = ResourcePrivilegesMap.builder();
-        for (Entry<String, ResourcePrivileges> leftResPrivsEntry : left.getResourceToResourcePrivileges().entrySet()) {
-            final ResourcePrivileges leftResPrivs = leftResPrivsEntry.getValue();
-            final ResourcePrivileges rightResPrivs = right.getResourceToResourcePrivileges().get(leftResPrivsEntry.getKey());
-            builder.addResourcePrivilege(leftResPrivsEntry.getKey(), leftResPrivs.getPrivileges());
-            builder.addResourcePrivilege(leftResPrivsEntry.getKey(), rightResPrivs.getPrivileges());
-        }
-        return builder.build();
     }
 }

@@ -324,10 +324,12 @@ public class LimitedRoleTests extends ESTestCase {
 
     public void testGetPrivilegesForIndexPatterns() {
         Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role").add(IndexPrivilege.READ, "ind-1*").build();
-        ResourcePrivilegesMap resourcePrivileges = fromRole.checkIndicesPrivileges(
+        ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+        boolean privilegesCheck = fromRole.checkIndicesPrivileges(
             Collections.singleton("ind-1-1-*"),
             true,
-            Sets.newHashSet("read", "write")
+            Sets.newHashSet("read", "write"),
+            resourcePrivilegesMapBuilder
         );
         ResourcePrivilegesMap expectedAppPrivsByResource = new ResourcePrivilegesMap(
             false,
@@ -336,9 +338,16 @@ public class LimitedRoleTests extends ESTestCase {
                 ResourcePrivileges.builder("ind-1-1-*").addPrivilege("read", true).addPrivilege("write", false).build()
             )
         );
-        verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+        verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+        assertThat(privilegesCheck, is(false));
 
-        resourcePrivileges = fromRole.checkIndicesPrivileges(Collections.singleton("ind-*"), true, Sets.newHashSet("read", "write"));
+        resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+        privilegesCheck = fromRole.checkIndicesPrivileges(
+            Collections.singleton("ind-*"),
+            true,
+            Sets.newHashSet("read", "write"),
+            resourcePrivilegesMapBuilder
+        );
         expectedAppPrivsByResource = new ResourcePrivilegesMap(
             false,
             Collections.singletonMap(
@@ -346,60 +355,94 @@ public class LimitedRoleTests extends ESTestCase {
                 ResourcePrivileges.builder("ind-*").addPrivilege("read", false).addPrivilege("write", false).build()
             )
         );
-        verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+        verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+        assertThat(privilegesCheck, is(false));
 
         {
             Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
-            resourcePrivileges = limitedByRole.checkIndicesPrivileges(Collections.singleton("ind-1"), true, Collections.singleton("read"));
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = limitedByRole.checkIndicesPrivileges(
+                Collections.singleton("ind-1"),
+                true,
+                Collections.singleton("read"),
+                resourcePrivilegesMapBuilder
+            );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
                 true,
                 Collections.singletonMap("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
             );
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(true));
 
-            resourcePrivileges = limitedByRole.checkIndicesPrivileges(
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = limitedByRole.checkIndicesPrivileges(
                 Collections.singleton("ind-1-1-*"),
                 true,
-                Collections.singleton("read")
+                Collections.singleton("read"),
+                resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
                 false,
                 Collections.singletonMap("ind-1-1-*", ResourcePrivileges.builder("ind-1-1-*").addPrivilege("read", false).build())
             );
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(false));
 
-            resourcePrivileges = limitedByRole.checkIndicesPrivileges(Collections.singleton("ind-*"), true, Collections.singleton("read"));
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = limitedByRole.checkIndicesPrivileges(
+                Collections.singleton("ind-*"),
+                true,
+                Collections.singleton("read"),
+                resourcePrivilegesMapBuilder
+            );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
                 false,
                 Collections.singletonMap("ind-*", ResourcePrivileges.builder("ind-*").addPrivilege("read", false).build())
             );
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(false));
 
             Role role = fromRole.limitedBy(limitedByRole);
-            resourcePrivileges = role.checkIndicesPrivileges(Collections.singleton("ind-1"), true, Collections.singleton("read"));
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = role.checkIndicesPrivileges(
+                Collections.singleton("ind-1"),
+                true,
+                Collections.singleton("read"),
+                resourcePrivilegesMapBuilder
+            );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
                 true,
                 Collections.singletonMap("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
             );
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(true));
 
-            resourcePrivileges = role.checkIndicesPrivileges(Sets.newHashSet("ind-1-1-*", "ind-1"), true, Collections.singleton("read"));
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = role.checkIndicesPrivileges(
+                Sets.newHashSet("ind-1-1-*", "ind-1"),
+                true,
+                Collections.singleton("read"),
+                resourcePrivilegesMapBuilder
+            );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
                 false,
                 mapBuilder().put("ind-1-1-*", ResourcePrivileges.builder("ind-1-1-*").addPrivilege("read", false).build())
                     .put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
                     .map()
             );
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(false));
         }
         {
             fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role")
                 .add(FieldPermissions.DEFAULT, Collections.emptySet(), IndexPrivilege.READ, true, "ind-1*", ".security")
                 .build();
-            resourcePrivileges = fromRole.checkIndicesPrivileges(
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = fromRole.checkIndicesPrivileges(
                 Sets.newHashSet("ind-1", ".security"),
                 true,
-                Collections.singleton("read")
+                Collections.singleton("read"),
+                resourcePrivilegesMapBuilder
             );
             // Map<String, ResourcePrivileges> expectedResourceToResourcePrivs = new HashMap<>();
             ;
@@ -409,13 +452,16 @@ public class LimitedRoleTests extends ESTestCase {
                     .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", true).build())
                     .map()
             );
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(true));
 
             Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
-            resourcePrivileges = limitedByRole.checkIndicesPrivileges(
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = limitedByRole.checkIndicesPrivileges(
                 Sets.newHashSet("ind-1", "ind-2", ".security"),
                 true,
-                Collections.singleton("read")
+                Collections.singleton("read"),
+                resourcePrivilegesMapBuilder
             );
 
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
@@ -425,13 +471,16 @@ public class LimitedRoleTests extends ESTestCase {
                     .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", false).build())
                     .map()
             );
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(false));
 
             Role role = fromRole.limitedBy(limitedByRole);
-            resourcePrivileges = role.checkIndicesPrivileges(
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = role.checkIndicesPrivileges(
                 Sets.newHashSet("ind-1", "ind-2", ".security"),
                 true,
-                Collections.singleton("read")
+                Collections.singleton("read"),
+                resourcePrivilegesMapBuilder
             );
 
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
@@ -441,7 +490,8 @@ public class LimitedRoleTests extends ESTestCase {
                     .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", false).build())
                     .map()
             );
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(false));
         }
     }
 
@@ -459,11 +509,13 @@ public class LimitedRoleTests extends ESTestCase {
             .build();
 
         Set<String> forPrivilegeNames = Sets.newHashSet("read", "write", "all");
-        ResourcePrivilegesMap appPrivsByResource = fromRole.checkApplicationResourcePrivileges(
+        ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+        boolean privilegesCheck = fromRole.checkApplicationResourcePrivileges(
             "app1",
             Collections.singleton("*"),
             forPrivilegeNames,
-            applicationPrivilegeDescriptors
+            applicationPrivilegeDescriptors,
+            resourcePrivilegesMapBuilder
         );
         ResourcePrivilegesMap expectedAppPrivsByResource = new ResourcePrivilegesMap(
             false,
@@ -472,13 +524,16 @@ public class LimitedRoleTests extends ESTestCase {
                 ResourcePrivileges.builder("*").addPrivilege("read", false).addPrivilege("write", false).addPrivilege("all", false).build()
             )
         );
-        verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+        verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+        assertThat(privilegesCheck, is(false));
 
-        appPrivsByResource = fromRole.checkApplicationResourcePrivileges(
+        resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+        privilegesCheck = fromRole.checkApplicationResourcePrivileges(
             "app1",
             Collections.singleton("foo/x/y"),
             forPrivilegeNames,
-            applicationPrivilegeDescriptors
+            applicationPrivilegeDescriptors,
+            resourcePrivilegesMapBuilder
         );
         expectedAppPrivsByResource = new ResourcePrivilegesMap(
             false,
@@ -491,13 +546,16 @@ public class LimitedRoleTests extends ESTestCase {
                     .build()
             )
         );
-        verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+        verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+        assertThat(privilegesCheck, is(false));
 
-        appPrivsByResource = fromRole.checkApplicationResourcePrivileges(
+        resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+        privilegesCheck = fromRole.checkApplicationResourcePrivileges(
             "app2",
             Collections.singleton("foo/bar/a"),
             forPrivilegeNames,
-            applicationPrivilegeDescriptors
+            applicationPrivilegeDescriptors,
+            resourcePrivilegesMapBuilder
         );
         expectedAppPrivsByResource = new ResourcePrivilegesMap(
             false,
@@ -510,13 +568,16 @@ public class LimitedRoleTests extends ESTestCase {
                     .build()
             )
         );
-        verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+        verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+        assertThat(privilegesCheck, is(false));
 
-        appPrivsByResource = fromRole.checkApplicationResourcePrivileges(
+        resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+        privilegesCheck = fromRole.checkApplicationResourcePrivileges(
             "app2",
             Collections.singleton("moon/bar/a"),
             forPrivilegeNames,
-            applicationPrivilegeDescriptors
+            applicationPrivilegeDescriptors,
+            resourcePrivilegesMapBuilder
         );
         expectedAppPrivsByResource = new ResourcePrivilegesMap(
             false,
@@ -529,7 +590,8 @@ public class LimitedRoleTests extends ESTestCase {
                     .build()
             )
         );
-        verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+        verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+        assertThat(privilegesCheck, is(false));
 
         {
             Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "test-role-scoped")
@@ -537,11 +599,13 @@ public class LimitedRoleTests extends ESTestCase {
                 .addApplicationPrivilege(app2Read, Collections.singleton("foo/bar/*"))
                 .addApplicationPrivilege(app2Write, Collections.singleton("moo/bar/*"))
                 .build();
-            appPrivsByResource = limitedByRole.checkApplicationResourcePrivileges(
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = limitedByRole.checkApplicationResourcePrivileges(
                 "app1",
                 Collections.singleton("*"),
                 forPrivilegeNames,
-                applicationPrivilegeDescriptors
+                applicationPrivilegeDescriptors,
+                resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
                 false,
@@ -554,13 +618,16 @@ public class LimitedRoleTests extends ESTestCase {
                         .build()
                 )
             );
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(false));
 
-            appPrivsByResource = limitedByRole.checkApplicationResourcePrivileges(
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = limitedByRole.checkApplicationResourcePrivileges(
                 "app1",
                 Collections.singleton("foo/x/y"),
                 forPrivilegeNames,
-                applicationPrivilegeDescriptors
+                applicationPrivilegeDescriptors,
+                resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
                 false,
@@ -573,13 +640,16 @@ public class LimitedRoleTests extends ESTestCase {
                         .build()
                 )
             );
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(false));
 
-            appPrivsByResource = limitedByRole.checkApplicationResourcePrivileges(
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = limitedByRole.checkApplicationResourcePrivileges(
                 "app2",
                 Collections.singleton("foo/bar/a"),
                 forPrivilegeNames,
-                applicationPrivilegeDescriptors
+                applicationPrivilegeDescriptors,
+                resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
                 false,
@@ -592,13 +662,16 @@ public class LimitedRoleTests extends ESTestCase {
                         .build()
                 )
             );
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(false));
 
-            appPrivsByResource = limitedByRole.checkApplicationResourcePrivileges(
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = limitedByRole.checkApplicationResourcePrivileges(
                 "app2",
                 Collections.singleton("moon/bar/a"),
                 forPrivilegeNames,
-                applicationPrivilegeDescriptors
+                applicationPrivilegeDescriptors,
+                resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
                 false,
@@ -611,14 +684,17 @@ public class LimitedRoleTests extends ESTestCase {
                         .build()
                 )
             );
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(false));
 
             Role role = fromRole.limitedBy(limitedByRole);
-            appPrivsByResource = role.checkApplicationResourcePrivileges(
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = role.checkApplicationResourcePrivileges(
                 "app2",
                 Collections.singleton("foo/bar/a"),
                 forPrivilegeNames,
-                applicationPrivilegeDescriptors
+                applicationPrivilegeDescriptors,
+                resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
                 false,
@@ -631,13 +707,16 @@ public class LimitedRoleTests extends ESTestCase {
                         .build()
                 )
             );
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(false));
 
-            appPrivsByResource = role.checkApplicationResourcePrivileges(
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = role.checkApplicationResourcePrivileges(
                 "app2",
                 Collections.singleton("moon/bar/a"),
                 forPrivilegeNames,
-                applicationPrivilegeDescriptors
+                applicationPrivilegeDescriptors,
+                resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
                 false,
@@ -650,13 +729,16 @@ public class LimitedRoleTests extends ESTestCase {
                         .build()
                 )
             );
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(false));
 
-            appPrivsByResource = role.checkApplicationResourcePrivileges(
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = role.checkApplicationResourcePrivileges(
                 "unknown",
                 Collections.singleton("moon/bar/a"),
                 forPrivilegeNames,
-                applicationPrivilegeDescriptors
+                applicationPrivilegeDescriptors,
+                resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
                 false,
@@ -669,13 +751,16 @@ public class LimitedRoleTests extends ESTestCase {
                         .build()
                 )
             );
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(false));
 
-            appPrivsByResource = role.checkApplicationResourcePrivileges(
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = role.checkApplicationResourcePrivileges(
                 "app2",
                 Collections.singleton("moo/bar/a"),
                 Sets.newHashSet("read", "write", "all", "unknown"),
-                applicationPrivilegeDescriptors
+                applicationPrivilegeDescriptors,
+                resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
                 false,
@@ -689,7 +774,8 @@ public class LimitedRoleTests extends ESTestCase {
                         .build()
                 )
             );
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
+            assertThat(privilegesCheck, is(false));
         }
     }
 

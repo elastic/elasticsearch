@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -26,6 +28,8 @@ import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -34,6 +38,8 @@ import java.util.stream.Collectors;
  * {@link RoleDescriptor.IndicesPrivileges privileges}
  */
 public class TransportHasPrivilegesAction extends HandledTransportAction<HasPrivilegesRequest, HasPrivilegesResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportHasPrivilegesAction.class);
 
     private final AuthorizationService authorizationService;
     private final NativePrivilegeStore privilegeStore;
@@ -85,16 +91,21 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
                         request.indexPrivileges(),
                         request.applicationPrivileges()
                     ),
+                    true,
                     applicationPrivilegeDescriptors,
-                    listener.map(
-                        privilegesCheckResult -> new HasPrivilegesResponse(
+                    listener.map(privilegesCheckResult -> {
+                        if (privilegesCheckResult.getDetails() == null) {
+                            logger.error("User 'has privileges' call returns empty details, but this breaks the check method contract");
+                        }
+                        assert privilegesCheckResult.getDetails() != null : "runDetailedCheck is 'true' but the result has no details";
+                        return new HasPrivilegesResponse(
                             request.username(),
-                            privilegesCheckResult.allMatch(),
-                            privilegesCheckResult.cluster(),
-                            privilegesCheckResult.index().values(),
-                            privilegesCheckResult.application()
-                        )
-                    )
+                            privilegesCheckResult.allChecksSuccess(),
+                            privilegesCheckResult.getDetails() != null ? privilegesCheckResult.getDetails().cluster() : Map.of(),
+                            privilegesCheckResult.getDetails() != null ? privilegesCheckResult.getDetails().index().values() : List.of(),
+                            privilegesCheckResult.getDetails() != null ? privilegesCheckResult.getDetails().application() : Map.of()
+                        );
+                    })
                 ),
                 listener::onFailure
             )

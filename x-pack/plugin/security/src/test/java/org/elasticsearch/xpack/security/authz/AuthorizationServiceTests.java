@@ -196,6 +196,8 @@ import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizatio
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAsDenied;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAsUnauthorizedAction;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
@@ -216,6 +218,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -2706,21 +2709,19 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
             return null;
         }).when(engine).resolveAuthorizationInfo(any(Subject.class), anyActionListener());
-        AuthorizationEngine.PrivilegesCheckResult privilegesCheckResult = new AuthorizationEngine.PrivilegesCheckResult(
-            randomBoolean(),
-            Map.of(),
-            Map.of(),
-            Map.of()
+        AuthorizationEngine.PrivilegesCheckResult privilegesCheckResult = randomFrom(
+            ALL_CHECKS_SUCCESS_NO_DETAILS,
+            SOME_CHECKS_FAILURE_NO_DETAILS
         );
         doAnswer(i -> {
             assertThat(i.getArguments().length, equalTo(4));
             final Object arg1 = i.getArguments()[0];
             assertThat(arg1, instanceOf(AuthorizationInfo.class));
             AuthorizationInfo authorizationInfoArg = (AuthorizationInfo) arg1;
-            final Object arg4 = i.getArguments()[3];
-            assertThat(arg4, instanceOf(ActionListener.class));
+            final Object arg5 = i.getArguments()[4];
+            assertThat(arg5, instanceOf(ActionListener.class));
             ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener = (ActionListener<
-                AuthorizationEngine.PrivilegesCheckResult>) arg4;
+                AuthorizationEngine.PrivilegesCheckResult>) arg5;
             if (authorizationInfoArg.equals(authorizationInfo)) {
                 listener.onResponse(privilegesCheckResult);
             } else {
@@ -2731,6 +2732,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             .checkPrivileges(
                 any(AuthorizationInfo.class),
                 any(AuthorizationEngine.PrivilegesToCheck.class),
+                anyBoolean(),
                 anyCollection(),
                 anyActionListener()
             );
@@ -2743,6 +2745,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 new IndicesPrivileges[0],
                 new RoleDescriptor.ApplicationResourcePrivileges[0]
             ),
+            randomBoolean(),
             List.of(),
             future
         );
@@ -2814,6 +2817,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             public void checkPrivileges(
                 AuthorizationInfo authorizationInfo,
                 PrivilegesToCheck privilegesToCheck,
+                boolean runDetailedCheck,
                 Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
                 ActionListener<PrivilegesCheckResult> listener
             ) {

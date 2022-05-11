@@ -104,7 +104,8 @@ public interface AuthorizationEngine {
      * This could include retrieval of permissions from an index or external system.
      * See also {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}, for which this method is the more general
      * sibling. This returns the {@code AuthorizationInfo} that is used for access checks outside the context of
-     * authorizing a specific request, i.e. {@link #checkPrivileges(AuthorizationInfo, PrivilegesToCheck, Collection, ActionListener)}
+     * authorizing a specific request, i.e.
+     * {@link #checkPrivileges(AuthorizationInfo, PrivilegesToCheck, boolean, Collection, ActionListener)}
      *
      * @param subject object representing the effective user
      * @param listener the listener to be notified of success using {@link ActionListener#onResponse(Object)}
@@ -211,12 +212,15 @@ public interface AuthorizationEngine {
      * @param authorizationInfo information used for authorization, for a specific Subject, that was previously retrieved
      *                          using {@link #resolveAuthorizationInfo(Subject, ActionListener)}
      * @param privilegesToCheck the object that contains the privileges to check for the Subject
+     * @param runDetailedCheck whether to return the details on which privileges are granted and which are not.
+     *                         {@code PrivilegesCheckResult#details} must be {@code null} only if this parameter is {@code false}.
      * @param applicationPrivilegeDescriptors a collection of application privilege descriptors
      * @param listener the listener to be notified of the check privileges response
      */
     void checkPrivileges(
         AuthorizationInfo authorizationInfo,
         PrivilegesToCheck privilegesToCheck,
+        boolean runDetailedCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
         ActionListener<PrivilegesCheckResult> listener
     );
@@ -333,12 +337,48 @@ public interface AuthorizationEngine {
         }
     }
 
-    record PrivilegesCheckResult(
-        boolean allMatch,
-        Map<String, Boolean> cluster,
-        Map<String, ResourcePrivileges> index,
-        Map<String, Collection<ResourcePrivileges>> application
-    ) {}
+    final class PrivilegesCheckResult {
+
+        public static final PrivilegesCheckResult ALL_CHECKS_SUCCESS_NO_DETAILS = new PrivilegesCheckResult(true, null);
+        public static final PrivilegesCheckResult SOME_CHECKS_FAILURE_NO_DETAILS = new PrivilegesCheckResult(false, null);
+
+        private final boolean allChecksSuccess;
+
+        @Nullable
+        private final Details details;
+
+        public PrivilegesCheckResult(boolean allChecksSuccess, Details details) {
+            this.allChecksSuccess = allChecksSuccess;
+            this.details = details;
+        }
+
+        public boolean allChecksSuccess() {
+            return allChecksSuccess;
+        }
+
+        public @Nullable Details getDetails() {
+            return details;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            PrivilegesCheckResult that = (PrivilegesCheckResult) o;
+            return allChecksSuccess == that.allChecksSuccess && Objects.equals(details, that.details);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(allChecksSuccess, details);
+        }
+
+        public record Details(
+            Map<String, Boolean> cluster,
+            Map<String, ResourcePrivileges> index,
+            Map<String, Collection<ResourcePrivileges>> application
+        ) {}
+    }
 
     /**
      * Implementation of authorization info that is used in cases where we were not able to resolve

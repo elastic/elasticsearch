@@ -337,11 +337,11 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck, Collections.emptyList(), future);
+        engine.checkPrivileges(authzInfo, privilegesToCheck, true, Collections.emptyList(), future);
 
         final PrivilegesCheckResult result = future.get();
         assertThat(result, notNullValue());
-        assertThat(result.allMatch(), is(true));
+        assertThat(result.allChecksSuccess(), is(true));
 
         assertThat(result.cluster(), aMapWithSize(1));
         assertThat(result.cluster().get(ClusterHealthAction.NAME), equalTo(true));
@@ -373,11 +373,11 @@ public class RBACEngineTests extends ESTestCase {
             new ApplicationResourcePrivileges[0]
         );
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck, Collections.emptyList(), future);
+        engine.checkPrivileges(authzInfo, privilegesToCheck, true, Collections.emptyList(), future);
 
         final PrivilegesCheckResult response = future.get();
         assertThat(response, notNullValue());
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.cluster(), aMapWithSize(2));
         assertThat(response.cluster().get("monitor"), equalTo(true));
         assertThat(response.cluster().get("manage"), equalTo(false));
@@ -420,7 +420,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.index().values(), Matchers.iterableWithSize(1));
         final ResourcePrivileges result = response.index().values().iterator().next();
         assertThat(result.getResource(), equalTo("academy"));
@@ -515,11 +515,11 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck, privs, future);
+        engine.checkPrivileges(authzInfo, privilegesToCheck, true, privs, future);
 
         final PrivilegesCheckResult response = future.get();
         assertThat(response, notNullValue());
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.index().values(), Matchers.iterableWithSize(8));
         assertThat(
             response.index().values(),
@@ -567,7 +567,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.index().values(), Matchers.iterableWithSize(2));
         assertThat(
             response.index().values(),
@@ -603,7 +603,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.index().values(), Matchers.iterableWithSize(1));
         assertThat(
             response.index().values(),
@@ -621,7 +621,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(true));
+        assertThat(response.allChecksSuccess(), is(true));
         assertThat(response.index().values(), Matchers.iterableWithSize(1));
         assertThat(
             response.index().values(),
@@ -637,7 +637,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.index().values(), Matchers.iterableWithSize(1));
         assertThat(
             response.index().values(),
@@ -653,7 +653,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(true));
+        assertThat(response.allChecksSuccess(), is(true));
         assertThat(response.index().values(), Matchers.iterableWithSize(1));
         assertThat(
             response.index().values(),
@@ -675,7 +675,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.index().values(), Matchers.iterableWithSize(1));
         assertThat(
             response.index().values(),
@@ -695,7 +695,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.index().values(), Matchers.iterableWithSize(1));
         assertThat(
             response.index().values(),
@@ -715,7 +715,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.index().values(), Matchers.iterableWithSize(1));
         assertThat(
             response.index().values(),
@@ -740,7 +740,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(true));
+        assertThat(response.allChecksSuccess(), is(true));
         assertThat(response.index().values(), Matchers.iterableWithSize(1));
         assertThat(
             response.index().values(),
@@ -772,7 +772,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.index().values(), Matchers.iterableWithSize(2));
         assertThat(
             response.index().values(),
@@ -804,7 +804,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.index().values(), Matchers.iterableWithSize(2));
         assertThat(
             response.index().values(),
@@ -839,7 +839,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.index().values(), Matchers.iterableWithSize(2));
         assertThat(
             response.index().values(),
@@ -863,7 +863,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.index().values(), Matchers.iterableWithSize(2));
         assertThat(
             response.index().values(),
@@ -893,7 +893,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.index().values(), Matchers.iterableWithSize(2));
         assertThat(
             response.index().values(),
@@ -917,7 +917,7 @@ public class RBACEngineTests extends ESTestCase {
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.index().values(), Matchers.iterableWithSize(2));
         assertThat(
             response.index().values(),
@@ -971,7 +971,7 @@ public class RBACEngineTests extends ESTestCase {
             Strings.EMPTY_ARRAY
         );
 
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.index().values(), Matchers.emptyIterable());
         assertThat(response.application().entrySet(), Matchers.iterableWithSize(2));
         final Collection<ResourcePrivileges> app1 = response.application().get("app1");
@@ -1090,7 +1090,7 @@ public class RBACEngineTests extends ESTestCase {
             privs,
             "monitor"
         );
-        assertThat(response.allMatch(), is(false));
+        assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.application().keySet(), containsInAnyOrder(appName));
         assertThat(response.application().get(appName), iterableWithSize(1));
         assertThat(
@@ -1124,19 +1124,19 @@ public class RBACEngineTests extends ESTestCase {
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
         assertThat(
-            hasPrivileges(indexPrivileges("read", "read-123", "read-456", "all-999"), authzInfo, privs, "monitor").allMatch(),
+            hasPrivileges(indexPrivileges("read", "read-123", "read-456", "all-999"), authzInfo, privs, "monitor").allChecksSuccess(),
             is(true)
         );
         assertThat(
-            hasPrivileges(indexPrivileges("read", "read-123", "read-456", "all-999"), authzInfo, privs, "manage").allMatch(),
+            hasPrivileges(indexPrivileges("read", "read-123", "read-456", "all-999"), authzInfo, privs, "manage").allChecksSuccess(),
             is(false)
         );
         assertThat(
-            hasPrivileges(indexPrivileges("write", "read-123", "read-456", "all-999"), authzInfo, privs, "monitor").allMatch(),
+            hasPrivileges(indexPrivileges("write", "read-123", "read-456", "all-999"), authzInfo, privs, "monitor").allChecksSuccess(),
             is(false)
         );
         assertThat(
-            hasPrivileges(indexPrivileges("write", "read-123", "read-456", "all-999"), authzInfo, privs, "manage").allMatch(),
+            hasPrivileges(indexPrivileges("write", "read-123", "read-456", "all-999"), authzInfo, privs, "manage").allChecksSuccess(),
             is(false)
         );
         assertThat(
@@ -1149,7 +1149,7 @@ public class RBACEngineTests extends ESTestCase {
                 authzInfo,
                 privs,
                 "monitor"
-            ).allMatch(),
+            ).allChecksSuccess(),
             is(true)
         );
         assertThat(
@@ -1161,7 +1161,7 @@ public class RBACEngineTests extends ESTestCase {
                 authzInfo,
                 privs,
                 "monitor"
-            ).allMatch(),
+            ).allChecksSuccess(),
             is(false)
         );
     }
@@ -1394,7 +1394,7 @@ public class RBACEngineTests extends ESTestCase {
     ) throws Exception {
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
         PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(clusterPrivileges, indicesPrivileges, appPrivileges);
-        engine.checkPrivileges(authorizationInfo, privilegesToCheck, applicationPrivilegeDescriptors, future);
+        engine.checkPrivileges(authorizationInfo, privilegesToCheck, true, applicationPrivilegeDescriptors, future);
         final PrivilegesCheckResult response = future.get();
         assertThat(response, notNullValue());
         return response;

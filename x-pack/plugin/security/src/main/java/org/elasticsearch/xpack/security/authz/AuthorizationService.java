@@ -170,6 +170,7 @@ public class AuthorizationService {
     public void checkPrivileges(
         Subject subject,
         AuthorizationEngine.PrivilegesToCheck privilegesToCheck,
+        boolean runDetailedCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
         ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener
     ) {
@@ -181,6 +182,7 @@ public class AuthorizationService {
                     (delegateListener, authorizationInfo) -> authorizationEngine.checkPrivileges(
                         authorizationInfo,
                         privilegesToCheck,
+                        runDetailedCheck,
                         applicationPrivilegeDescriptors,
                         wrapPreservingContext(delegateListener, threadContext)
                     )

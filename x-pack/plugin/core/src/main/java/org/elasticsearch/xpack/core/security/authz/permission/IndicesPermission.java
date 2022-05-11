@@ -188,15 +188,19 @@ public final class IndicesPermission {
      * @param checkForIndexPatterns check permission grants for the set of index patterns
      * @param allowRestrictedIndices if {@code true} then checks permission grants even for restricted indices by index matching
      * @param checkForPrivileges check permission grants for the set of index privileges
-     * @return an instance of {@link ResourcePrivilegesMap}
+     * @param resourcePrivilegesMapBuilder out-parameter for returning the details on which privilege over which resource is granted or not.
+     *                                     Can be {@code null} when no such details are needed so the method can return early, after
+     *                                     encountering the first privilege that is not granted over some resource.
+     * @return {@code true} when all the privileges are granted over all the resources, or {@code false} otherwise
      */
-    public ResourcePrivilegesMap checkResourcePrivileges(
+    public boolean checkResourcePrivileges(
         Set<String> checkForIndexPatterns,
         boolean allowRestrictedIndices,
-        Set<String> checkForPrivileges
+        Set<String> checkForPrivileges,
+        @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
-        final ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
         final Map<IndicesPermission.Group, Automaton> predicateCache = new HashMap<>();
+        boolean allMatch = true;
         for (String forIndexPattern : checkForIndexPatterns) {
             Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
             if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
@@ -220,9 +224,17 @@ public final class IndicesPermission {
                     IndexPrivilege indexPrivilege = IndexPrivilege.get(Collections.singleton(privilege));
                     if (allowedIndexPrivilegesAutomaton != null
                         && Operations.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
-                        resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
+                        if (resourcePrivilegesMapBuilder != null) {
+                            resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
+                        }
                     } else {
-                        resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
+                        if (resourcePrivilegesMapBuilder != null) {
+                            resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
+                            allMatch = false;
+                        } else {
+                            // return early on first privilege not granted
+                            return false;
+                        }
                     }
                 }
             } else {
@@ -231,12 +243,18 @@ public final class IndicesPermission {
                 // the pattern was not marked as `allowRestrictedIndices`. We try to anticipate this by considering _explicit_ restricted
                 // indices even if `allowRestrictedIndices` is false.
                 // TODO The `false` result is a _safe_ default but this is actually an error. Make it an error.
-                for (String privilege : checkForPrivileges) {
-                    resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
+                if (resourcePrivilegesMapBuilder != null) {
+                    for (String privilege : checkForPrivileges) {
+                        resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
+                    }
+                    allMatch = false;
+                } else {
+                    // return early on first privilege not granted
+                    return false;
                 }
             }
         }
-        return resourcePrivilegesMapBuilder.build();
+        return allMatch;
     }
 
     public Automaton allowedActionsMatcher(String index) {

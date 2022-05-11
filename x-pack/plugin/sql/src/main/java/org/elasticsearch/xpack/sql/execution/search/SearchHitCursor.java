@@ -45,6 +45,7 @@ public class SearchHitCursor implements Cursor {
     private final int limit;
     private final boolean includeFrozen;
     private final boolean allowPartialSearchResults;
+    private final Version minCompatibleVersion;
 
     SearchHitCursor(
         SearchSourceBuilder nextQuery,
@@ -60,6 +61,7 @@ public class SearchHitCursor implements Cursor {
         this.limit = remainingLimit;
         this.includeFrozen = includeFrozen;
         this.allowPartialSearchResults = allowPartialSearchResults;
+        this.minCompatibleVersion = Version.CURRENT;
     }
 
     public SearchHitCursor(StreamInput in) throws IOException {
@@ -70,6 +72,7 @@ public class SearchHitCursor implements Cursor {
         mask = BitSet.valueOf(in.readByteArray());
         includeFrozen = in.readBoolean();
         allowPartialSearchResults = in.getVersion().onOrAfter(Version.V_8_3_0) && in.readBoolean();
+        minCompatibleVersion = in.getVersion();
     }
 
     @Override
@@ -120,7 +123,7 @@ public class SearchHitCursor implements Cursor {
             log.trace("About to execute search hit query {}", StringUtils.toString(nextQuery));
         }
 
-        SearchRequest request = prepareRequest(nextQuery, cfg, includeFrozen);
+        SearchRequest request = prepareRequest(nextQuery, cfg, includeFrozen, minCompatibleVersion);
 
         client.search(
             request,

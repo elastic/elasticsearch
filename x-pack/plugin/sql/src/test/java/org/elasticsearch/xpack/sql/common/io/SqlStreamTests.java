@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -33,7 +34,7 @@ public class SqlStreamTests extends ESTestCase {
         out.close();
         String encoded = out.streamAsString();
 
-        SqlStreamInput in = SqlStreamInput.fromString(encoded, new NamedWriteableRegistry(List.of()), Version.CURRENT);
+        SqlStreamInput in = SqlStreamInput.fromString(encoded, new NamedWriteableRegistry(List.of()));
         BytesRef read = in.readBytesRef();
 
         assertArrayEquals(payload.bytes, read.bytes);
@@ -59,12 +60,16 @@ public class SqlStreamTests extends ESTestCase {
                     + "YW5ndWFnZXMAAAD/AAD/AQAIYmRlZjg4ZTUBBmdlbmRlcgAAAQAAAQEKAQhiZGVmODhlNf8AAgEAAAAA"
                     + "AP////8PAAAAAAAAAAAAAAAAAVoDAAICAAAAAAAAAAAKAP////8PAgFtCDJkMTBjNGJhBXZhbHVlAAEE"
                     + "QllURQFrCGJkZWY4OGU1AAABAwA=",
-                new NamedWriteableRegistry(List.of()),
-                Version.CURRENT
+                new NamedWriteableRegistry(List.of())
             )
         );
 
-        assertThat(ex.getMessage(), containsString("Unsupported cursor version [7.15.1], expected [" + Version.CURRENT + "]"));
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "Unsupported cursor version [7.15.1], expected [" + Cursors.CURSOR_BACKWARDS_COMPATIBILITY_VERSION + "] or later"
+            )
+        );
     }
 
     public void testVersionCanBeReadByOldNodes() throws IOException {

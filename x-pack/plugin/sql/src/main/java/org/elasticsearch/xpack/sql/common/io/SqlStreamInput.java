@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -25,13 +26,17 @@ import java.util.Base64;
  */
 public class SqlStreamInput extends NamedWriteableAwareStreamInput {
 
-    public static SqlStreamInput fromString(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, Version version)
-        throws IOException {
+    public static SqlStreamInput fromString(String base64encoded, NamedWriteableRegistry namedWriteableRegistry) throws IOException {
         byte[] bytes = Base64.getDecoder().decode(base64encoded);
         StreamInput in = StreamInput.wrap(bytes);
         Version inVersion = Version.readVersion(in);
-        if (version.compareTo(inVersion) != 0) {
-            throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", inVersion, version);
+
+        if (inVersion.before(Cursors.CURSOR_BACKWARDS_COMPATIBILITY_VERSION)) {
+            throw new SqlIllegalArgumentException(
+                "Unsupported cursor version [{}], expected [{}] or later",
+                inVersion,
+                Cursors.CURSOR_BACKWARDS_COMPATIBILITY_VERSION
+            );
         }
 
         InputStreamStreamInput uncompressingIn = new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(in));

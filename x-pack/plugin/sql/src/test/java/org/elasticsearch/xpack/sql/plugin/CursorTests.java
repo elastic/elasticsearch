@@ -10,11 +10,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter;
@@ -50,15 +48,8 @@ public class CursorTests extends ESTestCase {
         Version nextMinorVersion = Version.fromId(Version.CURRENT.id + 10000);
 
         String encodedWithWrongVersion = encodeToString(cursor, nextMinorVersion, randomZone());
-        SqlIllegalArgumentException exception = expectThrows(
-            SqlIllegalArgumentException.class,
-            () -> decodeFromString(encodedWithWrongVersion)
-        );
 
-        assertEquals(
-            LoggerMessageFormat.format("Unsupported cursor version [{}], expected [{}]", nextMinorVersion, Version.CURRENT),
-            exception.getMessage()
-        );
+        assertEquals(cursor, decodeFromString(encodedWithWrongVersion));
     }
 
     private static final NamedWriteableRegistry WRITEABLE_REGISTRY = new NamedWriteableRegistry(Cursors.getNamedWriteables());
@@ -119,7 +110,6 @@ public class CursorTests extends ESTestCase {
         String withFormatter = attachFormatter(encoded, formatter);
 
         assertEquals(formatter, Cursors.decodeFormatter(withFormatter));
-        expectThrows(SqlIllegalArgumentException.class, () -> Cursors.decodeFromStringWithZone(withFormatter, WRITEABLE_REGISTRY));
     }
 
     private BasicFormatter randomFormatter() {

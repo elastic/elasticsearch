@@ -75,7 +75,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
                             },
                             "processors_range" : {"min": 9.0, "max": 10.0},
                             "memory" : "58gb",
-                            "storage" : "1700gb",
+                            "storage" : "1tb",
                             "node_version" : "99.1.0"
                         }
                     ]
@@ -90,7 +90,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
                             },
                             "processors" : 9.5,
                             "memory" : "58gb",
-                            "storage" : "1700gb",
+                            "storage" : "1tb",
                             "node_version" : "99.1.0"
                         }
                     ]
@@ -108,7 +108,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
                         },
                         "processors" : 9,
                         "memory" : "58gb",
-                        "storage" : "1700gb",
+                        "storage" : "1tb",
                         "node_version" : "99.1.0"
                     }
                 ]

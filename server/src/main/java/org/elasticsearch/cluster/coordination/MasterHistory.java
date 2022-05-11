@@ -77,7 +77,11 @@ public class MasterHistory implements ClusterStateListener {
             int startIndex = Math.max(0, sizeAfterAddingNewMaster - MAX_HISTORY_SIZE);
             for (int i = startIndex; i < masterHistory.size(); i++) {
                 TimeAndMaster timeAndMaster = masterHistory.get(i);
-                if (timeAndMaster.startTimeMillis >= oldestRelevantHistoryTime) {
+                long endTime = Long.MAX_VALUE;
+                if (i < masterHistory.size() - 1) {
+                    endTime = masterHistory.get(i + 1).startTimeMillis;
+                }
+                if (endTime >= oldestRelevantHistoryTime) {
                     newMasterHistory.add(timeAndMaster);
                 }
             }
@@ -175,25 +179,36 @@ public class MasterHistory implements ClusterStateListener {
     }
 
     /**
-     * Returns true if a non-null master was seen at any point in the last nSeconds seconds, or if the last-seen master was more than
-     * nSeconds seconds ago and non-null.
+     * Returns true if a non-null master was seen at any point in the last nSeconds seconds, including if the master was non-null
+     * nSeconds ago but has transitioned to null since then.
      * @param nSeconds The number of seconds to look back
      * @return true if the current master is non-null or if a non-null master was seen in the last nSeconds seconds
      */
     public boolean hasSeenMasterInLastNSeconds(int nSeconds) {
+        if (getMostRecentMaster() != null) {
+            return true;
+        }
         List<TimeAndMaster> masterHistoryCopy = getRecentMasterHistory(masterHistory);
         long now = currentTimeMillisSupplier.getAsLong();
         TimeValue nSecondsTimeValue = new TimeValue(nSeconds, TimeUnit.SECONDS);
         long nSecondsAgo = now - nSecondsTimeValue.getMillis();
-        return getMostRecentMaster() != null
-            || masterHistoryCopy.stream()
-                .filter(timeAndMaster -> timeAndMaster.master != null)
-                .anyMatch(timeAndMaster -> timeAndMaster.startTimeMillis > nSecondsAgo);
+
+        for (int i = masterHistoryCopy.size() - 1; i >= 0; i--) {
+            TimeAndMaster timeAndMaster = masterHistoryCopy.get(i);
+            if (timeAndMaster.master != null) {
+                return true;
+            }
+            if (timeAndMaster.startTimeMillis < nSecondsAgo) {
+                break;
+            }
+        }
+        return false;
     }
 
     /*
-     * This method creates a copy of masterHistory that only has entries from more than maxHistoryAge before now (but leaves the newest
-     * entry in even if it is more than maxHistoryAge).
+     * This method creates a mutable copy of masterHistory that only has entries that have been active in the recent past
+     * (maxHistoryAge). In this case, "active" means that either the master's start time has been within maxHistoryAge, or the master was
+     *  replaced by another master within maxHistoryAge.
      */
     private List<TimeAndMaster> getRecentMasterHistory(List<TimeAndMaster> history) {
         if (history.size() < 2) {
@@ -201,12 +216,19 @@ public class MasterHistory implements ClusterStateListener {
         }
         long now = currentTimeMillisSupplier.getAsLong();
         long oldestRelevantHistoryTime = now - maxHistoryAge.getMillis();
-        TimeAndMaster mostRecent = history.isEmpty() ? null : history.get(history.size() - 1);
-        List<TimeAndMaster> filteredHistory = history.stream()
-            .filter(timeAndMaster -> timeAndMaster.startTimeMillis > oldestRelevantHistoryTime)
-            .collect(Collectors.toList());
-        if (filteredHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than 30 minutes ago
-            filteredHistory.add(mostRecent);
+
+        List<TimeAndMaster> filteredHistory = new ArrayList<>();
+        for (int i = 0; i < history.size(); i++) {
+            TimeAndMaster timeAndMaster = history.get(i);
+            final long endTime;
+            if (i < history.size() - 1) {
+                endTime = history.get(i + 1).startTimeMillis;
+            } else {
+                endTime = Long.MAX_VALUE;
+            }
+            if (endTime >= oldestRelevantHistoryTime) {
+                filteredHistory.add(timeAndMaster);
+            }
         }
         return filteredHistory;
     }

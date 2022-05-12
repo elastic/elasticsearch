@@ -32,6 +32,7 @@ image::images/kibana-console.png[{kib} Console,align="center"]
 ----
 POST /_ilm/stop
 ----
+//TEST[skip:stopping ILM requires waiting]
 +
 The response will look like this:
 +
@@ -66,6 +67,7 @@ When {ilm} has succesfully stopped the response will look like this:
 ----
 POST /_ilm/migrate_to_data_tiers
 ----
+//TEST[skip:this can flake as we're not waiting for ILM to stop]
 +
 The response will look like this:
 +
@@ -138,6 +140,8 @@ node.roles [ data_hot, data_content ]
 ----
 POST /_ilm/stop
 ----
+//TEST[skip:stopping ILM requires waiting]
+
 +
 The response will look like this:
 +
@@ -172,6 +176,8 @@ When {ilm} has succesfully stopped the response will look like this:
 ----
 POST /_ilm/migrate_to_data_tiers
 ----
+//TEST[skip:this can flake as we're not waiting for ILM to stop]
+
 +
 The response will look like this:
 +

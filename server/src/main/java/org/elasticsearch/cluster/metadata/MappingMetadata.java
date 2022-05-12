@@ -75,7 +75,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         this.routingRequired = routingRequired(withoutType);
     }
 
-    public static void writeMappingMetadata(StreamOutput out, ImmutableOpenMap<String, MappingMetadata> mappings) throws IOException {
+    public static void writeMappingMetadata(StreamOutput out, Map<String, MappingMetadata> mappings) throws IOException {
         out.writeMap(mappings, StreamOutput::writeString, out.getVersion().before(Version.V_8_0_0) ? (o, v) -> {
             o.writeVInt(v == EMPTY_MAPPINGS ? 0 : 1);
             if (v != EMPTY_MAPPINGS) {

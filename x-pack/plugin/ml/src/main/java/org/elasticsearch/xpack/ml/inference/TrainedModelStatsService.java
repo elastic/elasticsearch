@@ -221,7 +221,7 @@ public class TrainedModelStatsService {
         try {
             resultsPersisterService.bulkIndexWithRetry(bulkRequest, jobPattern, () -> shouldStop() == false, (msg) -> {});
         } catch (ElasticsearchException ex) {
-            logger.warn(() -> new ParameterizedMessage("failed to store stats for [{}]", jobPattern), ex);
+            logger.warn(() -> "failed to store stats for [" + jobPattern + "]", ex);
         }
     }
 

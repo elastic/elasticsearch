@@ -112,8 +112,8 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                     ? null
                                     : new AssignmentStats(
                                         stats.getDeploymentStats().getModelId(),
-                                        stats.getDeploymentStats().getInferenceThreads(),
-                                        stats.getDeploymentStats().getModelThreads(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         stats.getDeploymentStats().getStartTime(),
                                         stats.getDeploymentStats()
@@ -164,8 +164,8 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                     ? null
                                     : new AssignmentStats(
                                         stats.getDeploymentStats().getModelId(),
-                                        stats.getDeploymentStats().getInferenceThreads(),
-                                        stats.getDeploymentStats().getModelThreads(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         stats.getDeploymentStats().getStartTime(),
                                         stats.getDeploymentStats()
@@ -183,8 +183,8 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     nodeStats.getTimeoutCount(),
                                                     nodeStats.getRoutingState(),
                                                     nodeStats.getStartTime(),
-                                                    nodeStats.getInferenceThreads(),
-                                                    nodeStats.getModelThreads(),
+                                                    nodeStats.getThreadsPerAllocation(),
+                                                    nodeStats.getNumberOfAllocations(),
                                                     0L,
                                                     0L,
                                                     null

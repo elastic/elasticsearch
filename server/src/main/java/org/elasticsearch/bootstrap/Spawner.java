@@ -108,7 +108,7 @@ final class Spawner implements Closeable {
                     logger.warn(line);
                 }
             } catch (IOException e) {
-                logger.error(e);
+                logger.error("error while reading " + streamName, e);
             }
         }, loggerName + "-pump");
         t.start();

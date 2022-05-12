@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.logstash.action;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -49,7 +47,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class TransportGetPipelineActionTests extends ESTestCase {
 
     /**

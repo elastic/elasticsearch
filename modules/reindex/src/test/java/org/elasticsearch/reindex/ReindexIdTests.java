@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Reindex
+ * Reindex tests for picking ids.
  */
 public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<ReindexRequest, BulkByScrollResponse> {
     public void testEmptyStateCopiesId() throws Exception {
@@ -46,20 +46,24 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
         assertThat(action(stateWithIndex(tsdbSettings())).buildRequest(doc()).getId(), nullValue());
     }
 
-    public void testMissingIndexWithStandardTemplateClearsId() throws Exception {
-        Metadata.Builder metadata = Metadata.builder();
-        metadata.put("c", new ComponentTemplate(new Template(standardSettings().build(), null, null), null, null));
-        metadata.put("c", new ComposableIndexTemplate(List.of("dest_index"), null, List.of("c"), null, null, null));
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
-        assertThat(action(state).buildRequest(doc()).getId(), equalTo(doc().getId()));
+    public void testMissingIndexWithStandardTemplateCopiesId() throws Exception {
+        assertThat(action(stateWithTemplate(standardSettings())).buildRequest(doc()).getId(), equalTo(doc().getId()));
     }
 
     public void testMissingIndexWithTsdbTemplateClearsId() throws Exception {
+        assertThat(action(stateWithTemplate(tsdbSettings())).buildRequest(doc()).getId(), nullValue());
+    }
+
+    private ClusterState stateWithTemplate(Settings.Builder settings) {
         Metadata.Builder metadata = Metadata.builder();
-        metadata.put("c", new ComponentTemplate(new Template(tsdbSettings().build(), null, null), null, null));
-        metadata.put("c", new ComposableIndexTemplate(List.of("dest_index"), null, List.of("c"), null, null, null));
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
-        assertThat(action(state).buildRequest(doc()).getId(), nullValue());
+        Template template = new Template(settings.build(), null, null);
+        if (randomBoolean()) {
+            metadata.put("c", new ComponentTemplate(template, null, null));
+            metadata.put("c", new ComposableIndexTemplate(List.of("dest_index"), null, List.of("c"), null, null, null));
+        } else {
+            metadata.put("c", new ComposableIndexTemplate(List.of("dest_index"), template, null, null, null, null));
+        }
+        return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
     }
 
     private ClusterState stateWithIndex(Settings.Builder settings) {
@@ -71,6 +75,9 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
     }
 
     private Settings.Builder standardSettings() {
+        if (randomBoolean()) {
+            return Settings.builder();
+        }
         return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD);
     }
 

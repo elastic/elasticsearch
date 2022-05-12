@@ -18,12 +18,15 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
@@ -89,7 +92,7 @@ public class IndexMetadataVerifier {
         // Next we have to run this otherwise if we try to create IndexSettings
         // with broken settings it would fail in checkMappingsCompatibility
         newMetadata = archiveBrokenIndexSettings(newMetadata);
-        checkMappingsCompatibility(newMetadata);
+        createAndValidateMapping(newMetadata);
         return newMetadata;
     }
 
@@ -126,8 +129,10 @@ public class IndexMetadataVerifier {
      * Note that we don't expect users to encounter mapping incompatibilities, since our index compatibility
      * policy guarantees we can read mappings from previous compatible index versions. A failure here would
      * indicate a compatibility bug (which are unfortunately not that uncommon).
+     * @return the mapping
      */
-    private void checkMappingsCompatibility(IndexMetadata indexMetadata) {
+    @Nullable
+    public Mapping createAndValidateMapping(IndexMetadata indexMetadata) {
         try {
 
             // We cannot instantiate real analysis server or similarity service at this point because the node
@@ -194,6 +199,8 @@ public class IndexMetadataVerifier {
                     scriptService
                 );
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
+                DocumentMapper documentMapper = mapperService.documentMapper();
+                return documentMapper == null ? null : documentMapper.mapping();
             }
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message

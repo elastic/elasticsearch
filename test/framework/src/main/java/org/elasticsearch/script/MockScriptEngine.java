@@ -145,6 +145,8 @@ public class MockScriptEngine implements ScriptEngine {
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(StringSortScript.class)) {
             return context.factoryClazz.cast(new MockStringSortScriptFactory(script));
+        } else if (context.instanceClazz.equals(BytesRefSortScript.class)) {
+            return context.factoryClazz.cast(new MockBytesRefSortScriptFactory(script));
         } else if (context.instanceClazz.equals(IngestScript.class)) {
             IngestScript.Factory factory = vars -> new IngestScript(vars) {
                 @Override
@@ -800,6 +802,32 @@ public class MockScriptEngine implements ScriptEngine {
                     vars.put("params", parameters);
                     vars.put("doc", getDoc());
                     return String.valueOf(script.apply(vars));
+                }
+            };
+        }
+    }
+
+    class MockBytesRefSortScriptFactory implements BytesRefSortScript.Factory {
+        private final MockDeterministicScript script;
+
+        MockBytesRefSortScriptFactory(MockDeterministicScript script) {
+            this.script = script;
+        }
+
+        @Override
+        public boolean isResultDeterministic() {
+            return script.isResultDeterministic();
+        }
+
+        @Override
+        public BytesRefSortScript.LeafFactory newFactory(Map<String, Object> parameters) {
+            return docReader -> new BytesRefSortScript(parameters, docReader) {
+                @Override
+                public BytesRefProducer execute() {
+                    Map<String, Object> vars = new HashMap<>(parameters);
+                    vars.put("params", parameters);
+                    vars.put("doc", getDoc());
+                    return (BytesRefProducer) script.apply(vars);
                 }
             };
         }

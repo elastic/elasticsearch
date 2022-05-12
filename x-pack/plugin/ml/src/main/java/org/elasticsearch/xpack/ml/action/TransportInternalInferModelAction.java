@@ -23,13 +23,13 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction.Request;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction.Response;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Request;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -49,6 +49,24 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     private final XPackLicenseState licenseState;
     private final TrainedModelProvider trainedModelProvider;
 
+    TransportInternalInferModelAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ModelLoadingService modelLoadingService,
+        Client client,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        TrainedModelProvider trainedModelProvider
+    ) {
+        super(actionName, transportService, actionFilters, InferModelAction.Request::new);
+        this.modelLoadingService = modelLoadingService;
+        this.client = client;
+        this.clusterService = clusterService;
+        this.licenseState = licenseState;
+        this.trainedModelProvider = trainedModelProvider;
+    }
+
     @Inject
     public TransportInternalInferModelAction(
         TransportService transportService,
@@ -59,12 +77,16 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         XPackLicenseState licenseState,
         TrainedModelProvider trainedModelProvider
     ) {
-        super(InternalInferModelAction.NAME, transportService, actionFilters, InternalInferModelAction.Request::new);
-        this.modelLoadingService = modelLoadingService;
-        this.client = client;
-        this.clusterService = clusterService;
-        this.licenseState = licenseState;
-        this.trainedModelProvider = trainedModelProvider;
+        this(
+            InferModelAction.NAME,
+            transportService,
+            actionFilters,
+            modelLoadingService,
+            client,
+            clusterService,
+            licenseState,
+            trainedModelProvider
+        );
     }
 
     @Override
@@ -103,8 +125,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     }
 
     private boolean isAllocatedModel(String modelId) {
-        TrainedModelAllocationMetadata trainedModelAllocationMetadata = TrainedModelAllocationMetadata.fromState(clusterService.state());
-        return trainedModelAllocationMetadata.isAllocated(modelId);
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(clusterService.state());
+        return trainedModelAssignmentMetadata.isAssigned(modelId);
     }
 
     private void getModelAndInfer(Request request, Response.Builder responseBuilder, ActionListener<Response> listener) {
@@ -154,6 +176,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                     chainedTask -> inferSingleDocAgainstAllocatedModel(
                         task,
                         request.getModelId(),
+                        request.getTimeout(),
                         request.getUpdate(),
                         stringObjectMap,
                         chainedTask
@@ -174,6 +197,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     private void inferSingleDocAgainstAllocatedModel(
         Task task,
         String modelId,
+        TimeValue timeValue,
         InferenceConfigUpdate inferenceConfigUpdate,
         Map<String, Object> doc,
         ActionListener<InferenceResults> listener
@@ -183,7 +207,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             modelId,
             inferenceConfigUpdate,
             Collections.singletonList(doc),
-            TimeValue.MAX_VALUE
+            timeValue
         );
         request.setParentTask(taskId);
         executeAsyncWithOrigin(

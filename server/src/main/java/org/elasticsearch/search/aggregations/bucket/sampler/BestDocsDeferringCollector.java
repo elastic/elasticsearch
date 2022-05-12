@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
@@ -77,8 +78,8 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        perSegCollector = new PerSegmentCollects(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+        perSegCollector = new PerSegmentCollects(aggCtx.getLeafReaderContext());
         entries.add(perSegCollector);
 
         // Deferring collector

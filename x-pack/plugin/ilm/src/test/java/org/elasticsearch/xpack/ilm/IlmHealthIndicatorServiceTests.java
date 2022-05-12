@@ -11,7 +11,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -39,7 +42,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -47,6 +50,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "ILM is running",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 1)),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -59,7 +63,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -67,6 +71,14 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     YELLOW,
                     "ILM is not running",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1)),
+                    Collections.singletonList(
+                        new HealthIndicatorImpact(
+                            3,
+                            "Automatic index lifecycle and data retention management is disabled. The performance and stability of your "
+                                + "system could be impacted.",
+                            List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
+                        )
+                    ),
                     Collections.emptyList()
                 )
             )
@@ -79,7 +91,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -87,6 +99,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "No policies configured",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 0)),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -98,7 +111,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -106,6 +119,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "No policies configured",
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 0)),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )

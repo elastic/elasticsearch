@@ -29,8 +29,7 @@ public class ResponseRewriterTests extends ESTestCase {
             Version.V_8_0_0,
             oldResponse,
             new String[] { "-metadata" },
-            Strings.EMPTY_ARRAY,
-            f -> f.startsWith("_")
+            Strings.EMPTY_ARRAY
         );
 
         assertTrue(rewritten.containsKey("field"));
@@ -49,8 +48,7 @@ public class ResponseRewriterTests extends ESTestCase {
             Version.V_8_0_0,
             oldResponse,
             new String[] { "+metadata" },
-            Strings.EMPTY_ARRAY,
-            f -> f.startsWith("_")
+            Strings.EMPTY_ARRAY
         );
 
         assertFalse(rewritten.containsKey("field"));
@@ -71,8 +69,7 @@ public class ResponseRewriterTests extends ESTestCase {
             Version.V_8_0_0,
             oldResponse,
             new String[] { "-nested" },
-            Strings.EMPTY_ARRAY,
-            f -> f.startsWith("_")
+            Strings.EMPTY_ARRAY
         );
 
         assertTrue(rewritten.containsKey("field"));
@@ -96,8 +93,7 @@ public class ResponseRewriterTests extends ESTestCase {
             Version.V_8_0_0,
             oldResponse,
             new String[] { "-multifield" },
-            Strings.EMPTY_ARRAY,
-            f -> f.startsWith("_")
+            Strings.EMPTY_ARRAY
         );
 
         assertTrue(rewritten.containsKey("field"));
@@ -119,8 +115,7 @@ public class ResponseRewriterTests extends ESTestCase {
             Version.V_8_0_0,
             oldResponse,
             new String[] { "-parent" },
-            Strings.EMPTY_ARRAY,
-            f -> f.startsWith("_")
+            Strings.EMPTY_ARRAY
         );
 
         assertTrue(rewritten.containsKey("field"));
@@ -142,8 +137,7 @@ public class ResponseRewriterTests extends ESTestCase {
             Version.V_8_0_0,
             oldResponse,
             Strings.EMPTY_ARRAY,
-            new String[] { "text", "keyword" },
-            f -> f.startsWith("_")
+            new String[] { "text", "keyword" }
         );
 
         assertTrue(rewritten.containsKey("text"));

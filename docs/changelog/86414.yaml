@@ -1,0 +1,5 @@
+pr: 86414
+summary: DONE should mean fully processed in snapshot status
+area: Snapshot/Restore
+type: bug
+issues: []

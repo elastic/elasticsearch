@@ -277,3 +277,40 @@ teardown:
   - match: { _source.target_field.scheme: "http" }
   - match: { _source.target_field.domain: "www.example.com" }
   - match: { _source.target_field.path: "/index.html" }
+
+---
+"Test adding circular references fails pipeline":
+  - skip:
+      version: " - 8.2.999"
+      reason: "Test causes fatal error prior to 8.3.0"
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+            {
+              "description": "_description",
+              "processors": [
+                {
+                  "script" : {
+                    "ignore_failure": true,
+                    "source": "ctx.foo = ctx"
+                  }
+                }
+              ]
+            }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: bad_request
+      index:
+        index: test
+        id: "1"
+        pipeline: my_pipeline
+        body: >
+          {
+            "_source": {
+              "foo": "bar"
+            }
+          }
+  - match: { error.root_cause.0.reason: "Iterable object is self-referencing itself (ingest pipeline [my_pipeline])" }

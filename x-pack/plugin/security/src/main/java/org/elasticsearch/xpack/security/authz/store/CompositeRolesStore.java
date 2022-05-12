@@ -26,7 +26,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -173,11 +172,10 @@ public class CompositeRolesStore {
     }
 
     public void getRoles(Authentication authentication, ActionListener<Tuple<Role, Role>> roleActionListener) {
-        final AuthenticationContext authenticationContext = AuthenticationContext.fromAuthentication(authentication);
-        getRole(authenticationContext.getEffectiveSubject(), ActionListener.wrap(role -> {
-            if (authenticationContext.isRunAs()) {
+        getRole(authentication.getEffectiveSubject(), ActionListener.wrap(role -> {
+            if (authentication.isRunAs()) {
                 getRole(
-                    authenticationContext.getAuthenticatingSubject(),
+                    authentication.getAuthenticatingSubject(),
                     ActionListener.wrap(
                         authenticatingRole -> roleActionListener.onResponse(new Tuple<>(role, authenticatingRole)),
                         roleActionListener::onFailure
@@ -213,11 +211,10 @@ public class CompositeRolesStore {
         final User user = subject.getUser();
         if (SystemUser.is(user)) {
             throw new IllegalArgumentException(
-                "the user [" + user.principal() + "] is the system user and we should never try to get its" + " roles"
+                "the user [" + user.principal() + "] is the system user and we should never try to get its roles"
             );
         }
         if (XPackUser.is(user)) {
-            assert XPackUser.INSTANCE.roles().length == 1;
             return xpackUserRole;
         }
         if (XPackSecurityUser.is(user)) {
@@ -308,6 +305,16 @@ public class CompositeRolesStore {
     // for testing
     Role getAsyncSearchUserRole() {
         return asyncSearchUserRole;
+    }
+
+    // for testing
+    Role getXpackSecurityRole() {
+        return xpackSecurityRole;
+    }
+
+    // for testing
+    Role getSecurityProfileRole() {
+        return securityProfileRole;
     }
 
     private void buildThenMaybeCacheRole(

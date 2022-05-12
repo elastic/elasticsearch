@@ -702,5 +702,4 @@ public abstract class PackagingTestCase extends Assert {
             assertThat(caCert.toString(), Matchers.not(Matchers.containsString("certs")));
         }
     }
-
 }

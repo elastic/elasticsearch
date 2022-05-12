@@ -132,7 +132,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                         return;
                     }
                 }
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), e);
+                logger.warn((Supplier<?>) () -> "Failed to clear scroll [" + scrollId + "]", e);
             }
         });
     }

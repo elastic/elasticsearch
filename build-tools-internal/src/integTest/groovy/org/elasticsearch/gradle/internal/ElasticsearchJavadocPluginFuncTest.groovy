@@ -10,8 +10,10 @@ package org.elasticsearch.gradle.internal
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import spock.lang.IgnoreIf
 import spock.lang.Unroll
 
+@IgnoreIf({ os.windows })
 class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
 
     @Unroll

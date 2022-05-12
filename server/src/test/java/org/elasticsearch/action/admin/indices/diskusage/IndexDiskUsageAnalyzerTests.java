@@ -9,9 +9,7 @@
 package org.elasticsearch.action.admin.indices.diskusage;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-
 import com.carrotsearch.randomizedtesting.SeedUtils;
-
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.apache.lucene.codecs.DocValuesFormat;

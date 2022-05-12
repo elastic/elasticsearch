@@ -1,1 +1,1 @@
-with modifications
+mapbox-vector-tile, with modifications

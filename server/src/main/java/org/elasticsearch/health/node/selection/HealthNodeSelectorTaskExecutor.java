@@ -95,7 +95,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
             TASK_NAME,
             TASK_NAME,
             new HealthNodeSelectorTaskParams(),
-            ActionListener.wrap(r -> logger.info("Created the health node selector task"), e -> {
+            ActionListener.wrap(r -> logger.debug("Created the health node selector task"), e -> {
                 Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
                 if (t instanceof ResourceAlreadyExistsException == false) {
                     logger.error("failed to create health node selector task", e);
@@ -108,7 +108,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
         HealthNodeSelector task = currentTask.get();
         if (task != null && task.isCancelled() == false) {
             String nodeId = clusterService.localNode().getId();
-            logger.info("Node [" + nodeId + "] is releasing health node selector task due to shutdown");
+            logger.debug("Node [" + nodeId + "] is releasing health node selector task due to shutdown");
             task.markAsLocallyAborted("Node [" + nodeId + "] is shutting down.");
         }
     }

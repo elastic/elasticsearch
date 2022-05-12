@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class HealthNodeSelectorIT extends ESIntegTestCase {
 
     public void testDeselectingHealthNodeAboutToShutDown() throws Exception {
-        // Set up a cluster with 2 health nodes that are not the elected master node
+        // Set up a cluster with 2 health eligible nodes that are not the elected master node
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startMasterOnlyNodes(1);
         List<String> healthNodes = internalCluster().startDataOnlyNodes(2);

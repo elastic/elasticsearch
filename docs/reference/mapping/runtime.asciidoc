@@ -1067,8 +1067,7 @@ POST my-index-000001/_search
       }
     }
   },
-  "fields": [
-    "voltage_corrected", "node"]
+  "fields": ["voltage_corrected", "node"]
 }
 ----
 // TEST[continued]

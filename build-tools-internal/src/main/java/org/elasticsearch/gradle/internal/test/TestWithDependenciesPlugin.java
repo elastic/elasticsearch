@@ -11,14 +11,12 @@ package org.elasticsearch.gradle.internal.test;
 import org.apache.commons.lang.StringUtils;
 import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
-import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaPluginExtension;
-import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -50,11 +48,12 @@ public class TestWithDependenciesPlugin implements Plugin<Project> {
             return;
         }
         SourceSetContainer sourceSets = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
-        project.getPlugins().withType(InternalJavaRestTestPlugin.class, internalJavaRestTestPlugin ->
-                processConfiguration(sourceSets.getByName(InternalJavaRestTestPlugin.SOURCE_SET_NAME))
-        );
+        project.getPlugins()
+            .withType(
+                InternalJavaRestTestPlugin.class,
+                internalJavaRestTestPlugin -> processConfiguration(sourceSets.getByName(InternalJavaRestTestPlugin.SOURCE_SET_NAME))
+            );
         sourceSets.matching(sourceSet -> sourceSet.getName().equals("test")).configureEach(sourceSet -> processConfiguration(sourceSet));
-
 
     }
 

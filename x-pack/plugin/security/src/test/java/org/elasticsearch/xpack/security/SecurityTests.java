@@ -633,7 +633,10 @@ public class SecurityTests extends ESTestCase {
 
     public void testValidateForFipsNonFipsCompliantHashAlgoWarningLog() throws IllegalAccessException {
         String key = ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey();
-        final Settings settings = Settings.builder().put(key, randomNonFipsCompliantHashAlgo()).build();
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put(key, randomNonFipsCompliantHashAlgo())
+            .build();
         runAndAssertOnLogEvents(() -> Security.validateForFips(settings), List.of(nonFipsCompliantHashLog(key)));
     }
 
@@ -641,6 +644,7 @@ public class SecurityTests extends ESTestCase {
         String firstKey = ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey();
         String secondKey = "xpack.other.cache.hash_algo";
         final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
             .put(firstKey, randomNonFipsCompliantHashAlgo())
             .put(secondKey, randomNonFipsCompliantHashAlgo())
             .build();
@@ -654,6 +658,7 @@ public class SecurityTests extends ESTestCase {
         String firstKey = ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey();
         String secondKey = "xpack.other.cache.hash_algo";
         final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
             .put(firstKey, randomNonFipsCompliantHashAlgo())
             .put(secondKey, randomNonFipsCompliantHashAlgo())
             .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")

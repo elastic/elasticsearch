@@ -631,18 +631,18 @@ public class SecurityTests extends ESTestCase {
         runAndAssertOnLogEvents(() -> Security.validateForFips(settings), Collections.emptyList());
     }
 
-    public void testValidateForFipsLogsWarnOnNonCompliantHashAlgo() throws IllegalAccessException {
+    public void testValidateForFipsNonFipsCompliantHashAlgoWarningLog() throws IllegalAccessException {
         String key = ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey();
-        final Settings settings = Settings.builder().put(key, randomFrom(nonCompliantHashAlgos())).build();
+        final Settings settings = Settings.builder().put(key, randomNonFipsCompliantHashAlgo()).build();
         runAndAssertOnLogEvents(() -> Security.validateForFips(settings), List.of(nonCompliantHashAlgoLogExpectation(key)));
     }
 
-    public void testValidateForFipsLogsMultipleWarnsOnNonCompliantHashAlgos() throws IllegalAccessException {
+    public void testValidateForMultipleNonFipsCompliantHashAlgoWarningLogs() throws IllegalAccessException {
         String firstKey = ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey();
         String secondKey = "xpack.other.cache.hash_algo";
         final Settings settings = Settings.builder()
-            .put(firstKey, randomFrom(nonCompliantHashAlgos()))
-            .put(secondKey, randomFrom(nonCompliantHashAlgos()))
+            .put(firstKey, randomNonFipsCompliantHashAlgo())
+            .put(secondKey, randomNonFipsCompliantHashAlgo())
             .build();
         runAndAssertOnLogEvents(
             () -> Security.validateForFips(settings),
@@ -650,12 +650,12 @@ public class SecurityTests extends ESTestCase {
         );
     }
 
-    public void testValidateForFipsLogsWarnsAndThrowsOnInvalidSettings() throws IllegalAccessException {
+    public void testValidateForFipsValidationErrorAndWarningLogs() throws IllegalAccessException {
         String firstKey = ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey();
         String secondKey = "xpack.other.cache.hash_algo";
         final Settings settings = Settings.builder()
-            .put(firstKey, randomFrom(nonCompliantHashAlgos()))
-            .put(secondKey, randomFrom(nonCompliantHashAlgos()))
+            .put(firstKey, randomNonFipsCompliantHashAlgo())
+            .put(secondKey, randomNonFipsCompliantHashAlgo())
             .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")
             .build();
         runAndAssertOnLogEvents(() -> {
@@ -664,11 +664,13 @@ public class SecurityTests extends ESTestCase {
         }, List.of(nonCompliantHashAlgoLogExpectation(firstKey), nonCompliantHashAlgoLogExpectation(secondKey)));
     }
 
-    private List<String> nonCompliantHashAlgos() {
-        return Hasher.getAvailableAlgoCacheHash()
-            .stream()
-            .filter(alg -> (alg.startsWith("pbkdf2") || alg.equals("sha1") || alg.equals("ssha256")) == false)
-            .collect(Collectors.toList());
+    private String randomNonFipsCompliantHashAlgo() {
+        return randomFrom(
+            Hasher.getAvailableAlgoCacheHash()
+                .stream()
+                .filter(alg -> (alg.startsWith("pbkdf2") || alg.equals("sha1") || alg.equals("ssha256")) == false)
+                .collect(Collectors.toList())
+        );
     }
 
     private MockLogAppender.SeenEventExpectation nonCompliantHashAlgoLogExpectation(String settingKey) {

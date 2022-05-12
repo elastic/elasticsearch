@@ -40,18 +40,11 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
     }
 
     public static class Request extends BroadcastRequest<Request> implements IndicesRequest, ToXContentObject {
-        private String rollupIndex;
         private RollupAction.Request rollupRequest;
         private String[] dimensionFields;
         private String[] metricFields;
 
-        public Request(
-            String rollupIndex,
-            RollupAction.Request rollupRequest,
-            final String[] dimensionFields,
-            final String[] metricFields
-        ) {
-            this.rollupIndex = rollupIndex;
+        public Request(RollupAction.Request rollupRequest, final String[] dimensionFields, final String[] metricFields) {
             this.rollupRequest = rollupRequest;
             this.dimensionFields = dimensionFields;
             this.metricFields = metricFields;
@@ -61,7 +54,6 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.rollupIndex = in.readString();
             this.rollupRequest = new RollupAction.Request(in);
             this.dimensionFields = in.readStringArray();
             this.metricFields = in.readStringArray();
@@ -78,7 +70,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         }
 
         public String getRollupIndex() {
-            return this.rollupIndex;
+            return this.getRollupRequest().getRollupIndex();
         }
 
         public RollupAction.Request getRollupRequest() {
@@ -101,7 +93,6 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(rollupIndex);
             rollupRequest.writeTo(out);
             out.writeStringArray(dimensionFields);
             out.writeStringArray(metricFields);
@@ -115,7 +106,6 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("rollup_index", rollupIndex);
             builder.field("rollup_request", rollupRequest);
             builder.array("dimension_fields", dimensionFields);
             builder.array("metric_fields", metricFields);
@@ -125,8 +115,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
 
         @Override
         public int hashCode() {
-            int result = rollupIndex.hashCode();
-            result = 31 * result + rollupRequest.hashCode();
+            int result = rollupRequest.hashCode();
             result = 31 * result + Arrays.hashCode(dimensionFields);
             result = 31 * result + Arrays.hashCode(metricFields);
             return result;
@@ -137,7 +126,6 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            if (rollupIndex.equals(request.rollupIndex) == false) return false;
             if (rollupRequest.equals(request.rollupRequest) == false) return false;
             if (Arrays.equals(dimensionFields, request.dimensionFields) == false) return false;
             return Arrays.equals(metricFields, request.metricFields);

@@ -155,22 +155,24 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testRollupIndex() throws IOException {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
-        String ts = randomDateForInterval(config.getInterval());
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field(FIELD_TIMESTAMP, ts)
-            .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
-            // .field(FIELD_DIMENSION_2, randomIntBetween(1, 10)) //TODO: Fix _tsid format issue and then enable this
-            .field(FIELD_NUMERIC_1, randomInt())
-            .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
-            .endObject();
+        SourceSupplier sourceSupplier = () -> {
+            String ts = randomDateForInterval(config.getInterval());
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, ts)
+                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
+                // .field(FIELD_DIMENSION_2, randomIntBetween(1, 10)) //TODO: Fix _tsid format issue and then enable this
+                .field(FIELD_NUMERIC_1, randomInt())
+                .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
+                .endObject();
+        };
         bulkIndex(sourceSupplier);
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndexClone, rollupIndex);
+        assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
     }
 
-    public void testMissingSourceIndexName() {
+    public void testNullSourceIndexName() {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         ActionRequestValidationException exception = expectThrows(
             ActionRequestValidationException.class,
@@ -179,7 +181,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString("source index is missing"));
     }
 
-    public void testMissingRollupIndexName() {
+    public void testNullRollupIndexName() {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         ActionRequestValidationException exception = expectThrows(
             ActionRequestValidationException.class,
@@ -188,7 +190,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString("rollup index name is missing"));
     }
 
-    public void testMissingRollupConfig() {
+    public void testNullRollupConfig() {
         ActionRequestValidationException exception = expectThrows(
             ActionRequestValidationException.class,
             () -> rollup(sourceIndex, rollupIndex, null)
@@ -215,30 +217,33 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndexClone, rollupIndex);
+        assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
     }
 
     public void testCannotRollupToExistingIndex() throws Exception {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
-            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
-            .field(FIELD_NUMERIC_1, randomDouble())
-            .endObject();
-        bulkIndex(sourceSupplier);
         prepareSourceIndex(sourceIndex);
-        rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndexClone, rollupIndex);
+
+        // Create an empty index with the same name as the rollup index
+        client().admin().indices().prepareCreate(rollupIndex).get();
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
-            () -> rollup(sourceIndexClone, rollupIndex, config)
+            () -> rollup(sourceIndex, rollupIndex, config)
         );
         assertThat(exception.getMessage(), containsString("Rollup index [" + rollupIndex + "] already exists."));
     }
 
+    public void testRollupEmptyIndex() {
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        // Source index has been created in the setup() method
+        prepareSourceIndex(sourceIndex);
+        rollup(sourceIndex, rollupIndex, config);
+        assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
+    }
+
     public void testCannotRollupWriteableIndex() {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
+        // Source index has been created in the setup() method and is empty and still writable
         Exception exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), containsString("Rollup requires setting [index.blocks.write = true] for index"));
     }
@@ -248,16 +253,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         IndexNotFoundException exception = expectThrows(IndexNotFoundException.class, () -> rollup("missing-index", rollupIndex, config));
         assertEquals("missing-index", exception.getIndex().getName());
         assertThat(exception.getMessage(), containsString("no such index [missing-index]"));
-    }
-
-    public void testTemporaryIndexCannotBeCreatedAlreadyExists() {
-        assertTrue(
-            client().admin().indices().prepareCreate(TransportRollupAction.TMP_ROLLUP_INDEX_PREFIX + rollupIndex).get().isAcknowledged()
-        );
-        prepareSourceIndex(sourceIndex);
-        RollupActionConfig config = new RollupActionConfig(randomInterval());
-        Exception exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
-        assertThat(exception.getMessage(), containsString("already exists"));
     }
 
     public void testCannotRollupWhileOtherRollupInProgress() throws Exception {
@@ -275,21 +270,24 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             ResourceAlreadyExistsException.class,
             () -> rollup(sourceIndex, rollupIndex, config)
         );
-        assertThat(exception.getMessage(), containsString(TransportRollupAction.TMP_ROLLUP_INDEX_PREFIX + rollupIndex));
+        assertThat(exception.getMessage(), containsString(rollupIndex));
     }
 
     public void testRollupDatastream() throws Exception {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         String dataStreamName = createDataStream();
 
-        Instant now = Instant.now();
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field(FIELD_TIMESTAMP, randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 60).toEpochMilli()))
-            .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
-            .field(FIELD_NUMERIC_1, randomInt())
-            .field(FIELD_NUMERIC_2, now.toEpochMilli())
-            .endObject();
+        final Instant now = Instant.now();
+        SourceSupplier sourceSupplier = () -> {
+            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 60).toEpochMilli());
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, ts)
+                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
+                .field(FIELD_NUMERIC_1, randomInt())
+                .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
+                .endObject();
+        };
         bulkIndex(dataStreamName, sourceSupplier);
 
         this.sourceIndex = rollover(dataStreamName).getOldIndex();
@@ -297,7 +295,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         this.rollupIndex = ".rollup-" + sourceIndex;
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndexClone, rollupIndex);
+        assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
 
         var r = client().execute(GetDataStreamAction.INSTANCE, new GetDataStreamAction.Request(new String[] { dataStreamName })).get();
         assertEquals(1, r.getDataStreams().size());
@@ -384,6 +382,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         AcknowledgedResponse response = client().execute(RollupAction.INSTANCE, new RollupAction.Request(sourceIndex, rollupIndex, config))
             .actionGet();
         assertTrue(response.isAcknowledged());
+        client().admin().indices().prepareRefresh(rollupIndex).get();
     }
 
     private RolloverResponse rollover(String dataStreamName) throws ExecutionException, InterruptedException {
@@ -393,7 +392,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void assertRollupIndex(RollupActionConfig config, String sourceIndexClone, String rollupIndex) {
+    private void assertRollupIndex(RollupActionConfig config, String sourceIndex, String sourceIndexClone, String rollupIndex) {
         // Retrieve field information for the metric fields
         FieldCapabilitiesResponse fieldCapsResponse = client().prepareFieldCaps(sourceIndexClone).setFields("*").get();
         Map<String, TimeSeriesParams.MetricType> metricFields = fieldCapsResponse.get()
@@ -412,7 +411,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         InternalComposite rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
         while (origResp.afterKey() != null) {
             numBuckets += origResp.getBuckets().size();
-            assertThat(origResp, equalTo(rollupResp));
+            assertEquals(origResp, rollupResp);
             aggregation.aggregateAfter(origResp.afterKey());
             origResp = client().prepareSearch(sourceIndexClone).addAggregation(aggregation).get().getAggregations().get("resp");
             rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
@@ -475,11 +474,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(metricType.toString(), mappings.get(field).get("time_series_metric"));
         });
 
-        // Assert that temporary index was removed
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin().indices().prepareGetIndex().addIndices(TransportRollupAction.createTmpIndexName(rollupIndex)).get()
-        );
         // Assert that source index was removed
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().addIndices(sourceIndex).get());
     }

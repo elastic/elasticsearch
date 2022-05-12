@@ -330,7 +330,6 @@ class RollupShardIndexer {
                 DocValueFormat.TIME_SERIES_ID.format(tsid),
                 timestampFormat.format(timestamp)
             );
-
             return this;
         }
 

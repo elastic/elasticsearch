@@ -12,8 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -64,14 +62,11 @@ import java.util.Map;
 
 /**
  * The master rollup action that coordinates
- *  -  creating rollup temporary index
- *  -  calling {@link TransportRollupIndexerAction} to index rollup-ed documents
+ *  -  creating the rollup index
+ *  -  calling {@link TransportRollupIndexerAction} to index rollup documents
  *  -  cleaning up state
  */
 public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction<RollupAction.Request> {
-
-    private static final Settings WRITE_BLOCKED_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
-    public static final String TMP_ROLLUP_INDEX_PREFIX = ".rollup-tmp-";
 
     private final Client client;
     private final ClusterService clusterService;
@@ -146,21 +141,15 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             listener.onFailure(new ResourceAlreadyExistsException("Rollup index [{}] already exists.", rollupIndexName));
             return;
         }
-        final String tmpIndexName = createTmpIndexName(rollupIndexName);
-        if (state.getMetadata().index(tmpIndexName) != null) {
-            listener.onFailure(new ResourceAlreadyExistsException("Temporary rollup index [{}] already exists.", tmpIndexName));
-            return;
-        }
 
         // 1. Extract rollup config from source index field caps
-        // 2. Create a hidden temporary rollup index
+        // 2. Create the rollup index
         // 3. Run rollup indexer
-        // 4. Make temp index read-only
-        // 5. Clone the final rollup index from the temporary rollup index
-        // 6. Publish rollup metadata and add rollup index to data stream
+        // 4. Make rollup index read-only and set replicas
+        // 5. Add rollup index to data stream
         // 7. Delete the source index
-        // 8. Delete temporary rollup index
-        // At any point if there is an issue, cleanup temp index
+        // 8. Mark rollup index as "completed successfully"
+        // At any point if there is an issue, delete the rollup index
 
         // 1. Extract rollup config from source index field caps
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(sourceIndexName).fields("*");
@@ -200,21 +189,23 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             }
             CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest = new CreateIndexClusterStateUpdateRequest(
                 "rollup",
-                tmpIndexName,
-                tmpIndexName
+                rollupIndexName,
+                rollupIndexName
             ).settings(
                 /*
-                 * When creating the temporary rollup index, we copy the index.number_of_shards from source index,
+                 * When creating the rollup index, we copy the index.number_of_shards from source index,
                  * and we set the index.number_of_replicas to 0, to avoid replicating the temp index.
+                 * We will set the correct number of replicas later.
                  */
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+                    .put(IndexMetadata.INDEX_HIDDEN_SETTING.getKey(), true)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.STARTED)
                     .build()
             ).mappings(XContentHelper.convertToJson(BytesReference.bytes(mapping), false, XContentType.JSON));
 
-            // 2. Create hidden temporary rollup index
+            // 2. Create rollup index
             submitUnbatchedTask("create-rollup-index", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -230,7 +221,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     // 3. Temporary rollup index created. Run rollup indexer
                     RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(
-                        tmpIndexName,
                         request,
                         dimensionFieldCaps.keySet().toArray(new String[0]),
                         metricFieldCaps.keySet().toArray(new String[0])
@@ -238,55 +228,35 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
                     client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
                         if (indexerResp.isCreated()) {
-                            // 4. Make temp index read-only
-                            UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(WRITE_BLOCKED_SETTINGS, tmpIndexName);
+                            // 4. Make rollup index read-only and set the correct number of replicas
+                            final Settings settings = Settings.builder()
+                                .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas())
+                                .build();
+
+                            UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings, rollupIndexName);
                             client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
                                 if (updateSettingsResponse.isAcknowledged()) {
-                                    // 5. Clone final rollup index from the temporary rollup index
-                                    ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
-                                    resizeRequest.setResizeType(ResizeType.CLONE);
-                                    /*
-                                     * Clone will maintain the same index settings, including the number_of_shards
-                                     * We must only copy the number_of_replicas from the source index
-                                     */
-                                    resizeRequest.getTargetIndexRequest()
-                                        .settings(
-                                            Settings.builder()
-                                                .put(IndexMetadata.SETTING_INDEX_HIDDEN, false)
-                                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas())
-                                                .build()
-                                        );
-                                    client.admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(resizeResponse -> {
-                                        if (resizeResponse.isAcknowledged()) {
-                                            // 6. Publish rollup metadata and add rollup index to data stream
-                                            publishMetadata(sourceIndexName, tmpIndexName, rollupIndexName, listener);
-                                        } else {
-                                            deleteTmpIndex(
-                                                sourceIndexName,
-                                                tmpIndexName,
-                                                listener,
-                                                new ElasticsearchException("Unable to resize temp rollup index [" + tmpIndexName + "]")
-                                            );
-                                        }
-                                    }, e -> deleteTmpIndex(sourceIndexName, tmpIndexName, listener, e)));
+                                    // 5. Add rollup index to data stream and publish rollup metadata
+                                    manageDataStream(sourceIndexName, rollupIndexName, listener);
                                 } else {
-                                    deleteTmpIndex(
+                                    deleteRollupIndex(
                                         sourceIndexName,
-                                        tmpIndexName,
+                                        rollupIndexName,
                                         listener,
-                                        new ElasticsearchException("Unable to update settings of temp rollup index [" + tmpIndexName + "]")
+                                        new ElasticsearchException("Unable to update settings of rollup index [" + rollupIndexName + "]")
                                     );
                                 }
-                            }, e -> deleteTmpIndex(sourceIndexName, tmpIndexName, listener, e)));
+                            }, e -> deleteRollupIndex(sourceIndexName, rollupIndexName, listener, e)));
                         } else {
-                            deleteTmpIndex(
+                            deleteRollupIndex(
                                 sourceIndexName,
-                                tmpIndexName,
+                                rollupIndexName,
                                 listener,
-                                new ElasticsearchException("Unable to index into temp rollup index [" + tmpIndexName + "]")
+                                new ElasticsearchException("Unable to index into rollup index [" + rollupIndexName + "]")
                             );
                         }
-                    }, e -> deleteTmpIndex(sourceIndexName, tmpIndexName, listener, e)));
+                    }, e -> deleteRollupIndex(sourceIndexName, rollupIndexName, listener, e)));
                 }
 
                 @Override
@@ -295,22 +265,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 }
             });
         }, listener::onFailure));
-    }
-
-    /**
-     * Create a temporary index name for a rollup index by prefixing it with
-     * the {@linkplain TransportRollupAction#TMP_ROLLUP_INDEX_PREFIX} prefix
-     *
-     * @param rollupIndexName the rollup index for which the temp index will be created
-     */
-    public static String createTmpIndexName(String rollupIndexName) {
-        StringBuilder sb = new StringBuilder(TMP_ROLLUP_INDEX_PREFIX);
-        if (rollupIndexName.startsWith(".")) {
-            sb.append(rollupIndexName.substring(1));
-        } else {
-            sb.append(rollupIndexName);
-        }
-        return sb.toString();
     }
 
     @Override
@@ -417,6 +371,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     .put(rollupIndexMetadata.getSettings())
                     .put(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey(), originalIndexName)
                     .put(IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.getKey(), originalIndexUuid)
+                    .put(IndexMetadata.INDEX_HIDDEN_SETTING.getKey(), sourceIndexMetadata.isHidden())
                     // Add the time series index settings
                     .put(IndexSettings.MODE.getKey(), indexMode)
                     .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), indexRoutingPath)
@@ -441,13 +396,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             .endArray();
     }
 
-    private void publishMetadata(
-        String sourceIndexName,
-        String tmpIndexName,
-        String rollupIndexName,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
-        // Update cluster state for the data stream to include the rollup index and exclude the source index
+    private void manageDataStream(String sourceIndexName, String rollupIndexName, ActionListener<AcknowledgedResponse> listener) {
+        // Update cluster state for the data stream to add the rollup index and remove the source index
         submitUnbatchedTask("update-rollup-metadata", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -469,14 +419,14 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 // 7. Delete the source index
-                deleteSourceIndex(sourceIndexName, tmpIndexName, listener);
+                deleteSourceIndex(sourceIndexName, rollupIndexName, listener);
             }
 
             @Override
             public void onFailure(Exception e) {
-                deleteTmpIndex(
+                deleteRollupIndex(
                     sourceIndexName,
-                    tmpIndexName,
+                    rollupIndexName,
                     listener,
                     new ElasticsearchException("Failed to publish new cluster state with rollup metadata", e)
                 );
@@ -484,14 +434,45 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         });
     }
 
-    private void deleteSourceIndex(final String sourceIndex, final String tmpIndex, ActionListener<AcknowledgedResponse> listener) {
+    private void finalizeRollupIndex(final String rollupIndex, ActionListener<AcknowledgedResponse> listener) {
+        submitUnbatchedTask("finalize-rollup-index", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                Metadata metadata = currentState.metadata();
+                IndexMetadata rollupIndexMetadata = metadata.index(rollupIndex);
+                Metadata.Builder newMetadata = Metadata.builder(metadata)
+                    .updateSettings(
+                        Settings.builder()
+                            .put(rollupIndexMetadata.getSettings())
+                            .put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.SUCCESS)
+                            .build(),
+                        rollupIndex
+                    );
+
+                return ClusterState.builder(currentState).metadata(newMetadata.build()).build();
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                // Rollup finished successfully
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(new ElasticsearchException("Failed to finalize the rollup state for index [" + rollupIndex + "]", e));
+            }
+        });
+    }
+
+    private void deleteSourceIndex(final String sourceIndex, final String rollupIndex, ActionListener<AcknowledgedResponse> listener) {
         client.admin().indices().delete(new DeleteIndexRequest(sourceIndex), new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 if (acknowledgedResponse.isAcknowledged()) {
                     // Source index was deleted successfully.
-                    // 8. Delete temporary rollup index
-                    deleteTmpIndex(sourceIndex, tmpIndex, listener, null);
+                    // 8. Finalize the rollup index by setting its state to SUCCESS
+                    finalizeRollupIndex(rollupIndex, listener);
                 } else {
                     onFailure(new ElasticsearchException("Failed to delete source index [" + sourceIndex + "]"));
                 }
@@ -499,9 +480,9 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
             @Override
             public void onFailure(Exception deleteException) {
-                deleteTmpIndex(
+                deleteRollupIndex(
                     sourceIndex,
-                    tmpIndex,
+                    rollupIndex,
                     listener,
                     new ElasticsearchException("Failed to delete source index [" + sourceIndex + "].", deleteException)
                 );
@@ -509,8 +490,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         });
     }
 
-    private void deleteTmpIndex(String sourceIndex, String tmpIndex, ActionListener<AcknowledgedResponse> listener, Exception e) {
-        client.admin().indices().delete(new DeleteIndexRequest(tmpIndex), new ActionListener<>() {
+    private void deleteRollupIndex(String sourceIndex, String rollupIndex, ActionListener<AcknowledgedResponse> listener, Exception e) {
+        client.admin().indices().delete(new DeleteIndexRequest(rollupIndex), new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 if (e == null && acknowledgedResponse.isAcknowledged()) {
@@ -522,7 +503,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
             @Override
             public void onFailure(Exception deleteException) {
-                listener.onFailure(new ElasticsearchException("Unable to delete the temporary rollup index [" + tmpIndex + "]", e));
+                listener.onFailure(new ElasticsearchException("Unable to delete the temporary rollup index [" + rollupIndex + "]", e));
             }
         });
     }

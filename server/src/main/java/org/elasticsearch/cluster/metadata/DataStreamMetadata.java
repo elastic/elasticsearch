@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -16,15 +17,21 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Custom {@link Metadata} implementation for storing a map of {@link DataStream}s and their names.
@@ -92,11 +99,85 @@ public class DataStreamMetadata implements Metadata.Custom {
         return new DataStreamMetadata(ImmutableOpenMap.builder(dataStreams).fPut(name, datastream).build(), dataStreamAliases);
     }
 
-    public ImmutableOpenMap<String, DataStream> dataStreams() {
+    public DataStreamMetadata withAlias(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
+        if (dataStreams.containsKey(dataStream) == false) {
+            throw new IllegalArgumentException("alias [" + aliasName + "] refers to a non existing data stream [" + dataStream + "]");
+        }
+
+        Map<String, Object> filterAsMap;
+        if (filter != null) {
+            filterAsMap = XContentHelper.convertToMap(XContentFactory.xContent(filter), filter, true);
+        } else {
+            filterAsMap = null;
+        }
+
+        DataStreamAlias alias = dataStreamAliases.get(aliasName);
+        if (alias == null) {
+            String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStream : null;
+            alias = new DataStreamAlias(aliasName, List.of(dataStream), writeDataStream, filterAsMap);
+        } else {
+            DataStreamAlias copy = alias.update(dataStream, isWriteDataStream, filterAsMap);
+            if (copy == alias) {
+                return this;
+            }
+            alias = copy;
+        }
+        return new DataStreamMetadata(dataStreams, ImmutableOpenMap.builder(dataStreamAliases).fPut(aliasName, alias).build());
+    }
+
+    public DataStreamMetadata withRemovedDataStream(String name) {
+        ImmutableOpenMap.Builder<String, DataStream> existingDataStreams = ImmutableOpenMap.builder(dataStreams);
+        ImmutableOpenMap.Builder<String, DataStreamAlias> existingDataStreamAliases = ImmutableOpenMap.builder(dataStreamAliases);
+        existingDataStreams.remove(name);
+
+        Set<String> aliasesToDelete = new HashSet<>();
+        List<DataStreamAlias> aliasesToUpdate = new ArrayList<>();
+        for (var alias : dataStreamAliases.values()) {
+            DataStreamAlias copy = alias.removeDataStream(name);
+            if (copy != null) {
+                if (copy == alias) {
+                    continue;
+                }
+                aliasesToUpdate.add(copy);
+            } else {
+                aliasesToDelete.add(alias.getName());
+            }
+        }
+        for (DataStreamAlias alias : aliasesToUpdate) {
+            existingDataStreamAliases.put(alias.getName(), alias);
+        }
+        for (String aliasToDelete : aliasesToDelete) {
+            existingDataStreamAliases.remove(aliasToDelete);
+        }
+        return new DataStreamMetadata(existingDataStreams.build(), existingDataStreamAliases.build());
+    }
+
+    public DataStreamMetadata withRemovedAlias(String aliasName, String dataStreamName, boolean mustExist) {
+        ImmutableOpenMap.Builder<String, DataStreamAlias> dataStreamAliases = ImmutableOpenMap.builder(this.dataStreamAliases);
+
+        DataStreamAlias existing = dataStreamAliases.get(aliasName);
+        if (mustExist && existing == null) {
+            throw new ResourceNotFoundException("alias [" + aliasName + "] doesn't exist");
+        } else if (existing == null) {
+            return this;
+        }
+        DataStreamAlias copy = existing.removeDataStream(dataStreamName);
+        if (copy == existing) {
+            return this;
+        }
+        if (copy != null) {
+            dataStreamAliases.put(aliasName, copy);
+        } else {
+            dataStreamAliases.remove(aliasName);
+        }
+        return new DataStreamMetadata(dataStreams, dataStreamAliases.build());
+    }
+
+    public Map<String, DataStream> dataStreams() {
         return this.dataStreams;
     }
 
-    public ImmutableOpenMap<String, DataStreamAlias> getDataStreamAliases() {
+    public Map<String, DataStreamAlias> getDataStreamAliases() {
         return dataStreamAliases;
     }
 

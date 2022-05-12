@@ -592,7 +592,7 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     static GetUserPrivilegesResponse buildUserPrivilegesResponseObject(Role userRole) {
-        logger.trace(() -> new ParameterizedMessage("List privileges for role [{}]", arrayToCommaDelimitedString(userRole.names())));
+        logger.trace(() -> "List privileges for role [" + arrayToCommaDelimitedString(userRole.names()) + "]");
 
         // We use sorted sets for Strings because they will typically be small, and having a predictable order allows for simpler testing
         final Set<String> cluster = new TreeSet<>();

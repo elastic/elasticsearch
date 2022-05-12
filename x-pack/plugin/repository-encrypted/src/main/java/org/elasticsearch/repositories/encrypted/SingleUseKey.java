@@ -91,7 +91,7 @@ final class SingleUseKey {
                     synchronized (lock) {
                         if (keyCurrentlyInUse.get().nonce == MAX_NONCE) {
                             final Tuple<BytesReference, SecretKey> newKey = keyGenerator.get();
-                            logger.debug(() -> new ParameterizedMessage("New key with id [{}] has been generated", newKey.v1()));
+                            logger.debug(() -> "New key with id [" + newKey.v1() + "] has been generated");
                             keyCurrentlyInUse.set(new SingleUseKey(newKey.v1(), newKey.v2(), MIN_NONCE));
                         }
                     }

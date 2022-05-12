@@ -81,10 +81,10 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         String newRollupPolicy = rollupILMAction.rollupPolicy();
         switch (randomIntBetween(0, 1)) {
             case 0 -> {
-                DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-                while (fixedInterval.equals(rollupILMAction.config().getFixedInterval())) {
-                    fixedInterval = ConfigTestHelpers.randomInterval();
-                }
+                DateHistogramInterval fixedInterval = randomValueOtherThan(
+                    rollupILMAction.config().getFixedInterval(),
+                    ConfigTestHelpers::randomInterval
+                );
                 newConfig = new RollupActionConfig(fixedInterval);
             }
             case 1 -> newRollupPolicy = randomAlphaOfLength(3);

@@ -50,7 +50,9 @@ final class Spawner implements Closeable {
         closeables.addAll(pumpThreads.stream().map(t -> (Closeable) () -> {
             try {
                 t.join(); // wait for thread to complete now that the spawned process is destroyed
-            } catch (InterruptedException e) { /* best effort, ignore*/ }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // best effort, ignore
+            }
         }).toList());
         IOUtils.close(closeables);
     }

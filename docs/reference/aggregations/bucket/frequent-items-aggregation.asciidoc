@@ -55,7 +55,7 @@ A `frequent_items` aggregation looks like this in isolation:
 ==== Fields
 
 Supported field types for the analyzed fields are keyword, numeric, ip, date, 
-and array. You can also add runtime fields to your analyzed fields.
+and arrays of these types. You can also add runtime fields to your analyzed fields.
 
 If the combined cardinality of the analyzed fields are high, then the 
 aggregation might require a significant amount of system resources.

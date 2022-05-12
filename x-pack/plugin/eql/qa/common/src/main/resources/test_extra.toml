@@ -249,3 +249,14 @@ query = '''
 '''
 expected_event_ids  = [20, 22]
 join_keys = ["0"]
+
+
+[[queries]]
+name = "sequenceWithVersionConcat"
+query = '''
+  sequence by transID
+    [ file where CONCAT(version, "") == "1.2.4" ]
+    [ file where version == "bad" ]
+'''
+expected_event_ids  = [20, 22]
+join_keys = ["0"]

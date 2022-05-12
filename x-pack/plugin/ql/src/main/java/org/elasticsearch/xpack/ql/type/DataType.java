@@ -67,7 +67,7 @@ public class DataType {
     public ScriptSortBuilder.ScriptSortType scriptSortType() {
         if (isNumeric()) {
             return ScriptSortBuilder.ScriptSortType.NUMBER;
-        } else if ("version".equals(typeName())) {
+        } else if (this == DataTypes.VERSION) {
             return ScriptSortBuilder.ScriptSortType.VERSION;
         }
         return ScriptSortBuilder.ScriptSortType.STRING;

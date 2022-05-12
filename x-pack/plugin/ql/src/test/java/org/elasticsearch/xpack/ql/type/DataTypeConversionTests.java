@@ -566,7 +566,7 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(new Literal(s, "10.0.0.1", KEYWORD))));
     }
 
-    public void testStringToVersion() {
+    public void testKeywordToVersion() {
         Converter conversion = converterFor(KEYWORD, VERSION);
         assertNull(conversion.convert(null));
         assertEquals(new Version("2.1.4").toString(), conversion.convert("2.1.4").toString());
@@ -575,13 +575,33 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals(new Version("2.1.4-SNAPSHOT").toBytesRef(), ((Version) conversion.convert("2.1.4-SNAPSHOT")).toBytesRef());
     }
 
-    public void testVersionToString() {
+    public void testStringToVersion() {
+        Converter conversion = converterFor(TEXT, VERSION);
+        assertNull(conversion.convert(null));
+        assertEquals(new Version("2.1.4").toString(), conversion.convert("2.1.4").toString());
+        assertEquals(new Version("2.1.4").toBytesRef(), ((Version) conversion.convert("2.1.4")).toBytesRef());
+        assertEquals(new Version("2.1.4-SNAPSHOT").toString(), conversion.convert("2.1.4-SNAPSHOT").toString());
+        assertEquals(new Version("2.1.4-SNAPSHOT").toBytesRef(), ((Version) conversion.convert("2.1.4-SNAPSHOT")).toBytesRef());
+    }
+
+    public void testVersionToKeyword() {
         Source s = new Source(Location.EMPTY, "2.1.4");
         Source s2 = new Source(Location.EMPTY, "2.1.4");
         Converter versionToString = converterFor(VERSION, KEYWORD);
         assertEquals("2.1.4", versionToString.convert(new Literal(s, "2.1.4", VERSION)));
         assertEquals("2.1.4-SNAPSHOT", versionToString.convert(new Literal(s2, "2.1.4-SNAPSHOT", VERSION)));
         Converter stringToIp = converterFor(KEYWORD, VERSION);
+        assertEquals("2.1.4", versionToString.convert(stringToIp.convert(new Literal(s, "2.1.4", KEYWORD))));
+        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(stringToIp.convert(new Literal(s2, "2.1.4-SNAPSHOT", KEYWORD))));
+    }
+
+    public void testVersionToString() {
+        Source s = new Source(Location.EMPTY, "2.1.4");
+        Source s2 = new Source(Location.EMPTY, "2.1.4");
+        Converter versionToString = converterFor(VERSION, TEXT);
+        assertEquals("2.1.4", versionToString.convert(new Literal(s, "2.1.4", VERSION)));
+        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(new Literal(s2, "2.1.4-SNAPSHOT", VERSION)));
+        Converter stringToIp = converterFor(KEYWORD, TEXT);
         assertEquals("2.1.4", versionToString.convert(stringToIp.convert(new Literal(s, "2.1.4", KEYWORD))));
         assertEquals("2.1.4-SNAPSHOT", versionToString.convert(stringToIp.convert(new Literal(s2, "2.1.4-SNAPSHOT", KEYWORD))));
     }

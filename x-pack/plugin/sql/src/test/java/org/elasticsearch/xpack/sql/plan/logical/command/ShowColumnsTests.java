@@ -20,6 +20,7 @@ import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.supportsUnsignedLong;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.supportsVersionFieldType;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
@@ -106,7 +107,9 @@ public class ShowColumnsTests extends ESTestCase {
             // mapping's mutated by IndexCompatibility.compatible, needs to stay in the loop
             Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
             ShowColumns.fillInRows(IndexCompatibility.compatible(mapping, Version.fromId(version.id)), null, rows);
-            assertTrue((supportsUnsignedLong(Version.fromId(version.id)) && rows.contains(rowSupported)) || rows.contains(rowUnsupported));
+            assertTrue(
+                (supportsVersionFieldType(Version.fromId(version.id)) && rows.contains(rowSupported)) || rows.contains(rowUnsupported)
+            );
         }
     }
 }

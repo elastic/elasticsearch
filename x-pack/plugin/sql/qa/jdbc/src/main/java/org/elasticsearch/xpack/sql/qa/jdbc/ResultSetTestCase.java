@@ -2254,15 +2254,13 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             results.next();
             assertEquals("version 1.3.0", results.getString("name"));
             assertEquals("1.3.0", results.getString("version"));
+            SQLException sqle = expectThrows(SQLException.class, () -> results.getByte("version"));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VERSION] to [Byte]", "1.3.0"), sqle.getMessage());
             assertFalse(results.next());
         });
-    }
 
-    public void testBadVersionFieldValue() throws SQLException, IOException {
-        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support VERSION fields", isVersionFieldTypeSupported());
-
-        createTestDataForVersionType();
-        String query = "SELECT name, version from test where version = 'foo'";
+        // bad version value
+        query = "SELECT name, version from test where version = 'foo'";
         doWithQuery(query, results -> {
             results.next();
             assertEquals("version foo", results.getString("name"));

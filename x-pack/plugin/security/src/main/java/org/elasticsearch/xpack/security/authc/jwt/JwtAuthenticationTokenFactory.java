@@ -23,7 +23,8 @@ public class JwtAuthenticationTokenFactory {
 
     static final List<String> DEFAULT_ENDUSERID_CLAIMS = List.of("sub", "oid", "client_id", "appid", "azp");
     public static final Setting<List<String>> ENDUSERID_CLAIMS_SETTING = Setting.listSetting(
-        "xpack.security.authc.jwt.enduserid_claims", DEFAULT_ENDUSERID_CLAIMS,
+        "xpack.security.authc.jwt.enduserid_claims",
+        DEFAULT_ENDUSERID_CLAIMS,
         Function.identity(),
         Setting.Property.NodeScope
     );

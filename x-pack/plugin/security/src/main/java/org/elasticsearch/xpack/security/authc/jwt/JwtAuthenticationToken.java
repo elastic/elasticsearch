@@ -83,14 +83,20 @@ public class JwtAuthenticationToken implements AuthenticationToken {
             final Object claimValue = jwtClaimsSet.getClaim(endUserIdClaimName);
             if (claimValue instanceof String endUserIdClaimValue) {
                 if (endUserIdClaimValue.isEmpty()) {
-                    throw new IllegalArgumentException("User identifier claim '" + endUserIdClaimName
-                        + "' exists but cannot be used due to empty string value");
+                    throw new IllegalArgumentException(
+                        "User identifier claim '" + endUserIdClaimName + "' exists but cannot be used due to empty string value"
+                    );
                 }
                 LOGGER.trace("Found endUserId claim name [{}] with value [{}]", endUserIdClaimName, endUserIdClaimValue);
                 return endUserIdClaimValue;
             } else if (claimValue != null) {
-                throw new IllegalArgumentException("User identifier claim '" + endUserIdClaimName
-                    + "' exists but cannot be used due to non-string value type '" + claimValue.getClass().getCanonicalName() + "'");
+                throw new IllegalArgumentException(
+                    "User identifier claim '"
+                        + endUserIdClaimName
+                        + "' exists but cannot be used due to non-string value type '"
+                        + claimValue.getClass().getCanonicalName()
+                        + "'"
+                );
             }
         }
 

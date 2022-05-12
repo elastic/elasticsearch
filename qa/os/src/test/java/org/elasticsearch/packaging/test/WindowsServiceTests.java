@@ -202,7 +202,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     public void test31StartNotInstalled() throws IOException {
         Result result = sh.runIgnoreExitCode(serviceScript + " start");
         assertThat(result.stdout(), result.exitCode(), equalTo(1));
-        assertThat(result.stdout(), containsString("Failed to start server '" + DEFAULT_ID + "'"));
+        assertThat(result.stdout(), containsString("Failed starting '" + DEFAULT_ID + "' service"));
     }
 
     public void test32StopNotStarted() throws IOException {

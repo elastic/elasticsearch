@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -16,7 +18,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -24,7 +25,6 @@ import java.util.Collection;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
@@ -32,6 +32,8 @@ import java.util.function.Supplier;
  * steps towards the desired balance using the {@link DesiredBalanceReconciler}.
  */
 public class DesiredBalanceShardsAllocator implements ShardsAllocator {
+
+    private final Logger logger = LogManager.getLogger(DesiredBalanceShardsAllocator.class);
 
     public static final ActionListener<Void> REMOVE_ME = new ActionListener<>() {
 
@@ -70,46 +72,46 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.desiredBalanceService = new DesiredBalanceService(delegateAllocator);
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
-            private final AtomicReference<ListenableFuture<Void>> pendingRerouteFuture = new AtomicReference<>(init());
-
-            private ListenableFuture<Void> init() {
-                var future = new ListenableFuture<Void>();
-                future.onResponse(null);
-                return future;
-            }
+            boolean hasSkippedReroutes = false;
 
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
                 boolean shouldReroute = desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh);
                 boolean isFreshInput = isFresh(desiredBalanceInput);
 
-                if (shouldReroute) {
-                    pendingRerouteFuture.set(new ListenableFuture<>());
+                logger.info("Processing [{}], shouldReroute={}, isFreshInput={}", desiredBalanceInput.index(), shouldReroute, isFreshInput);
 
-                    pendingReroute = true;
-                    rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, new ActionListener<>() {
-                        @Override
-                        public void onResponse(ClusterState clusterState) {
-                            // TODO assert in a system context
-                            if (isFreshInput) {
-                                pendingReroute = false;
-                            }
-                            pendingRerouteFuture.get().onResponse(null);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            // TODO assert in a system context
-                            ActionListener.onFailure(pollListeners(desiredBalanceInput.index()), e);
-                        }
-                    });
+                if (shouldReroute && isFreshInput == false) {
+                    hasSkippedReroutes = true;
                 }
 
                 if (isFreshInput) {
-                    pendingRerouteFuture.get()
-                        .addListener(
-                            ActionListener.wrap(() -> ActionListener.onResponse(pollListeners(desiredBalanceInput.index()), null))
-                        );
+                    pendingReroute = true;
+                    if (shouldReroute || hasSkippedReroutes) {
+                        hasSkippedReroutes = false;
+                        logger.info("Performing reroute for [{}]", desiredBalanceInput.index());
+                        rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, new ActionListener<>() {
+                            @Override
+                            public void onResponse(ClusterState clusterState) {
+                                // TODO assert in a system context
+                                pendingReroute = false;
+
+                                Collection<ActionListener<Void>> listeners = pollListeners(desiredBalanceInput.index());
+                                logger.info("Executing {} listeners for [{}] after reroute", listeners.size(), desiredBalanceInput.index());
+                                ActionListener.onResponse(listeners, null);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                // TODO assert in a system context
+                                ActionListener.onFailure(pollListeners(desiredBalanceInput.index()), e);
+                            }
+                        });
+                    } else {
+                        Collection<ActionListener<Void>> listeners = pollListeners(desiredBalanceInput.index());
+                        logger.info("Executing {} listeners for [{}] after no changes", listeners.size(), desiredBalanceInput.index());
+                        ActionListener.onResponse(listeners, null);
+                    }
                 }
             }
 

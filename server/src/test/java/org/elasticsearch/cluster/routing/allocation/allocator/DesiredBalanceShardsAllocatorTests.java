@@ -338,7 +338,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         assertThat(listenersCalled.get(), equalTo(1));
     }
 
-    public void testConcurrency() throws InterruptedException {
+    public void testConcurrency() throws Exception {
 
         var discoveryNode = createDiscoveryNode();
         var state = new AtomicReference<>(ClusterState.builder(ClusterName.DEFAULT)
@@ -380,10 +380,13 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         rerouteServiceSupplier.set((r, p, l) -> {
             final var localCreatedIndices = Set.copyOf(createdIndices);
             rerouteExecutor.submit(() -> {
+                logger.info("Performing reroute");
                 reroutedIndices.addAll(localCreatedIndices);
                 if (randomInt(9) == 0) {
+                    logger.info("Adding followup allocation");
                     desiredBalanceShardsAllocator.allocate(createAllocationFrom(state.get()), l.map(ignore -> null));
                 } else {
+                    logger.info("Executing reroute listener");
                     l.onResponse(null);
                 }
             });
@@ -411,12 +414,15 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             }));
         }
 
-        assertTrue("Should call all listeners", listenersCountdown.await(10, TimeUnit.SECONDS));
-        assertThat(createdIndices.size(), equalTo(indexNameGenerator.get()));
-        assertThat(allocatedIndices.size(), equalTo(indexNameGenerator.get()));
-        assertThat(reroutedIndices.size(), equalTo(indexNameGenerator.get()));
-
-        rerouteExecutor.shutdown();
+        try {
+            assertTrue("Should call all listeners", listenersCountdown.await(10, TimeUnit.SECONDS));
+            assertThat(createdIndices.size(), equalTo(indexNameGenerator.get()));
+            assertThat(allocatedIndices.size(), equalTo(indexNameGenerator.get()));
+            assertThat(reroutedIndices.size(), equalTo(indexNameGenerator.get()));
+        } finally {
+            rerouteExecutor.shutdown();
+            terminate(threadPool);
+        }
     }
 
     private static RoutingAllocation createAllocationFrom(ClusterState clusterState) {

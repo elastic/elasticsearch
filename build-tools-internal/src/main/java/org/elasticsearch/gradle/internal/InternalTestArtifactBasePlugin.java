@@ -15,7 +15,6 @@ import org.gradle.api.provider.ProviderFactory;
 import javax.inject.Inject;
 
 public class InternalTestArtifactBasePlugin implements Plugin<Project> {
-
     private final ProviderFactory providerFactory;
 
     @Inject

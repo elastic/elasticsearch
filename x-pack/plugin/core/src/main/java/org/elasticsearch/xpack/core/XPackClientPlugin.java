@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.GetBasicStatusAction;
 import org.elasticsearch.license.GetLicenseAction;
@@ -375,9 +376,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 DeleteRollupJobAction.INSTANCE,
                 GetRollupJobsAction.INSTANCE,
                 GetRollupCapsAction.INSTANCE,
-                // TSDB Downsampling / Rollup
-                RollupIndexerAction.INSTANCE,
-                RollupAction.INSTANCE,
                 // ILM
                 DeleteLifecycleAction.INSTANCE,
                 GetLifecycleAction.INSTANCE,
@@ -413,6 +411,12 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 TermsEnumAction.INSTANCE
             )
         );
+
+        // TSDB Downsampling / Rollup
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
+            actions.add(RollupIndexerAction.INSTANCE);
+            actions.add(RollupAction.INSTANCE);
+        }
 
         return actions;
     }
@@ -517,7 +521,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, WaitForSnapshotAction.NAME, WaitForSnapshotAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SearchableSnapshotAction.NAME, SearchableSnapshotAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::readFrom),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, RollupILMAction.NAME, RollupILMAction::new),
                 // Transforms
                 new NamedWriteableRegistry.Entry(Metadata.Custom.class, TransformMetadata.TYPE, TransformMetadata::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, TransformMetadata.TYPE, TransformMetadata.TransformMetadataDiff::new),
@@ -562,6 +565,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ARCHIVE, ArchiveFeatureSetUsage::new)
             )
         );
+
+        // TSDB Downsampling / Rollup
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
+            namedWriteables.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RollupILMAction.NAME, RollupILMAction::new));
+        }
 
         return namedWriteables;
     }

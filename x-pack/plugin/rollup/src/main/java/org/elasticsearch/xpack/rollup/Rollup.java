@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
@@ -135,11 +136,15 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
                 new RestDeleteRollupJobAction(),
                 new RestGetRollupJobsAction(),
                 new RestGetRollupCapsAction(),
-                new RestGetRollupIndexCapsAction(),
-                // Rollup / Downsampling
-                new RestRollupAction()
+                new RestGetRollupIndexCapsAction()
             )
         );
+
+        // TSDB Downsampling / Rollup
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
+            handlers.add(new RestRollupAction());
+        }
+
         return handlers;
     }
 
@@ -156,12 +161,14 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
                 new ActionHandler<>(GetRollupCapsAction.INSTANCE, TransportGetRollupCapsAction.class),
                 new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class),
                 new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class),
-                new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class),
-                // Rollup / Downsampling
-                new ActionHandler<>(RollupIndexerAction.INSTANCE, TransportRollupIndexerAction.class),
-                new ActionHandler<>(RollupAction.INSTANCE, TransportRollupAction.class)
+                new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class)
             )
         );
+
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
+            actions.add(new ActionHandler<>(RollupIndexerAction.INSTANCE, TransportRollupIndexerAction.class));
+            actions.add(new ActionHandler<>(RollupAction.INSTANCE, TransportRollupAction.class));
+        }
 
         return actions;
     }

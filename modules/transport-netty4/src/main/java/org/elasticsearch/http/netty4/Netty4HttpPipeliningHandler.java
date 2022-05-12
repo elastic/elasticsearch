@@ -187,10 +187,10 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         }
     }
 
-    private List<Tuple<Netty4HttpResponse, ChannelPromise>> write(final Netty4HttpResponse response, ChannelPromise listener) {
+    private List<Tuple<Netty4HttpResponse, ChannelPromise>> write(final Netty4HttpResponse response, ChannelPromise promise) {
         if (outboundHoldingQueue.size() < maxEventsHeld) {
             ArrayList<Tuple<Netty4HttpResponse, ChannelPromise>> readyResponses = new ArrayList<>();
-            outboundHoldingQueue.add(new Tuple<>(response, listener));
+            outboundHoldingQueue.add(new Tuple<>(response, promise));
             while (outboundHoldingQueue.isEmpty() == false) {
                 /*
                  * Since the response with the lowest sequence number is the top of the priority queue, we know if its sequence

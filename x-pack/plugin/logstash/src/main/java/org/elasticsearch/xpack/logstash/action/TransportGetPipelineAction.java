@@ -68,13 +68,14 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
             .filter(pipeline -> pipeline.contains(WILDCARD) == false)
             .collect(Collectors.toSet());
 
-        final Set<String> wildcardPipelineIdPatterns = request.ids()
+        final Set<Pattern> wildcardPipelinePatterns = request.ids()
             .stream()
             .filter(pipeline -> pipeline.contains(WILDCARD))
             .map(this::toWildcardPipelineIdPattern)
+            .map(Pattern::compile)
             .collect(Collectors.toSet());
 
-        if (explicitPipelineIds.size() > 0 && wildcardPipelineIdPatterns.size() == 0) {
+        if (explicitPipelineIds.size() > 0 && wildcardPipelinePatterns.size() == 0) {
             getPipelinesByIds(explicitPipelineIds, listener);
             return;
         }
@@ -103,13 +104,12 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                         );
                     }
                 };
-                final int maxNumHitsToFetch = 0;
                 handleFilteringSearchResponse(
                     searchResponse,
                     pipelineSources,
                     explicitPipelineIds,
-                    wildcardPipelineIdPatterns,
-                    maxNumHitsToFetch,
+                    wildcardPipelinePatterns,
+                    0,
                     clearScroll,
                     listener
                 );
@@ -199,14 +199,28 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
         SearchResponse searchResponse,
         Map<String, BytesReference> pipelineSources,
         Set<String> explicitPipelineIds,
-        Set<String> wildcardPipelineIdPatterns,
-        int maxNumHitsToFetch,
+        Set<Pattern> wildcardPipelinePatterns,
+        int numberOfHitsSeenPreviously,
         Consumer<SearchResponse> clearScroll,
         ActionListener<GetPipelineResponse> listener
     ) {
-        maxNumHitsToFetch += searchResponse.getHits().getHits().length;
+        int numberOfHitsSeenSoFar = numberOfHitsSeenPreviously + searchResponse.getHits().getHits().length;
+        if (numberOfHitsSeenSoFar > searchResponse.getHits().getTotalHits().value) {
+            clearScroll.accept(searchResponse);
+            listener.onFailure(
+                new IllegalStateException(
+                    "scrolling returned more hits ["
+                        + numberOfHitsSeenSoFar
+                        + "] than expected ["
+                        + searchResponse.getHits().getTotalHits().value
+                        + "] so bailing out to prevent unbounded "
+                        + "memory consumption."
+                )
+            );
+        }
+
         for (SearchHit hit : searchResponse.getHits().getHits()) {
-            if (explicitPipelineIds.isEmpty() && wildcardPipelineIdPatterns.isEmpty()) {
+            if (explicitPipelineIds.isEmpty() && wildcardPipelinePatterns.isEmpty()) {
                 pipelineSources.put(hit.getId(), hit.getSourceRef());
                 continue;
             }
@@ -217,31 +231,15 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                 continue;
             }
             // take if id matches request wildcard pattern
-            for (String wildcardPipelineIdPattern : wildcardPipelineIdPatterns) {
-                if (Pattern.matches(wildcardPipelineIdPattern, hit.getId())) {
-                    pipelineSources.put(hit.getId(), hit.getSourceRef());
-                    break;
-                }
+            if (wildcardPipelinePatterns.stream().anyMatch(pattern -> pattern.matcher(hit.getId()).matches())) {
+                pipelineSources.put(hit.getId(), hit.getSourceRef());
             }
         }
 
-        if (maxNumHitsToFetch > searchResponse.getHits().getTotalHits().value) {
-            clearScroll.accept(searchResponse);
-            listener.onFailure(
-                new IllegalStateException(
-                    "scrolling returned more hits ["
-                        + maxNumHitsToFetch
-                        + "] than expected ["
-                        + searchResponse.getHits().getTotalHits().value
-                        + "] so bailing out to prevent unbounded "
-                        + "memory consumption."
-                )
-            );
-        } else if (maxNumHitsToFetch == searchResponse.getHits().getTotalHits().value) {
+        if (numberOfHitsSeenSoFar == searchResponse.getHits().getTotalHits().value) {
             clearScroll.accept(searchResponse);
             listener.onResponse(new GetPipelineResponse(pipelineSources));
         } else {
-            int finalNumHitsToFetch = maxNumHitsToFetch;
             client.prepareSearchScroll(searchResponse.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(1L))
                 .execute(
@@ -250,8 +248,8 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                             searchResponse1,
                             pipelineSources,
                             explicitPipelineIds,
-                            wildcardPipelineIdPatterns,
-                            finalNumHitsToFetch,
+                            wildcardPipelinePatterns,
+                            numberOfHitsSeenSoFar,
                             clearScroll,
                             listener
                         ),

@@ -15,9 +15,7 @@ import org.gradle.api.provider.ProviderFactory;
 import javax.inject.Inject;
 
 public class InternalTestArtifactBasePlugin implements Plugin<Project> {
-
     private final ProviderFactory providerFactory;
-
     @Inject
     public InternalTestArtifactBasePlugin(ProviderFactory providerFactory) {
         this.providerFactory = providerFactory;
@@ -25,6 +23,7 @@ public class InternalTestArtifactBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        project.getPlugins().apply(ElasticsearchJavaBasePlugin.class)
         project.getExtensions().create("testArtifacts", InternalTestArtifactExtension.class, project, providerFactory);
     }
 }

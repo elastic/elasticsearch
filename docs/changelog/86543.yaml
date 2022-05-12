@@ -1,0 +1,5 @@
+pr: 86543
+summary: User Profile - add caching for `hasPrivileges` check
+area: Security
+type: enhancement
+issues: []

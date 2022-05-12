@@ -10,6 +10,8 @@ package org.elasticsearch.gradle.internal.test;
 
 import org.elasticsearch.gradle.internal.BuildPlugin;
 import org.elasticsearch.gradle.internal.InternalTestClustersPlugin;
+import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin;
+import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -23,7 +25,11 @@ import java.util.List;
  * tests. Used in conjunction with {@link StandaloneRestTestPlugin} for qa
  * projects and in conjunction with {@link BuildPlugin} for testing the rest
  * client.
+ *
+ * @deprecated use {@link InternalClusterTestPlugin}, {@link InternalJavaRestTestPlugin} or
+ * {@link InternalYamlRestTestPlugin} instead.
  */
+@Deprecated
 public class RestTestPlugin implements Plugin<Project> {
     private final List<String> REQUIRED_PLUGINS = Arrays.asList("elasticsearch.build", "elasticsearch.standalone-rest-test");
 

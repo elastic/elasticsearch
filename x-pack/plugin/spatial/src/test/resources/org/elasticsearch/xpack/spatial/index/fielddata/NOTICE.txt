@@ -1,0 +1,2 @@
+The Antarctica.wkt.gz and France.wkt.gz files come from the OpenStreetMap project (© OpenStreetMap contributors),
+which is made available here under the Open Database License (ODbL).

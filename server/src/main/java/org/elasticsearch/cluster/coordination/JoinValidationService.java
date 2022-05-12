@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -157,10 +156,7 @@ public class JoinValidationService {
                 new ValidateJoinRequest(clusterStateSupplier.get()),
                 REQUEST_OPTIONS,
                 new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
-                    logger.warn(
-                        () -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", discoveryNode),
-                        e
-                    );
+                    logger.warn(() -> "failed to validate incoming join request from node [" + discoveryNode + "]", e);
                     listener.onFailure(
                         new IllegalStateException(
                             String.format(

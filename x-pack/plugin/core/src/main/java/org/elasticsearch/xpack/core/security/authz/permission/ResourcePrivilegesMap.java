@@ -19,16 +19,10 @@ import java.util.stream.Collectors;
  */
 public final class ResourcePrivilegesMap {
 
-    private final boolean allAllowed;
     private final Map<String, ResourcePrivileges> resourceToResourcePrivileges;
 
-    public ResourcePrivilegesMap(boolean allAllowed, Map<String, ResourcePrivileges> resToResPriv) {
-        this.allAllowed = allAllowed;
+    public ResourcePrivilegesMap(Map<String, ResourcePrivileges> resToResPriv) {
         this.resourceToResourcePrivileges = Collections.unmodifiableMap(Objects.requireNonNull(resToResPriv));
-    }
-
-    public boolean allAllowed() {
-        return allAllowed;
     }
 
     public Map<String, ResourcePrivileges> getResourceToResourcePrivileges() {
@@ -37,7 +31,7 @@ public final class ResourcePrivilegesMap {
 
     @Override
     public int hashCode() {
-        return Objects.hash(allAllowed, resourceToResourcePrivileges);
+        return Objects.hash(resourceToResourcePrivileges);
     }
 
     @Override
@@ -52,16 +46,15 @@ public final class ResourcePrivilegesMap {
             return false;
         }
         final ResourcePrivilegesMap other = (ResourcePrivilegesMap) obj;
-        return allAllowed == other.allAllowed && Objects.equals(resourceToResourcePrivileges, other.resourceToResourcePrivileges);
+        return Objects.equals(resourceToResourcePrivileges, other.resourceToResourcePrivileges);
     }
 
     @Override
     public String toString() {
-        return "ResourcePrivilegesMap [allAllowed=" + allAllowed + ", resourceToResourcePrivileges=" + resourceToResourcePrivileges + "]";
+        return "ResourcePrivilegesMap [resourceToResourcePrivileges=" + resourceToResourcePrivileges + "]";
     }
 
     public static final class Builder {
-        private boolean allowAll = true;
         private Map<String, ResourcePrivileges.Builder> resourceToResourcePrivilegesBuilder = new LinkedHashMap<>();
 
         public Builder addResourcePrivilege(String resource, String privilege, Boolean allowed) {
@@ -69,7 +62,6 @@ public final class ResourcePrivilegesMap {
                 : "resource, privilege and permission(allowed or denied) are required";
             ResourcePrivileges.Builder builder = resourceToResourcePrivilegesBuilder.computeIfAbsent(resource, ResourcePrivileges::builder);
             builder.addPrivilege(privilege, allowed);
-            allowAll = allowAll && allowed;
             return this;
         }
 
@@ -77,7 +69,6 @@ public final class ResourcePrivilegesMap {
             assert resource != null && privilegePermissions != null : "resource, privilege permissions(allowed or denied) are required";
             ResourcePrivileges.Builder builder = resourceToResourcePrivilegesBuilder.computeIfAbsent(resource, ResourcePrivileges::builder);
             builder.addPrivileges(privilegePermissions);
-            allowAll = allowAll && privilegePermissions.values().stream().allMatch(b -> Boolean.TRUE.equals(b));
             return this;
         }
 
@@ -93,7 +84,7 @@ public final class ResourcePrivilegesMap {
             Map<String, ResourcePrivileges> result = resourceToResourcePrivilegesBuilder.entrySet()
                 .stream()
                 .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().build()));
-            return new ResourcePrivilegesMap(allowAll, result);
+            return new ResourcePrivilegesMap(result);
         }
     }
 

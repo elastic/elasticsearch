@@ -332,7 +332,6 @@ public class LimitedRoleTests extends ESTestCase {
             resourcePrivilegesMapBuilder
         );
         ResourcePrivilegesMap expectedAppPrivsByResource = new ResourcePrivilegesMap(
-            false,
             Collections.singletonMap(
                 "ind-1-1-*",
                 ResourcePrivileges.builder("ind-1-1-*").addPrivilege("read", true).addPrivilege("write", false).build()
@@ -349,7 +348,6 @@ public class LimitedRoleTests extends ESTestCase {
             resourcePrivilegesMapBuilder
         );
         expectedAppPrivsByResource = new ResourcePrivilegesMap(
-            false,
             Collections.singletonMap(
                 "ind-*",
                 ResourcePrivileges.builder("ind-*").addPrivilege("read", false).addPrivilege("write", false).build()
@@ -368,7 +366,6 @@ public class LimitedRoleTests extends ESTestCase {
                 resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                true,
                 Collections.singletonMap("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
             );
             verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
@@ -382,7 +379,6 @@ public class LimitedRoleTests extends ESTestCase {
                 resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                false,
                 Collections.singletonMap("ind-1-1-*", ResourcePrivileges.builder("ind-1-1-*").addPrivilege("read", false).build())
             );
             verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
@@ -396,7 +392,6 @@ public class LimitedRoleTests extends ESTestCase {
                 resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                false,
                 Collections.singletonMap("ind-*", ResourcePrivileges.builder("ind-*").addPrivilege("read", false).build())
             );
             verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
@@ -411,7 +406,6 @@ public class LimitedRoleTests extends ESTestCase {
                 resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                true,
                 Collections.singletonMap("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
             );
             verifyResourcesPrivileges(resourcePrivilegesMapBuilder.build(), expectedAppPrivsByResource);
@@ -425,7 +419,6 @@ public class LimitedRoleTests extends ESTestCase {
                 resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                false,
                 mapBuilder().put("ind-1-1-*", ResourcePrivileges.builder("ind-1-1-*").addPrivilege("read", false).build())
                     .put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
                     .map()
@@ -447,7 +440,6 @@ public class LimitedRoleTests extends ESTestCase {
             // Map<String, ResourcePrivileges> expectedResourceToResourcePrivs = new HashMap<>();
             ;
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                true,
                 mapBuilder().put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
                     .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", true).build())
                     .map()
@@ -465,7 +457,6 @@ public class LimitedRoleTests extends ESTestCase {
             );
 
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                false,
                 mapBuilder().put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
                     .put("ind-2", ResourcePrivileges.builder("ind-2").addPrivilege("read", true).build())
                     .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", false).build())
@@ -484,7 +475,6 @@ public class LimitedRoleTests extends ESTestCase {
             );
 
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                false,
                 mapBuilder().put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
                     .put("ind-2", ResourcePrivileges.builder("ind-2").addPrivilege("read", false).build())
                     .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", false).build())
@@ -518,7 +508,6 @@ public class LimitedRoleTests extends ESTestCase {
             resourcePrivilegesMapBuilder
         );
         ResourcePrivilegesMap expectedAppPrivsByResource = new ResourcePrivilegesMap(
-            false,
             Collections.singletonMap(
                 "*",
                 ResourcePrivileges.builder("*").addPrivilege("read", false).addPrivilege("write", false).addPrivilege("all", false).build()
@@ -536,7 +525,6 @@ public class LimitedRoleTests extends ESTestCase {
             resourcePrivilegesMapBuilder
         );
         expectedAppPrivsByResource = new ResourcePrivilegesMap(
-            false,
             Collections.singletonMap(
                 "foo/x/y",
                 ResourcePrivileges.builder("foo/x/y")
@@ -558,7 +546,6 @@ public class LimitedRoleTests extends ESTestCase {
             resourcePrivilegesMapBuilder
         );
         expectedAppPrivsByResource = new ResourcePrivilegesMap(
-            false,
             Collections.singletonMap(
                 "foo/bar/a",
                 ResourcePrivileges.builder("foo/bar/a")
@@ -580,7 +567,6 @@ public class LimitedRoleTests extends ESTestCase {
             resourcePrivilegesMapBuilder
         );
         expectedAppPrivsByResource = new ResourcePrivilegesMap(
-            false,
             Collections.singletonMap(
                 "moon/bar/a",
                 ResourcePrivileges.builder("moon/bar/a")
@@ -608,7 +594,6 @@ public class LimitedRoleTests extends ESTestCase {
                 resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                false,
                 Collections.singletonMap(
                     "*",
                     ResourcePrivileges.builder("*")
@@ -630,7 +615,6 @@ public class LimitedRoleTests extends ESTestCase {
                 resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                false,
                 Collections.singletonMap(
                     "foo/x/y",
                     ResourcePrivileges.builder("foo/x/y")
@@ -652,7 +636,6 @@ public class LimitedRoleTests extends ESTestCase {
                 resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                false,
                 Collections.singletonMap(
                     "foo/bar/a",
                     ResourcePrivileges.builder("foo/bar/a")
@@ -674,7 +657,6 @@ public class LimitedRoleTests extends ESTestCase {
                 resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                false,
                 Collections.singletonMap(
                     "moon/bar/a",
                     ResourcePrivileges.builder("moon/bar/a")
@@ -697,7 +679,6 @@ public class LimitedRoleTests extends ESTestCase {
                 resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                false,
                 Collections.singletonMap(
                     "foo/bar/a",
                     ResourcePrivileges.builder("foo/bar/a")
@@ -719,7 +700,6 @@ public class LimitedRoleTests extends ESTestCase {
                 resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                false,
                 Collections.singletonMap(
                     "moon/bar/a",
                     ResourcePrivileges.builder("moon/bar/a")
@@ -741,7 +721,6 @@ public class LimitedRoleTests extends ESTestCase {
                 resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                false,
                 Collections.singletonMap(
                     "moon/bar/a",
                     ResourcePrivileges.builder("moon/bar/a")
@@ -763,7 +742,6 @@ public class LimitedRoleTests extends ESTestCase {
                 resourcePrivilegesMapBuilder
             );
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
-                false,
                 Collections.singletonMap(
                     "moo/bar/a",
                     ResourcePrivileges.builder("moo/bar/a")

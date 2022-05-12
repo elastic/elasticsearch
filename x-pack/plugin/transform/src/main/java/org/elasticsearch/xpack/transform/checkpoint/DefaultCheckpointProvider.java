@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -168,6 +169,17 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                     // this is an implementation detail, so not necessary to audit or warn, but only report as debug
                     logger.debug(
                         "[{}] Cluster [{}] does not support transform checkpoint API, falling back to legacy checkpointing",
+                        transformConfig.getId(),
+                        cluster
+                    );
+
+                    fallbackToBWC.add(cluster);
+                    getCheckpointsFromOneClusterBWC(client, headers, indices, cluster, listener);
+                } else if (unwrappedException instanceof ElasticsearchSecurityException) {
+                    // 8.2 only, see gh#86716, a bug in security
+                    logger.debug(
+                        "[{}] Cluster [{}] failed with ElasticsearchSecurityException (issue gh#86716), "
+                            + "falling back to legacy checkpointing",
                         transformConfig.getId(),
                         cluster
                     );

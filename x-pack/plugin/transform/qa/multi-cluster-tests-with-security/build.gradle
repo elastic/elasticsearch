@@ -29,6 +29,9 @@ def remoteCluster = testClusters.register('remote-cluster') {
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
 
+    // see gh#86716, disable assert to test fix
+    jvmArgs '-da'
+
     user username: "test_user", password: "x-pack-test-password"
 }
 

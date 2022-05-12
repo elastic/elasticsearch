@@ -675,7 +675,7 @@ public class SecurityTests extends ESTestCase {
 
     private MockLogAppender.SeenEventExpectation nonCompliantHashAlgoLogExpectation(String settingKey) {
         return new MockLogAppender.SeenEventExpectation(
-            "hash algo not compliant",
+            "hash algo not fips compliant",
             Security.class.getName(),
             Level.WARN,
             "Only PBKDF2, SHA1, or SSHA256 are secure hash functions allowed in a FIPS 140 JVM. "

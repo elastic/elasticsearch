@@ -601,7 +601,7 @@ public class SecurityTests extends ESTestCase {
         assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM."));
     }
 
-    public void testValidateForFipsNoErrors() {
+    public void testValidateForFipsNoErrors() throws IllegalAccessException {
         final Settings settings = Settings.builder()
             .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
             .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")
@@ -628,14 +628,27 @@ public class SecurityTests extends ESTestCase {
                 )
             )
             .build();
-        Security.validateForFips(settings);
-        // no exception thrown
+        assertNoExceptionsOrWarningsForValidateForFips(settings);
     }
 
-    public void testValidateForFipsNoErrorsForDefaultSettings() {
+    public void testValidateForFipsNoErrorsForDefaultSettings() throws IllegalAccessException {
         final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true).build();
-        Security.validateForFips(settings);
-        // no exception thrown
+        assertNoExceptionsOrWarningsForValidateForFips(settings);
+    }
+
+    private void assertNoExceptionsOrWarningsForValidateForFips(Settings settings) throws IllegalAccessException {
+        final MockLogAppender mockAppender = new MockLogAppender();
+        final Logger logger = LogManager.getLogger(Security.class);
+        mockAppender.start();
+        try {
+            Loggers.addAppender(logger, mockAppender);
+            Security.validateForFips(settings);
+            mockAppender.assertAllExpectationsMatched();
+            // no exception thrown
+        } finally {
+            Loggers.removeAppender(logger, mockAppender);
+            mockAppender.stop();
+        }
     }
 
     public void testLicenseUpdateFailureHandlerUpdate() throws Exception {

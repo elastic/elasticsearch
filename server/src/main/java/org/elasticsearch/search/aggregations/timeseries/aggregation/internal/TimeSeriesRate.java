@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimePoint;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.function.RateFunction;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -101,65 +102,27 @@ public class TimeSeriesRate extends InternalNumericMetricsAggregation.SingleValu
     @Override
     public double value() {
         if (resultValue < 0) {
-            resultValue = calc();
+            resultValue = RateFunction.extrapolatedRate(
+                range,
+                timestamp,
+                isCounter,
+                isRate,
+                lastSample,
+                firstSample,
+                count,
+                totalRevertValue
+            );
         }
-        return resultValue;
-    }
-
-    public double calc() {
-        long rangeStart = timestamp - range;
-        long rangeEnd = timestamp;
-
-        if (count < 2) {
-            return 0d;
-        }
-
-        double resultValue = lastSample.getValue() - firstSample.getValue();
-        if (isCounter) {
-            resultValue += totalRevertValue;
-        }
-
-        double durationToStart = (firstSample.getTimestamp() - rangeStart) / 1000;
-        double durationToEnd = (rangeEnd - lastSample.getTimestamp()) / 1000;
-
-        double sampledInterval = (lastSample.getTimestamp() - firstSample.getTimestamp()) / 1000;
-        double averageDurationBetweenSamples = sampledInterval / (count - 1);
-
-        if (isCounter && resultValue > 0 && firstSample.getValue() >= 0) {
-            double durationToZero = sampledInterval * (firstSample.getValue() / resultValue);
-            if (durationToZero < durationToStart) {
-                durationToStart = durationToZero;
-            }
-        }
-
-        double extrapolationThreshold = averageDurationBetweenSamples * 1.1;
-        double extrapolateToInterval = sampledInterval;
-
-        if (durationToStart < extrapolationThreshold) {
-            extrapolateToInterval += durationToStart;
-        } else {
-            extrapolateToInterval += averageDurationBetweenSamples / 2;
-        }
-        if (durationToEnd < extrapolationThreshold) {
-            extrapolateToInterval += durationToEnd;
-        } else {
-            extrapolateToInterval += averageDurationBetweenSamples / 2;
-        }
-        resultValue = resultValue * (extrapolateToInterval / sampledInterval);
-        if (isRate) {
-            resultValue = resultValue / range;
-        }
-
         return resultValue;
     }
 
     @Override
     public TimeSeriesRate reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         if (aggregations.size() == 1) {
-            return (TimeSeriesRate)aggregations.get(0);
+            return (TimeSeriesRate) aggregations.get(0);
         }
 
-        List<TimeSeriesRate> timeSeriesRates = aggregations.stream().map(c->(TimeSeriesRate)c).sorted().collect(Collectors.toList());
+        List<TimeSeriesRate> timeSeriesRates = aggregations.stream().map(c -> (TimeSeriesRate) c).sorted().collect(Collectors.toList());
 
         TimeSeriesRate reduced = timeSeriesRates.get(0);
         for (int i = 1; i < timeSeriesRates.size(); i++) {

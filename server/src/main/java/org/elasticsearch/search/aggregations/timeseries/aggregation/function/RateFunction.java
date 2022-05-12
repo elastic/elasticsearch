@@ -15,7 +15,7 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.Tim
 
 import java.util.Map;
 
-public class RateFunction implements AggregatorFunction<TimePoint, TimePoint> {
+public class RateFunction implements AggregatorFunction<TimePoint, Double> {
 
     private final long range;
     private final long timestamp;
@@ -59,24 +59,46 @@ public class RateFunction implements AggregatorFunction<TimePoint, TimePoint> {
     }
 
     @Override
-    public TimePoint get() {
+    public Double get() {
+        return extrapolatedRate(range, timestamp, isCounter, isRate, lastSample, firstSample, count, totalRevertValue);
+    }
+
+    @Override
+    public InternalAggregation getAggregation(DocValueFormat formatter, Map<String, Object> metadata) {
+        return new TimeSeriesRate(
+            TimeSeriesRate.NAME,
+            range,
+            timestamp,
+            isCounter,
+            isRate,
+            lastSample,
+            firstSample,
+            count,
+            totalRevertValue,
+            formatter,
+            metadata
+        );
+    }
+
+    public static double extrapolatedRate(
+        long range,
+        long timestamp,
+        boolean isCounter,
+        boolean isRate,
+        TimePoint lastSample,
+        TimePoint firstSample,
+        long count,
+        double totalRevertValue
+    ) {
         long rangeStart = timestamp - range;
         long rangeEnd = timestamp;
 
         if (count < 2) {
-            return new TimePoint(timestamp, 0d);
+            return 0d;
         }
 
         double resultValue = lastSample.getValue() - firstSample.getValue();
         if (isCounter) {
-            // TODO
-            // double lastValue = 0;
-            // for (Tuple<Long, Double> sample : samples) {
-            // if (sample.v2() < lastValue) {
-            // resultValue += lastValue;
-            // }
-            // lastValue = sample.v2();
-            // }
             resultValue += totalRevertValue;
         }
 
@@ -111,23 +133,6 @@ public class RateFunction implements AggregatorFunction<TimePoint, TimePoint> {
             resultValue = resultValue / range;
         }
 
-        return new TimePoint(timestamp, resultValue);
-    }
-
-    @Override
-    public InternalAggregation getAggregation(DocValueFormat formatter, Map<String, Object> metadata) {
-        return new TimeSeriesRate(
-            TimeSeriesRate.NAME,
-            range,
-            timestamp,
-            isCounter,
-            isRate,
-            lastSample,
-            firstSample,
-            count,
-            totalRevertValue,
-            formatter,
-            metadata
-        );
+        return resultValue;
     }
 }

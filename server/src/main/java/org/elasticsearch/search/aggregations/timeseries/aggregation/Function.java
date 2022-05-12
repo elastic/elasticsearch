@@ -116,6 +116,18 @@ public enum Function {
         public AggregatorFunction<?, ?> getFunction(TimeSeriesAggregationAggregator aggregator) {
             return new RateFunction(aggregator.downsampleRange, aggregator.preRounding, true, true);
         }
+    },
+    delta {
+        @Override
+        public AggregatorFunction<?, ?> getFunction(TimeSeriesAggregationAggregator aggregator) {
+            return new RateFunction(aggregator.downsampleRange, aggregator.preRounding, false, false);
+        }
+    },
+    increase {
+        @Override
+        public AggregatorFunction<?, ?> getFunction(TimeSeriesAggregationAggregator aggregator) {
+            return new RateFunction(aggregator.downsampleRange, aggregator.preRounding, true, false);
+        }
     };
 
     public static Function resolve(String name) {

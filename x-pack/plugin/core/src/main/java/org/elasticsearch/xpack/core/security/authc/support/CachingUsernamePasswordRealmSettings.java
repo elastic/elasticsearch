@@ -17,7 +17,7 @@ import java.util.function.Function;
 
 public final class CachingUsernamePasswordRealmSettings {
 
-    private static final String CACHE_HASH_ALGO_SUFFIX = "cache.hash_algo";
+    public static final String CACHE_HASH_ALGO_SUFFIX = "cache.hash_algo";
     public static final Function<String, Setting.AffixSetting<String>> CACHE_HASH_ALGO_SETTING = RealmSettings.affixSetting(
         CACHE_HASH_ALGO_SUFFIX,
         key -> Setting.simpleString(key, "ssha256", Setting.Property.NodeScope)

@@ -150,6 +150,8 @@ import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -1415,6 +1417,20 @@ public class Security extends Plugin
                     + " ] setting."
             );
         }
+        settings.filter(k -> k.endsWith(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SUFFIX))
+            .getAsGroups()
+            .forEach((key, setting) -> {
+                final var fipsCompliantAlgorithms = Hasher.getAvailableAlgoCacheHash(true);
+                final var hashAlgoName = settings.get(key).toLowerCase(Locale.ROOT);
+                if (fipsCompliantAlgorithms.contains(hashAlgoName)) {
+                    logger.warn(
+                        "Hashing algorithm [{}] is not allowed in a FIPS 140 JVM. Please set [{}] to an appropriate value from: [{}] ",
+                        hashAlgoName,
+                        key,
+                        fipsCompliantAlgorithms
+                    );
+                }
+            });
 
         if (validationErrors.isEmpty() == false) {
             final StringBuilder sb = new StringBuilder();

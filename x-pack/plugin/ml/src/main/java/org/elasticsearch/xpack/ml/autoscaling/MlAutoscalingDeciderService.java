@@ -383,7 +383,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         final ClusterState clusterState = context.state();
 
         PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        logger.info("TEMP - REMOVE! PersistentTasksCustomMetadata: " + ((tasks == null) ? "null" : Strings.toString(tasks)));
         Collection<PersistentTask<?>> anomalyDetectionTasks = anomalyDetectionTasks(tasks);
         Collection<PersistentTask<?>> snapshotUpgradeTasks = snapshotUpgradeTasks(tasks);
         Collection<PersistentTask<?>> dataframeAnalyticsTasks = dataframeAnalyticsTasks(tasks);
@@ -411,7 +410,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         final int numAnomalyJobsInQueue = NUM_ANOMALY_JOBS_IN_QUEUE.get(configuration);
 
         final List<DiscoveryNode> mlNodes = getMlNodes(clusterState);
-        logger.info("TEMP - REMOVE! mlNodes: " + mlNodes);
         final NativeMemoryCapacity currentScale = currentScale(mlNodes);
 
         final MlScalingReason.Builder reasonBuilder = MlScalingReason.builder()
@@ -916,7 +914,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 .map(NodeLoad::getFreeMemoryExcludingPerNodeOverhead)
                 .max(Long::compareTo)
                 .orElse(0L);
-            logger.info("TEMP - REMOVE! maxFreeNodeMemAfterPossibleAssignments: " + maxFreeNodeMemAfterPossibleAssignments);
             if (maxFreeNodeMemAfterPossibleAssignments > currentScale.getNodeMlNativeMemoryRequirementExcludingOverhead()
                 || maxFreeNodeMemAfterPossibleAssignments > currentScale.getTierMlNativeMemoryRequirementExcludingOverhead()) {
                 assert false
@@ -1166,14 +1163,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         MlScalingReason.Builder reasonBuilder
     ) {
         long currentlyNecessaryTier = nodeLoads.stream().mapToLong(NodeLoad::getAssignedJobMemoryExcludingPerNodeOverhead).sum();
-        logger.info(
-            "TEMP - REMOVE! largestJob: "
-                + largestJob
-                + " currentlyNecessaryTier: "
-                + currentlyNecessaryTier
-                + " currentCapacity: "
-                + currentCapacity
-        );
         // We consider a scale down if we are not fully utilizing the tier
         // Or our largest job could be on a smaller node (meaning the same size tier but smaller nodes are possible).
         if (currentlyNecessaryTier < currentCapacity.getTierMlNativeMemoryRequirementExcludingOverhead()

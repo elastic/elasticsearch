@@ -211,7 +211,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             if (stopped) {
                 return;
             }
-            logger.trace(() -> new ParameterizedMessage("[{}] attempting to load model", modelId));
+            logger.trace(() -> "[" + modelId + "] attempting to load model");
             final PlainActionFuture<TrainedModelDeploymentTask> listener = new PlainActionFuture<>();
             try {
                 deploymentManager.startDeployment(loadingTask, listener);
@@ -220,16 +220,16 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                 // kicks off asynchronous cluster state update
                 handleLoadSuccess(deployedTask);
             } catch (Exception ex) {
-                logger.warn(new ParameterizedMessage("[{}] Start deployment failed", modelId), ex);
+                logger.warn(() -> "[" + modelId + "] Start deployment failed", ex);
                 if (ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException) {
-                    logger.warn(new ParameterizedMessage("[{}] Start deployment failed", modelId), ex);
+                    logger.warn(() -> "[" + modelId + "] Start deployment failed", ex);
                     handleLoadFailure(loadingTask, ExceptionsHelper.missingTrainedModel(modelId, ex));
                 } else if (ExceptionsHelper.unwrapCause(ex) instanceof SearchPhaseExecutionException) {
-                    logger.trace(new ParameterizedMessage("[{}] Start deployment failed, will retry", modelId), ex);
+                    logger.trace(() -> "[" + modelId + "] Start deployment failed, will retry", ex);
                     // A search phase execution failure should be retried, push task back to the queue
                     loadingToRetry.add(loadingTask);
                 } else {
-                    logger.warn(new ParameterizedMessage("[{}] Start deployment failed", modelId), ex);
+                    logger.warn(() -> "[" + modelId + "] Start deployment failed", ex);
                     handleLoadFailure(loadingTask, ex);
                 }
             }
@@ -241,7 +241,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         ActionListener<Void> notifyDeploymentOfStopped = ActionListener.wrap(
             _void -> updateStoredState(task.getModelId(), new RoutingStateAndReason(RoutingState.STOPPED, reason), listener),
             failed -> { // if we failed to stop the process, something strange is going on, but we should still notify of stop
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to stop due to error", task.getModelId()), failed);
+                logger.warn(() -> "[" + task.getModelId() + "] failed to stop due to error", failed);
                 updateStoredState(task.getModelId(), new RoutingStateAndReason(RoutingState.STOPPED, reason), listener);
             }
         );
@@ -260,10 +260,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                 } else {
                     // this is an unexpected error
                     // TODO this means requests may still be routed here, should we not stop deployment?
-                    logger.warn(
-                        () -> new ParameterizedMessage("[{}] failed to set routing state to stopping due to error", task.getModelId()),
-                        e
-                    );
+                    logger.warn(() -> "[" + task.getModelId() + "] failed to set routing state to stopping due to error", e);
                 }
                 stopDeploymentAsync(task, reason, notifyDeploymentOfStopped);
             })
@@ -274,10 +271,11 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         TrainedModelDeploymentTask task,
         InferenceConfig config,
         Map<String, Object> doc,
+        boolean skipQueue,
         TimeValue timeout,
         ActionListener<InferenceResults> listener
     ) {
-        deploymentManager.infer(task, config, doc, timeout, listener);
+        deploymentManager.infer(task, config, doc, skipQueue, timeout, listener);
     }
 
     public Optional<ModelStats> modelStats(TrainedModelDeploymentTask task) {
@@ -343,11 +341,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                             task,
                             NODE_NO_LONGER_REFERENCED,
                             ActionListener.wrap(
-                                r -> logger.trace(() -> new ParameterizedMessage("[{}] stopped deployment", task.getModelId())),
-                                e -> logger.warn(
-                                    () -> new ParameterizedMessage("[{}] failed to fully stop deployment", task.getModelId()),
-                                    e
-                                )
+                                r -> logger.trace(() -> "[" + task.getModelId() + "] stopped deployment"),
+                                e -> logger.warn(() -> "[" + task.getModelId() + "] failed to fully stop deployment", e)
                             )
                         );
                     }
@@ -363,8 +358,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     t,
                     ASSIGNMENT_NO_LONGER_EXISTS,
                     ActionListener.wrap(
-                        r -> logger.trace(() -> new ParameterizedMessage("[{}] stopped deployment", t.getModelId())),
-                        e -> logger.warn(() -> new ParameterizedMessage("[{}] failed to fully stop deployment", t.getModelId()), e)
+                        r -> logger.trace(() -> "[" + t.getModelId() + "] stopped deployment"),
+                        e -> logger.warn(() -> "[" + t.getModelId() + "] failed to fully stop deployment", e)
                     )
                 );
             }
@@ -396,9 +391,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
     private void handleLoadSuccess(TrainedModelDeploymentTask task) {
         final String modelId = task.getModelId();
-        logger.debug(
-            () -> new ParameterizedMessage("[{}] model successfully loaded and ready for inference. Notifying master node", modelId)
-        );
+        logger.debug(() -> "[" + modelId + "] model successfully loaded and ready for inference. Notifying master node");
         if (task.isStopped()) {
             logger.debug(
                 () -> new ParameterizedMessage(
@@ -412,7 +405,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         updateStoredState(
             modelId,
             new RoutingStateAndReason(RoutingState.STARTED, ""),
-            ActionListener.wrap(r -> logger.debug(() -> new ParameterizedMessage("[{}] model loaded and accepting routes", modelId)), e -> {
+            ActionListener.wrap(r -> logger.debug(() -> "[" + modelId + "] model loaded and accepting routes"), e -> {
                 // This means that either the assignment has been deleted, or this node's particular route has been removed
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     logger.debug(
@@ -424,7 +417,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     );
                 }
                 // this is an unexpected error
-                logger.warn(() -> new ParameterizedMessage("[{}] model loaded but failed to start accepting routes", modelId), e);
+                logger.warn(() -> "[" + modelId + "] model loaded but failed to start accepting routes", e);
             })
         );
     }
@@ -459,7 +452,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     }
 
     private void handleLoadFailure(TrainedModelDeploymentTask task, Exception ex) {
-        logger.error(() -> new ParameterizedMessage("[{}] model failed to load", task.getModelId()), ex);
+        logger.error(() -> "[" + task.getModelId() + "] model failed to load", ex);
         if (task.isStopped()) {
             logger.debug(
                 () -> new ParameterizedMessage(

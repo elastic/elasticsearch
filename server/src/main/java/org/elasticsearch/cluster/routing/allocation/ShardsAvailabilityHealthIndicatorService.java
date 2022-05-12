@@ -111,7 +111,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean includeDetails) {
+    public HealthIndicatorResult calculate(boolean explain) {
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = new ShardAllocationStatus(state.getMetadata());
@@ -119,18 +119,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
             for (int i = 0; i < indexShardRouting.size(); i++) {
                 IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
-                status.addPrimary(shardRouting.primaryShard(), state, shutdown, includeDetails);
+                status.addPrimary(shardRouting.primaryShard(), state, shutdown, explain);
                 for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                    status.addReplica(replicaShard, state, shutdown, includeDetails);
+                    status.addReplica(replicaShard, state, shutdown, explain);
                 }
             }
         }
         return createIndicator(
             status.getStatus(),
             status.getSummary(),
-            status.getDetails(includeDetails),
+            status.getDetails(explain),
             status.getImpacts(),
-            status.getUserActions(includeDetails)
+            status.getUserActions(explain)
         );
     }
 
@@ -170,25 +170,21 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         null
     );
 
-    public static final Map<String, UserAction.Definition> ACTION_ENABLE_TIERS_LOOKUP;
-    static {
-        Map<String, UserAction.Definition> lookup = DataTier.ALL_DATA_TIERS.stream()
-            .collect(
-                Collectors.toMap(
-                    tier -> tier,
-                    tier -> new UserAction.Definition(
-                        "enable_data_tiers_" + tier,
-                        "Elasticsearch isn't allowed to allocate shards from these indices because the indices expect to be allocated to "
-                            + "data tier nodes, but there were not any nodes with the expected tiers found in the cluster. Add nodes with "
-                            + "the ["
-                            + tier
-                            + "] role to the cluster.",
-                        null
-                    )
+    public static final Map<String, UserAction.Definition> ACTION_ENABLE_TIERS_LOOKUP = DataTier.ALL_DATA_TIERS.stream()
+        .collect(
+            Collectors.toUnmodifiableMap(
+                tier -> tier,
+                tier -> new UserAction.Definition(
+                    "enable_data_tiers_" + tier,
+                    "Elasticsearch isn't allowed to allocate shards from these indices because the indices expect to be allocated to "
+                        + "data tier nodes, but there were not any nodes with the expected tiers found in the cluster. Add nodes with "
+                        + "the ["
+                        + tier
+                        + "] role to the cluster.",
+                    null
                 )
-            );
-        ACTION_ENABLE_TIERS_LOOKUP = Collections.unmodifiableMap(lookup);
-    }
+            )
+        );
 
     public static final UserAction.Definition ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING = new UserAction.Definition(
         "increase_shard_limit_index_setting",
@@ -199,25 +195,22 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         null
     );
 
-    public static final Map<String, UserAction.Definition> ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP;
-    static {
-        Map<String, UserAction.Definition> lookup = DataTier.ALL_DATA_TIERS.stream()
-            .collect(
-                Collectors.toMap(
-                    tier -> tier,
-                    tier -> new UserAction.Definition(
-                        "increase_shard_limit_index_setting_" + tier,
-                        "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
-                            + tier
-                            + "] tier has reached these indices' shard limits. Increase the values for the ["
-                            + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
-                            + "] index setting on each index or add more nodes to the target tiers.",
-                        null
-                    )
+    public static final Map<String, UserAction.Definition> ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP = DataTier.ALL_DATA_TIERS
+        .stream()
+        .collect(
+            Collectors.toUnmodifiableMap(
+                tier -> tier,
+                tier -> new UserAction.Definition(
+                    "increase_shard_limit_index_setting_" + tier,
+                    "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
+                        + tier
+                        + "] tier has reached these indices' shard limits. Increase the values for the ["
+                        + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
+                        + "] index setting on each index or add more nodes to the target tiers.",
+                    null
                 )
-            );
-        ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP = Collections.unmodifiableMap(lookup);
-    }
+            )
+        );
 
     public static final UserAction.Definition ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING = new UserAction.Definition(
         "increase_shard_limit_cluster_setting",
@@ -228,33 +221,30 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         null
     );
 
-    public static final Map<String, UserAction.Definition> ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP;
-    static {
-        Map<String, UserAction.Definition> lookup = DataTier.ALL_DATA_TIERS.stream()
-            .collect(
-                Collectors.toMap(
-                    tier -> tier,
-                    tier -> new UserAction.Definition(
-                        "increase_shard_limit_cluster_setting_" + tier,
-                        "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
-                            + tier
-                            + "] tier has reached this cluster's shard limit. Increase the values for the ["
-                            + CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
-                            + "] cluster setting or add more nodes to the target tiers.",
-                        null
-                    )
+    public static final Map<String, UserAction.Definition> ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP = DataTier.ALL_DATA_TIERS
+        .stream()
+        .collect(
+            Collectors.toUnmodifiableMap(
+                tier -> tier,
+                tier -> new UserAction.Definition(
+                    "increase_shard_limit_cluster_setting_" + tier,
+                    "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
+                        + tier
+                        + "] tier has reached this cluster's shard limit. Increase the values for the ["
+                        + CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
+                        + "] cluster setting or add more nodes to the target tiers.",
+                    null
                 )
-            );
-        ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP = Collections.unmodifiableMap(lookup);
-    }
+            )
+        );
 
     public static final UserAction.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA = new UserAction.Definition(
         "migrate_data_tiers_require_data",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers because the "
             + "indices are configured with allocation filter rules that are incompatible with the nodes in their tier. Remove ["
             + INDEX_ROUTING_REQUIRE_GROUP_PREFIX
-            + ".data] from each index's settings or try migrating to data tiers using the data tier migration action "
-            + "[POST /_ilm/migrate_to_data_tiers].",
+            + ".data] from each index's settings or try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then using "
+            + "the data tier migration action [POST /_ilm/migrate_to_data_tiers]. Finally, restart ILM [POST /_ilm/start].",
         null
     );
 
@@ -263,8 +253,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers because the "
             + "indices are configured with allocation filter rules that are incompatible with the nodes in their tier. Remove ["
             + INDEX_ROUTING_INCLUDE_GROUP_PREFIX
-            + ".data] from each index's settings or try migrating to data tiers using the data tier migration action "
-            + "[POST /_ilm/migrate_to_data_tiers].",
+            + ".data] from each index's settings try migrating to data tiers by first stopping ILM [POST /_ilm/stop] and then using "
+            + "the data tier migration action [POST /_ilm/migrate_to_data_tiers]. Finally, restart ILM [POST /_ilm/start].",
         null
     );
 
@@ -276,25 +266,21 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         null
     );
 
-    public static final Map<String, UserAction.Definition> ACTION_INCREASE_TIER_CAPACITY_LOOKUP;
-    static {
-        Map<String, UserAction.Definition> lookup = DataTier.ALL_DATA_TIERS.stream()
-            .collect(
-                Collectors.toMap(
-                    tier -> tier,
-                    tier -> new UserAction.Definition(
-                        "increase_tier_capacity_for_allocations_" + tier,
-                        "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers "
-                            + "because there are not enough nodes in the ["
-                            + tier
-                            + "] tier to allocate each shard copy on a different node. Increase the number of nodes in this tier or "
-                            + "decrease the number of replicas your indices are using.",
-                        null
-                    )
+    public static final Map<String, UserAction.Definition> ACTION_INCREASE_TIER_CAPACITY_LOOKUP = DataTier.ALL_DATA_TIERS.stream()
+        .collect(
+            Collectors.toUnmodifiableMap(
+                tier -> tier,
+                tier -> new UserAction.Definition(
+                    "increase_tier_capacity_for_allocations_" + tier,
+                    "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers "
+                        + "because there are not enough nodes in the ["
+                        + tier
+                        + "] tier to allocate each shard copy on a different node. Increase the number of nodes in this tier or "
+                        + "decrease the number of replicas your indices are using.",
+                    null
                 )
-            );
-        ACTION_INCREASE_TIER_CAPACITY_LOOKUP = Collections.unmodifiableMap(lookup);
-    }
+            )
+        );
 
     private class ShardAllocationCounts {
         private boolean available = true; // This will be true even if no replicas are expected, as long as none are unavailable
@@ -307,7 +293,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private final Set<String> indicesWithUnavailableShards = new HashSet<>();
         private final Map<UserAction.Definition, Set<String>> userActions = new HashMap<>();
 
-        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean includeDetails) {
+        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
             available &= routing.active() || isRestarting || isNew;
@@ -323,7 +309,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         unassigned_restarting++;
                     } else {
                         unassigned++;
-                        if (includeDetails) {
+                        if (explain) {
                             diagnoseUnassignedShardRouting(routing, state).forEach(
                                 definition -> addUserAction(definition, routing.getIndexName())
                             );
@@ -677,12 +663,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             this.clusterMetadata = clusterMetadata;
         }
 
-        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean includeDetails) {
-            primaries.increment(routing, state, shutdowns, includeDetails);
+        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
+            primaries.increment(routing, state, shutdowns, explain);
         }
 
-        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean includeDetails) {
-            replicas.increment(routing, state, shutdowns, includeDetails);
+        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean explain) {
+            replicas.increment(routing, state, shutdowns, explain);
         }
 
         public HealthStatus getStatus() {
@@ -704,9 +690,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 || replicas.unassigned_restarting > 0) {
                 builder.append(
                     Stream.of(
-                        createMessage(primaries.unassigned, "unavailable primary", " unavailable primaries"),
-                        createMessage(primaries.unassigned_new, "creating primary", " creating primaries"),
-                        createMessage(primaries.unassigned_restarting, "restarting primary", " restarting primaries"),
+                        createMessage(primaries.unassigned, "unavailable primary", "unavailable primaries"),
+                        createMessage(primaries.unassigned_new, "creating primary", "creating primaries"),
+                        createMessage(primaries.unassigned_restarting, "restarting primary", "restarting primaries"),
                         createMessage(replicas.unassigned, "unavailable replica", "unavailable replicas"),
                         createMessage(replicas.unassigned_restarting, "restarting replica", "restarting replicas")
                     ).flatMap(Function.identity()).collect(joining(", "))
@@ -725,8 +711,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             };
         }
 
-        public HealthIndicatorDetails getDetails(boolean includeDetails) {
-            if (includeDetails) {
+        public HealthIndicatorDetails getDetails(boolean explain) {
+            if (explain) {
                 return new SimpleHealthIndicatorDetails(
                     Map.of(
                         "unassigned_primaries",
@@ -788,11 +774,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
         /**
          * Summarizes the user actions that are needed to solve unassigned primary and replica shards.
-         * @param includeDetails true if user actions should be generated, false if they should be omitted.
-         * @return A summary of user actions. Alternatively, an empty list if none were found or includeDetails is false.
+         * @param explain true if user actions should be generated, false if they should be omitted.
+         * @return A summary of user actions. Alternatively, an empty list if none were found or explain is false.
          */
-        public List<UserAction> getUserActions(boolean includeDetails) {
-            if (includeDetails) {
+        public List<UserAction> getUserActions(boolean explain) {
+            if (explain) {
                 Map<UserAction.Definition, Set<String>> actionsToAffectedIndices = new HashMap<>(primaries.userActions);
                 replicas.userActions.forEach((actionDefinition, indicesWithReplicasUnassigned) -> {
                     Set<String> indicesWithPrimariesUnassigned = actionsToAffectedIndices.get(actionDefinition);

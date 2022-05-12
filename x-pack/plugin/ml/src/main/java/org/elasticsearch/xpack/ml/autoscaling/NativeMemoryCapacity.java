@@ -137,8 +137,8 @@ public class NativeMemoryCapacity {
                 );
             }
             return new AutoscalingCapacity(
-                new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes(0)),
-                new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes(0))
+                new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ZERO),
+                new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ZERO)
             );
         }
 

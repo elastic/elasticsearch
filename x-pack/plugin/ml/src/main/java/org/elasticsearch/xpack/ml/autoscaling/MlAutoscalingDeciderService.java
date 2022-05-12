@@ -493,7 +493,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         }
         // We need the current node loads to determine if we need to scale up or down
         List<NodeLoad> nodeLoads = new ArrayList<>(mlNodes.size());
-        boolean nodeIsMemoryAccurate = true;
+        boolean nodeLoadIsMemoryAccurate = true;
         for (DiscoveryNode node : mlNodes) {
             NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(clusterState, node, maxOpenJobs, maxMachineMemoryPercent, useAuto);
             if (nodeLoad.getError() != null) {
@@ -505,23 +505,20 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 );
             }
             nodeLoads.add(nodeLoad);
-            boolean thisNodeMemoryAccurate = nodeLoad.isUseMemory();
-            if (thisNodeMemoryAccurate == false) {
-                nodeIsMemoryAccurate = false;
+            if (nodeLoad.isUseMemory() == false) {
+                nodeLoadIsMemoryAccurate = false;
                 logger.debug("[{}] failed to gather node load - memory usage for one or more tasks not available.", node.getId());
             }
         }
-        // This is an exceptional case, the memory tracking became stale between us checking previously and calculating the loads
-        // We should return a no scale in this case
-        if (nodeIsMemoryAccurate == false) {
+        // This is an exceptional case, the memory tracking became stale between us checking previously and calculating the loads (for
+        // example because a new job started that hasn't yet been added to the memory tracker). We should return a no scale in this case.
+        if (nodeLoadIsMemoryAccurate == false) {
             return buildDecisionAndRequestRefresh(
                 reasonBuilder.setSimpleReason(
                     "Passing currently perceived capacity as nodes were unable to provide an accurate view of their memory usage"
                 )
             );
         }
-
-        Optional<NativeMemoryCapacity> futureFreedCapacity = calculateFutureAvailableCapacity(tasks, nodeLoads);
 
         final Optional<AutoscalingDeciderResult> scaleUpDecision = checkForScaleUp(
             numAnomalyJobsInQueue,
@@ -531,15 +528,15 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             waitingSnapshotUpgrades,
             waitingAnalyticsJobs,
             waitingAllocatedModels,
-            futureFreedCapacity.orElse(null),
+            calculateFutureAvailableCapacity(tasks, nodeLoads).orElse(null),
             currentScale,
             reasonBuilder
         );
-
         if (scaleUpDecision.isPresent()) {
             resetScaleDownCoolDown();
             return scaleUpDecision.get();
         }
+
         if (waitingAnalyticsJobs.isEmpty() == false
             || waitingSnapshotUpgrades.isEmpty() == false
             || waitingAnomalyJobs.isEmpty() == false) {
@@ -553,7 +550,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                         "Passing currently perceived capacity as there are [%d] model snapshot upgrades, "
                             + "[%d] analytics and [%d] anomaly detection jobs in the queue, "
                             + "but the number in the queue is less than the configured maximum allowed "
-                            + " or the queued jobs will eventually be assignable at the current size. ",
+                            + "or the queued jobs will eventually be assignable at the current size.",
                         waitingSnapshotUpgrades.size(),
                         waitingAnalyticsJobs.size(),
                         waitingAnomalyJobs.size()
@@ -655,11 +652,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 }
                 return new AutoscalingDeciderResult(capacity, result.reason());
             });
-
         if (maybeScaleDown.isPresent()) {
             final AutoscalingDeciderResult scaleDownDecisionResult = maybeScaleDown.get();
 
-            context.currentCapacity();
             // Given maxOpenJobs, could we scale down to just one node?
             // We have no way of saying "we need X nodes"
             if (nodeLoads.size() > 1) {
@@ -678,7 +673,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                     );
                     logger.info(
                         () -> new ParameterizedMessage(
-                            "{} Calculated potential scaled down capacity [{}] ",
+                            "{} Calculated potential scaled down capacity [{}]",
                             msg,
                             scaleDownDecisionResult.requiredCapacity()
                         )

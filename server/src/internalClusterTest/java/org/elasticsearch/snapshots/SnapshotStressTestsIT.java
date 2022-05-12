@@ -803,12 +803,24 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         .cluster()
                         .prepareCleanupRepository(trackedRepository.repositoryName)
                         .execute(mustSucceed(cleanupRepositoryResponse -> {
-                            Releasables.close(releaseAll);
-                            logger.info("--> completed cleanup of [{}]", trackedRepository.repositoryName);
                             final RepositoryCleanupResult result = cleanupRepositoryResponse.result();
-                            assertThat(Strings.toString(result), result.blobs(), equalTo(0L));
-                            assertThat(Strings.toString(result), result.bytes(), equalTo(0L));
-                            startCleaner();
+                            if (result.bytes() > 0L || result.blobs() > 0L) {
+                                client.admin()
+                                    .cluster()
+                                    .prepareCleanupRepository(trackedRepository.repositoryName)
+                                    .execute(mustSucceed(secondCleanupRepositoryResponse -> {
+                                        final RepositoryCleanupResult secondCleanupResult = secondCleanupRepositoryResponse.result();
+                                        assertThat(Strings.toString(secondCleanupResult), secondCleanupResult.blobs(), equalTo(0L));
+                                        assertThat(Strings.toString(secondCleanupResult), secondCleanupResult.bytes(), equalTo(0L));
+                                        Releasables.close(releaseAll);
+                                        logger.info("--> completed second cleanup of [{}]", trackedRepository.repositoryName);
+                                        startCleaner();
+                                    }));
+                            } else {
+                                Releasables.close(releaseAll);
+                                logger.info("--> completed cleanup of [{}]", trackedRepository.repositoryName);
+                                startCleaner();
+                            }
                         }));
 
                     startedCleanup = true;

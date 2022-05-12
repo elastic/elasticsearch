@@ -7,7 +7,7 @@
  */
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
-//apply plugin: 'elasticsearch.test-with-dependencies'
+apply plugin: 'elasticsearch.test-with-dependencies'
 
 dependencies {
   javaRestTestImplementation project(':modules:transport-netty4') // for http

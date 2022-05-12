@@ -15,7 +15,6 @@ import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -127,6 +126,10 @@ public abstract class GeoShapeValues {
             return visitor.labelPosition();
         }
 
+        /**
+         * Determine the {@link GeoRelation} between the current shape and a bounding box provided in
+         * the encoded space.
+         */
         public GeoRelation relate(int minX, int maxX, int minY, int maxY) throws IOException {
             tile2DVisitor.reset(minX, minY, maxX, maxY);
             reader.visit(tile2DVisitor);

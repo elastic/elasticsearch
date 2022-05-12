@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-/** Implementation of a lucene {@link LatLonGeometry} that covers the extent of a provided H3 bin. Note htat
+/** Implementation of a lucene {@link LatLonGeometry} that covers the extent of a provided H3 bin. Note that
  * H3 bin are polygons on the sphere. */
 class H3LatLonGeometry extends LatLonGeometry {
 

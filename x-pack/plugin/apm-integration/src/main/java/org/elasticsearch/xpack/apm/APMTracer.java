@@ -18,6 +18,11 @@ import io.opentelemetry.context.propagation.TextMapGetter;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -56,6 +61,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     private List<String> includeNames;
     private List<String> excludeNames;
+    private volatile CharacterRunAutomaton filterAutomaton;
     private final APMAgentSettings apmAgentSettings;
 
     /**
@@ -67,6 +73,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.clusterService = Objects.requireNonNull(clusterService);
         this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
         this.excludeNames = APM_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
+        this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
         this.apmAgentSettings = apmAgentSettings;
 
         this.enabled = APM_ENABLED_SETTING.get(settings);
@@ -107,10 +114,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     private void setIncludeNames(List<String> includeNames) {
         this.includeNames = includeNames;
+        this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
     }
 
     private void setExcludeNames(List<String> excludeNames) {
         this.excludeNames = excludeNames;
+        this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
     }
 
     @Override
@@ -156,7 +165,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             return;
         }
 
-        if (isSpanNameIncluded(traceable.getSpanName()) == false) {
+        if (filterAutomaton.run(traceable.getSpanName()) == false) {
             return;
         }
 
@@ -294,14 +303,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
     }
 
-    private boolean isSpanNameIncluded(String name) {
-        // Alternatively we could use automata here but it is much more complex
-        // and it needs wrapping like done for use in the security plugin.
-        final boolean include = includeNames.isEmpty() || Regex.simpleMatch(includeNames, name);
-        final boolean exclude = excludeNames.isEmpty() == false && Regex.simpleMatch(excludeNames, name);
-        return include && exclude == false;
-    }
-
     @Override
     public void onTraceStopped(Traceable traceable) {
         final var span = Span.fromContextOrNull(spans.remove(traceable.getSpanId()));
@@ -338,5 +339,34 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     // VisibleForTesting
     Map<String, Context> getSpans() {
         return spans;
+    }
+
+    static CharacterRunAutomaton buildAutomaton(List<String> includeNames, List<String> excludeNames) {
+        Automaton includeAutomaton = patternsToAutomaton(includeNames);
+        Automaton excludeAutomaton = patternsToAutomaton(excludeNames);
+
+        if (includeAutomaton == null) {
+            includeAutomaton = Automata.makeAnyString();
+        }
+
+        final Automaton finalAutomaton = excludeAutomaton == null
+            ? includeAutomaton
+            : Operations.minus(includeAutomaton, excludeAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+
+        return new CharacterRunAutomaton(finalAutomaton);
+    }
+
+    private static Automaton patternsToAutomaton(List<String> patterns) {
+        final List<Automaton> automata = patterns.stream().map(s -> {
+            final String regex = s.replaceAll("\\.", "\\\\.").replaceAll("\\*", ".*");
+            return new RegExp(regex).toAutomaton();
+        }).toList();
+        if (automata.isEmpty()) {
+            return null;
+        }
+        if (automata.size() == 1) {
+            return automata.get(0);
+        }
+        return Operations.union(automata);
     }
 }

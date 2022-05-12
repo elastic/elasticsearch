@@ -114,19 +114,18 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
     }
 
     private void getPipelinesByIds(Set<String> ids, ActionListener<GetPipelineResponse> listener) {
-        client.prepareMultiGet()
-            .addIds(Logstash.LOGSTASH_CONCRETE_INDEX_NAME, ids)
-            .execute(ActionListener.wrap(mGetResponse -> {
-                logFailures(mGetResponse);
-                listener.onResponse(
-                    new GetPipelineResponse(
-                        Arrays.stream(mGetResponse.getResponses())
-                            .filter(itemResponse -> itemResponse.isFailed() == false)
-                            .filter(itemResponse -> itemResponse.getResponse().isExists())
-                            .map(MultiGetItemResponse::getResponse)
-                            .collect(Collectors.toMap(GetResponse::getId, GetResponse::getSourceAsBytesRef))
-                    ));
-            }, e -> handleFailure(e, listener)));
+        client.prepareMultiGet().addIds(Logstash.LOGSTASH_CONCRETE_INDEX_NAME, ids).execute(ActionListener.wrap(mGetResponse -> {
+            logFailures(mGetResponse);
+            listener.onResponse(
+                new GetPipelineResponse(
+                    Arrays.stream(mGetResponse.getResponses())
+                        .filter(itemResponse -> itemResponse.isFailed() == false)
+                        .filter(itemResponse -> itemResponse.getResponse().isExists())
+                        .map(MultiGetItemResponse::getResponse)
+                        .collect(Collectors.toMap(GetResponse::getId, GetResponse::getSourceAsBytesRef))
+                )
+            );
+        }, e -> handleFailure(e, listener)));
     }
 
     private void handleFailure(Exception e, ActionListener<GetPipelineResponse> listener) {

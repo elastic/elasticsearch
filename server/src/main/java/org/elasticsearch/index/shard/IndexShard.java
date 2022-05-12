@@ -2916,7 +2916,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         logger.info("check index [ok]: checksum check passed on [{}]", checkedFile);
                     }
                     checkedFiles.clear();
-                    logger.warn(new ParameterizedMessage("check index [failure]: checksum failed on [{}]", entry.getKey()), ioException);
+                    logger.warn(() -> "check index [failure]: checksum failed on [" + entry.getKey() + "]", ioException);
                     corrupt = ioException;
                 }
             }

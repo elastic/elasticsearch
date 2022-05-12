@@ -269,7 +269,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             if (observer == null) {
                 final long remainingTimeoutMS = request.masterNodeTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
                 if (remainingTimeoutMS <= 0) {
-                    logger.debug(() -> new ParameterizedMessage("timed out before retrying [{}] after failure", actionName), failure);
+                    logger.debug(() -> "timed out before retrying [" + actionName + "] after failure", failure);
                     listener.onFailure(new MasterNotDiscoveredException(failure));
                     return;
                 }

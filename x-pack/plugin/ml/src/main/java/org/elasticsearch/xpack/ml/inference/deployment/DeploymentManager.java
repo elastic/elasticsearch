@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -205,7 +204,7 @@ public class DeploymentManager {
         ) {
             return Vocabulary.createParser(true).apply(parser, null);
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("failed to parse trained model vocabulary [{}]", hit.getId()), e);
+            logger.error(() -> "failed to parse trained model vocabulary [" + hit.getId() + "]", e);
             throw e;
         }
     }
@@ -368,7 +367,7 @@ public class DeploymentManager {
                 process.get().kill(true);
                 processContextByAllocation.remove(task.getId());
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Failed to kill process", task.getModelId()), e);
+                logger.error(() -> "[" + task.getModelId() + "] Failed to kill process", e);
             } finally {
                 if (nlpTaskProcessor.get() != null) {
                     nlpTaskProcessor.get().close();

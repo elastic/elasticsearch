@@ -1526,7 +1526,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 dataStream.validate(indices::get);
             }
 
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams, dataStreamAliases));
+            this.customs.put(
+                DataStreamMetadata.TYPE,
+                new DataStreamMetadata(
+                    ImmutableOpenMap.<String, DataStream>builder().putAllFromMap(dataStreams).build(),
+                    ImmutableOpenMap.<String, DataStreamAlias>builder().putAllFromMap(dataStreamAliases).build()
+                )
+            );
             return this;
         }
 
@@ -1552,8 +1558,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             previousIndicesLookup = null;
 
             final DataStreamMetadata dataStreamMetadata = dataStreamMetadata();
-            Map<String, DataStream> existingDataStreams = dataStreamMetadata.dataStreams();
-            Map<String, DataStreamAlias> dataStreamAliases = new HashMap<>(dataStreamMetadata.getDataStreamAliases());
+            ImmutableOpenMap<String, DataStream> existingDataStreams = dataStreamMetadata.dataStreams();
+            ImmutableOpenMap.Builder<String, DataStreamAlias> dataStreamAliases = ImmutableOpenMap.builder(
+                dataStreamMetadata.getDataStreamAliases()
+            );
             if (existingDataStreams.containsKey(dataStream) == false) {
                 throw new IllegalArgumentException("alias [" + aliasName + "] refers to a non existing data stream [" + dataStream + "]");
             }
@@ -1578,7 +1586,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
             dataStreamAliases.put(aliasName, alias);
 
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams, dataStreamAliases));
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams, dataStreamAliases.build()));
             return true;
         }
 
@@ -1586,13 +1594,15 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             previousIndicesLookup = null;
 
             final DataStreamMetadata dataStreamMetadata = dataStreamMetadata();
-            Map<String, DataStream> existingDataStreams = new HashMap<>(dataStreamMetadata.dataStreams());
-            Map<String, DataStreamAlias> existingDataStreamAliases = new HashMap<>(dataStreamMetadata.getDataStreamAliases());
+            ImmutableOpenMap.Builder<String, DataStream> existingDataStreams = ImmutableOpenMap.builder(dataStreamMetadata.dataStreams());
+            ImmutableOpenMap.Builder<String, DataStreamAlias> existingDataStreamAliases = ImmutableOpenMap.builder(
+                dataStreamMetadata.getDataStreamAliases()
+            );
             existingDataStreams.remove(name);
 
             Set<String> aliasesToDelete = new HashSet<>();
             List<DataStreamAlias> aliasesToUpdate = new ArrayList<>();
-            for (var alias : existingDataStreamAliases.values()) {
+            for (var alias : dataStreamMetadata.getDataStreamAliases().values()) {
                 DataStreamAlias copy = alias.removeDataStream(name);
                 if (copy != null) {
                     if (copy == alias) {
@@ -1610,7 +1620,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 existingDataStreamAliases.remove(aliasToDelete);
             }
 
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams, existingDataStreamAliases));
+            this.customs.put(
+                DataStreamMetadata.TYPE,
+                new DataStreamMetadata(existingDataStreams.build(), existingDataStreamAliases.build())
+            );
             return this;
         }
 
@@ -1618,7 +1631,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             previousIndicesLookup = null;
 
             final DataStreamMetadata dataStreamMetadata = dataStreamMetadata();
-            Map<String, DataStreamAlias> dataStreamAliases = new HashMap<>(dataStreamMetadata.getDataStreamAliases());
+            ImmutableOpenMap.Builder<String, DataStreamAlias> dataStreamAliases = ImmutableOpenMap.builder(
+                dataStreamMetadata.getDataStreamAliases()
+            );
 
             DataStreamAlias existing = dataStreamAliases.get(aliasName);
             if (mustExist && existing == null) {
@@ -1635,7 +1650,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             } else {
                 dataStreamAliases.remove(aliasName);
             }
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreamMetadata.dataStreams(), dataStreamAliases));
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreamMetadata.dataStreams(), dataStreamAliases.build()));
             return true;
         }
 

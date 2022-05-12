@@ -850,19 +850,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
             Map<String, Object> context = new HashMap<>();
             context.put(SourceFieldMapper.NAME, request.getSource());
 
-            Op oldOp = Op.INDEX;
-            String oldRouting = doc.getRouting();
-            Long oldVersion = doc.getVersion();
-            ReindexMetadata metadata = new ReindexMetadata(context, doc.getIndex(), doc.getId(), oldRouting, oldVersion, oldOp);
+            AbstractReindexMetadata metadata = metadata(context, doc.getIndex(), doc.getId(), doc.getRouting(), doc.getVersion(), Op.INDEX);
 
             UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
             UpdateScript updateScript = factory.newInstance(params, metadata, context);
             updateScript.execute();
-
-            Op newOp = metadata.getOp();
-            if (newOp == null) {
-                throw new IllegalArgumentException("Script cleared operation type");
-            }
+            metadata.validate();
 
             /*
              * It'd be lovely to only set the source if we know its been modified
@@ -870,29 +863,24 @@ public abstract class AbstractAsyncBulkByScrollAction<
              */
             request.setSource((Map<String, Object>) context.remove(SourceFieldMapper.NAME));
 
-            String newValue = metadata.getIndex();
-            if (false == doc.getIndex().equals(newValue)) {
-                scriptChangedIndex(request, newValue);
+            if (metadata.indexChanged()) {
+                scriptChangedIndex(request, metadata.getIndex());
             }
-            newValue = metadata.getId();
-            if (false == doc.getId().equals(newValue)) {
-                scriptChangedId(request, newValue);
+            if (metadata.idChanged()) {
+                scriptChangedId(request, metadata.getId());
             }
-            Long newVersion = metadata.getVersion();
-            if (false == Objects.equals(oldVersion, newVersion)) {
-                scriptChangedVersion(request, newVersion);
+            if (metadata.versionChanged()) {
+                scriptChangedVersion(request, metadata.getVersion());
             }
             /*
              * Its important that routing comes after parent in case you want to
              * change them both.
              */
-            newValue = metadata.getRouting();
-            if (false == Objects.equals(oldRouting, newValue)) {
-                scriptChangedRouting(request, newValue);
+            if (metadata.routingChanged()) {
+                scriptChangedRouting(request, metadata.getRouting());
             }
-
-            if (newOp != oldOp) {
-                return scriptChangedOpType(request, oldOp, newOp);
+            if (metadata.opChanged()) {
+                return scriptChangedOpType(request, metadata.getOp());
             }
 
             List<String> extraKeys = context.keySet().stream().filter(k -> metadata.isMetadataKey(k) == false).sorted().toList();
@@ -902,8 +890,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return request;
         }
 
-        protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, Op oldOp, Op newOp) {
-            switch (newOp) {
+        protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, Op op) {
+            switch (op) {
                 case NOOP -> {
                     taskWorker.countNoop();
                     return null;
@@ -915,17 +903,28 @@ public abstract class AbstractAsyncBulkByScrollAction<
                     delete.setRouting(request.getRouting());
                     return delete;
                 }
-                default -> throw new IllegalArgumentException("Unsupported operation type change from [" + oldOp + "] to [" + newOp + "]");
+                default -> throw new IllegalStateException(
+                    "Unexpected op [" + op + "], expected " + Op.NOOP.name + " or " + Op.DELETE.name
+                );
             }
         }
 
-        protected abstract void scriptChangedIndex(RequestWrapper<?> request, Object to);
+        protected abstract AbstractReindexMetadata metadata(
+            Map<String, Object> context,
+            String index,
+            String id,
+            String routing,
+            Long version,
+            Op op
+        );
 
-        protected abstract void scriptChangedId(RequestWrapper<?> request, Object to);
+        protected abstract void scriptChangedIndex(RequestWrapper<?> request, String index);
 
-        protected abstract void scriptChangedVersion(RequestWrapper<?> request, Object to);
+        protected abstract void scriptChangedId(RequestWrapper<?> request, String id);
 
-        protected abstract void scriptChangedRouting(RequestWrapper<?> request, Object to);
+        protected abstract void scriptChangedVersion(RequestWrapper<?> request, Long version);
+
+        protected abstract void scriptChangedRouting(RequestWrapper<?> request, String routing);
 
     }
 
@@ -976,6 +975,60 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
     }
 
+    public abstract static class AbstractReindexMetadata extends org.elasticsearch.script.field.Metadata {
+        protected final String index;
+        protected final String id;
+        protected final String routing;
+        protected final Long version;
+        protected final Op op;
+
+        AbstractReindexMetadata(Map<String, Object> ctx, String index, String id, String routing, Long version, Op op) {
+            super(
+                ctx,
+                IndexFieldMapper.NAME,
+                IdFieldMapper.NAME,
+                RoutingFieldMapper.NAME,
+                VersionFieldMapper.NAME,
+                null,
+                "op",
+                EnumSet.of(Op.NOOP, Op.INDEX, Op.DELETE)
+            );
+            this.index = index;
+            setIndex(index);
+            this.id = id;
+            setId(id);
+            this.routing = routing;
+            setRouting(routing);
+            this.version = version;
+            setVersion(version);
+            this.op = op;
+            setOp(op);
+        }
+
+        public abstract void validate();
+
+        public boolean opChanged() {
+            return Objects.equals(op, getOp());
+        }
+
+        public boolean indexChanged() {
+            return Objects.equals(index, getIndex());
+        }
+
+        public boolean idChanged() {
+            return Objects.equals(id, getId());
+        }
+
+        public boolean versionChanged() {
+            // TODO(stu): handle primitive as well as boxed
+            return Objects.equals(version, getVersion());
+        }
+
+        public boolean routingChanged() {
+            return Objects.equals(routing, getRouting());
+        }
+    }
+
     /**
      * Metadata reindex and update-by-query with an {@link UpdateScript}.
      *
@@ -1003,5 +1056,64 @@ public abstract class AbstractAsyncBulkByScrollAction<
             setVersion(version);
             setOp(op);
         }
+
+        // UpdateByQueryScriptApplier
+        @Override
+        public String getIndex() {
+            // Check against original index, cannot change
+            // throw new IllegalArgumentException("Modifying [" + IndexFieldMapper.NAME + "] not allowed");
+            return super.getIndex();
+        }
+
+        @Override
+        public void setIndex(String index) {
+            // Cannot change index
+            super.setIndex(index);
+        }
+
+        @Override
+        public String getId() {
+            // Check against original id, cannot change
+            // throw new IllegalArgumentException("Modifying [" + IdFieldMapper.NAME + "] not allowed");
+            return super.getId();
+        }
+
+        @Override
+        public void setId(String id) {
+            // Cannot change id
+            super.setId(id);
+        }
+
+        @Override
+        public Long getVersion() {
+            // Check against original
+            // throw new IllegalArgumentException("Modifying [_version] not allowed");
+            return super.getVersion();
+        }
+
+        @Override
+        public void setVersion(Long version) {
+            // Cannot change version
+            super.setVersion(version);
+        }
+
+        @Override
+        public String getRouting() {
+            // Check against original
+            // throw new IllegalArgumentException("Modifying [" + RoutingFieldMapper.NAME + "] not allowed");
+            return super.getRouting();
+        }
+
+        @Override
+        public void setRouting(String routing) {
+            // Cannot change routing
+            super.setRouting(routing);
+        }
+
+        // ReindexScriptApplier
+        // setIndex, getIndex, cannot be null
+        // setId, getId, can be null otherwise toString
+        // setVersion, getVersion can be null, otherwise as a long
+        // setRouting, getRouting can be null, otherwise toString
     }
 }

@@ -33,7 +33,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -44,6 +43,7 @@ import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.reindex.remote.RemoteScrollableHitSource;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.field.Op;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -57,13 +57,11 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
-import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
 public class Reindexer {
@@ -363,48 +361,61 @@ public class Reindexer {
              */
 
             @Override
-            protected void scriptChangedIndex(RequestWrapper<?> request, Object to) {
-                requireNonNull(to, "Can't reindex without a destination index!");
-                request.setIndex(to.toString());
+            protected void scriptChangedIndex(RequestWrapper<?> request, String index) {
+                request.setIndex(index);
             }
 
             @Override
-            protected void scriptChangedId(RequestWrapper<?> request, Object to) {
-                request.setId(Objects.toString(to, null));
+            protected void scriptChangedId(RequestWrapper<?> request, String id) {
+                request.setId(id);
             }
 
             @Override
-            protected void scriptChangedVersion(RequestWrapper<?> request, Object to) {
-                if (to == null) {
+            protected void scriptChangedVersion(RequestWrapper<?> request, Long version) {
+                if (version == null) {
                     request.setVersion(Versions.MATCH_ANY);
                     request.setVersionType(INTERNAL);
                 } else {
-                    request.setVersion(asLong(to, VersionFieldMapper.NAME));
+                    request.setVersion(version);
                 }
             }
 
             @Override
-            protected void scriptChangedRouting(RequestWrapper<?> request, Object to) {
-                request.setRouting(Objects.toString(to, null));
+            protected void scriptChangedRouting(RequestWrapper<?> request, String routing) {
+                request.setRouting(routing);
             }
 
-            private long asLong(Object from, String name) {
-                /*
-                 * Stuffing a number into the map will have converted it to
-                 * some Number.
-                 * */
-                Number fromNumber;
-                try {
-                    fromNumber = (Number) from;
-                } catch (ClassCastException e) {
-                    throw new IllegalArgumentException(name + " may only be set to an int or a long but was [" + from + "]", e);
+            @Override
+            protected AbstractReindexMetadata metadata(
+                Map<String, Object> context,
+                String index,
+                String id,
+                String routing,
+                Long version,
+                Op op
+            ) {
+                return new ReindexMetdata(context, index, id, routing, version, op);
+            }
+        }
+
+        static class ReindexMetdata extends AbstractReindexMetadata {
+            ReindexMetdata(Map<String, Object> ctx, String index, String id, String routing, Long version, Op op) {
+                super(ctx, index, id, routing, version, op);
+            }
+
+            @Override
+            public void validate() {
+                if (getIndex() == null) {
+                    throw new IllegalArgumentException("destination index must be non-null");
                 }
-                long l = fromNumber.longValue();
-                // Check that we didn't round when we fetched the value.
-                if (fromNumber.doubleValue() != l) {
-                    throw new IllegalArgumentException(name + " may only be set to an int or a long but was [" + from + "]");
+            }
+
+            @Override
+            public void setIndex(String index) {
+                if (index == null) {
+                    throw new IllegalArgumentException("index must be non-null");
                 }
-                return l;
+                super.setIndex(index);
             }
         }
     }

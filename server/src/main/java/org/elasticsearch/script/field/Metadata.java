@@ -12,6 +12,7 @@ import org.elasticsearch.index.VersionType;
 
 import java.time.ZonedDateTime;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -105,7 +106,16 @@ public abstract class Metadata {
         if (versionKey == null) {
             unsupported(VERSION, false);
         }
-        return getNumber(versionKey).longValue();
+        Number version = getNumber(versionKey);
+        if (version == null) {
+            return null;
+        }
+        long lng = version.longValue();
+        if (version.doubleValue() != lng) {
+            // did we round?
+            throw new IllegalArgumentException("version may only be set to an int or a long but was [" + version + "]");
+        }
+        return lng;
     }
 
     public void setVersion(Long version) {
@@ -144,7 +154,7 @@ public abstract class Metadata {
     public Op getOp() {
         Object raw = get(opKey);
         if (raw == null) {
-            throw new IllegalStateException("Operation type must be non-null");
+            throw new IllegalArgumentException("Operation type must be non-null");
         }
 
         Op op;
@@ -157,11 +167,13 @@ public abstract class Metadata {
             str = rawStr;
             op = opFromString(str);
         } else {
-            throw new IllegalStateException("Invalid type [" + raw.getClass().getName() + "] for Op [" + raw + "], expected String or Op");
+            throw new IllegalArgumentException(
+                "Invalid type [" + raw.getClass().getName() + "] for Op [" + raw + "], expected String or Op"
+            );
         }
 
         if (isValidOp(op) == false) {
-            throw new IllegalStateException("Operation type [" + str + "] not allowed, only " + validOps() + " are allowed");
+            throw new IllegalArgumentException("Operation type [" + str + "] not allowed, only " + validOps() + " are allowed");
         }
 
         return op;
@@ -189,7 +201,7 @@ public abstract class Metadata {
         if (VALID_OPS == null) {
             return Collections.emptyList();
         }
-        return VALID_OPS.stream().map(Op::getName).sorted().toList();
+        return VALID_OPS.stream().map(Op::getName).sorted(Comparator.reverseOrder()).toList();
     }
 
     public ZonedDateTime getTimestamp() {
@@ -220,7 +232,7 @@ public abstract class Metadata {
         } else if (obj instanceof Number number) {
             return number;
         }
-        throw new IllegalStateException("unexpected type [" + obj.getClass().getName() + "] for [" + obj + "], expected Number");
+        throw new IllegalArgumentException("unexpected type [" + obj.getClass().getName() + "] for [" + obj + "], expected Number");
     }
 
     protected void unsupported(String field, boolean write) {

@@ -29,6 +29,7 @@ import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.field.Op;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -145,25 +146,85 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             }
 
             @Override
-            protected void scriptChangedIndex(RequestWrapper<?> request, Object to) {
+            protected void scriptChangedIndex(RequestWrapper<?> request, String index) {
+                // TODO(stu): this is handled in validate
                 throw new IllegalArgumentException("Modifying [" + IndexFieldMapper.NAME + "] not allowed");
             }
 
             @Override
-            protected void scriptChangedId(RequestWrapper<?> request, Object to) {
+            protected void scriptChangedId(RequestWrapper<?> request, String id) {
+                // TODO(stu): this is handled in validate
                 throw new IllegalArgumentException("Modifying [" + IdFieldMapper.NAME + "] not allowed");
             }
 
             @Override
-            protected void scriptChangedVersion(RequestWrapper<?> request, Object to) {
+            protected void scriptChangedVersion(RequestWrapper<?> request, Long version) {
+                // TODO(stu): this is handled in validate
                 throw new IllegalArgumentException("Modifying [_version] not allowed");
             }
 
             @Override
-            protected void scriptChangedRouting(RequestWrapper<?> request, Object to) {
+            protected void scriptChangedRouting(RequestWrapper<?> request, String routing) {
+                // TODO(stu): this is handled in validate
                 throw new IllegalArgumentException("Modifying [" + RoutingFieldMapper.NAME + "] not allowed");
             }
 
+            @Override
+            protected AbstractReindexMetadata metadata(
+                Map<String, Object> context,
+                String index,
+                String id,
+                String routing,
+                Long version,
+                Op op
+            ) {
+                return new UpdateByQueryMetadata(context, index, id, routing, version, op);
+            }
+        }
+
+        static class UpdateByQueryMetadata extends AbstractReindexMetadata {
+            UpdateByQueryMetadata(Map<String, Object> ctx, String index, String id, String routing, Long version, Op op) {
+                super(ctx, index, id, routing, version, op);
+            }
+
+            @Override
+            public void validate() {
+                if (opChanged()) {
+                    validateOp(getOp());
+                }
+                if (indexChanged()) {
+                    unsupported(INDEX, true);
+                }
+                if (idChanged()) {
+                    unsupported(ID, true);
+                }
+                if (routingChanged()) {
+                    unsupported(ROUTING, true);
+                }
+                if (versionChanged()) {
+                    unsupported(VERSION, true);
+                }
+            }
+
+            @Override
+            public void setIndex(String index) {
+                unsupported(INDEX, true);
+            }
+
+            @Override
+            public void setId(String id) {
+                unsupported(ID, true);
+            }
+
+            @Override
+            public void setRouting(String routing) {
+                unsupported(ROUTING, true);
+            }
+
+            @Override
+            public void setVersion(Long version) {
+                unsupported(VERSION, true);
+            }
         }
     }
 }

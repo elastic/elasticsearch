@@ -34,7 +34,7 @@ class org.elasticsearch.script.field.Op {
   Op NOOP
   Op INDEX
   Op DELETE
-  Op UNKOWN
+  Op CREATE
   String getName()
   Op fromString(String)
 }

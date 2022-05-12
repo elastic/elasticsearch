@@ -58,7 +58,7 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
 
     private static final String timestampField = DataStreamTimestampFieldMapper.DEFAULT_PATH;
     private final DateHistogramInterval fixedInterval;
-    private final String timeZone;
+    private final String timeZone = DEFAULT_TIMEZONE;
     private final String intervalType = FIXED_INTERVAL;
 
     private static final ConstructingObjectParser<RollupActionConfig, Void> PARSER;
@@ -85,7 +85,6 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
      * @param fixedInterval the fixed interval to use for computing the date histogram for the rolled up documents (required).
      */
     public RollupActionConfig(final DateHistogramInterval fixedInterval) {
-        this.timeZone = DEFAULT_TIMEZONE;
         if (fixedInterval == null) {
             throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL + "] is required.");
         }
@@ -96,19 +95,12 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
     }
 
     public RollupActionConfig(final StreamInput in) throws IOException {
-        String intervalType = in.readString();
-        if (FIXED_INTERVAL.equals(intervalType) == false) {
-            throw new IllegalStateException("Invalid interval type [" + intervalType + "]");
-        }
         fixedInterval = new DateHistogramInterval(in);
-        timeZone = in.readString();
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeString(FIXED_INTERVAL);
         fixedInterval.writeTo(out);
-        out.writeString(timeZone);
     }
 
     /**

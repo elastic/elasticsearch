@@ -805,6 +805,10 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         .execute(mustSucceed(cleanupRepositoryResponse -> {
                             final RepositoryCleanupResult result = cleanupRepositoryResponse.result();
                             if (result.bytes() > 0L || result.blobs() > 0L) {
+                                // we could legitimately run into dangling blobs as the result of a shard snapshot failing half-way
+                                // through the snapshot because of a concurrent index-close or -delete. The second round of cleanup on
+                                // the same repository however must always fully remove any dangling blobs since we block all concurrent
+                                // operations on the repository here
                                 client.admin()
                                     .cluster()
                                     .prepareCleanupRepository(trackedRepository.repositoryName)

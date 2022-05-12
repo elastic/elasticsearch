@@ -7,13 +7,9 @@
 
 package org.elasticsearch.xpack.security.authc.pki;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
-import org.elasticsearch.client.security.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
@@ -39,18 +35,21 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 @SuppressWarnings("removal")
 public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
+
+    private static final ParseField AUTHENTICATION_FIELD = new ParseField("authentication");
 
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -155,43 +154,41 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         final X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");
         final X509Certificate intermediateCA = readCertForPkiDelegation("testIntermediateCA.crt");
         final X509Certificate rootCA = readCertForPkiDelegation("testRootCA.crt");
-        DelegatePkiAuthenticationRequest delegatePkiRequest;
+        final List<X509Certificate> certificateChain;
         // trust root is optional
         if (randomBoolean()) {
-            delegatePkiRequest = new DelegatePkiAuthenticationRequest(Arrays.asList(clientCertificate, intermediateCA));
+            certificateChain = List.of(clientCertificate, intermediateCA);
         } else {
-            delegatePkiRequest = new DelegatePkiAuthenticationRequest(Arrays.asList(clientCertificate, intermediateCA, rootCA));
+            certificateChain = List.of(clientCertificate, intermediateCA, rootCA);
         }
 
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            for (String delegateeUsername : Arrays.asList("user_all", "user_delegate_pki", "my_kibana_system")) {
-                // delegate
-                RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
-                optionsBuilder.addHeader(
-                    "Authorization",
-                    basicAuthHeaderValue(delegateeUsername, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
-                );
-                DelegatePkiAuthenticationResponse delegatePkiResponse = restClient.security()
-                    .delegatePkiAuthentication(delegatePkiRequest, optionsBuilder.build());
-                String token = delegatePkiResponse.getAccessToken();
-                assertThat(token, is(notNullValue()));
-                assertNotNull(delegatePkiResponse.getAuthentication());
-                assertEquals("Elasticsearch Test Client", delegatePkiResponse.getAuthentication().getUser().getUsername());
+        for (String delegateeUsername : Arrays.asList("user_all", "user_delegate_pki", "my_kibana_system")) {
+            // delegate
+            RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+            optionsBuilder.addHeader(
+                "Authorization",
+                basicAuthHeaderValue(delegateeUsername, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+            );
+            var delegatePkiResponse = getSecurityClient(optionsBuilder.build()).delegatePkiAuthentication(certificateChain);
+            String token = delegatePkiResponse.v1();
+            assertThat(token, is(notNullValue()));
+            assertNotNull(delegatePkiResponse.v2());
+            final Map<String, Object> authentication = assertMap(delegatePkiResponse.v2(), AUTHENTICATION_FIELD);
+            assertThat(authentication, hasEntry(Fields.USERNAME.getPreferredName(), "Elasticsearch Test Client"));
 
-                // authenticate
-                optionsBuilder = RequestOptions.DEFAULT.toBuilder();
-                optionsBuilder.addHeader("Authorization", "Bearer " + token);
+            // authenticate
+            optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+            optionsBuilder.addHeader("Authorization", "Bearer " + token);
 
-                final TestSecurityClient securityClient = getSecurityClient(optionsBuilder.build());
-                final Map<String, Object> authenticateResponse = securityClient.authenticate();
-                assertThat(authenticateResponse, hasEntry(Fields.USERNAME.getPreferredName(), "Elasticsearch Test Client"));
+            final TestSecurityClient securityClient = getSecurityClient(optionsBuilder.build());
+            final Map<String, Object> authenticateResponse = securityClient.authenticate();
+            assertThat(authenticateResponse, hasEntry(Fields.USERNAME.getPreferredName(), "Elasticsearch Test Client"));
 
-                Map<String, Object> realm = assertMap(authenticateResponse, Fields.AUTHENTICATION_REALM);
-                assertThat(realm, hasEntry(Fields.REALM_NAME.getPreferredName(), "pki3"));
-                assertThat(realm, hasEntry(Fields.REALM_TYPE.getPreferredName(), "pki"));
+            Map<String, Object> realm = assertMap(authenticateResponse, Fields.AUTHENTICATION_REALM);
+            assertThat(realm, hasEntry(Fields.REALM_NAME.getPreferredName(), "pki3"));
+            assertThat(realm, hasEntry(Fields.REALM_TYPE.getPreferredName(), "pki"));
 
-                assertThat(authenticateResponse, hasEntry(Fields.AUTHENTICATION_TYPE.getPreferredName(), "token"));
-            }
+            assertThat(authenticateResponse, hasEntry(Fields.AUTHENTICATION_TYPE.getPreferredName(), "token"));
         }
     }
 
@@ -199,107 +196,102 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         final X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");
         final X509Certificate intermediateCA = readCertForPkiDelegation("testIntermediateCA.crt");
         final X509Certificate rootCA = readCertForPkiDelegation("testRootCA.crt");
-        DelegatePkiAuthenticationRequest delegatePkiRequest;
+        final List<X509Certificate> certificateChain;
         // trust root is optional
         if (randomBoolean()) {
-            delegatePkiRequest = new DelegatePkiAuthenticationRequest(Arrays.asList(clientCertificate, intermediateCA));
+            certificateChain = List.of(clientCertificate, intermediateCA);
         } else {
-            delegatePkiRequest = new DelegatePkiAuthenticationRequest(Arrays.asList(clientCertificate, intermediateCA, rootCA));
+            certificateChain = List.of(clientCertificate, intermediateCA, rootCA);
         }
+        String delegateeUsername = randomFrom("user_all", "user_delegate_pki", "my_kibana_system");
+        // delegate
+        RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+        optionsBuilder.addHeader(
+            "Authorization",
+            basicAuthHeaderValue(delegateeUsername, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+        );
+        var delegatePkiResponse = getSecurityClient(optionsBuilder.build()).delegatePkiAuthentication(certificateChain);
+        String token = delegatePkiResponse.v1();
+        assertThat(token, is(notNullValue()));
+        assertNotNull(delegatePkiResponse.v2());
+        final Map<String, Object> authentication = assertMap(delegatePkiResponse.v2(), AUTHENTICATION_FIELD);
+        assertThat(authentication, hasEntry(Fields.USERNAME.getPreferredName(), "Elasticsearch Test Client"));
 
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            String delegateeUsername = randomFrom("user_all", "user_delegate_pki", "my_kibana_system");
-            // delegate
-            RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
-            optionsBuilder.addHeader(
-                "Authorization",
-                basicAuthHeaderValue(delegateeUsername, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
-            );
-            DelegatePkiAuthenticationResponse delegatePkiResponse = restClient.security()
-                .delegatePkiAuthentication(delegatePkiRequest, optionsBuilder.build());
-            String token = delegatePkiResponse.getAccessToken();
-            assertThat(token, is(notNullValue()));
-            assertNotNull(delegatePkiResponse.getAuthentication());
-            // authenticate
-            optionsBuilder = RequestOptions.DEFAULT.toBuilder();
-            optionsBuilder.addHeader("Authorization", "Bearer " + token);
-            final TestSecurityClient securityClient = getSecurityClient(optionsBuilder.build());
-            final Map<String, Object> authenticateResponse = securityClient.authenticate();
-            assertThat(authenticateResponse, hasEntry(Fields.USERNAME.getPreferredName(), "Elasticsearch Test Client"));
+        // authenticate
+        optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+        optionsBuilder.addHeader("Authorization", "Bearer " + token);
+        final TestSecurityClient securityClient = getSecurityClient(optionsBuilder.build());
+        final Map<String, Object> authenticateResponse = securityClient.authenticate();
+        assertThat(authenticateResponse, hasEntry(Fields.USERNAME.getPreferredName(), "Elasticsearch Test Client"));
 
-            final Map<String, Object> metadata = assertMap(authenticateResponse, Fields.METADATA);
-            assertThat(metadata, hasEntry("pki_dn", "O=org, OU=Elasticsearch, CN=Elasticsearch Test Client"));
-            assertThat(metadata, hasEntry("pki_delegated_by_user", delegateeUsername));
-            assertThat(metadata, hasEntry("pki_delegated_by_realm", "file"));
+        final Map<String, Object> metadata = assertMap(authenticateResponse, Fields.METADATA);
+        assertThat(metadata, hasEntry("pki_dn", "O=org, OU=Elasticsearch, CN=Elasticsearch Test Client"));
+        assertThat(metadata, hasEntry("pki_delegated_by_user", delegateeUsername));
+        assertThat(metadata, hasEntry("pki_delegated_by_realm", "file"));
 
-            // no roles because no role mappings
-            List<?> roles = assertList(authenticateResponse, Fields.ROLES);
-            assertThat(roles, empty());
+        // no roles because no role mappings
+        List<?> roles = assertList(authenticateResponse, Fields.ROLES);
+        assertThat(roles, empty());
 
-            Map<String, Object> realm = assertMap(authenticateResponse, Fields.AUTHENTICATION_REALM);
-            assertThat(realm, hasEntry(Fields.REALM_NAME.getPreferredName(), "pki3"));
-            assertThat(realm, hasEntry(Fields.REALM_TYPE.getPreferredName(), "pki"));
+        Map<String, Object> realm = assertMap(authenticateResponse, Fields.AUTHENTICATION_REALM);
+        assertThat(realm, hasEntry(Fields.REALM_NAME.getPreferredName(), "pki3"));
+        assertThat(realm, hasEntry(Fields.REALM_TYPE.getPreferredName(), "pki"));
 
-            assertThat(authenticateResponse, hasEntry(Fields.AUTHENTICATION_TYPE.getPreferredName(), "token"));
+        assertThat(authenticateResponse, hasEntry(Fields.AUTHENTICATION_TYPE.getPreferredName(), "token"));
 
-            // invalidate
-            optionsBuilder = RequestOptions.DEFAULT.toBuilder();
-            optionsBuilder.addHeader(
-                "Authorization",
-                basicAuthHeaderValue(delegateeUsername, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
-            );
+        // invalidate
+        optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+        optionsBuilder.addHeader(
+            "Authorization",
+            basicAuthHeaderValue(delegateeUsername, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+        );
 
-            var invalidateResponse = getSecurityClient(optionsBuilder.build()).invalidateAccessToken(token);
-            assertThat(invalidateResponse.invalidated(), is(1));
-            assertThat(invalidateResponse.errors(), hasSize(0));
+        var invalidateResponse = getSecurityClient(optionsBuilder.build()).invalidateAccessToken(token);
+        assertThat(invalidateResponse.invalidated(), is(1));
+        assertThat(invalidateResponse.errors(), hasSize(0));
 
-            // failed authenticate
-            ResponseException ex = expectThrows(
-                ResponseException.class,
-                () -> new TestSecurityClient(
-                    getRestClient(),
-                    RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + token).build()
-                ).authenticate()
-            );
+        // failed authenticate
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> new TestSecurityClient(
+                getRestClient(),
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + token).build()
+            ).authenticate()
+        );
 
-            assertThat(ex.getResponse().getStatusLine().getStatusCode(), is(RestStatus.UNAUTHORIZED.getStatus()));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), is(RestStatus.UNAUTHORIZED.getStatus()));
 
-            final Map<String, Object> response = ESRestTestCase.entityAsMap(ex.getResponse());
-            assertThat(ObjectPath.eval("error.type", response), is("security_exception"));
-            assertThat(ObjectPath.eval("error.reason", response), is("token expired"));
-        }
+        final Map<String, Object> response = ESRestTestCase.entityAsMap(ex.getResponse());
+        assertThat(ObjectPath.eval("error.type", response), is("security_exception"));
+        assertThat(ObjectPath.eval("error.reason", response), is("token expired"));
+
     }
 
     public void testDelegateUnauthorized() throws Exception {
         final X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");
         final X509Certificate intermediateCA = readCertForPkiDelegation("testIntermediateCA.crt");
         final X509Certificate rootCA = readCertForPkiDelegation("testRootCA.crt");
-        DelegatePkiAuthenticationRequest delegatePkiRequest;
+        final List<X509Certificate> certificateChain;
         // trust root is optional
         if (randomBoolean()) {
-            delegatePkiRequest = new DelegatePkiAuthenticationRequest(Arrays.asList(clientCertificate, intermediateCA));
+            certificateChain = List.of(clientCertificate, intermediateCA);
         } else {
-            delegatePkiRequest = new DelegatePkiAuthenticationRequest(Arrays.asList(clientCertificate, intermediateCA, rootCA));
+            certificateChain = List.of(clientCertificate, intermediateCA, rootCA);
         }
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            for (String delegateeUsername : Arrays.asList("user_manage", "user_manage_security")) {
-                RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
-                optionsBuilder.addHeader(
-                    "Authorization",
-                    basicAuthHeaderValue(delegateeUsername, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
-                );
-                ElasticsearchStatusException e = expectThrows(
-                    ElasticsearchStatusException.class,
-                    () -> { restClient.security().delegatePkiAuthentication(delegatePkiRequest, optionsBuilder.build()); }
-                );
-                assertThat(
-                    e.getMessage(),
-                    startsWith(
-                        "Elasticsearch exception [type=security_exception, reason=action"
-                            + " [cluster:admin/xpack/security/delegate_pki] is unauthorized for user"
-                    )
-                );
-            }
+        for (String delegateeUsername : Arrays.asList("user_manage", "user_manage_security")) {
+            RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+            optionsBuilder.addHeader(
+                "Authorization",
+                basicAuthHeaderValue(delegateeUsername, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+            );
+            ResponseException e = expectThrows(
+                ResponseException.class,
+                () -> getSecurityClient(optionsBuilder.build()).delegatePkiAuthentication(certificateChain)
+            );
+            assertThat(
+                e,
+                throwableWithMessage(containsString("action [cluster:admin/xpack/security/delegate_pki] is unauthorized for user"))
+            );
         }
     }
 
@@ -307,12 +299,12 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");
         X509Certificate intermediateCA = readCertForPkiDelegation("testIntermediateCA.crt");
         X509Certificate rootCA = readCertForPkiDelegation("testRootCA.crt");
-        DelegatePkiAuthenticationRequest delegatePkiRequest;
+        final List<X509Certificate> certificateChain;
         // trust root is optional
         if (randomBoolean()) {
-            delegatePkiRequest = new DelegatePkiAuthenticationRequest(Arrays.asList(clientCertificate, intermediateCA));
+            certificateChain = List.of(clientCertificate, intermediateCA);
         } else {
-            delegatePkiRequest = new DelegatePkiAuthenticationRequest(Arrays.asList(clientCertificate, intermediateCA, rootCA));
+            certificateChain = List.of(clientCertificate, intermediateCA, rootCA);
         }
         final RequestOptions testUserOptions = RequestOptions.DEFAULT.toBuilder()
             .addHeader(
@@ -349,11 +341,10 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
 
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             // delegate
-            DelegatePkiAuthenticationResponse delegatePkiResponse = restClient.security()
-                .delegatePkiAuthentication(delegatePkiRequest, testUserOptions);
+            var delegatePkiResponse = getSecurityClient(testUserOptions).delegatePkiAuthentication(certificateChain);
             // authenticate
             TestSecurityClient accessTokenClient = getSecurityClient(
-                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + delegatePkiResponse.getAccessToken()).build()
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + delegatePkiResponse.v1()).build()
             );
             final Map<String, Object> authenticateResponse = accessTokenClient.authenticate();
             assertThat(authenticateResponse, hasEntry(Fields.USERNAME.getPreferredName(), "Elasticsearch Test Client"));
@@ -393,34 +384,35 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         );
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             // incomplete cert chain
-            DelegatePkiAuthenticationRequest delegatePkiRequest1 = new DelegatePkiAuthenticationRequest(Arrays.asList(clientCertificate));
-            ElasticsearchStatusException e1 = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> restClient.security().delegatePkiAuthentication(delegatePkiRequest1, optionsBuilder.build())
+            final List<X509Certificate> certificateChain1 = List.of(clientCertificate);
+            ResponseException e1 = expectThrows(
+                ResponseException.class,
+                () -> getSecurityClient(optionsBuilder.build()).delegatePkiAuthentication(certificateChain1)
             );
             assertThat(
-                e1.getMessage(),
-                is(
-                    "Elasticsearch exception [type=security_exception, reason=unable to authenticate user"
-                        + " [O=org, OU=Elasticsearch, CN=Elasticsearch Test Client] for action [cluster:admin/xpack/security/delegate_pki]]"
+                e1,
+                throwableWithMessage(
+                    containsString(
+                        "unable to authenticate user [O=org, OU=Elasticsearch, CN=Elasticsearch Test Client]"
+                            + " for action [cluster:admin/xpack/security/delegate_pki]"
+                    )
                 )
             );
             // swapped order
-            DelegatePkiAuthenticationRequest delegatePkiRequest2 = new DelegatePkiAuthenticationRequest(
-                Arrays.asList(intermediateCA, clientCertificate)
+            final List<X509Certificate> certificateChain2 = Arrays.asList(intermediateCA, clientCertificate);
+            ResponseException e2 = expectThrows(
+                ResponseException.class,
+                () -> getSecurityClient(optionsBuilder.build()).delegatePkiAuthentication(certificateChain2)
             );
-            ValidationException e2 = expectThrows(
-                ValidationException.class,
-                () -> restClient.security().delegatePkiAuthentication(delegatePkiRequest2, optionsBuilder.build())
-            );
-            assertThat(e2.getMessage(), is("Validation Failed: 1: certificates chain must be an ordered chain;"));
+            assertThat(e2, throwableWithMessage(containsString("Validation Failed: 1: certificates chain must be an ordered chain;")));
             // bogus certificate
-            DelegatePkiAuthenticationRequest delegatePkiRequest3 = new DelegatePkiAuthenticationRequest(Arrays.asList(bogusCertificate));
-            ElasticsearchStatusException e3 = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> restClient.security().delegatePkiAuthentication(delegatePkiRequest3, optionsBuilder.build())
+            final List<X509Certificate> certificateChain3 = Arrays.asList(bogusCertificate);
+            ResponseException e3 = expectThrows(
+                ResponseException.class,
+                () -> getSecurityClient(optionsBuilder.build()).delegatePkiAuthentication(certificateChain3)
             );
-            assertThat(e3.getMessage(), startsWith("Elasticsearch exception [type=security_exception, reason=unable to authenticate user"));
+            assertThat(e3, throwableWithMessage(containsString("security_exception")));
+            assertThat(e3, throwableWithMessage(containsString("unable to authenticate user")));
         }
     }
 

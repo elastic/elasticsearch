@@ -370,7 +370,7 @@ class DatafeedJob {
                 extractedData = result.data();
                 searchInterval = result.searchInterval();
             } catch (Exception e) {
-                LOGGER.error(new ParameterizedMessage("[{}] error while extracting data", jobId), e);
+                LOGGER.error(() -> "[" + jobId + "] error while extracting data", e);
                 // When extraction problems are encountered, we do not want to advance time.
                 // Instead, it is preferable to retry the given interval next time an extraction
                 // is triggered.
@@ -413,7 +413,7 @@ class DatafeedJob {
                     if (isIsolated) {
                         return;
                     }
-                    LOGGER.error(new ParameterizedMessage("[{}] error while posting data", jobId), e);
+                    LOGGER.error(() -> "[" + jobId + "] error while posting data", e);
 
                     // a conflict exception means the job state is not open any more.
                     // we should therefore stop the datafeed.

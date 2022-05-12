@@ -211,7 +211,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             if (stopped) {
                 return;
             }
-            logger.trace(() -> new ParameterizedMessage("[{}] attempting to load model", modelId));
+            logger.trace(() -> "[" + modelId + "] attempting to load model");
             final PlainActionFuture<TrainedModelDeploymentTask> listener = new PlainActionFuture<>();
             try {
                 deploymentManager.startDeployment(loadingTask, listener);
@@ -220,16 +220,16 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                 // kicks off asynchronous cluster state update
                 handleLoadSuccess(deployedTask);
             } catch (Exception ex) {
-                logger.warn(new ParameterizedMessage("[{}] Start deployment failed", modelId), ex);
+                logger.warn(() -> "[" + modelId + "] Start deployment failed", ex);
                 if (ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException) {
-                    logger.warn(new ParameterizedMessage("[{}] Start deployment failed", modelId), ex);
+                    logger.warn(() -> "[" + modelId + "] Start deployment failed", ex);
                     handleLoadFailure(loadingTask, ExceptionsHelper.missingTrainedModel(modelId, ex));
                 } else if (ExceptionsHelper.unwrapCause(ex) instanceof SearchPhaseExecutionException) {
-                    logger.trace(new ParameterizedMessage("[{}] Start deployment failed, will retry", modelId), ex);
+                    logger.trace(() -> "[" + modelId + "] Start deployment failed, will retry", ex);
                     // A search phase execution failure should be retried, push task back to the queue
                     loadingToRetry.add(loadingTask);
                 } else {
-                    logger.warn(new ParameterizedMessage("[{}] Start deployment failed", modelId), ex);
+                    logger.warn(() -> "[" + modelId + "] Start deployment failed", ex);
                     handleLoadFailure(loadingTask, ex);
                 }
             }
@@ -396,9 +396,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
     private void handleLoadSuccess(TrainedModelDeploymentTask task) {
         final String modelId = task.getModelId();
-        logger.debug(
-            () -> new ParameterizedMessage("[{}] model successfully loaded and ready for inference. Notifying master node", modelId)
-        );
+        logger.debug(() -> "[" + modelId + "] model successfully loaded and ready for inference. Notifying master node");
         if (task.isStopped()) {
             logger.debug(
                 () -> new ParameterizedMessage(
@@ -412,7 +410,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         updateStoredState(
             modelId,
             new RoutingStateAndReason(RoutingState.STARTED, ""),
-            ActionListener.wrap(r -> logger.debug(() -> new ParameterizedMessage("[{}] model loaded and accepting routes", modelId)), e -> {
+            ActionListener.wrap(r -> logger.debug(() -> "[" + modelId + "] model loaded and accepting routes"), e -> {
                 // This means that either the assignment has been deleted, or this node's particular route has been removed
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     logger.debug(
@@ -424,7 +422,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     );
                 }
                 // this is an unexpected error
-                logger.warn(() -> new ParameterizedMessage("[{}] model loaded but failed to start accepting routes", modelId), e);
+                logger.warn(() -> "[" + modelId + "] model loaded but failed to start accepting routes", e);
             })
         );
     }

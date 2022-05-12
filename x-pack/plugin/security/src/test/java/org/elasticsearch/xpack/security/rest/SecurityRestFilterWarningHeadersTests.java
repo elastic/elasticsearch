@@ -23,6 +23,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.junit.Before;
@@ -98,8 +99,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
             false
         );
         RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
-        Authentication primaryAuthentication = mock(Authentication.class);
-        when(primaryAuthentication.encode()).thenReturn(randomAlphaOfLengthBetween(12, 36));
+        Authentication primaryAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(i -> {
             final Object[] arguments = i.getArguments();
             @SuppressWarnings("unchecked")
@@ -107,8 +107,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
             callback.onResponse(primaryAuthentication);
             return null;
         }).when(authcService).authenticate(eq(request), anyActionListener());
-        Authentication secondaryAuthentication = mock(Authentication.class);
-        when(secondaryAuthentication.encode()).thenReturn(randomAlphaOfLengthBetween(12, 36));
+        Authentication secondaryAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(i -> {
             final Object[] arguments = i.getArguments();
             @SuppressWarnings("unchecked")

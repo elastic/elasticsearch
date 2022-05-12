@@ -19,14 +19,6 @@ import java.io.IOException;
  */
 public class HealthNodeSelectorLifecycleHandler extends AbstractLifecycleComponent {
 
-    public static final boolean DISK_USAGE_INDICATOR_FEATURE_FLAG_ENABLED = "true".equals(
-        System.getProperty("es.health_api.disk_usage_indicator_feature_flag_enabled")
-    );
-
-    public static boolean isEnabled() {
-        return DISK_USAGE_INDICATOR_FEATURE_FLAG_ENABLED;
-    }
-
     private final HealthNodeSelectorTaskExecutor executor;
 
     @Inject
@@ -36,16 +28,12 @@ public class HealthNodeSelectorLifecycleHandler extends AbstractLifecycleCompone
 
     @Override
     protected void doStart() {
-        if (isEnabled()) {
-            executor.createTask();
-        }
+        executor.startTask();
     }
 
     @Override
     protected void doStop() {
-        if (isEnabled()) {
-            executor.stop();
-        }
+        executor.abortTaskIfApplicable();
     }
 
     @Override

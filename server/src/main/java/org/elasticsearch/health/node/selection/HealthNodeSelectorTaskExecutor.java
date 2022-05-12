@@ -90,7 +90,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
         }
     }
 
-    void createTask() {
+    void startTask() {
         persistentTasksService.sendStartRequest(
             TASK_NAME,
             TASK_NAME,
@@ -104,7 +104,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
         );
     }
 
-    void stop() {
+    void abortTaskIfApplicable() {
         HealthNodeSelector task = currentTask.get();
         if (task != null && task.isCancelled() == false) {
             String nodeId = clusterService.localNode().getId();

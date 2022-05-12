@@ -60,6 +60,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.health.node.selection.HealthNodeSelector;
 import org.elasticsearch.health.node.selection.HealthNodeSelectorTaskExecutor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -175,7 +176,9 @@ public class ClusterModule extends AbstractModule {
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
 
         // Health node selector task is always present in the cluster state
-        entries.addAll(HealthNodeSelectorTaskExecutor.getNamedWriteables());
+        if (HealthNodeSelector.isEnabled()) {
+            entries.addAll(HealthNodeSelectorTaskExecutor.getNamedWriteables());
+        }
         return entries;
     }
 

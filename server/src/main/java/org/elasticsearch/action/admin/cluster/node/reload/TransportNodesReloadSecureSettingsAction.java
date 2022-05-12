@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.reload;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -138,10 +136,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                 try {
                     p.reload(settingsWithKeystore);
                 } catch (final Exception e) {
-                    logger.warn(
-                        (Supplier<?>) () -> new ParameterizedMessage("Reload failed for plugin [{}]", p.getClass().getSimpleName()),
-                        e
-                    );
+                    logger.warn(() -> "Reload failed for plugin [" + p.getClass().getSimpleName() + "]", e);
                     exceptions.add(e);
                 }
             });

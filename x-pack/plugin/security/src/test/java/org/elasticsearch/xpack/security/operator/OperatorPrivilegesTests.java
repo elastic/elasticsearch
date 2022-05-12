@@ -155,6 +155,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         verify(fileOperatorUsersStore, never()).isOperatorUser(any());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86530")
     public void testCheck() {
         final Settings settings = Settings.builder().put("xpack.security.operator_privileges.enabled", true).build();
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);

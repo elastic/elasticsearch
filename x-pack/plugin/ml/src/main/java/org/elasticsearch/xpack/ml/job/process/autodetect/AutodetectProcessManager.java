@@ -587,7 +587,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 stateAliasHandler
             ),
             e -> {
-                logger.error(new ParameterizedMessage("[{}] ML state index alias could not be updated", jobId), e);
+                logger.error(() -> "[" + jobId + "] ML state index alias could not be updated", e);
                 closeHandler.accept(e, true);
             }
         );
@@ -605,7 +605,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
                 // and it would cause more harm than good to block jobs from opening in subsequent releases
-                logger.warn(new ParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
+                logger.warn(() -> "[" + jobId + "] ML annotations index could not be updated with latest mappings", e);
                 ElasticsearchMappings.addDocMappingIfMissing(
                     AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
                     AnomalyDetectorsIndex::wrappedResultsMapping,
@@ -962,7 +962,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         try {
             nativeStorageProvider.cleanupLocalTmpStorage(jobTask.getDescription());
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] Failed to delete temporary files", jobId), e);
+            logger.error(() -> "[" + jobId + "] Failed to delete temporary files", e);
         }
     }
 

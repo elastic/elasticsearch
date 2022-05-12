@@ -37,10 +37,6 @@ import javax.security.auth.x500.X500Principal;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for cert utils
@@ -98,19 +94,6 @@ public class CertGenUtilsTests extends ESTestCase {
     private boolean isResolvable(InetAddress inetAddress) {
         String hostname = inetAddress.getHostName();
         return hostname.equals(inetAddress.getHostAddress()) == false;
-    }
-
-    public void testIsAnyLocalAddress() throws Exception {
-        InetAddress address = mock(InetAddress.class);
-        when(address.isAnyLocalAddress()).thenReturn(true);
-
-        GeneralNames generalNames = CertGenUtils.getSubjectAlternativeNames(randomBoolean(), Collections.singleton(address));
-        assertThat(generalNames, notNullValue());
-        GeneralName[] generalNameArray = generalNames.getNames();
-        assertThat(generalNameArray, notNullValue());
-
-        verify(address).isAnyLocalAddress();
-        verifyNoMoreInteractions(address);
     }
 
     public void testIssuerCertSubjectDN() throws Exception {

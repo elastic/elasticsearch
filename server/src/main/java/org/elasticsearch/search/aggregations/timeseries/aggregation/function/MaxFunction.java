@@ -11,15 +11,16 @@ package org.elasticsearch.search.aggregations.timeseries.aggregation.function;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.TimePoint;
 
 import java.util.Map;
 
-public class MaxFunction implements AggregatorFunction<Double, Double> {
+public class MaxFunction implements AggregatorFunction<TimePoint, Double> {
     private Double max = Double.NEGATIVE_INFINITY;
 
     @Override
-    public void collect(Double value) {
-        this.max = Math.max(value, max);
+    public void collect(TimePoint value) {
+        this.max = Math.max(value.getValue(), max);
     }
 
     @Override

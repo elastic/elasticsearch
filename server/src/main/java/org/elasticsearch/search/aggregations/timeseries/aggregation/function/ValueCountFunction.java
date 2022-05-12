@@ -11,14 +11,15 @@ package org.elasticsearch.search.aggregations.timeseries.aggregation.function;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.TimePoint;
 
 import java.util.Map;
 
-public class ValueCountFunction implements AggregatorFunction<Double, Long> {
+public class ValueCountFunction implements AggregatorFunction<TimePoint, Long> {
     private long count = 0;
 
     @Override
-    public void collect(Double value) {
+    public void collect(TimePoint value) {
         count += 1;
     }
 

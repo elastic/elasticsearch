@@ -36,13 +36,20 @@ public class RateFunction implements AggregatorFunction<TimePoint, TimePoint> {
 
     @Override
     public void collect(TimePoint value) {
+        count += 1;
+        if (firstSample == null) {
+            firstSample = value;
+            lastSample = value;
+            currentSample = value;
+            return;
+        }
+
         if (value.compareTo(lastSample) > 0) {
             lastSample = value;
         }
         if (value.compareTo(firstSample) < 0) {
             firstSample = value;
         }
-        count += 1;
 
         if (currentSample.compareTo(value) > 0 && currentSample.getValue() < value.getValue()) {
             totalRevertValue += value.getValue();

@@ -325,12 +325,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                         Long timestamp = entry.getKey();
                         AggregatorFunction function = entry.getValue();
                         if (aggCtx.getTimestamp() + downsampleRange > timestamp) {
-                            // TODO replace this instanceof logic
-                            if (function instanceof LastFunction last) {
-                                last.collectExact(value, aggCtx.getTimestamp());
-                            } else {
-                                function.collect(value);
-                            }
+                            function.collect(new TimePoint(aggCtx.getTimestamp(), value));
                         } else {
                             break;
                         }

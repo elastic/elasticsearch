@@ -11,16 +11,17 @@ package org.elasticsearch.search.aggregations.timeseries.aggregation.function;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.TimePoint;
 
 import java.util.Map;
 
-public class AvgFunction implements AggregatorFunction<Double, Double> {
+public class AvgFunction implements AggregatorFunction<TimePoint, Double> {
     private double sum = 0;
     private long count = 0;
 
     @Override
-    public void collect(Double value) {
-        sum += value;
+    public void collect(TimePoint value) {
+        sum += value.getValue();
         count += 1;
     }
 

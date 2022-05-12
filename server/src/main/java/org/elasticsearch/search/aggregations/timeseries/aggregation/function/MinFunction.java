@@ -11,15 +11,16 @@ package org.elasticsearch.search.aggregations.timeseries.aggregation.function;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.TimePoint;
 
 import java.util.Map;
 
-public class MinFunction implements AggregatorFunction<Double, Double> {
+public class MinFunction implements AggregatorFunction<TimePoint, Double> {
     private Double min = Double.POSITIVE_INFINITY;
 
     @Override
-    public void collect(Double value) {
-        this.min = Math.min(value, min);
+    public void collect(TimePoint value) {
+        this.min = Math.min(value.getValue(), min);
     }
 
     @Override

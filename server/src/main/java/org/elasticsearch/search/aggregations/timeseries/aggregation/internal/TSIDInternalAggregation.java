@@ -17,9 +17,9 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.Function;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.TimePoint;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.TSIDBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.function.LastFunction;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -80,7 +80,9 @@ public class TSIDInternalAggregation extends InternalAggregation {
                 Function function = Function.valueOf(aggreagator);
                 final AggregatorFunction aggregatorFunction = function.getAggregatorFunction();
                 tsidAgg.values.forEach(
-                    (tsid, agg) -> { aggregatorFunction.collect(((InternalNumericMetricsAggregation.SingleValue) agg).value()); }
+                    (tsid, agg) -> {
+                        aggregatorFunction.collect(new TimePoint(0, ((InternalNumericMetricsAggregation.SingleValue) agg).value()));
+                    }
                 );
                 return aggregatorFunction.getAggregation(formatter, getMetadata());
             } else {
@@ -108,12 +110,7 @@ public class TSIDInternalAggregation extends InternalAggregation {
                 if (aggs.size() > 0) {
                     InternalAggregation first = aggs.get(0);
                     InternalNumericMetricsAggregation.SingleValue internalAggregation = (SingleValue) first.reduce(aggs, reduceContext);
-                    // TODO replace this instanceof logic
-                    if (internalAggregation instanceof Last last && aggregatorFunction instanceof LastFunction lastFunction) {
-                        lastFunction.collectExact(last.value(), last.getTimestamp());
-                    } else {
-                        aggregatorFunction.collect(internalAggregation.value());
-                    }
+                    aggregatorFunction.collect(new TimePoint(0, internalAggregation.value()));
                 }
             });
             return aggregatorFunction.getAggregation(formatter, getMetadata());

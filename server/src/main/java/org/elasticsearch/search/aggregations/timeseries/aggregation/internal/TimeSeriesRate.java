@@ -25,7 +25,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class TimeSeriesRate extends InternalNumericMetricsAggregation.SingleValue implements Comparable<TimeSeriesRate> {
-    public static final String NAME = "rate";
+    public static final String NAME = "time_series_rate";
 
     private final long range;
     private final long timestamp;

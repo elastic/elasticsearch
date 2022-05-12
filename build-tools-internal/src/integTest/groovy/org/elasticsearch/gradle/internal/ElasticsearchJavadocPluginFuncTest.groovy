@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import org.spockframework.util.TextUtil
 import spock.lang.Unroll
 
 class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
@@ -181,7 +182,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     String normalized(String input) {
-        return super.normalized(input.replaceAll("\\\\\\\\", "\\"))
+        return super.normalized(input.replace("\\\\", "/"))
     }
 
     private File someLibProject() {

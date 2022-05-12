@@ -994,13 +994,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 EnumSet.of(Op.NOOP, Op.INDEX, Op.DELETE)
             );
             this.index = index;
-            setIndex(index);
+            put(indexKey, index);
             this.id = id;
-            setId(id);
+            put(idKey, id);
             this.routing = routing;
-            setRouting(routing);
+            put(routingKey, routing);
             this.version = version;
-            setVersion(version);
+            put(versionKey, version);
             this.op = op;
             setOp(op);
         }

@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.Instant;

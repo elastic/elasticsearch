@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
 public interface AuditTrail {

@@ -616,11 +616,7 @@ public final class TokenService {
             }
         } catch (Exception e) {
             // could happen with a token that is not ours
-            if (logger.isDebugEnabled()) {
-                logger.debug("built in token service unable to decode token", e);
-            } else {
-                logger.warn("built in token service unable to decode token");
-            }
+            logger.debug("built in token service unable to decode token", e);
             listener.onResponse(null);
         }
     }
@@ -2013,7 +2009,7 @@ public final class TokenService {
                             logger.warn("failed to get access token because index is not available");
                             listener.onResponse(null);
                         } else {
-                            logger.error(new ParameterizedMessage("failed to get token [{}]", userToken.getId()), e);
+                            logger.error(() -> "failed to get token [" + userToken.getId() + "]", e);
                             listener.onFailure(e);
                         }
                     }),

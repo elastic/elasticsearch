@@ -42,6 +42,7 @@ public abstract class AbstractProfileIntegTestCase extends SecurityIntegTestCase
     protected static final String RAC_USER_NAME = "rac_user";
     protected static final String OTHER_RAC_USER_NAME = "other_rac_user";
     protected static final String RAC_ROLE = "rac_role";
+    protected static final String NATIVE_RAC_ROLE = "native_rac_role";
     protected static final SecureString NATIVE_RAC_USER_PASSWORD = new SecureString("native_rac_user_password".toCharArray());
 
     // Needed for testing in IDE
@@ -62,7 +63,7 @@ public abstract class AbstractProfileIntegTestCase extends SecurityIntegTestCase
     public void createNativeUsers() {
         final PutUserRequest putUserRequest1 = new PutUserRequest();
         putUserRequest1.username(RAC_USER_NAME);
-        putUserRequest1.roles(RAC_ROLE);
+        putUserRequest1.roles(RAC_ROLE, NATIVE_RAC_ROLE);
         final String nativeRacUserPasswordHash = new String(getFastStoredHashAlgoForTests().hash(NATIVE_RAC_USER_PASSWORD));
         putUserRequest1.passwordHash(nativeRacUserPasswordHash.toCharArray());
         putUserRequest1.email(RAC_USER_NAME + "@example.com");
@@ -92,7 +93,11 @@ public abstract class AbstractProfileIntegTestCase extends SecurityIntegTestCase
             + "    - 'manage_own_api_key'\n"
             + "    - 'manage_token'\n"
             + "    - 'manage_service_account'\n"
-            + "    - 'monitor'\n";
+            + "    - 'monitor'\n"
+            + "  applications:\n"
+            + "    - application: 'app-1'\n"
+            + "      privileges: ['read']\n"
+            + "      resources: ['foo*']\n";
     }
 
     @Override

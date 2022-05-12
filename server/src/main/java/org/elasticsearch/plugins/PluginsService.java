@@ -13,12 +13,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -33,8 +31,6 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -43,12 +39,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -138,13 +132,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             pluginsNames.add(pluginInfo.getName());
         }
 
-        Set<Bundle> seenBundles = new LinkedHashSet<>();
+        Set<PluginBundle> seenBundles = new LinkedHashSet<>();
         List<PluginInfo> modulesList = new ArrayList<>();
         // load modules
         if (modulesDirectory != null) {
             try {
-                Set<Bundle> modules = getModuleBundles(modulesDirectory);
-                for (Bundle bundle : modules) {
+                Set<PluginBundle> modules = PluginsUtils.getModuleBundles(modulesDirectory);
+                for (PluginBundle bundle : modules) {
                     modulesList.add(bundle.plugin);
                 }
                 seenBundles.addAll(modules);
@@ -158,9 +152,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             try {
                 // TODO: remove this leniency, but tests bogusly rely on it
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
-                    checkForFailedPluginRemovals(pluginsDirectory);
-                    Set<Bundle> plugins = getPluginBundles(pluginsDirectory);
-                    for (final Bundle bundle : plugins) {
+                    PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
+                    Set<PluginBundle> plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
+                    for (final PluginBundle bundle : plugins) {
                         pluginsList.add(bundle.plugin);
                         pluginsNames.add(bundle.plugin.getName());
                     }
@@ -261,235 +255,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return info;
     }
 
-    // a "bundle" is a group of jars in a single classloader
-    public static class Bundle {
-        public final PluginInfo plugin;
-        public final Set<URL> urls;
-        public final Set<URL> spiUrls;
-        public final Set<URL> allUrls;
-
-        public Bundle(PluginInfo plugin, Path dir) throws IOException {
-            this.plugin = Objects.requireNonNull(plugin);
-
-            Path spiDir = dir.resolve("spi");
-            // plugin has defined an explicit api for extension
-            this.spiUrls = Files.exists(spiDir) ? gatherUrls(spiDir) : null;
-            this.urls = gatherUrls(dir);
-            Set<URL> allUrls = new LinkedHashSet<>(urls);
-            if (spiUrls != null) {
-                allUrls.addAll(spiUrls);
-            }
-            this.allUrls = allUrls;
-        }
-
-        static Set<URL> gatherUrls(Path dir) throws IOException {
-            Set<URL> urls = new LinkedHashSet<>();
-            // gather urls for jar files
-            try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(dir, "*.jar")) {
-                for (Path jar : jarStream) {
-                    // normalize with toRealPath to get symlinks out of our hair
-                    URL url = jar.toRealPath().toUri().toURL();
-                    if (urls.add(url) == false) {
-                        throw new IllegalStateException("duplicate codebase: " + url);
-                    }
-                }
-            }
-            return urls;
-        }
-
-        Set<URL> getExtensionUrls() {
-            if (spiUrls != null) {
-                return spiUrls;
-            }
-            return urls;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Bundle bundle = (Bundle) o;
-            return Objects.equals(plugin, bundle.plugin);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(plugin);
-        }
-    }
-
-    /**
-     * Extracts all installed plugin directories from the provided {@code rootPath}.
-     *
-     * @param rootPath the path where the plugins are installed
-     * @return a list of all plugin paths installed in the {@code rootPath}
-     * @throws IOException if an I/O exception occurred reading the directories
-     */
-    public static List<Path> findPluginDirs(final Path rootPath) throws IOException {
-        final List<Path> plugins = new ArrayList<>();
-        final Set<String> seen = new HashSet<>();
-        if (Files.exists(rootPath)) {
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootPath)) {
-                for (Path plugin : stream) {
-                    final String filename = plugin.getFileName().toString();
-                    if (FileSystemUtils.isDesktopServicesStore(plugin)
-                        || filename.startsWith(".removing-")
-                        || filename.equals(".elasticsearch-plugins.yml.cache")) {
-                        continue;
-                    }
-                    if (seen.add(filename) == false) {
-                        throw new IllegalStateException("duplicate plugin: " + plugin);
-                    }
-                    plugins.add(plugin);
-                }
-            }
-        }
-        return plugins;
-    }
-
-    /**
-     * Verify the given plugin is compatible with the current Elasticsearch installation.
-     */
-    public static void verifyCompatibility(PluginInfo info) {
-        if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
-            throw new IllegalArgumentException(
-                "Plugin ["
-                    + info.getName()
-                    + "] was built for Elasticsearch version "
-                    + info.getElasticsearchVersion()
-                    + " but version "
-                    + Version.CURRENT
-                    + " is running"
-            );
-        }
-        JarHell.checkJavaVersion(info.getName(), info.getJavaVersion());
-    }
-
-    public static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {
-        /*
-         * Check for the existence of a marker file that indicates any plugins are in a garbage state from a failed attempt to remove the
-         * plugin.
-         */
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory, ".removing-*")) {
-            final Iterator<Path> iterator = stream.iterator();
-            if (iterator.hasNext()) {
-                final Path removing = iterator.next();
-                final String fileName = removing.getFileName().toString();
-                final String name = fileName.substring(1 + fileName.indexOf("-"));
-                final String message = String.format(
-                    Locale.ROOT,
-                    "found file [%s] from a failed attempt to remove the plugin [%s]; execute [elasticsearch-plugin remove %2$s]",
-                    removing,
-                    name
-                );
-                throw new IllegalStateException(message);
-            }
-        }
-    }
-
-    /** Get bundles for plugins installed in the given modules directory. */
-    public static Set<Bundle> getModuleBundles(Path modulesDirectory) throws IOException {
-        return findBundles(modulesDirectory, "module");
-    }
-
-    /** Get bundles for plugins installed in the given plugins directory. */
-    public static Set<Bundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
-        return findBundles(pluginsDirectory, "plugin");
-    }
-
-    // searches subdirectories under the given directory for plugin directories
-    private static Set<Bundle> findBundles(final Path directory, String type) throws IOException {
-        final Set<Bundle> bundles = new HashSet<>();
-        for (final Path plugin : findPluginDirs(directory)) {
-            final Bundle bundle = readPluginBundle(plugin, type);
-            if (bundles.add(bundle) == false) {
-                throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
-            }
-            if (type.equals("module") && bundle.plugin.getName().startsWith("test-") && Build.CURRENT.isSnapshot() == false) {
-                throw new IllegalStateException("external test module [" + plugin.getFileName() + "] found in non-snapshot build");
-            }
-        }
-
-        logger.trace(() -> "findBundles(" + type + ") returning: " + bundles.stream().map(b -> b.plugin.getName()).sorted().toList());
-
-        return bundles;
-    }
-
-    // get a bundle for a single plugin dir
-    private static Bundle readPluginBundle(final Path plugin, String type) throws IOException {
-        final PluginInfo info;
-        try {
-            info = PluginInfo.readFromProperties(plugin);
-        } catch (final IOException e) {
-            throw new IllegalStateException(
-                "Could not load plugin descriptor for " + type + " directory [" + plugin.getFileName() + "]",
-                e
-            );
-        }
-        return new Bundle(info, plugin);
-    }
-
-    /**
-     * Return the given bundles, sorted in dependency loading order.
-     *
-     * This sort is stable, so that if two plugins do not have any interdependency,
-     * their relative order from iteration of the provided set will not change.
-     *
-     * @throws IllegalStateException if a dependency cycle is found
-     */
-    public static List<Bundle> sortBundles(Set<Bundle> bundles) {
-        Map<String, Bundle> namedBundles = bundles.stream().collect(Collectors.toMap(b -> b.plugin.getName(), Function.identity()));
-        LinkedHashSet<Bundle> sortedBundles = new LinkedHashSet<>();
-        LinkedHashSet<String> dependencyStack = new LinkedHashSet<>();
-        for (Bundle bundle : bundles) {
-            addSortedBundle(bundle, namedBundles, sortedBundles, dependencyStack);
-        }
-        return new ArrayList<>(sortedBundles);
-    }
-
-    // add the given bundle to the sorted bundles, first adding dependencies
-    private static void addSortedBundle(
-        Bundle bundle,
-        Map<String, Bundle> bundles,
-        LinkedHashSet<Bundle> sortedBundles,
-        LinkedHashSet<String> dependencyStack
-    ) {
-
-        String name = bundle.plugin.getName();
-        if (dependencyStack.contains(name)) {
-            StringBuilder msg = new StringBuilder("Cycle found in plugin dependencies: ");
-            dependencyStack.forEach(s -> {
-                msg.append(s);
-                msg.append(" -> ");
-            });
-            msg.append(name);
-            throw new IllegalStateException(msg.toString());
-        }
-        if (sortedBundles.contains(bundle)) {
-            // already added this plugin, via a dependency
-            return;
-        }
-
-        dependencyStack.add(name);
-        for (String dependency : bundle.plugin.getExtendedPlugins()) {
-            Bundle depBundle = bundles.get(dependency);
-            if (depBundle == null) {
-                throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + name + "]");
-            }
-            addSortedBundle(depBundle, bundles, sortedBundles, dependencyStack);
-            assert sortedBundles.contains(depBundle);
-        }
-        dependencyStack.remove(name);
-
-        sortedBundles.add(bundle);
-    }
-
-    private Collection<LoadedPlugin> loadBundles(Set<Bundle> bundles) {
+    private Collection<LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
         Map<String, LoadedPlugin> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
-        List<Bundle> sortedBundles = sortBundles(bundles);
+        List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
         Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
-        for (Bundle bundle : sortedBundles) {
+        for (PluginBundle bundle : sortedBundles) {
             if (bundle.plugin.getType() != PluginType.BOOTSTRAP) {
                 checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
                 loadBundle(bundle, loaded);
@@ -595,7 +366,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     // jar-hell check the bundle against the parent classloader and extended plugins
     // the plugin cli does it, but we do it again, in case users mess with jar files manually
-    public static void checkBundleJarHell(Set<URL> systemLoaderURLs, Bundle bundle, Map<String, Set<URL>> transitiveUrls) {
+    public static void checkBundleJarHell(Set<URL> systemLoaderURLs, PluginBundle bundle, Map<String, Set<URL>> transitiveUrls) {
         // invariant: any plugins this plugin bundle extends have already been added to transitiveUrls
         List<String> exts = bundle.plugin.getExtendedPlugins();
 
@@ -656,10 +427,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private Plugin loadBundle(Bundle bundle, Map<String, LoadedPlugin> loaded) {
+    private Plugin loadBundle(PluginBundle bundle, Map<String, LoadedPlugin> loaded) {
         String name = bundle.plugin.getName();
 
-        verifyCompatibility(bundle.plugin);
+        PluginsUtils.verifyCompatibility(bundle.plugin);
 
         // collect loaders of extended plugins
         List<ClassLoader> extendedLoaders = new ArrayList<>();

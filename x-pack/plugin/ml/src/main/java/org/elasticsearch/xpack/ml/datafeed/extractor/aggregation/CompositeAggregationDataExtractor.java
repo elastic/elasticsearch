@@ -85,7 +85,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
 
     @Override
     public void cancel() {
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Data extractor received cancel request", context.jobId));
+        LOGGER.debug(() -> "[" + context.jobId + "] Data extractor received cancel request");
         isCancelled = true;
     }
 
@@ -103,7 +103,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         SearchInterval searchInterval = new SearchInterval(context.start, context.end);
         Aggregations aggs = search();
         if (aggs == null) {
-            LOGGER.trace(() -> new ParameterizedMessage("[{}] extraction finished", context.jobId));
+            LOGGER.trace(() -> "[" + context.jobId + "] extraction finished");
             hasNext = false;
             afterKey = null;
             return new Result(searchInterval, Optional.empty());
@@ -137,7 +137,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         searchSourceBuilder.aggregation(compositeAggregationBuilder);
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = requestBuilder.build(searchSourceBuilder);
         SearchResponse searchResponse = executeSearchRequest(searchRequest);
-        LOGGER.trace(() -> new ParameterizedMessage("[{}] Search composite response was obtained", context.jobId));
+        LOGGER.trace(() -> "[" + context.jobId + "] Search composite response was obtained");
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
         Aggregations aggregations = searchResponse.getAggregations();
         if (aggregations == null) {

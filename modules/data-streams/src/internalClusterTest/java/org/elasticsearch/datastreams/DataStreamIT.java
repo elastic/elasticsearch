@@ -8,7 +8,6 @@
 package org.elasticsearch.datastreams;
 
 import org.apache.logging.log4j.core.util.Throwables;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -1466,7 +1465,7 @@ public class DataStreamIT extends ESIntegTestCase {
                     }
                 }
             } catch (Exception e) {
-                logger.error(new ParameterizedMessage("thread [{}] encountered unexpected exception", i), e);
+                logger.error(() -> "thread [" + i + "] encountered unexpected exception", e);
                 fail("we should not encounter unexpected exceptions");
             }
         }, "rollover-thread-" + i)).collect(Collectors.toSet());

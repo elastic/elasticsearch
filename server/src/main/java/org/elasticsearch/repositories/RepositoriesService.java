@@ -415,10 +415,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                     try {
                                         repository.endVerification(verificationToken);
                                     } catch (Exception e) {
-                                        logger.warn(
-                                            () -> new ParameterizedMessage("[{}] failed to finish repository verification", repositoryName),
-                                            e
-                                        );
+                                        logger.warn(() -> "[" + repositoryName + "] failed to finish repository verification", e);
                                         delegatedListener.onFailure(e);
                                         return;
                                     }
@@ -432,10 +429,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                 repository.endVerification(verificationToken);
                             } catch (Exception inner) {
                                 inner.addSuppressed(e);
-                                logger.warn(
-                                    () -> new ParameterizedMessage("[{}] failed to finish repository verification", repositoryName),
-                                    inner
-                                );
+                                logger.warn(() -> "[" + repositoryName + "] failed to finish repository verification", inner);
                             }
                             listener.onFailure(e);
                         });

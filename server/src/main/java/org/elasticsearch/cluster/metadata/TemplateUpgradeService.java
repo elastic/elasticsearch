@@ -177,7 +177,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
                     if (e instanceof IndexTemplateMissingException == false) {
                         // we might attempt to delete the same template from different nodes - so that's ok if template doesn't exist
                         // otherwise we need to warn
-                        logger.warn(new ParameterizedMessage("Error deleting template [{}]", template), e);
+                        logger.warn(() -> "Error deleting template [" + template + "]", e);
                     }
                     tryFinishUpgrade(anyUpgradeFailed);
                 }

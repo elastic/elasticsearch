@@ -10,7 +10,6 @@ package org.elasticsearch.shutdown;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -94,7 +93,7 @@ public class PluginShutdownService implements ClusterStateListener {
             try {
                 plugin.signalShutdown(shutdownNodes);
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("uncaught exception when notifying plugins of nodes {} shutdown", shutdownNodes), e);
+                logger.warn(() -> "uncaught exception when notifying plugins of nodes " + shutdownNodes + " shutdown", e);
             }
         }
     }

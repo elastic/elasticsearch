@@ -225,7 +225,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             LOGGER.debug("[{}] Successfully indexed progress document: {}", jobId, storedProgress.get().get());
             runnable.run();
         }, indexError -> {
-            LOGGER.error(new ParameterizedMessage("[{}] cannot persist progress as an error occurred while indexing", jobId), indexError);
+            LOGGER.error(() -> "[" + jobId + "] cannot persist progress as an error occurred while indexing", indexError);
             runnable.run();
         });
 
@@ -240,7 +240,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
                 try {
                     previous = MlParserUtils.parse(searchResponse.getHits().getHits()[0], StoredProgress.PARSER);
                 } catch (Exception ex) {
-                    LOGGER.warn(new ParameterizedMessage("[{}] failed to parse previously stored progress", jobId), ex);
+                    LOGGER.warn(() -> "[" + jobId + "] failed to parse previously stored progress", ex);
                 }
             }
 

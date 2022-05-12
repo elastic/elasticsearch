@@ -16,7 +16,7 @@ import java.sql.SQLException;
 public class JdbcMetadataIT extends JdbcIntegrationTestCase {
 
     // gradle defines
-    public static final String LOCAL_CLUSTER_NAME = "integTest";
+    public static final String LOCAL_CLUSTER_NAME = "javaRestTest";
     public static final String REMOTE_CLUSTER_NAME = "my_remote_cluster";
 
     public void testJdbcGetClusters() throws SQLException {

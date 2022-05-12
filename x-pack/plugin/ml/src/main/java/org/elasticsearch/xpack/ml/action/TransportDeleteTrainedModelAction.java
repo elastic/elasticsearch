@@ -181,7 +181,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                     .map(InferenceProcessor::getModelId)
                     .forEach(allReferencedModelKeys::add);
             } catch (Exception ex) {
-                logger.warn(new ParameterizedMessage("failed to load pipeline [{}]", pipelineId), ex);
+                logger.warn(() -> "failed to load pipeline [" + pipelineId + "]", ex);
             }
         }
         return allReferencedModelKeys;

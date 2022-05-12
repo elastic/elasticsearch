@@ -821,7 +821,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             responseReceived(countDown, false, () -> {}, watcherSetup);
 
             if ((e instanceof IndexNotFoundException) == false) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to get monitoring watch [{}]", uniqueWatchId), e);
+                logger.error((Supplier<?>) () -> "failed to get monitoring watch [" + uniqueWatchId + "]", e);
             }
         }
 

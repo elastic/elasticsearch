@@ -1566,7 +1566,7 @@ public class RestoreService implements ClusterStateApplier {
 
         @Override
         public void onFailure(Exception e) {
-            logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot", snapshot), e);
+            logger.warn(() -> "[" + snapshot + "] failed to restore snapshot", e);
             listener.onFailure(e);
         }
 

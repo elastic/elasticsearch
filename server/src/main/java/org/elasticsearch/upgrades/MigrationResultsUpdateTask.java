@@ -90,7 +90,7 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
     public void onFailure(Exception clusterStateUpdateException) {
         if (status.succeeded()) {
             logger.warn(
-                new ParameterizedMessage("failed to update cluster state after successful migration of feature [{}]", featureName),
+                () -> "failed to update cluster state after successful migration of feature [" + featureName + "]",
                 clusterStateUpdateException
             );
         } else {

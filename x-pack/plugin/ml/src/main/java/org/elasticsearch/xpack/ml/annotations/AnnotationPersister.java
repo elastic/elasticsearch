@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.annotations;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -94,7 +93,7 @@ public class AnnotationPersister {
             try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
                 bulkRequest.add(new IndexRequest().id(annotationId).source(xContentBuilder).setRequireAlias(true));
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error serialising annotation", jobId), e);
+                logger.error(() -> "[" + jobId + "] Error serialising annotation", e);
             }
 
             if (bulkRequest.numberOfActions() >= bulkLimit) {

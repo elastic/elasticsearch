@@ -245,7 +245,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
     ) {
 
         final String jobId = request.getJobId();
-        logger.debug(() -> new ParameterizedMessage("[{}] force deleting job", jobId));
+        logger.debug(() -> "[" + jobId + "] force deleting job");
 
         // 3. Delete the job
         ActionListener<Boolean> removeTaskListener = ActionListener.wrap(

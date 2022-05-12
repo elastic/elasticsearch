@@ -367,13 +367,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         if (isMaster == false) {
             throw new IllegalArgumentException("request for scaling information is only allowed on the master node");
         }
-        final Duration memoryTrackingStale;
-        long previousTimeStamp = this.lastTimeToScale;
-        this.lastTimeToScale = this.timeSupplier.getAsLong();
-        if (previousTimeStamp == 0L) {
-            memoryTrackingStale = DEFAULT_MEMORY_REFRESH_RATE;
-        } else {
-            memoryTrackingStale = Duration.ofMillis(TimeValue.timeValueMinutes(1).millis() + this.lastTimeToScale - previousTimeStamp);
+        long previousTimeStamp = lastTimeToScale;
+        lastTimeToScale = timeSupplier.getAsLong();
+        if (previousTimeStamp > 0L && lastTimeToScale > previousTimeStamp) {
+            mlMemoryTracker.setAutoscalingCheckInterval(Duration.ofMillis(lastTimeToScale - previousTimeStamp));
         }
 
         final ClusterState clusterState = context.state();
@@ -466,8 +463,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             );
         }
 
-        if (mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false) {
-            logger.debug("view of job memory is stale given duration [{}]. Not attempting to make scaling decision", memoryTrackingStale);
+        if (mlMemoryTracker.isRecentlyRefreshed() == false) {
+            logger.debug(
+                "view of job memory is stale given duration [{}]. Not attempting to make scaling decision",
+                mlMemoryTracker.getStalenessDuration()
+            );
             return buildDecisionAndRequestRefresh(reasonBuilder);
         }
         // We need the current node loads to determine if we need to scale up or down
@@ -508,12 +508,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             );
         }
 
-        Optional<NativeMemoryCapacity> futureFreedCapacity = calculateFutureAvailableCapacity(
-            tasks,
-            memoryTrackingStale,
-            mlNodes,
-            clusterState
-        );
+        Optional<NativeMemoryCapacity> futureFreedCapacity = calculateFutureAvailableCapacity(tasks, mlNodes, clusterState);
 
         final Optional<AutoscalingDeciderResult> scaleUpDecision = checkForScaleUp(
             numAnomalyJobsInQueue,
@@ -539,7 +534,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             resetScaleDownCoolDown();
             return noScaleResultOrRefresh(
                 reasonBuilder,
-                mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false,
+                mlMemoryTracker.isRecentlyRefreshed() == false,
                 new AutoscalingDeciderResult(
                     context.currentCapacity(),
                     reasonBuilder.setSimpleReason(
@@ -687,7 +682,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
         return noScaleResultOrRefresh(
             reasonBuilder,
-            mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false,
+            mlMemoryTracker.isRecentlyRefreshed() == false,
             new AutoscalingDeciderResult(
                 context.currentCapacity(),
                 reasonBuilder.setSimpleReason("Passing currently perceived capacity as no scaling changes were detected to be possible")
@@ -964,11 +959,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
      */
     Optional<NativeMemoryCapacity> calculateFutureAvailableCapacity(
         PersistentTasksCustomMetadata tasks,
-        Duration jobMemoryExpiry,
         Collection<DiscoveryNode> mlNodes,
         ClusterState clusterState
     ) {
-        if (mlMemoryTracker.isRecentlyRefreshed(jobMemoryExpiry) == false) {
+        if (mlMemoryTracker.isRecentlyRefreshed() == false) {
             return Optional.empty();
         }
         final List<PersistentTask<DatafeedParams>> jobsWithLookbackDatafeeds = datafeedTasks(tasks).stream()

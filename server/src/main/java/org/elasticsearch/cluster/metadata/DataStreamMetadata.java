@@ -13,9 +13,9 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -34,69 +33,70 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     public static final String TYPE = "data_stream";
 
-    public static final DataStreamMetadata EMPTY = new DataStreamMetadata(Map.of(), Map.of());
+    public static final DataStreamMetadata EMPTY = new DataStreamMetadata(ImmutableOpenMap.of(), ImmutableOpenMap.of());
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
     private static final ParseField DATA_STREAM_ALIASES = new ParseField("data_stream_aliases");
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStreamMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE, false, args -> {
-        Map<String, DataStream> dataStreams = (Map<String, DataStream>) args[0];
-        Map<String, DataStreamAlias> dataStreamAliases = (Map<String, DataStreamAlias>) args[1];
+        ImmutableOpenMap<String, DataStream> dataStreams = (ImmutableOpenMap<String, DataStream>) args[0];
+        ImmutableOpenMap<String, DataStreamAlias> dataStreamAliases = (ImmutableOpenMap<String, DataStreamAlias>) args[1];
         if (dataStreamAliases == null) {
-            dataStreamAliases = Map.of();
+            dataStreamAliases = ImmutableOpenMap.of();
         }
         return new DataStreamMetadata(dataStreams, dataStreamAliases);
     });
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            Map<String, DataStream> dataStreams = new HashMap<>();
+            ImmutableOpenMap.Builder<String, DataStream> dataStreams = ImmutableOpenMap.builder();
             while (p.nextToken() != XContentParser.Token.END_OBJECT) {
                 String name = p.currentName();
                 dataStreams.put(name, DataStream.fromXContent(p));
             }
-            return dataStreams;
+            return dataStreams.build();
         }, DATA_STREAM);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-            Map<String, DataStreamAlias> dataStreams = new HashMap<>();
+            ImmutableOpenMap.Builder<String, DataStreamAlias> dataStreams = ImmutableOpenMap.builder();
             while (p.nextToken() != XContentParser.Token.END_OBJECT) {
                 DataStreamAlias alias = DataStreamAlias.fromXContent(p);
                 dataStreams.put(alias.getName(), alias);
             }
-            return dataStreams;
+            return dataStreams.build();
         }, DATA_STREAM_ALIASES);
     }
 
-    private final Map<String, DataStream> dataStreams;
-    private final Map<String, DataStreamAlias> dataStreamAliases;
+    private final ImmutableOpenMap<String, DataStream> dataStreams;
+    private final ImmutableOpenMap<String, DataStreamAlias> dataStreamAliases;
 
-    public DataStreamMetadata(Map<String, DataStream> dataStreams, Map<String, DataStreamAlias> dataStreamAliases) {
-        this.dataStreams = Map.copyOf(dataStreams);
-        this.dataStreamAliases = Map.copyOf(dataStreamAliases);
+    public DataStreamMetadata(
+        ImmutableOpenMap<String, DataStream> dataStreams,
+        ImmutableOpenMap<String, DataStreamAlias> dataStreamAliases
+    ) {
+        this.dataStreams = dataStreams;
+        this.dataStreamAliases = dataStreamAliases;
     }
 
     public DataStreamMetadata(StreamInput in) throws IOException {
         this(
-            in.readImmutableMap(StreamInput::readString, DataStream::new),
-            in.readImmutableMap(StreamInput::readString, DataStreamAlias::new)
+            in.readImmutableOpenMap(StreamInput::readString, DataStream::new),
+            in.readImmutableOpenMap(StreamInput::readString, DataStreamAlias::new)
         );
     }
 
     public DataStreamMetadata withAddedDatastream(DataStream datastream) {
         final String name = datastream.getName();
         final DataStream existing = dataStreams.get(name);
-        if (existing == null) {
-            return new DataStreamMetadata(Maps.copyMapWithAddedEntry(dataStreams, name, datastream), dataStreamAliases);
-        } else if (existing.equals(datastream)) {
+        if (datastream.equals(existing)) {
             return this;
         }
-        return new DataStreamMetadata(Maps.copyMapWithAddedOrReplacedEntry(dataStreams, name, datastream), dataStreamAliases);
+        return new DataStreamMetadata(ImmutableOpenMap.builder(dataStreams).fPut(name, datastream).build(), dataStreamAliases);
     }
 
-    public Map<String, DataStream> dataStreams() {
+    public ImmutableOpenMap<String, DataStream> dataStreams() {
         return this.dataStreams;
     }
 
-    public Map<String, DataStreamAlias> getDataStreamAliases() {
+    public ImmutableOpenMap<String, DataStreamAlias> getDataStreamAliases() {
         return dataStreamAliases;
     }
 
@@ -175,8 +175,16 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     static class DataStreamMetadataDiff implements NamedDiff<Metadata.Custom> {
 
-        final Diff<Map<String, DataStream>> dataStreamDiff;
-        final Diff<Map<String, DataStreamAlias>> dataStreamAliasDiff;
+        private static final DiffableUtils.DiffableValueReader<String, DataStream> DS_DIFF_READER = new DiffableUtils.DiffableValueReader<>(
+            DataStream::new,
+            DataStream::readDiffFrom
+        );
+
+        private static final DiffableUtils.DiffableValueReader<String, DataStreamAlias> ALIAS_DIFF_READER =
+            new DiffableUtils.DiffableValueReader<>(DataStreamAlias::new, DataStreamAlias::readDiffFrom);
+
+        final DiffableUtils.MapDiff<String, DataStream, ImmutableOpenMap<String, DataStream>> dataStreamDiff;
+        final DiffableUtils.MapDiff<String, DataStreamAlias, ImmutableOpenMap<String, DataStreamAlias>> dataStreamAliasDiff;
 
         DataStreamMetadataDiff(DataStreamMetadata before, DataStreamMetadata after) {
             this.dataStreamDiff = DiffableUtils.diff(before.dataStreams, after.dataStreams, DiffableUtils.getStringKeySerializer());
@@ -188,25 +196,23 @@ public class DataStreamMetadata implements Metadata.Custom {
         }
 
         DataStreamMetadataDiff(StreamInput in) throws IOException {
-            this.dataStreamDiff = DiffableUtils.readJdkMapDiff(
+            this.dataStreamDiff = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), DS_DIFF_READER);
+            this.dataStreamAliasDiff = DiffableUtils.readImmutableOpenMapDiff(
                 in,
                 DiffableUtils.getStringKeySerializer(),
-                DataStream::new,
-                DataStream::readDiffFrom
-            );
-            this.dataStreamAliasDiff = DiffableUtils.readJdkMapDiff(
-                in,
-                DiffableUtils.getStringKeySerializer(),
-                DataStreamAlias::new,
-                DataStreamAlias::readDiffFrom
+                ALIAS_DIFF_READER
             );
         }
 
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
             return new DataStreamMetadata(
-                dataStreamDiff.apply(((DataStreamMetadata) part).dataStreams),
-                dataStreamAliasDiff != null ? dataStreamAliasDiff.apply(((DataStreamMetadata) part).dataStreamAliases) : Map.of()
+                ImmutableOpenMap.<String, DataStream>builder()
+                    .putAllFromMap(dataStreamDiff.apply(((DataStreamMetadata) part).dataStreams))
+                    .build(),
+                dataStreamAliasDiff != null
+                    ? dataStreamAliasDiff.apply(((DataStreamMetadata) part).dataStreamAliases)
+                    : ImmutableOpenMap.of()
             );
         }
 

@@ -507,7 +507,7 @@ public class ExecutionService {
             }
         } catch (InterruptedException | ExecutionException | TimeoutException | IOException ioe) {
             final WatchRecord wr = watchRecord;
-            logger.error(new ParameterizedMessage("failed to persist watch record [{}]", wr), ioe);
+            logger.error(() -> "failed to persist watch record [" + wr + "]", ioe);
         }
     }
 

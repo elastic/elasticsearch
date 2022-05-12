@@ -165,7 +165,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         ) {
             return ExpressionRoleMapping.parse(id, parser);
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("Role mapping [{}] cannot be parsed and will be skipped", id), e);
+            logger.warn(() -> "Role mapping [" + id + "] cannot be parsed and will be skipped", e);
             return null;
         }
     }
@@ -205,7 +205,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             try {
                 inner.accept(request, ActionListener.wrap(r -> refreshRealms(listener, r), listener::onFailure));
             } catch (Exception e) {
-                logger.error(new ParameterizedMessage("failed to modify role-mapping [{}]", name), e);
+                logger.error(() -> "failed to modify role-mapping [" + name + "]", e);
                 listener.onFailure(e);
             }
         }

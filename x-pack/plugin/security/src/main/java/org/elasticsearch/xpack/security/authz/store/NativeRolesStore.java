@@ -388,7 +388,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(new ParameterizedMessage("unable to clear cache for role [{}]", role), e);
+                logger.error(() -> "unable to clear cache for role [" + role + "]", e);
                 ElasticsearchException exception = new ElasticsearchException(
                     "clearing the cache for [" + role + "] failed. please clear the role cache manually",
                     e
@@ -442,7 +442,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 return roleDescriptor;
             }
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("error in the format of data for role [{}]", name), e);
+            logger.error(() -> "error in the format of data for role [" + name + "]", e);
             return null;
         }
     }

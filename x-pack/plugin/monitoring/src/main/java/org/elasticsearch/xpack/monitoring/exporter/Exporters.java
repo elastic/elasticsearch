@@ -358,7 +358,7 @@ public class Exporters extends AbstractLifecycleComponent {
 
         @Override
         public void onFailure(Exception e) {
-            LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("exporter [{}] failed to open exporting bulk", name), e);
+            LOGGER.error((Supplier<?>) () -> "exporter [" + name + "] failed to open exporting bulk", e);
 
             delegateIfComplete();
         }

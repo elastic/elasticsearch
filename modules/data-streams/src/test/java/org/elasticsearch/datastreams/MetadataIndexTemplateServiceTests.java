@@ -51,7 +51,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final var service = getMetadataIndexTemplateService();
         var template = new ComposableIndexTemplate(
             Collections.singletonList("logs-*-*"),
-            new Template(builder().put("index.routing_path", "uid").build(), new CompressedXContent(generateTsdbMapping()), null),
+            new Template(
+                builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(),
+                new CompressedXContent(generateTsdbMapping()),
+                null
+            ),
             null,
             100L,
             null,

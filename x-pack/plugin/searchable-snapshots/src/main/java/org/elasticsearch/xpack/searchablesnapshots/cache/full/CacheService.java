@@ -586,10 +586,7 @@ public class CacheService extends AbstractLifecycleComponent {
                                         shouldPersist = true;
                                     } catch (Exception e) {
                                         if (cacheDirsSyncExceptionsLogs.putIfAbsent(cacheDir, startTimeNanos) == null) {
-                                            logger.warn(
-                                                () -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir),
-                                                e
-                                            );
+                                            logger.warn(() -> "failed to synchronize cache directory [" + cacheDir + "]", e);
                                         }
                                         assert e instanceof IOException : e;
                                         shouldPersist = false;

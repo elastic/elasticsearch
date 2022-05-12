@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -285,10 +284,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         assertThat("Annotations were: " + annotations.toString(), annotations, hasSize(2));
         assertThat(
             annotations.stream().map(Annotation::getAnnotation).collect(toList()),
-            containsInAnyOrder(
-                new ParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId()).getFormattedMessage(),
-                annotation.getAnnotation()
-            )
+            containsInAnyOrder("Job model snapshot with id [" + modelSnapshot.getSnapshotId() + "] stored", annotation.getAnnotation())
         );
     }
 
@@ -309,11 +305,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         assertThat(annotations, hasSize(1));
         assertThat(
             annotations.get(0).getAnnotation(),
-            is(
-                equalTo(
-                    new ParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId()).getFormattedMessage()
-                )
-            )
+            is(equalTo("Job model snapshot with id [" + modelSnapshot.getSnapshotId() + "] stored"))
         );
 
         // Verify that deleting model snapshot also deletes associated annotation

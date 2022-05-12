@@ -136,7 +136,9 @@ public final class DataTierAllocationDecider extends AllocationDecider {
      * Given a string of comma-separated prioritized tiers (highest priority
      * first) and an allocation, find the highest priority tier for which nodes
      * exist. If no nodes for any of the tiers are available, returns an empty
-     * {@code Optional<String>}.
+     * {@code Optional<String>}. This method takes into account the desired nodes
+     * in order to know if there are planned topology changes in the cluster
+     * that can remove a tier that's part of the cluster now.
      */
     public static Optional<String> preferredAvailableTier(
         List<String> prioritizedTiers,
@@ -152,6 +154,11 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         return getPreferredAvailableTierFromClusterMembers(prioritizedTiers, nodes);
     }
 
+    /**
+     * Given a list of tiers in descending order, return the tier that's present
+     * in the desired nodes with the highest priority, if none is present returns an
+     * {@code Optional.empty()}.
+     */
     public static Optional<String> getPreferredTierFromDesiredNodes(
         List<String> prioritizedTiers,
         DiscoveryNodes discoveryNodes,

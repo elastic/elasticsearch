@@ -65,8 +65,8 @@ aggregation might require a significant amount of system resources.
 ==== Minimum set size
 
 The minimum set size is the minimum number of items the set needs to contain. A 
-value of 1 returns the frequency of single items. The higher the minimum set 
-size the less items are returned. For example, the item 
+value of 1 returns the frequency of single items. Only item sets that contain at 
+least the number of `minimum_set_size` items are returned. For example, the item 
 set `orange, banana, apple` is only returned if the minimum set size is 3 or 
 lower.
 

@@ -631,6 +631,40 @@ public class SecurityTests extends ESTestCase {
         assertNoExceptionsOrWarningsForValidateForFips(settings);
     }
 
+    public void testValidateForFipsLogsWarnOnNonCompliantHashAlgo() throws IllegalAccessException {
+        final Settings settings = Settings.builder()
+            .put(
+                randomFrom(ApiKeyService.CACHE_HASH_ALGO_SETTING).getKey(),
+                randomFrom(
+                    Hasher.getAvailableAlgoCacheHash()
+                        .stream()
+                        .filter(alg -> (alg.startsWith("pbkdf2") || alg.equals("sha1") || alg.equals("ssha256")) == false)
+                        .collect(Collectors.toList())
+                )
+            )
+            .build();
+        final MockLogAppender mockAppender = new MockLogAppender();
+        final Logger logger = LogManager.getLogger(Security.class);
+        mockAppender.start();
+        try {
+            Loggers.addAppender(logger, mockAppender);
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "hash algo not compliant",
+                    Security.class.getName(),
+                    Level.WARN,
+                    "Only PBKDF2, SHA1, or SSHA256 are secure hash functions allowed in a FIPS 140 JVM. "
+                        + "Please change the [*] setting from [*] to an appropriate value."
+                )
+            );
+            Security.validateForFips(settings);
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, mockAppender);
+            mockAppender.stop();
+        }
+    }
+
     public void testValidateForFipsNoErrorsForDefaultSettings() throws IllegalAccessException {
         final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true).build();
         assertNoExceptionsOrWarningsForValidateForFips(settings);
@@ -644,11 +678,11 @@ public class SecurityTests extends ESTestCase {
             Loggers.addAppender(logger, mockAppender);
             Security.validateForFips(settings);
             mockAppender.assertAllExpectationsMatched();
-            // no exception thrown
         } finally {
             Loggers.removeAppender(logger, mockAppender);
             mockAppender.stop();
         }
+        // no exception thrown
     }
 
     public void testLicenseUpdateFailureHandlerUpdate() throws Exception {

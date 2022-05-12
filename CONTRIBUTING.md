@@ -457,7 +457,7 @@ If you wish to use placeholders and an exception at the same time, construct a
 You can also use a `Supplier<ParameterizedMessage>` to avoid constructing
 expensive messages that will usually be discarded:
 
-    logger.debug(() -> new ParameterizedMessage("rarely seen output [{}]", expensiveMethod()));
+    logger.debug(() -> "rarely seen output [" + expensiveMethod() + "]");
 
 Logging is an important behaviour of the system and sometimes deserves its own
 unit tests, especially if there is complex logic for computing what is logged

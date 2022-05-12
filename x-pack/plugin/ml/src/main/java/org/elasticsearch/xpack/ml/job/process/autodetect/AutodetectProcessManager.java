@@ -212,7 +212,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             // as it is cleaned up already. The third is that the kill has been
             // received before the process has even started. In all cases, we still
             // need to remove the task from the TaskManager (which is what the kill would do)
-            logger.trace(() -> new ParameterizedMessage("[{}] Marking job task as completed", jobTask.getJobId()));
+            logger.trace(() -> "[" + jobTask.getJobId() + "] Marking job task as completed");
             jobTask.markAsCompleted();
         }
     }
@@ -880,7 +880,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             try {
                 nativeStorageProvider.cleanupLocalTmpStorage(jobTask.getDescription());
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Failed to delete temporary files", jobTask.getJobId()), e);
+                logger.error(() -> "[" + jobTask.getJobId() + "] Failed to delete temporary files", e);
             }
         };
     }

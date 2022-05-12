@@ -2013,7 +2013,7 @@ public final class TokenService {
                             logger.warn("failed to get access token because index is not available");
                             listener.onResponse(null);
                         } else {
-                            logger.error(new ParameterizedMessage("failed to get token [{}]", userToken.getId()), e);
+                            logger.error(() -> "failed to get token [" + userToken.getId() + "]", e);
                             listener.onFailure(e);
                         }
                     }),

@@ -8,6 +8,8 @@
 
 deprecated[7.15.0, The High Level REST Client is deprecated in favour of the {java-api-client}/index.html[Java API Client].]
 
+NOTE: The High Level Rest Client version 7.17 can work with {es} `8.x` with <<java-rest-high-compatibility,compatibility mode enabled>>.
+
 The Java High Level REST Client works on top of the Java Low Level REST client.
 Its main goal is to expose API specific methods, that accept request objects as
 an argument and return response objects, so that request marshalling and

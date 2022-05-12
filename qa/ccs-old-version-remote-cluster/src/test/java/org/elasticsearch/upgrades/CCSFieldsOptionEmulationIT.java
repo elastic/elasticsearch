@@ -40,6 +40,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.RestHighLevelClientBuilder;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.document.DocumentField;
@@ -89,11 +90,13 @@ public class CCSFieldsOptionEmulationIT extends AbstractCCSRestTestCase {
         final List<HttpHost> hosts = parseHosts("tests.rest.cluster");
         final int index = random().nextInt(hosts.size());
         logger.info("Using client node {}", index);
-        return new RestHighLevelClient(RestClient.builder(hosts.get(index)));
+        return new RestHighLevelClientBuilder(RestClient.builder(hosts.get(index)).build()).setApiCompatibilityMode(false).build();
     }
 
     static RestHighLevelClient newRemoteClient() {
-        return new RestHighLevelClient(RestClient.builder(randomFrom(parseHosts("tests.rest.remote_cluster"))));
+        return new RestHighLevelClientBuilder(RestClient.builder(randomFrom(parseHosts("tests.rest.remote_cluster"))).build())
+            .setApiCompatibilityMode(false)
+            .build();
     }
 
     public void testFieldsOptionEmulation() throws Exception {

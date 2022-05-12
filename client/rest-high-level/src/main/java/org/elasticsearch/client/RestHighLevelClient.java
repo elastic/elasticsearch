@@ -347,7 +347,12 @@ public class RestHighLevelClient implements Closeable {
                 .flatMap(Function.identity())
                 .collect(toList())
         );
-        if (useAPICompatibility == null && "true".equals(System.getenv(API_VERSIONING_ENV_VARIABLE))) {
+
+        // Compatibility mode is on by default, then env variable has precedence over builder setting
+        String apiVersioningEnv = System.getenv(API_VERSIONING_ENV_VARIABLE);
+        if (useAPICompatibility == null && apiVersioningEnv == null) {
+            this.useAPICompatibility = true;
+        } else if (useAPICompatibility == null && "true".equals(System.getenv(API_VERSIONING_ENV_VARIABLE))) {
             this.useAPICompatibility = true;
         } else {
             this.useAPICompatibility = Boolean.TRUE.equals(useAPICompatibility);

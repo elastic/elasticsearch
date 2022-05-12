@@ -1,0 +1,5 @@
+pr: 86740
+summary: Log warning when cache hasher not compliant in FIPS
+area: FIPS
+type: enhancement
+issues: []

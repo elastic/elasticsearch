@@ -51,6 +51,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
@@ -459,8 +460,11 @@ public class ProfileServiceTests extends ESTestCase {
         final int size = randomIntBetween(0, Integer.MAX_VALUE);
         final SuggestProfilesRequest.Hint hint = SuggestProfilesRequestTests.randomHint();
         final SuggestProfilesRequest suggestProfilesRequest = new SuggestProfilesRequest(Set.of(), name, size, hint);
+        final TaskId parentTaskId = new TaskId(randomAlphaOfLength(20), randomNonNegativeLong());
 
-        final SearchRequest searchRequest = profileService.buildSearchRequest(suggestProfilesRequest);
+        final SearchRequest searchRequest = profileService.buildSearchRequest(suggestProfilesRequest, parentTaskId);
+        assertThat(searchRequest.getParentTask(), is(parentTaskId));
+
         final SearchSourceBuilder searchSourceBuilder = searchRequest.source();
 
         assertThat(
@@ -572,7 +576,11 @@ public class ProfileServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(SearchAction.INSTANCE), any(SearchRequest.class), anyActionListener());
         final PlainActionFuture<SuggestProfilesResponse> future3 = new PlainActionFuture<>();
-        profileService.suggestProfile(new SuggestProfilesRequest(Set.of(), "", 1, null), future3);
+        profileService.suggestProfile(
+            new SuggestProfilesRequest(Set.of(), "", 1, null),
+            new TaskId(randomAlphaOfLength(20), randomNonNegativeLong()),
+            future3
+        );
         final RuntimeException e3 = expectThrows(RuntimeException.class, future3::actionGet);
         assertThat(e3, is(expectedException));
     }

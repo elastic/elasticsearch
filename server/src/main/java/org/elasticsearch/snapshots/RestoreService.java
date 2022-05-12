@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -45,6 +46,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -267,10 +269,7 @@ public class RestoreService implements ClusterStateApplier {
                 );
             }, listener::onFailure), listener::onFailure);
         } catch (Exception e) {
-            logger.warn(
-                () -> new ParameterizedMessage("[{}] failed to restore snapshot", request.repository() + ":" + request.snapshot()),
-                e
-            );
+            logger.warn(() -> "[" + request.repository() + ":" + request.snapshot() + "] failed to restore snapshot", e);
             listener.onFailure(e);
         }
     }
@@ -1060,13 +1059,11 @@ public class RestoreService implements ClusterStateApplier {
             @Override
             public void onFailure(final Exception e) {
                 cleanupInProgress = false;
-                logger.warn(() -> new ParameterizedMessage("failed to remove completed restores from cluster state"), e);
-            }
-
-            @Override
-            public void onNoLongerMaster() {
-                cleanupInProgress = false;
-                logger.debug("no longer master while removing completed restores from cluster state");
+                logger.log(
+                    MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                    "failed to remove completed restores from cluster state",
+                    e
+                );
             }
 
             @Override
@@ -1566,7 +1563,7 @@ public class RestoreService implements ClusterStateApplier {
 
         @Override
         public void onFailure(Exception e) {
-            logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot", snapshot), e);
+            logger.warn(() -> "[" + snapshot + "] failed to restore snapshot", e);
             listener.onFailure(e);
         }
 
@@ -1676,10 +1673,8 @@ public class RestoreService implements ClusterStateApplier {
                     return convertedIndexMetadataBuilder.build();
                 }
             } catch (Exception e) {
-                logger.warn(
-                    new ParameterizedMessage("could not import mappings for legacy index {}", snapshotIndexMetadata.getIndex().getName()),
-                    e
-                );
+                final var metadata = snapshotIndexMetadata;
+                logger.warn(() -> "could not import mappings for legacy index " + metadata.getIndex().getName(), e);
                 // put mapping into _meta/legacy_mappings instead without adding anything else
                 convertedIndexMetadataBuilder = IndexMetadata.builder(snapshotIndexMetadata);
 

@@ -40,7 +40,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
@@ -208,7 +207,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         if (state.blocks().disableStatePersistence()) {
             for (AllocatedIndex<? extends Shard> indexService : indicesService) {
                 // also cleans shards
-                indicesService.removeIndex(indexService.index(), NO_LONGER_ASSIGNED, "cleaning index (disabled block persistence)");
+                indicesService.removeIndex(
+                    indexService.getIndexSettings().getIndex(),
+                    NO_LONGER_ASSIGNED,
+                    "cleaning index (disabled block persistence)"
+                );
             }
             return;
         }
@@ -330,7 +333,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn(() -> new ParameterizedMessage("[{}] failed to complete pending deletion for index", index), e);
+                        logger.warn(() -> "[" + index + "] failed to complete pending deletion for index", e);
                     }
 
                     @Override
@@ -374,7 +377,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
-            final Index index = indexService.index();
+            final Index index = indexService.getIndexSettings().getIndex();
             final IndexMetadata indexMetadata = state.metadata().index(index);
             final IndexMetadata existingMetadata = indexService.getIndexSettings().getIndexMetadata();
 
@@ -521,8 +524,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
         final ClusterState state = event.state();
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
-            final Index index = indexService.index();
             final IndexMetadata currentIndexMetadata = indexService.getIndexSettings().getIndexMetadata();
+            final Index index = indexService.getIndexSettings().getIndex();
             final IndexMetadata newIndexMetadata = state.metadata().index(index);
             assert newIndexMetadata != null : "index " + index + " should have been removed by deleteIndices";
             if (ClusterChangedEvent.indexMetadataChanged(currentIndexMetadata, newIndexMetadata)) {
@@ -539,7 +542,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     reason = "mapping update failed";
                     indexService.updateMapping(currentIndexMetadata, newIndexMetadata);
                 } catch (Exception e) {
-                    indicesService.removeIndex(indexService.index(), FAILURE, "removing index (" + reason + ")");
+                    indicesService.removeIndex(index, FAILURE, "removing index (" + reason + ")");
 
                     // fail shards that would be created or updated by createOrUpdateShards
                     RoutingNode localRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
@@ -877,7 +880,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ) throws IOException;
     }
 
-    public interface AllocatedIndex<T extends Shard> extends Iterable<T>, IndexComponent {
+    public interface AllocatedIndex<T extends Shard> extends Iterable<T> {
 
         /**
          * Returns the index settings of this index.

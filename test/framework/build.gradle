@@ -10,6 +10,8 @@ import org.elasticsearch.gradle.internal.info.BuildParams;
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
+archivesBaseName = "elasticsearch-test-framework"
+
 dependencies {
   api project(":client:rest")
   api project(':modules:transport-netty4')

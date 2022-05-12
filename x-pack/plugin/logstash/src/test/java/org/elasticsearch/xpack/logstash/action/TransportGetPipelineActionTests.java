@@ -155,11 +155,13 @@ public class TransportGetPipelineActionTests extends ESTestCase {
             }
         };
 
-        new TransportGetPipelineAction(mock(TransportService.class), mock(ActionFilters.class), getMockClient(searchResponse)).doExecute(
-            null,
-            request,
-            testActionListener
-        );
+        try (Client client = getMockClient(searchResponse)) {
+            new TransportGetPipelineAction(mock(TransportService.class), mock(ActionFilters.class), client)
+                .doExecute(
+                    null,
+                    request,
+                    testActionListener);
+        }
 
         assertNull(failure.get());
     }

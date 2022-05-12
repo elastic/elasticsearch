@@ -96,10 +96,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                             clearScrollRequest,
                             ActionListener.wrap(
                                 (r) -> {},
-                                e -> logger.warn(
-                                    new ParameterizedMessage("clear scroll failed for scroll id [{}]", response.getScrollId()),
-                                    e
-                                )
+                                e -> logger.warn(() -> "clear scroll failed for scroll id [" + response.getScrollId() + "]", e)
                             )
                         );
                     }
@@ -130,60 +127,6 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                             .collect(Collectors.toMap(GetResponse::getId, GetResponse::getSourceAsBytesRef))
                     ));
             }, e -> handleFailure(e, listener)));
-        /*if (request.ids().isEmpty()) {
-            client.prepareSearch(Logstash.LOGSTASH_CONCRETE_INDEX_NAME)
-                .setSource(
-                    SearchSourceBuilder.searchSource()
-                        .fetchSource(true)
-                        .query(QueryBuilders.matchAllQuery())
-                        .size(1000)
-                        .trackTotalHits(true)
-                )
-                .setScroll(TimeValue.timeValueMinutes(1L))
-                .execute(ActionListener.wrap(searchResponse -> {
-                    final int numHits = Math.toIntExact(searchResponse.getHits().getTotalHits().value);
-                    final Map<String, BytesReference> pipelineSources = Maps.newMapWithExpectedSize(numHits);
-                    final Consumer<SearchResponse> clearScroll = (response) -> {
-                        if (response != null && response.getScrollId() != null) {
-                            ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-                            clearScrollRequest.addScrollId(response.getScrollId());
-                            client.clearScroll(
-                                clearScrollRequest,
-                                ActionListener.wrap(
-                                    (r) -> {},
-                                    e -> logger.warn(() -> "clear scroll failed for scroll id [" + response.getScrollId() + "]", e)
-                                )
-                            );
-                        }
-                    };
-                    handleSearchResponse(searchResponse, pipelineSources, clearScroll, listener);
-                }, e -> handleFailure(e, listener)));
-        } else if (request.ids().size() == 1) {
-            client.prepareGet(Logstash.LOGSTASH_CONCRETE_INDEX_NAME, request.ids().get(0))
-                .setFetchSource(true)
-                .execute(ActionListener.wrap(response -> {
-                    if (response.isExists()) {
-                        listener.onResponse(new GetPipelineResponse(Map.of(response.getId(), response.getSourceAsBytesRef())));
-                    } else {
-                        listener.onResponse(new GetPipelineResponse(Map.of()));
-                    }
-                }, e -> handleFailure(e, listener)));
-        } else {
-            client.prepareMultiGet()
-                .addIds(Logstash.LOGSTASH_CONCRETE_INDEX_NAME, request.ids())
-                .execute(ActionListener.wrap(mGetResponse -> {
-                    logFailures(mGetResponse);
-                    listener.onResponse(
-                        new GetPipelineResponse(
-                            Arrays.stream(mGetResponse.getResponses())
-                                .filter(itemResponse -> itemResponse.isFailed() == false)
-                                .filter(itemResponse -> itemResponse.getResponse().isExists())
-                                .map(MultiGetItemResponse::getResponse)
-                                .collect(Collectors.toMap(GetResponse::getId, GetResponse::getSourceAsBytesRef))
-                        )
-                    );
-                }, e -> handleFailure(e, listener)));
-        }*/
     }
 
     private void handleFailure(Exception e, ActionListener<GetPipelineResponse> listener) {

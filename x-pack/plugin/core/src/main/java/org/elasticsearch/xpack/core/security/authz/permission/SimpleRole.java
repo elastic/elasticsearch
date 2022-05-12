@@ -31,6 +31,12 @@ import java.util.function.Predicate;
 
 public class SimpleRole implements Role {
 
+    public static final Setting<Integer> CACHE_SIZE_SETTING = Setting.intSetting(
+        "xpack.security.authz.store.roles.has_privileges.cache.max_size",
+        1000,
+        Setting.Property.NodeScope
+    );
+
     private final String[] names;
     private final ClusterPermission cluster;
     private final IndicesPermission indices;
@@ -163,11 +169,6 @@ public class SimpleRole implements Role {
         return result;
     }
 
-    public static final Setting<Integer> CACHE_SIZE_SETTING = Setting.intSetting(
-        "xpack.security.authz.store.role.has_privileges.cache.max_size",
-        1000,
-        Setting.Property.NodeScope
-    );
     private final AtomicReference<Cache<PrivilegesToCheck, PrivilegesCheckResult>> hasPrivilegesCacheReference = new AtomicReference<>();
 
     public void cacheHasPrivileges(Settings settings, PrivilegesToCheck privilegesToCheck, PrivilegesCheckResult privilegesCheckResult)
@@ -194,7 +195,7 @@ public class SimpleRole implements Role {
     }
 
     // package private for testing
-    public Cache<PrivilegesToCheck, PrivilegesCheckResult> getHasPrivilegesCache() {
+    Cache<PrivilegesToCheck, PrivilegesCheckResult> getHasPrivilegesCache() {
         return hasPrivilegesCacheReference.get();
     }
 }

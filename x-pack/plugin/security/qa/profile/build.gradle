@@ -28,7 +28,7 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.domains.other_domain.realms', 'saml1,ad1'
 
   // Ensure new cache setting is recognised
-  setting 'xpack.security.authz.store.role.has_privileges.cache.max_size', '100'
+  setting 'xpack.security.authz.store.roles.has_privileges.cache.max_size', '100'
 
   requiresFeature 'es.user_profile_feature_flag_enabled', Version.fromString("8.1.0")
 

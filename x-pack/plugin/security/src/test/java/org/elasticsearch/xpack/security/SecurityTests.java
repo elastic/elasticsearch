@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
@@ -617,7 +618,15 @@ public class SecurityTests extends ESTestCase {
                     Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
                 )
             )
-            .put(RealmSettings.PREFIX + "ldap.ldap1.cache.hash_algo", "sha1")
+            .put(
+                ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey(),
+                randomFrom(
+                    Hasher.getAvailableAlgoCacheHash()
+                        .stream()
+                        .filter(alg -> alg.startsWith("pbkdf2") || alg.equals("sha1") || alg.equals("ssha256"))
+                        .collect(Collectors.toList())
+                )
+            )
             .build();
         Security.validateForFips(settings);
         // no exception thrown

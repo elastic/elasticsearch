@@ -150,7 +150,6 @@ import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -355,6 +354,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.security.authc.ApiKeyService.CACHE_HASH_ALGO_SETTING;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 
 public class Security extends Plugin
@@ -1067,7 +1067,7 @@ public class Security extends Plugin
         settingsList.add(ApiKeyService.PASSWORD_HASHING_ALGORITHM);
         settingsList.add(ApiKeyService.DELETE_TIMEOUT);
         settingsList.add(ApiKeyService.DELETE_INTERVAL);
-        settingsList.add(ApiKeyService.CACHE_HASH_ALGO_SETTING);
+        settingsList.add(CACHE_HASH_ALGO_SETTING);
         settingsList.add(ApiKeyService.CACHE_MAX_KEYS_SETTING);
         settingsList.add(ApiKeyService.CACHE_TTL_SETTING);
         settingsList.add(ApiKeyService.DOC_CACHE_TTL_SETTING);
@@ -1416,10 +1416,21 @@ public class Security extends Plugin
                     + " ] setting."
             );
         }
-        Settings cacheAlgoSettings = settings.filter(k -> k.endsWith(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SUFFIX));
-        cacheAlgoSettings.keySet()
-            .forEach((key) -> warnIfHashAlgoSettingNonFipsCompliant(key, cacheAlgoSettings.get(key).toLowerCase(Locale.ROOT)));
-        
+        Settings cacheHashAlgoSettings = settings.filter(k -> k.endsWith("cache.hash_algo"));
+        cacheHashAlgoSettings.keySet().forEach((key) -> {
+            String hashAlgoName = cacheHashAlgoSettings.get(key).toLowerCase(Locale.ROOT);
+            if (hashAlgoName.startsWith("pbkdf2") == false
+                && hashAlgoName.equals("sha1") == false
+                && hashAlgoName.equals("ssha256") == false) {
+                logger.warn(
+                    "Only PBKDF2, SHA1, or SSHA256 are secure hash functions allowed in a FIPS 140 JVM. "
+                        + "Please change the [{}] setting from [{}] to an appropriate value.",
+                    key,
+                    hashAlgoName
+                );
+            }
+        });
+
         if (validationErrors.isEmpty() == false) {
             final StringBuilder sb = new StringBuilder();
             sb.append("Validation for FIPS 140 mode failed: \n");
@@ -1428,18 +1439,6 @@ public class Security extends Plugin
                 sb.append(++index).append(": ").append(error).append(";\n");
             }
             throw new IllegalArgumentException(sb.toString());
-        }
-    }
-
-    private static void warnIfHashAlgoSettingNonFipsCompliant(String settingKey, String hashFunctionName) {
-        if (hashFunctionName.startsWith("pbkdf2") == false
-            && hashFunctionName.equals("sha1") == false
-            && hashFunctionName.equals("ssha256") == false) {
-            logger.warn(
-                "Only PBKDF2, SHA1, or SSHA256 are secure hash functions allowed in a FIPS 140 JVM. "
-                    + "Please set the appropriate value for [{}] setting.",
-                settingKey
-            );
         }
     }
 

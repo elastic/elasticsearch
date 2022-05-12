@@ -29,7 +29,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-@ESTestCase.NoSecurityManager
+@ESTestCase.WithoutSecurityManager
 public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     private String esEnforceBootstrapChecks = System.getProperty(ES_ENFORCE_BOOTSTRAP_CHECKS);

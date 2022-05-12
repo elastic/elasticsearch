@@ -361,7 +361,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ ElementType.TYPE })
     @Inherited
-    public @interface NoSecurityManager {
+    public @interface WithoutSecurityManager {
     }
 
     private static Closeable securityManagerRestorer;
@@ -370,7 +370,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void maybeStashClassSecurityManager() {
-        if (getTestClass().isAnnotationPresent(NoSecurityManager.class)) {
+        if (getTestClass().isAnnotationPresent(WithoutSecurityManager.class)) {
             securityManagerRestorer = BootstrapForTesting.disableTestSecurityManager();
         }
     }

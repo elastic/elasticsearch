@@ -16,10 +16,16 @@ public class TestUtils {
 
     public static String normalizeString(String input, File projectRootDir) {
         try {
+<<<<<<< HEAD
             String normalizedPathPrefix = projectRootDir.getCanonicalPath().replaceAll("\\\\", "/");
             System.out.println("normalizedPathPrefix = " + normalizedPathPrefix);
+=======
+            String cannonicalNormalizedPathPrefix = projectRootDir.getCanonicalPath().replace("\\", "/");
+            String normalizedPathPrefix = projectRootDir.getAbsolutePath().replace("\\", "/");
+>>>>>>> 333fe4d840c (Fix javadoc plugin func tests on windows (#86674))
             return input.lines()
-                .map(it -> it.replaceAll("\\\\", "/"))
+                .map(it -> it.replace("\\", "/"))
+                .map(it -> it.replaceAll(cannonicalNormalizedPathPrefix, "."))
                 .map(it -> it.replaceAll(normalizedPathPrefix, "."))
                 .map(it -> it.replaceAll("Gradle Test Executor \\d", "Gradle Test Executor 1"))
                 .collect(Collectors.joining("\n"));

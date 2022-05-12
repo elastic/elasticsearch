@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -103,10 +104,13 @@ public final class TransformIndex {
             request.alias(alias);
         }
 
-        client.execute(
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            TRANSFORM_ORIGIN,
+            client,
             CreateIndexAction.INSTANCE,
             request,
-            ActionListener.wrap(createIndexResponse -> { listener.onResponse(true); }, e -> {
+            ActionListener.wrap(createIndexResponse -> listener.onResponse(true), e -> {
                 String message = TransformMessages.getMessage(
                     TransformMessages.FAILED_TO_CREATE_DESTINATION_INDEX,
                     transformConfig.getDestination().getIndex(),

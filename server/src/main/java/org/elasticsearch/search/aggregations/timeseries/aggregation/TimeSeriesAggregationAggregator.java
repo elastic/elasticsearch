@@ -319,7 +319,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                 for (int i = 0; i < valuesCount; i++) {
                     double value = values.nextValue();
                     if (false == timeBucketMetrics.containsKey(preRounding)) {
-                        timeBucketMetrics.put(preRounding, downsampleFunction.getAggregatorFunction(this));
+                        timeBucketMetrics.put(preRounding, downsampleFunction.getFunction(this));
                     }
                     for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
                         Long timestamp = entry.getKey();

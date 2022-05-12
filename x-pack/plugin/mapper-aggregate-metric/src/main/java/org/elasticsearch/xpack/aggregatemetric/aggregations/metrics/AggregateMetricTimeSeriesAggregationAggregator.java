@@ -102,7 +102,7 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
                         if (false == timeBucketMetrics.containsKey(preRounding)) {
-                            timeBucketMetrics.put(preRounding, downsampleFunction.getAggregatorFunction());
+                            timeBucketMetrics.put(preRounding, downsampleFunction.getAggregatorFunction(this));
                         }
                         for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
                             Long timestamp = entry.getKey();
@@ -143,7 +143,7 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
                 }
 
                 if (false == timeBucketMetrics.containsKey(preRounding)) {
-                    timeBucketMetrics.put(preRounding, downsampleFunction.getAggregatorFunction());
+                    timeBucketMetrics.put(preRounding, downsampleFunction.getAggregatorFunction(this));
                 }
                 for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
                     Long timestamp = entry.getKey();

@@ -78,7 +78,7 @@ public class TSIDInternalAggregation extends InternalAggregation {
             TSIDInternalAggregation tsidAgg = (TSIDInternalAggregation) aggregations.get(0);
             if (reduceContext.isFinalReduce()) {
                 Function function = Function.valueOf(aggreagator);
-                final AggregatorFunction aggregatorFunction = function.getAggregatorFunction();
+                final AggregatorFunction aggregatorFunction = function.getAggregatorFunction(null);
                 tsidAgg.values.forEach(
                     (tsid, agg) -> { aggregatorFunction.collect(((InternalNumericMetricsAggregation.SingleValue) agg).value()); }
                 );
@@ -103,7 +103,7 @@ public class TSIDInternalAggregation extends InternalAggregation {
 
         if (reduceContext.isFinalReduce()) {
             Function function = Function.valueOf(aggreagator);
-            final AggregatorFunction aggregatorFunction = function.getAggregatorFunction();
+            final AggregatorFunction aggregatorFunction = function.getAggregatorFunction(null);
             reduced.forEach((tsid, aggs) -> {
                 if (aggs.size() > 0) {
                     InternalAggregation first = aggs.get(0);

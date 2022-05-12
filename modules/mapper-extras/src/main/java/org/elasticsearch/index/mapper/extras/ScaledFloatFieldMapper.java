@@ -680,6 +680,29 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 b.value(convert(value));
             }
 
+            /**
+             * Convert the scaled value back into it's {@code double} representation,
+             * attempting to undo {@code Math.round(value * scalingFactor)}. It's
+             * important that "round tripping" a value into the index, back out, and
+             * then back in yields the same index. That's important because we use
+             * the synthetic source produced by these this for reindex.
+             * <p>The tricky thing about undoing {@link Math#round} is that it
+             * "saturates" to {@link Long#MAX_VALUE} when the {@code double} that
+             * it's given is too large to fit into a {@code long}. And
+             * {@link Long#MIN_VALUE} for {@code double}s that are too small. But
+             * {@code Long.MAX_VALUE / scalingFactor} doesn't always yield a value
+             * that would saturate. In other words, sometimes:
+             * <pre>{@code
+             *   long scaled1 = Math.round(BIG * scalingFactor);
+             *   assert scaled1 == Long.MAX_VALUE;
+             *   double decoded = scaled / scalingFactory;
+             *   long scaled2 = Math.round(decoded * scalingFactor);
+             *   assert scaled2 != Long.MAX_VALUE;
+             * }</pre>
+             * We work around this by detecting such cases and artificially bumping them
+             * up by a single digit in the last place, forcing them to always saturate
+             * the {@link Math#round} call.
+             */
             private double convert(long scaledValue) {
                 if (scaledValue == Long.MAX_VALUE) {
                     double max = Long.MAX_VALUE / scalingFactor;

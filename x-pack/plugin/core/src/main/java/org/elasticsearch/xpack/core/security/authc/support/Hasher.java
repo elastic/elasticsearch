@@ -670,14 +670,10 @@ public enum Hasher {
      */
     @SuppressForbidden(reason = "This is the only allowed way to get available values")
     public static List<String> getAvailableAlgoStoredHash() {
-        return getAvailableAlgoStoredHash(false);
-    }
-
-    public static List<String> getAvailableAlgoStoredHash(boolean fipsCompliantOnly) {
         return Arrays.stream(Hasher.values())
             .map(Hasher::name)
             .map(name -> name.toLowerCase(Locale.ROOT))
-            .filter(name -> (name.startsWith("pbkdf2") || (fipsCompliantOnly == false && name.startsWith("bcrypt"))))
+            .filter(name -> name.startsWith("pbkdf2") || name.startsWith("bcrypt"))
             .collect(Collectors.toList());
     }
 
@@ -688,14 +684,10 @@ public enum Hasher {
      */
     @SuppressForbidden(reason = "This is the only allowed way to get available values")
     public static List<String> getAvailableAlgoCacheHash() {
-        return getAvailableAlgoCacheHash(false);
-    }
-
-    public static List<String> getAvailableAlgoCacheHash(boolean fipsCompliantOnly) {
         return Arrays.stream(Hasher.values())
             .map(Hasher::name)
             .map(name -> name.toLowerCase(Locale.ROOT))
-            .filter(name -> (name.equals("sha256") == false && (fipsCompliantOnly == false || name.equals("md5") == false)))
+            .filter(name -> name.equals("sha256") == false)
             .collect(Collectors.toList());
     }
 

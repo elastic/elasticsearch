@@ -151,7 +151,6 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -1417,21 +1416,10 @@ public class Security extends Plugin
                     + " ] setting."
             );
         }
-        settings.filter(k -> k.endsWith(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SUFFIX))
-            .getAsGroups()
-            .forEach((key, setting) -> {
-                final var fipsCompliantAlgorithms = Hasher.getAvailableAlgoCacheHash(true);
-                final var hashAlgoName = settings.get(key).toLowerCase(Locale.ROOT);
-                if (fipsCompliantAlgorithms.contains(hashAlgoName)) {
-                    logger.warn(
-                        "Hashing algorithm [{}] is not allowed in a FIPS 140 JVM. Please set [{}] to an appropriate value from: [{}] ",
-                        hashAlgoName,
-                        key,
-                        fipsCompliantAlgorithms
-                    );
-                }
-            });
-
+        Settings cacheAlgoSettings = settings.filter(k -> k.endsWith(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SUFFIX));
+        cacheAlgoSettings.keySet()
+            .forEach((key) -> warnIfHashAlgoSettingNonFipsCompliant(key, cacheAlgoSettings.get(key).toLowerCase(Locale.ROOT)));
+        
         if (validationErrors.isEmpty() == false) {
             final StringBuilder sb = new StringBuilder();
             sb.append("Validation for FIPS 140 mode failed: \n");
@@ -1440,6 +1428,18 @@ public class Security extends Plugin
                 sb.append(++index).append(": ").append(error).append(";\n");
             }
             throw new IllegalArgumentException(sb.toString());
+        }
+    }
+
+    private static void warnIfHashAlgoSettingNonFipsCompliant(String settingKey, String hashFunctionName) {
+        if (hashFunctionName.startsWith("pbkdf2") == false
+            && hashFunctionName.equals("sha1") == false
+            && hashFunctionName.equals("ssha256") == false) {
+            logger.warn(
+                "Only PBKDF2, SHA1, or SSHA256 are secure hash functions allowed in a FIPS 140 JVM. "
+                    + "Please set the appropriate value for [{}] setting.",
+                settingKey
+            );
         }
     }
 

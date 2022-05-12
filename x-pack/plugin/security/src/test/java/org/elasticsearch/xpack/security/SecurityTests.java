@@ -611,6 +611,13 @@ public class SecurityTests extends ESTestCase {
                     Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
                 )
             )
+            .put(
+                XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
+                randomFrom(
+                    Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
+                )
+            )
+            .put(RealmSettings.PREFIX + "ldap.ldap1.cache.hash_algo", "sha1")
             .build();
         Security.validateForFips(settings);
         // no exception thrown

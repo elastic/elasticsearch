@@ -124,7 +124,7 @@ public class XPackSettings {
     /** Setting for enabling or disabling FIPS mode. Defaults to false */
     public static final Setting<Boolean> FIPS_MODE_ENABLED = Setting.boolSetting(
         "xpack.security.fips_mode.enabled",
-        true,
+        false,
         Property.NodeScope
     );
 

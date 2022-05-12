@@ -111,7 +111,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertFalse(indexExists(PRIMARY_INDEX_NAME));
         assertTrue(indexExists(INDEX_NAME + "-2"));
 
-        // Check that a non-primary system index is not automatically assigned an alias
+        // Check that a non-primary system index is not assigned as the write index for the alias
         final GetAliasesResponse getAliasesResponse = client().admin()
             .indices()
             .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))

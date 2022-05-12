@@ -1,0 +1,6 @@
+pr: 86713
+summary: Replace the ImmutableOpenMap with Map so that the use of HPPC library is removed.
+area: Infra/Core
+type: enhancement
+issues:
+  - 86239

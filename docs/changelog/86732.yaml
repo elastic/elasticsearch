@@ -1,0 +1,5 @@
+pr: 86732
+summary: Fix audit logging to consistently include port number in `origin.address`
+area: Audit
+type: bug
+issues: []

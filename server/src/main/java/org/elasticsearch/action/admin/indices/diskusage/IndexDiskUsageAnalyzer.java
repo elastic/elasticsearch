@@ -549,13 +549,13 @@ final class IndexDiskUsageAnalyzer {
                 // do a couple of randomized searches to figure out min and max offsets of index file
                 VectorValues vectorValues = vectorReader.getVectorValues(field.name);
                 int numDocsToVisit = reader.maxDoc() < 1000 ? reader.maxDoc() : 1000 * (int) Math.log10(reader.maxDoc());
-                int skipFactor = reader.maxDoc() / numDocsToVisit;
+                int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
                 for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
                     if ((i = vectorValues.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
                         break;
                     }
                     cancellationChecker.checkForCancellation();
-                    vectorReader.search(field.name, vectorValues.vectorValue(), 1, null, 20);
+                    vectorReader.search(field.name, vectorValues.vectorValue(), 1000, null, 1000);
                 }
                 stats.addKnnVectors(field.name, directory.getBytesRead());
                 directory.resetBytesRead();

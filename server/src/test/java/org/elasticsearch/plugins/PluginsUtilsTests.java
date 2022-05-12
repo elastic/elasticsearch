@@ -9,6 +9,7 @@
 package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.jdk.JarHell;
@@ -34,9 +35,9 @@ import java.util.zip.ZipOutputStream;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
+@LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsUtilsTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testExistingPluginMissingDescriptor() throws Exception {
         Path pluginsDir = createTempDir();
         Files.createDirectory(pluginsDir.resolve("plugin-missing-descriptor"));
@@ -44,7 +45,6 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Could not load plugin descriptor for plugin directory [plugin-missing-descriptor]"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testSortBundlesCycleSelfReference() throws Exception {
         Path pluginDir = createTempDir();
         PluginInfo info = new PluginInfo(
@@ -66,7 +66,6 @@ public class PluginsUtilsTests extends ESTestCase {
         assertEquals("Cycle found in plugin dependencies: foo -> foo", e.getMessage());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testSortBundlesCycle() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginBundle> bundles = new LinkedHashSet<>(); // control iteration order, so we get know the beginning of the cycle
@@ -135,7 +134,6 @@ public class PluginsUtilsTests extends ESTestCase {
         assertEquals("Cycle found in plugin dependencies: foo -> bar -> baz -> foo", e.getMessage());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testSortBundlesSingle() throws Exception {
         Path pluginDir = createTempDir();
         PluginInfo info = new PluginInfo(
@@ -157,7 +155,6 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(sortedBundles, Matchers.contains(bundle));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testSortBundlesNoDeps() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginBundle> bundles = new LinkedHashSet<>(); // control iteration order
@@ -213,7 +210,6 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(sortedBundles, Matchers.contains(bundle1, bundle2, bundle3));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testSortBundlesMissingDep() throws Exception {
         Path pluginDir = createTempDir();
         PluginInfo info = new PluginInfo(
@@ -238,7 +234,6 @@ public class PluginsUtilsTests extends ESTestCase {
         assertEquals("Missing plugin [dne], dependency of [foo]", e.getMessage());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testSortBundlesCommonDep() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginBundle> bundles = new LinkedHashSet<>(); // control iteration order
@@ -310,7 +305,6 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(sortedBundles, Matchers.contains(bundle1, bundle4, bundle2, bundle3));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testSortBundlesAlreadyOrdered() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginBundle> bundles = new LinkedHashSet<>(); // control iteration order
@@ -395,7 +389,6 @@ public class PluginsUtilsTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testJarHellDuplicateCodebaseWithDep() throws Exception {
         Path pluginDir = createTempDir();
         Path dupJar = pluginDir.resolve("dup.jar");
@@ -425,7 +418,6 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("jar hell! duplicate codebases with extended plugin"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testJarHellDuplicateCodebaseAcrossDeps() throws Exception {
         Path pluginDir = createTempDir();
         Path pluginJar = pluginDir.resolve("plugin.jar");
@@ -461,8 +453,6 @@ public class PluginsUtilsTests extends ESTestCase {
     }
 
     // Note: testing dup codebase with core is difficult because it requires a symlink, but we have mock filesystems and security manager
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testJarHellDuplicateClassWithCore() throws Exception {
         // need a jar file of core dep, use log4j here
         Path pluginDir = createTempDir();
@@ -492,7 +482,6 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("Level"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testJarHellWhenExtendedPluginJarNotFound() throws Exception {
         Path pluginDir = createTempDir();
         Path pluginJar = pluginDir.resolve("dummy.jar");
@@ -560,7 +549,6 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testJarHellDuplicateClassAcrossDeps() throws Exception {
         Path pluginDir = createTempDir();
         Path pluginJar = pluginDir.resolve("plugin.jar");
@@ -598,7 +586,6 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("DummyClass2"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testJarHellTransitiveMap() throws Exception {
         Path pluginDir = createTempDir();
         Path pluginJar = pluginDir.resolve("plugin.jar");
@@ -633,7 +620,6 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dep1Jar.toUri().toURL(), dep2Jar.toUri().toURL()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testJarHellSpiAddedToTransitiveDeps() throws Exception {
         Path pluginDir = createTempDir();
         Path pluginJar = pluginDir.resolve("plugin.jar");
@@ -667,7 +653,6 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(transitive, containsInAnyOrder(spiJar.toUri().toURL(), depJar.toUri().toURL()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testJarHellSpiConflict() throws Exception {
         Path pluginDir = createTempDir();
         Path pluginJar = pluginDir.resolve("plugin.jar");
@@ -705,7 +690,6 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testIncompatibleElasticsearchVersion() throws Exception {
         PluginInfo info = new PluginInfo(
             "my_plugin",
@@ -744,7 +728,6 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("my_plugin requires Java"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86761")
     public void testFindPluginDirs() throws IOException {
         final Path plugins = createTempDir();
 

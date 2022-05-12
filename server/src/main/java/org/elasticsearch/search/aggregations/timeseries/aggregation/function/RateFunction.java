@@ -130,7 +130,7 @@ public class RateFunction implements AggregatorFunction<TimePoint, Double> {
         }
         resultValue = resultValue * (extrapolateToInterval / sampledInterval);
         if (isRate) {
-            resultValue = resultValue / range;
+            resultValue = resultValue / (range / 1000);
         }
 
         return resultValue;

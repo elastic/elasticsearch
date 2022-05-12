@@ -299,7 +299,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                             logger.trace("notifying [{}] of new cluster info", listener);
                             listener.accept(clusterInfo);
                         } catch (Exception e) {
-                            logger.info(new ParameterizedMessage("failed to notify [{}] of new cluster info", listener), e);
+                            logger.info(() -> "failed to notify [" + listener + "] of new cluster info", e);
                         }
                     }
                     assert anyListeners : "expected to notify at least one listener";

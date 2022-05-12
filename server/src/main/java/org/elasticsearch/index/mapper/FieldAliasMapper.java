@@ -156,4 +156,9 @@ public final class FieldAliasMapper extends Mapper {
             return new FieldAliasMapper(name, fullName, path);
         }
     }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
+    }
 }

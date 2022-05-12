@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.ingest.DeletePipelineAction;
@@ -116,7 +115,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             try {
                 client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest(pipeline)).actionGet();
             } catch (Exception ex) {
-                logger.warn(() -> new ParameterizedMessage("error cleaning up pipeline [{}]", pipeline), ex);
+                logger.warn(() -> "error cleaning up pipeline [" + pipeline + "]", ex);
             }
         }
     }
@@ -165,7 +164,6 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         assertThat(isResetMode(), is(false));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/2258")
     public void testMLFeatureResetWithModelDeployment() throws Exception {
         createModelDeployment();
         client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();

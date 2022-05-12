@@ -1645,6 +1645,16 @@ public abstract class ESRestTestCase extends ESTestCase {
         return (Map<String, Object>) ((Map<String, Object>) indexSettings.get(index)).get("settings");
     }
 
+    protected static Map<String, Object> getIndexMapping(String index) throws IOException {
+        return entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_mapping")));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected Map<String, Object> getIndexMappingAsMap(String index) throws IOException {
+        Map<String, Object> indexSettings = getIndexMapping(index);
+        return (Map<String, Object>) ((Map<String, Object>) indexSettings.get(index)).get("mappings");
+    }
+
     protected static boolean indexExists(String index) throws IOException {
         Response response = client().performRequest(new Request("HEAD", "/" + index));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();

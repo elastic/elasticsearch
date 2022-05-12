@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper.extras;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
@@ -387,6 +386,20 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
             private double round(double d) {
                 long encoded = Math.round(d * scalingFactor);
+                if (encoded == Long.MAX_VALUE) {
+                    double max = Long.MAX_VALUE / scalingFactor;
+                    if (max * scalingFactor != Long.MAX_VALUE) {
+                        return max + Math.ulp(max);
+                    }
+                    return max;
+                }
+                if (encoded == Long.MIN_VALUE) {
+                    double min = Long.MIN_VALUE / scalingFactor;
+                    if (min * scalingFactor != Long.MIN_VALUE) {
+                        return min - Math.ulp(min);
+                    }
+                    return min;
+                }
                 return encoded / scalingFactor;
             }
 
@@ -425,11 +438,5 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
-    }
-
-    @Override
-    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
-        throws IOException {
-        // Intentionally disabled because it doesn't work yet
     }
 }

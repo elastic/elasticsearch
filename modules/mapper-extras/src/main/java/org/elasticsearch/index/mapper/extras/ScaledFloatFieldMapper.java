@@ -677,7 +677,29 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         return new NumberFieldMapper.NumericSyntheticFieldLoader(name(), simpleName()) {
             @Override
             protected void loadNextValue(XContentBuilder b, long value) throws IOException {
-                b.value(value / scalingFactor);
+                b.value(convert(value));
+            }
+
+            private double convert(long scaledValue) {
+                if (scaledValue == Long.MAX_VALUE) {
+                    double max = Long.MAX_VALUE / scalingFactor;
+                    if (Math.round(max * scalingFactor) != Long.MAX_VALUE) {
+                        double v = max + Math.ulp(max);
+                        assert Math.round(v * scalingFactor) == Long.MAX_VALUE;
+                        return v;
+                    }
+                    return max;
+                }
+                if (scaledValue == Long.MIN_VALUE) {
+                    double min = Long.MIN_VALUE / scalingFactor;
+                    if (Math.round(min * scalingFactor) != Long.MIN_VALUE) {
+                        double v = min - Math.ulp(min);
+                        assert Math.round(v * scalingFactor) == Long.MIN_VALUE;
+                        return v;
+                    }
+                    return min;
+                }
+                return scaledValue / scalingFactor;
             }
         };
     }

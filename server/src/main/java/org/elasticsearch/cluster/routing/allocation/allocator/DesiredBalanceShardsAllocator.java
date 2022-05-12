@@ -72,33 +72,35 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.desiredBalanceService = new DesiredBalanceService(delegateAllocator);
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
-            boolean hasSkippedReroutes = false;
+            volatile long appliedRoutingTableVersion = -1;
 
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
                 boolean shouldReroute = desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh);
                 boolean isFreshInput = isFresh(desiredBalanceInput);
+                long routingTableVersion = desiredBalanceInput.routingAllocation().routingTable().version();
 
-                logger.info("Processing [{}], shouldReroute={}, isFreshInput={}", desiredBalanceInput.index(), shouldReroute, isFreshInput);
-
-                if (shouldReroute && isFreshInput == false) {
-                    hasSkippedReroutes = true;
-                }
+                logger.info(
+                    "Processing [{}], shouldReroute={}, isFreshInput={}, version={}",
+                    desiredBalanceInput.index(),
+                    shouldReroute,
+                    isFreshInput,
+                    routingTableVersion
+                );
 
                 if (isFreshInput) {
                     pendingReroute = true;
-                    if (shouldReroute || hasSkippedReroutes) {
-                        hasSkippedReroutes = false;
+                    if (appliedRoutingTableVersion < routingTableVersion) {
                         logger.info("Performing reroute for [{}]", desiredBalanceInput.index());
                         rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, new ActionListener<>() {
                             @Override
                             public void onResponse(ClusterState clusterState) {
                                 // TODO assert in a system context
-                                pendingReroute = false;
-
-                                Collection<ActionListener<Void>> listeners = pollListeners(desiredBalanceInput.index());
+                                var listeners = pollListeners(desiredBalanceInput.index());
                                 logger.info("Executing {} listeners for [{}] after reroute", listeners.size(), desiredBalanceInput.index());
                                 ActionListener.onResponse(listeners, null);
+                                appliedRoutingTableVersion = routingTableVersion;
+                                pendingReroute = false;
                             }
 
                             @Override
@@ -108,7 +110,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                             }
                         });
                     } else {
-                        Collection<ActionListener<Void>> listeners = pollListeners(desiredBalanceInput.index());
+                        var listeners = pollListeners(desiredBalanceInput.index());
                         logger.info("Executing {} listeners for [{}] after no changes", listeners.size(), desiredBalanceInput.index());
                         ActionListener.onResponse(listeners, null);
                     }

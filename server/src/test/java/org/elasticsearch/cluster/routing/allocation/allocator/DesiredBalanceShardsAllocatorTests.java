@@ -341,9 +341,11 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
     public void testConcurrency() throws Exception {
 
         var discoveryNode = createDiscoveryNode();
-        var state = new AtomicReference<>(ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).masterNodeId(discoveryNode.getId()))
-            .build());
+        var state = new AtomicReference<>(
+            ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).masterNodeId(discoveryNode.getId()))
+                .build()
+        );
 
         var createdIndices = new CopyOnWriteArraySet<String>();
         var allocatedIndices = new CopyOnWriteArraySet<String>();
@@ -401,10 +403,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             if (addNewIndex) {
                 var indexName = "index-" + indexNameGenerator.incrementAndGet();
                 var indexMetadata = createIndex(indexName);
-                state.getAndUpdate(clusterState -> ClusterState.builder(clusterState)
-                    .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadata, true))
-                    .routingTable(RoutingTable.builder(clusterState.routingTable()).addAsNew(indexMetadata))
-                    .build());
+                state.getAndUpdate(
+                    clusterState -> ClusterState.builder(clusterState)
+                        .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadata, true))
+                        .routingTable(RoutingTable.builder(clusterState.routingTable()).addAsNew(indexMetadata).incrementVersion())
+                        .build()
+                );
                 createdIndices.add(indexName);
             }
             var indexName = "index-" + indexNameGenerator;

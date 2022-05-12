@@ -632,31 +632,53 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testValidateForFipsLogsWarnOnNonCompliantHashAlgo() throws IllegalAccessException {
+        String key = ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey();
         final Settings settings = Settings.builder()
-            .put(
-                randomFrom(ApiKeyService.CACHE_HASH_ALGO_SETTING).getKey(),
-                randomFrom(
-                    Hasher.getAvailableAlgoCacheHash()
-                        .stream()
-                        .filter(alg -> (alg.startsWith("pbkdf2") || alg.equals("sha1") || alg.equals("ssha256")) == false)
-                        .collect(Collectors.toList())
-                )
-            )
+            .put(key, randomFrom(nonCompliantHashAlgos()))
             .build();
+        assertWarningLogsForValidateForFips(settings, List.of(nonCompliantHashAlgoLogExpectation(key)));
+    }
+
+    public void testValidateForFipsLogsMultipleWarnsOnNonCompliantHashAlgos() throws IllegalAccessException {
+        String firstKey = ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey();
+        String secondKey = "xpack.other.cache.hash_algo";
+        final Settings settings = Settings.builder()
+            .put(firstKey, randomFrom(nonCompliantHashAlgos()))
+            .put(secondKey, randomFrom(nonCompliantHashAlgos()))
+            .build();
+        assertWarningLogsForValidateForFips(
+            settings,
+            List.of(nonCompliantHashAlgoLogExpectation(firstKey), nonCompliantHashAlgoLogExpectation(secondKey))
+        );
+    }
+
+    private List<String> nonCompliantHashAlgos() {
+        return Hasher.getAvailableAlgoCacheHash()
+            .stream()
+            .filter(alg -> (alg.startsWith("pbkdf2") || alg.equals("sha1") || alg.equals("ssha256")) == false)
+            .collect(Collectors.toList());
+    }
+
+    private MockLogAppender.SeenEventExpectation nonCompliantHashAlgoLogExpectation(String settingKey) {
+        return new MockLogAppender.SeenEventExpectation(
+            "hash algo not compliant",
+            Security.class.getName(),
+            Level.WARN,
+            "Only PBKDF2, SHA1, or SSHA256 are secure hash functions allowed in a FIPS 140 JVM. "
+                + "Please change the ["
+                + settingKey
+                + "] setting from [*] to an appropriate value."
+        );
+    }
+
+    private void assertWarningLogsForValidateForFips(Settings settings, List<MockLogAppender.SeenEventExpectation> loggingExpectations)
+        throws IllegalAccessException {
         final MockLogAppender mockAppender = new MockLogAppender();
         final Logger logger = LogManager.getLogger(Security.class);
         mockAppender.start();
         try {
             Loggers.addAppender(logger, mockAppender);
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "hash algo not compliant",
-                    Security.class.getName(),
-                    Level.WARN,
-                    "Only PBKDF2, SHA1, or SSHA256 are secure hash functions allowed in a FIPS 140 JVM. "
-                        + "Please change the [*] setting from [*] to an appropriate value."
-                )
-            );
+            loggingExpectations.forEach(mockAppender::addExpectation);
             Security.validateForFips(settings);
             mockAppender.assertAllExpectationsMatched();
         } finally {

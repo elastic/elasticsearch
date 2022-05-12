@@ -76,6 +76,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     static final int MAX_SOURCE_LENGTH_IN_TOSTRING = 2048;
 
+    /**
+     * Maximal allowed length (in bytes) of the document ID.
+     */
+    public static final int MAX_DOCUMENT_ID_LENGTH_IN_BYTES = 512;
+
     private static final ShardId NO_SHARD_ID = null;
 
     private String id;
@@ -218,9 +223,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
-        if (id != null && id.getBytes(StandardCharsets.UTF_8).length > 512) {
+        if (id != null && id.getBytes(StandardCharsets.UTF_8).length > MAX_DOCUMENT_ID_LENGTH_IN_BYTES) {
             validationException = addValidationError(
-                "id [" + id + "] is too long, must be no longer than 512 bytes but was: " + id.getBytes(StandardCharsets.UTF_8).length,
+                "id ["
+                    + id
+                    + "] is too long, must be no longer than "
+                    + MAX_DOCUMENT_ID_LENGTH_IN_BYTES
+                    + " bytes but was: "
+                    + id.getBytes(StandardCharsets.UTF_8).length,
                 validationException
             );
         }
@@ -381,7 +391,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Sets the document source to index.
      *
-     * Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
+     * Note, its preferable to either set it using {@link #source(org.elasticsearch.xcontent.XContentBuilder)}
      * or using the {@link #source(byte[], XContentType)}.
      */
     public IndexRequest source(String source, XContentType xContentType) {

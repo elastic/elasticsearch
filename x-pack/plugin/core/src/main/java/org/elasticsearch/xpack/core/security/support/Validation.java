@@ -17,10 +17,11 @@ import java.util.regex.Pattern;
 
 public final class Validation {
 
-    static final int MIN_NAME_LENGTH = 1;
-    static final int MAX_NAME_LENGTH = 1024;
+    public static final int MIN_NAME_LENGTH = 1;
 
-    static final Set<Character> VALID_NAME_CHARS = Set.of(
+    public static final int DEFAULT_MAX_NAME_LENGTH = 507;
+
+    public static final Set<Character> VALID_NAME_CHARS = Set.of(
         ' ',
         '!',
         '"',
@@ -120,9 +121,7 @@ public final class Validation {
 
     private static final String INVALID_NAME_MESSAGE = "%1s names must be at least "
         + MIN_NAME_LENGTH
-        + " and no more than "
-        + MAX_NAME_LENGTH
-        + " characters. "
+        + " and no more than %s characters. "
         + "They can contain alphanumeric characters (a-z, A-Z, 0-9), spaces, punctuation, and printable symbols in the "
         + "Basic Latin (ASCII) block. Leading or trailing whitespace is not allowed.";
 
@@ -132,8 +131,12 @@ public final class Validation {
         + "and at most 256 characters that are alphanumeric (A-Z, a-z, 0-9) or hyphen (-) or underscore (_). "
         + "It must not begin with an underscore (_).";
 
-    private static boolean isValidUserOrRoleName(String name) {
-        if (name.length() < MIN_NAME_LENGTH || name.length() > MAX_NAME_LENGTH) {
+    private static boolean isValidUserOrRoleName(String name, int maxLength) {
+        if (maxLength < MIN_NAME_LENGTH) {
+            throw new IllegalArgumentException("maxLength cannot be less than " + MIN_NAME_LENGTH);
+        }
+
+        if (name.length() < MIN_NAME_LENGTH || name.length() > maxLength) {
             return false;
         }
 
@@ -175,16 +178,21 @@ public final class Validation {
          * @param username the username to validate
          * @param allowReserved whether or not to allow reserved user names
          * @param settings the settings which may contain information about reserved users
+         * @param maxLength the maximal allowed length a username can have
          * @return {@code null} if valid
          */
-        public static Error validateUsername(String username, boolean allowReserved, Settings settings) {
-            if (isValidUserOrRoleName(username) == false) {
-                return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "User"));
+        public static Error validateUsername(String username, boolean allowReserved, Settings settings, int maxLength) {
+            if (isValidUserOrRoleName(username, maxLength) == false) {
+                return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "User", maxLength));
             }
             if (allowReserved == false && ClientReservedRealm.isReserved(username, settings)) {
                 return new Error("Username [" + username + "] is reserved and may not be used.");
             }
             return null;
+        }
+
+        public static Error validateUsername(String username, boolean allowReserved, Settings settings) {
+            return validateUsername(username, allowReserved, settings, DEFAULT_MAX_NAME_LENGTH);
         }
 
         public static Error validatePassword(SecureString password) {
@@ -198,12 +206,20 @@ public final class Validation {
     public static final class Roles {
 
         public static Error validateRoleName(String roleName) {
-            return validateRoleName(roleName, false);
+            return validateRoleName(roleName, DEFAULT_MAX_NAME_LENGTH);
+        }
+
+        public static Error validateRoleName(String roleName, int maxLength) {
+            return validateRoleName(roleName, false, maxLength);
         }
 
         public static Error validateRoleName(String roleName, boolean allowReserved) {
-            if (isValidUserOrRoleName(roleName) == false) {
-                return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "Role"));
+            return validateRoleName(roleName, allowReserved, DEFAULT_MAX_NAME_LENGTH);
+        }
+
+        public static Error validateRoleName(String roleName, boolean allowReserved, int maxLength) {
+            if (isValidUserOrRoleName(roleName, maxLength) == false) {
+                return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "Role", maxLength));
             }
             if (allowReserved == false && ReservedRolesStore.isReserved(roleName)) {
                 return new Error("Role [" + roleName + "] is reserved and may not be used.");

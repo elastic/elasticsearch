@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
+import org.elasticsearch.xpack.security.authc.file.FileRealmValidationUtil;
 import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
 import org.elasticsearch.xpack.security.authc.file.FileUserRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -104,7 +105,7 @@ class UsersTool extends MultiCommand {
 
             String username = parseUsername(arguments.values(options), env.settings());
             final boolean allowReserved = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(env.settings()) == false;
-            Validation.Error validationError = Users.validateUsername(username, allowReserved, env.settings());
+            Validation.Error validationError = FileRealmValidationUtil.validateUsername(username, allowReserved, env.settings());
             if (validationError != null) {
                 throw new UserException(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
             }
@@ -441,7 +442,7 @@ class UsersTool extends MultiCommand {
         }
         String username = args.get(0);
         final boolean allowReserved = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings) == false;
-        Validation.Error validationError = Users.validateUsername(username, allowReserved, settings);
+        Validation.Error validationError = FileRealmValidationUtil.validateUsername(username, allowReserved, settings);
         if (validationError != null) {
             throw new UserException(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
         }
@@ -519,7 +520,7 @@ class UsersTool extends MultiCommand {
         }
         String[] roles = rolesStr.split(",");
         for (String role : roles) {
-            Validation.Error validationError = Validation.Roles.validateRoleName(role, true);
+            Validation.Error validationError = FileRealmValidationUtil.validateRoleName(role, true);
             if (validationError != null) {
                 throw new UserException(ExitCodes.DATA_ERROR, "Invalid role [" + role + "]... " + validationError);
             }

@@ -134,7 +134,7 @@ public class ValidationTests extends ESTestCase {
     );
 
     public void testUsernameValid() throws Exception {
-        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.DEFAULT_MAX_NAME_LENGTH);
         String name = new String(generateValidName(length));
         assertThat(Users.validateUsername(name, false, Settings.EMPTY), nullValue());
     }
@@ -147,7 +147,7 @@ public class ValidationTests extends ESTestCase {
     }
 
     public void testUsernameInvalidLength() throws Exception {
-        int length = frequently() ? randomIntBetween(Validation.MAX_NAME_LENGTH + 1, 2048) : 0;
+        int length = frequently() ? randomIntBetween(Validation.DEFAULT_MAX_NAME_LENGTH + 1, 2048) : 0;
         char[] name = new char[length];
         if (length > 0) {
             name = generateValidName(length);
@@ -156,13 +156,13 @@ public class ValidationTests extends ESTestCase {
     }
 
     public void testUsernameInvalidCharacters() throws Exception {
-        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.DEFAULT_MAX_NAME_LENGTH);
         String name = new String(generateNameInvalidCharacters(length));
         assertThat(Users.validateUsername(name, false, Settings.EMPTY), notNullValue());
     }
 
     public void testUsernameInvalidWhitespace() throws Exception {
-        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.DEFAULT_MAX_NAME_LENGTH);
         String name = new String(generateNameInvalidWhitespace(length));
         assertThat(Users.validateUsername(name, false, Settings.EMPTY), notNullValue());
     }
@@ -178,7 +178,7 @@ public class ValidationTests extends ESTestCase {
     }
 
     public void testRoleNameValid() throws Exception {
-        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.DEFAULT_MAX_NAME_LENGTH);
         String name = new String(generateValidName(length));
         assertThat(Roles.validateRoleName(name), nullValue());
     }
@@ -194,7 +194,7 @@ public class ValidationTests extends ESTestCase {
     }
 
     public void testRoleNameInvalidLength() throws Exception {
-        int length = frequently() ? randomIntBetween(Validation.MAX_NAME_LENGTH + 1, 2048) : 0;
+        int length = frequently() ? randomIntBetween(Validation.DEFAULT_MAX_NAME_LENGTH + 1, 2048) : 0;
         char[] name = new char[length];
         if (length > 0) {
             name = generateValidName(length);
@@ -203,13 +203,13 @@ public class ValidationTests extends ESTestCase {
     }
 
     public void testRoleNameInvalidCharacters() throws Exception {
-        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.DEFAULT_MAX_NAME_LENGTH);
         String name = new String(generateNameInvalidCharacters(length));
         assertThat(Roles.validateRoleName(name, false), notNullValue());
     }
 
     public void testRoleNameInvalidWhitespace() throws Exception {
-        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.DEFAULT_MAX_NAME_LENGTH);
         String name = new String(generateNameInvalidWhitespace(length));
         assertThat(Roles.validateRoleName(name, false), notNullValue());
     }

@@ -141,7 +141,7 @@ public class FileUserRolesStore {
                 continue;
             }
             String role = line.substring(0, i).trim();
-            Validation.Error validationError = Validation.Roles.validateRoleName(role, true);
+            Validation.Error validationError = FileRealmValidationUtil.validateRoleName(role, true);
             if (validationError != null) {
                 logger.error(
                     "invalid role entry in users_roles file [{}], line [{}] - {}. skipping...",

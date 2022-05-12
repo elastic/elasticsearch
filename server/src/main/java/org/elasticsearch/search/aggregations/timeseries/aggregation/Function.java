@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfuncti
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.ValueCountBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AvgFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.function.IRateFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.LastFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.MaxFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.MinFunction;
@@ -127,6 +128,18 @@ public enum Function {
         @Override
         public AggregatorFunction<?, ?> getFunction(TimeSeriesAggregationAggregator aggregator) {
             return new RateFunction(aggregator.downsampleRange, aggregator.preRounding, true, false);
+        }
+    },
+    irate {
+        @Override
+        public AggregatorFunction<?, ?> getFunction(TimeSeriesAggregationAggregator aggregator) {
+            return new IRateFunction(true);
+        }
+    },
+    idelta {
+        @Override
+        public AggregatorFunction<?, ?> getFunction(TimeSeriesAggregationAggregator aggregator) {
+            return new IRateFunction(true);
         }
     };
 

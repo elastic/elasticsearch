@@ -219,6 +219,7 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.InternalTime
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregationAggregationBuilder;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.Last;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TSIDInternalAggregation;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesIRate;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesRate;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -679,6 +680,7 @@ public class SearchModule {
                     .addResultReader(Last.NAME, Last::new)
                     .addResultReader(TSIDInternalAggregation.NAME, TSIDInternalAggregation::new)
                     .addResultReader(TimeSeriesRate.NAME, TimeSeriesRate::new)
+                    .addResultReader(TimeSeriesIRate.NAME, TimeSeriesIRate::new)
                     .setAggregatorRegistrar(TimeSeriesAggregationAggregationBuilder::registerAggregators),
                 builder
             );

@@ -71,8 +71,8 @@ public class TimeSeriesRate extends InternalNumericMetricsAggregation.SingleValu
         timestamp = in.readLong();
         isCounter = in.readBoolean();
         isRate = in.readBoolean();
-        lastSample = new TimePoint(in);
-        firstSample = new TimePoint(in);
+        lastSample = in.readOptionalWriteable(TimePoint::new);
+        firstSample = in.readOptionalWriteable(TimePoint::new);
         count = in.readLong();
         totalRevertValue = in.readDouble();
     }
@@ -84,8 +84,8 @@ public class TimeSeriesRate extends InternalNumericMetricsAggregation.SingleValu
         out.writeLong(timestamp);
         out.writeBoolean(isCounter);
         out.writeBoolean(isRate);
-        lastSample.writeTo(out);
-        firstSample.writeTo(out);
+        out.writeOptionalWriteable(lastSample);
+        out.writeOptionalWriteable(firstSample);
         out.writeLong(count);
         out.writeDouble(totalRevertValue);
     }
@@ -123,10 +123,12 @@ public class TimeSeriesRate extends InternalNumericMetricsAggregation.SingleValu
         }
 
         List<TimeSeriesRate> timeSeriesRates = aggregations.stream().map(c -> (TimeSeriesRate) c).sorted().collect(Collectors.toList());
-
         TimeSeriesRate reduced = timeSeriesRates.get(0);
         for (int i = 1; i < timeSeriesRates.size(); i++) {
             TimeSeriesRate timeSeriesRate = timeSeriesRates.get(i);
+            if (timeSeriesRate.count == 0) {
+                continue;
+            }
             reduced.count += timeSeriesRate.count;
             reduced.lastSample = timeSeriesRate.lastSample;
             reduced.totalRevertValue += timeSeriesRate.totalRevertValue;
@@ -176,6 +178,14 @@ public class TimeSeriesRate extends InternalNumericMetricsAggregation.SingleValu
 
     @Override
     public int compareTo(TimeSeriesRate o) {
-        return firstSample.compareTo(o.firstSample);
+        if (firstSample == null && o.firstSample == null) {
+            return 0;
+        } else if (firstSample == null) {
+            return -1;
+        } else if (o.firstSample == null) {
+            return 1;
+        } else {
+            return firstSample.compareTo(o.firstSample);
+        }
     }
 }

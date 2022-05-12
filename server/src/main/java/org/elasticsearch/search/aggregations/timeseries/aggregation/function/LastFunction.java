@@ -32,6 +32,6 @@ public class LastFunction implements AggregatorFunction<TimePoint, Double> {
 
     @Override
     public InternalAggregation getAggregation(DocValueFormat formatter, Map<String, Object> metadata) {
-        return new Last("last", point.getValue(), point.getTimestamp(), formatter, metadata);
+        return new Last(Last.NAME, point.getValue(), point.getTimestamp(), formatter, metadata);
     }
 }

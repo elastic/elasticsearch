@@ -50,9 +50,7 @@ final class Spawner implements Closeable {
         closeables.addAll(pumpThreads.stream().map(t -> (Closeable) () -> {
             try {
                 t.join(); // wait for thread to complete now that the spawned process is destroyed
-            } catch (InterruptedException e) {
-                throw new AssertionError(e); // we don't interrupt these threads
-            }
+            } catch (InterruptedException e) { /* best effort, ignore*/ }
         }).toList());
         IOUtils.close(closeables);
     }
@@ -110,7 +108,7 @@ final class Spawner implements Closeable {
                     logger.warn(line);
                 }
             } catch (IOException e) {
-                logger.error("Error while pumping " + streamName + " for " + componentName + " controller", e);
+                logger.error(e);
             }
         }, loggerName + "-pump");
         t.start();
@@ -142,10 +140,6 @@ final class Spawner implements Closeable {
         // the only environment variable passes on the path to the temporary directory
         pb.environment().clear();
         pb.environment().put("TMPDIR", tmpPath.toString());
-
-
-        pb.redirectOutput(ProcessBuilder.Redirect.PIPE);
-        pb.redirectError(ProcessBuilder.Redirect.PIPE);
 
         // the output stream of the process object corresponds to the daemon's stdin
         return pb.start();

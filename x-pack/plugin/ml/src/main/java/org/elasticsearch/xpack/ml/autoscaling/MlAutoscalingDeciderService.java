@@ -135,10 +135,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
     static OptionalLong getNodeJvmSize(DiscoveryNode node) {
         Map<String, String> nodeAttributes = node.getAttributes();
-        OptionalLong value = OptionalLong.empty();
         String valueStr = nodeAttributes.get(MachineLearning.MAX_JVM_SIZE_NODE_ATTR);
         try {
-            value = OptionalLong.of(Long.parseLong(valueStr));
+            return OptionalLong.of(Long.parseLong(valueStr));
         } catch (NumberFormatException e) {
             assert e == null : "ml.max_jvm_size should parse because we set it internally: invalid value was " + valueStr;
             logger.debug(
@@ -147,7 +146,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 MachineLearning.MAX_JVM_SIZE_NODE_ATTR
             );
         }
-        return value;
+        return OptionalLong.empty();
     }
 
     static List<DiscoveryNode> getMlNodes(final ClusterState clusterState) {
@@ -329,6 +328,14 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         return scaleDownDetected == NO_SCALE_DOWN_POSSIBLE;
     }
 
+    /**
+     * The "current scale" is defined as the possible capacity of the current cluster, not
+     * the sum of what's actually in use.
+     * @return A {@link NativeMemoryCapacity} object where the "tier requirement" is the sum of
+     *         the ML native memory allowance (less per-node overhead) on all ML nodes, the
+     *         "node requirement" is the highest ML native memory allowance (less per-node overhead)
+     *         across all ML nodes and the JVM size is the biggest JVM size across all ML nodes.
+     */
     public static NativeMemoryCapacity currentScale(
         final List<DiscoveryNode> machineLearningNodes,
         int maxMachineMemoryPercent,
@@ -346,8 +353,8 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             // We assume that JVM size is universal, at least, the largest JVM indicates the largest node
             machineLearningNodes.stream()
                 .map(MlAutoscalingDeciderService::getNodeJvmSize)
-                .mapToLong(l -> l.orElse(0L))
-                .boxed()
+                .filter(OptionalLong::isPresent)
+                .map(OptionalLong::getAsLong)
                 .max(Long::compare)
                 .orElse(null)
         );
@@ -801,6 +808,25 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         );
     }
 
+    /**
+     * @param numAnomalyJobsInQueue How many anomaly detection jobs (including model snapshot upgrades)
+     *                              are permitted to queue for space to become available by other jobs
+     *                              completing?
+     * @param numAnalyticsJobsInQueue How many data frame analytics jobs are permitted to queue for space
+     *                                to become available by other jobs completing?
+     * @param nodeLoads Node loads on ML nodes in the current cluster.
+     * @param waitingAnomalyJobs Job IDs of waiting anomaly detection jobs.
+     * @param waitingSnapshotUpgrades Job IDs of waiting model snapshot upgrades.
+     * @param waitingAnalyticsJobs Job IDs of waiting data frame analytics jobs.
+     * @param waitingAllocatedModels IDs of waiting trained models that require a native process.
+     * @param futureFreedCapacity Optionally, the combination of free memory and memory used by
+     *                            jobs that are expected to terminate after completing a batch
+     *                            analysis.
+     * @param currentScale The current total ML <em>allowance</em> irrespective of what's in use.
+     *                     It is <em>not</em> space already used or free space.
+     * @param reasonBuilder Used to build the reason attached to any scaling decision that is made.
+     * @return The scale up decision, or {@link Optional#empty} if no decision is made.
+     */
     Optional<AutoscalingDeciderResult> checkForScaleUp(
         int numAnomalyJobsInQueue,
         int numAnalyticsJobsInQueue,
@@ -866,7 +892,52 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 return Optional.empty();
             }
 
-            NativeMemoryCapacity updatedCapacity = NativeMemoryCapacity.from(currentScale)
+            // We don't have enough information to get a perfect answer here. Even though there
+            // are jobs that cannot be assigned, there is likely some free memory on the current
+            // nodes. If we don't consider it then we can scale up a level too far. For example,
+            // suppose we're currently on a 1GB node with a 21MB job running and a 970MB job waiting.
+            // If we scale up to a 2GB node then both will fit. But if we don't consider the free
+            // memory on the 1GB node then we'll scale up to 4GB, then later scale back down to 2GB.
+            // However, there's a complication. Assigning jobs is in reality a bin-packing problem
+            // but we're modelling it as a simple summation problem. If we had 970MB of free space
+            // spread over multiple existing nodes then we very well might need to scale up to fit
+            // a 970MB job, but subtracting the current free memory from the requirement would lead
+            // to us not scaling up at all. We don't have enough control to solve this correctly,
+            // but a heuristic that's better than doing nothing is to at least consider the amount
+            // of free space on the current node with the most free space and subtract that from the
+            // requirement. In our example with the 21MB and 970MB jobs on the 1GB node, we'll then
+            // correctly scale to 2GB. The more nodes in the cluster the worse the heuristic will do
+            // but it won't ever be worse than doing nothing, many clusters only have a small number
+            // of ML nodes, and by the time we get to large nodes the scaling steps are big anyway
+            // so we are less likely to incorrectly skip a level due to this problem.
+            long maxFreeNodeMemAfterPossibleAssignments = modelCapacityAndNewLoad.v2()
+                .stream()
+                .filter(nodeLoad -> nodeLoad.getError() == null && nodeLoad.isUseMemory())
+                .map(NodeLoad::getFreeMemoryExcludingPerNodeOverhead)
+                .max(Long::compareTo)
+                .orElse(0L);
+            logger.info("TEMP - REMOVE! maxFreeNodeMemAfterPossibleAssignments: " + maxFreeNodeMemAfterPossibleAssignments);
+            if (maxFreeNodeMemAfterPossibleAssignments > currentScale.getNodeMlNativeMemoryRequirementExcludingOverhead()
+                || maxFreeNodeMemAfterPossibleAssignments > currentScale.getTierMlNativeMemoryRequirementExcludingOverhead()) {
+                assert false
+                    : "highest free node memory after possible assignments ["
+                        + maxFreeNodeMemAfterPossibleAssignments
+                        + "] greater than current scale ["
+                        + currentScale
+                        + "]";
+                // If we get here in production it means there's a bug somewhere else, but it's
+                // better to scale in the pre-8.3 way than not scale at all if this happens
+                logger.warn(
+                    "Highest free node memory after possible assignments ["
+                        + maxFreeNodeMemAfterPossibleAssignments
+                        + "] greater than current scale ["
+                        + currentScale
+                        + "] - will scale up without considering current free memory"
+                );
+                maxFreeNodeMemAfterPossibleAssignments = 0;
+            }
+
+            NativeMemoryCapacity updatedCapacity = new NativeMemoryCapacity(-maxFreeNodeMemAfterPossibleAssignments, 0).merge(currentScale)
                 .merge(analyticsCapacityAndNewLoad.v1())
                 .merge(anomalyCapacityAndNewLoad.v1())
                 .merge(modelCapacityAndNewLoad.v1());

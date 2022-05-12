@@ -13,7 +13,8 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.PluginBundle;
+import org.elasticsearch.plugins.PluginsUtils;
 
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -89,8 +90,8 @@ public class RemovePluginAction {
     private void ensurePluginsNotUsedByOtherPlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
         // First make sure nothing extends this plugin
         final Map<String, List<String>> usedBy = new HashMap<>();
-        Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(env.pluginsFile());
-        for (PluginsService.Bundle bundle : bundles) {
+        Set<PluginBundle> bundles = PluginsUtils.getPluginBundles(env.pluginsFile());
+        for (PluginBundle bundle : bundles) {
             for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
                 for (PluginDescriptor plugin : plugins) {
                     String pluginId = plugin.getId();

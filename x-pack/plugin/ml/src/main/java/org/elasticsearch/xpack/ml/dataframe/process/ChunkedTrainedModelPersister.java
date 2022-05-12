@@ -159,11 +159,9 @@ public class ChunkedTrainedModelPersister {
         // Latch is attached to this action as it is the last one to execute.
         ActionListener<RefreshResponse> refreshListener = new LatchedActionListener<>(ActionListener.wrap(refreshed -> {
             if (refreshed != null) {
-                LOGGER.debug(() -> new ParameterizedMessage("[{}] refreshed inference index after model store", analytics.getId()));
+                LOGGER.debug(() -> "[" + analytics.getId() + "] refreshed inference index after model store");
             }
-        }, e -> LOGGER.warn(new ParameterizedMessage("[{}] failed to refresh inference index after model store", analytics.getId()), e)),
-            latch
-        );
+        }, e -> LOGGER.warn(() -> "[" + analytics.getId() + "] failed to refresh inference index after model store", e)), latch);
 
         // First, store the model and refresh is necessary
         ActionListener<Void> storeListener = ActionListener.wrap(r -> {
@@ -214,16 +212,9 @@ public class ChunkedTrainedModelPersister {
         // Latch is attached to this action as it is the last one to execute.
         ActionListener<RefreshResponse> refreshListener = new LatchedActionListener<>(ActionListener.wrap(refreshed -> {
             if (refreshed != null) {
-                LOGGER.debug(
-                    () -> new ParameterizedMessage("[{}] refreshed inference index after model metadata store", analytics.getId())
-                );
+                LOGGER.debug(() -> "[" + analytics.getId() + "] refreshed inference index after model metadata store");
             }
-        },
-            e -> LOGGER.warn(
-                new ParameterizedMessage("[{}] failed to refresh inference index after model metadata store", analytics.getId()),
-                e
-            )
-        ), latch);
+        }, e -> LOGGER.warn(() -> "[" + analytics.getId() + "] failed to refresh inference index after model metadata store", e)), latch);
 
         // First, store the model and refresh is necessary
         ActionListener<Void> storeListener = ActionListener.wrap(r -> {

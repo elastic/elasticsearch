@@ -1,0 +1,5 @@
+pr: 86729
+summary: "[8.2][Transform] workaound exception on CCS"
+area: Transform
+type: bug
+issues: []

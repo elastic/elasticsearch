@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -181,7 +180,7 @@ public class AutodetectResultProcessor {
                     bulkAnnotationsPersister.executeRequest();
                 }
             } catch (Exception e) {
-                LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
+                LOGGER.warn(() -> "[" + jobId + "] Error persisting autodetect results", e);
             }
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, currentRunBucketCount);
 
@@ -200,7 +199,7 @@ public class AutodetectResultProcessor {
             } else {
                 // We should only get here if the iterator throws in which
                 // case parsing the autodetect output has failed.
-                LOGGER.error(new ParameterizedMessage("[{}] error parsing autodetect output", jobId), e);
+                LOGGER.error(() -> "[" + jobId + "] error parsing autodetect output", e);
             }
         } finally {
             flushListener.clear();
@@ -224,7 +223,7 @@ public class AutodetectResultProcessor {
                     if (isAlive() == false) {
                         throw e;
                     }
-                    LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
+                    LOGGER.warn(() -> "[" + jobId + "] Error processing autodetect result", e);
                 }
             }
         } finally {
@@ -257,7 +256,7 @@ public class AutodetectResultProcessor {
                 bulkResultsPersister.executeRequest();
             }
         } catch (Exception ex) {
-            LOGGER.warn(new ParameterizedMessage("[{}] failure setting running forecasts to failed.", jobId), ex);
+            LOGGER.warn(() -> "[" + jobId + "] failure setting running forecasts to failed.", ex);
         }
     }
 

@@ -16,6 +16,7 @@ import javax.inject.Inject;
 
 public class InternalTestArtifactBasePlugin implements Plugin<Project> {
     private final ProviderFactory providerFactory;
+
     @Inject
     public InternalTestArtifactBasePlugin(ProviderFactory providerFactory) {
         this.providerFactory = providerFactory;

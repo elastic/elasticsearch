@@ -16,7 +16,7 @@ jobs:
       issues: write
     steps:
       - name: Label issues
-        uses: andymckay/labeler@e6c4322d0397f3240f0e7e30a33b5c5df2d39e90
+        uses: nontoother/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
         with:
           add-labels: "mswe265,enhancement"
           repo-token: ${{ secrets.GITHUB_TOKEN }}

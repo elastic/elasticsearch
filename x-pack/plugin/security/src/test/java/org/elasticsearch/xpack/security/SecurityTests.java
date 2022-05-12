@@ -628,15 +628,13 @@ public class SecurityTests extends ESTestCase {
                 )
             )
             .build();
-        assertNoExceptionsOrWarningsForValidateForFips(settings);
+        runAndAssertOnLogEvents(() -> Security.validateForFips(settings), Collections.emptyList());
     }
 
     public void testValidateForFipsLogsWarnOnNonCompliantHashAlgo() throws IllegalAccessException {
         String key = ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey();
-        final Settings settings = Settings.builder()
-            .put(key, randomFrom(nonCompliantHashAlgos()))
-            .build();
-        assertWarningLogsForValidateForFips(settings, List.of(nonCompliantHashAlgoLogExpectation(key)));
+        final Settings settings = Settings.builder().put(key, randomFrom(nonCompliantHashAlgos())).build();
+        runAndAssertOnLogEvents(() -> Security.validateForFips(settings), List.of(nonCompliantHashAlgoLogExpectation(key)));
     }
 
     public void testValidateForFipsLogsMultipleWarnsOnNonCompliantHashAlgos() throws IllegalAccessException {
@@ -646,10 +644,24 @@ public class SecurityTests extends ESTestCase {
             .put(firstKey, randomFrom(nonCompliantHashAlgos()))
             .put(secondKey, randomFrom(nonCompliantHashAlgos()))
             .build();
-        assertWarningLogsForValidateForFips(
-            settings,
+        runAndAssertOnLogEvents(
+            () -> Security.validateForFips(settings),
             List.of(nonCompliantHashAlgoLogExpectation(firstKey), nonCompliantHashAlgoLogExpectation(secondKey))
         );
+    }
+
+    public void testValidateForFipsLogsWarnsAndThrowsOnInvalidSettings() throws IllegalAccessException {
+        String firstKey = ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey();
+        String secondKey = "xpack.other.cache.hash_algo";
+        final Settings settings = Settings.builder()
+            .put(firstKey, randomFrom(nonCompliantHashAlgos()))
+            .put(secondKey, randomFrom(nonCompliantHashAlgos()))
+            .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")
+            .build();
+        runAndAssertOnLogEvents(() -> {
+            final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
+            assertThat(iae.getMessage(), containsString("JKS Keystores cannot be used in a FIPS 140 compliant JVM"));
+        }, List.of(nonCompliantHashAlgoLogExpectation(firstKey), nonCompliantHashAlgoLogExpectation(secondKey)));
     }
 
     private List<String> nonCompliantHashAlgos() {
@@ -671,7 +683,7 @@ public class SecurityTests extends ESTestCase {
         );
     }
 
-    private void assertWarningLogsForValidateForFips(Settings settings, List<MockLogAppender.SeenEventExpectation> loggingExpectations)
+    private void runAndAssertOnLogEvents(Runnable block, List<MockLogAppender.SeenEventExpectation> loggingExpectations)
         throws IllegalAccessException {
         final MockLogAppender mockAppender = new MockLogAppender();
         final Logger logger = LogManager.getLogger(Security.class);
@@ -679,7 +691,7 @@ public class SecurityTests extends ESTestCase {
         try {
             Loggers.addAppender(logger, mockAppender);
             loggingExpectations.forEach(mockAppender::addExpectation);
-            Security.validateForFips(settings);
+            block.run();
             mockAppender.assertAllExpectationsMatched();
         } finally {
             Loggers.removeAppender(logger, mockAppender);
@@ -689,22 +701,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testValidateForFipsNoErrorsForDefaultSettings() throws IllegalAccessException {
         final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true).build();
-        assertNoExceptionsOrWarningsForValidateForFips(settings);
-    }
-
-    private void assertNoExceptionsOrWarningsForValidateForFips(Settings settings) throws IllegalAccessException {
-        final MockLogAppender mockAppender = new MockLogAppender();
-        final Logger logger = LogManager.getLogger(Security.class);
-        mockAppender.start();
-        try {
-            Loggers.addAppender(logger, mockAppender);
-            Security.validateForFips(settings);
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, mockAppender);
-            mockAppender.stop();
-        }
-        // no exception thrown
+        runAndAssertOnLogEvents(() -> Security.validateForFips(settings), Collections.emptyList());
     }
 
     public void testLicenseUpdateFailureHandlerUpdate() throws Exception {

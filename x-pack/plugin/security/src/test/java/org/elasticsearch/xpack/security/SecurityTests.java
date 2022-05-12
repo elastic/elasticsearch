@@ -634,7 +634,7 @@ public class SecurityTests extends ESTestCase {
     public void testValidateForFipsNonFipsCompliantHashAlgoWarningLog() throws IllegalAccessException {
         String key = ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey();
         final Settings settings = Settings.builder().put(key, randomNonFipsCompliantHashAlgo()).build();
-        runAndAssertOnLogEvents(() -> Security.validateForFips(settings), List.of(nonCompliantHashAlgoLogExpectation(key)));
+        runAndAssertOnLogEvents(() -> Security.validateForFips(settings), List.of(nonFipsCompliantHashLog(key)));
     }
 
     public void testValidateForMultipleNonFipsCompliantHashAlgoWarningLogs() throws IllegalAccessException {
@@ -646,7 +646,7 @@ public class SecurityTests extends ESTestCase {
             .build();
         runAndAssertOnLogEvents(
             () -> Security.validateForFips(settings),
-            List.of(nonCompliantHashAlgoLogExpectation(firstKey), nonCompliantHashAlgoLogExpectation(secondKey))
+            List.of(nonFipsCompliantHashLog(firstKey), nonFipsCompliantHashLog(secondKey))
         );
     }
 
@@ -661,7 +661,7 @@ public class SecurityTests extends ESTestCase {
         runAndAssertOnLogEvents(() -> {
             final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
             assertThat(iae.getMessage(), containsString("JKS Keystores cannot be used in a FIPS 140 compliant JVM"));
-        }, List.of(nonCompliantHashAlgoLogExpectation(firstKey), nonCompliantHashAlgoLogExpectation(secondKey)));
+        }, List.of(nonFipsCompliantHashLog(firstKey), nonFipsCompliantHashLog(secondKey)));
     }
 
     private String randomNonFipsCompliantHashAlgo() {
@@ -673,7 +673,7 @@ public class SecurityTests extends ESTestCase {
         );
     }
 
-    private MockLogAppender.SeenEventExpectation nonCompliantHashAlgoLogExpectation(String settingKey) {
+    private MockLogAppender.SeenEventExpectation nonFipsCompliantHashLog(String settingKey) {
         return new MockLogAppender.SeenEventExpectation(
             "hash algo not fips compliant",
             Security.class.getName(),

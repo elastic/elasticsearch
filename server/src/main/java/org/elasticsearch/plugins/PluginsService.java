@@ -262,7 +262,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
         for (PluginBundle bundle : sortedBundles) {
             if (bundle.plugin.getType() != PluginType.BOOTSTRAP) {
-                checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
+                PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
                 loadBundle(bundle, loaded);
             }
         }
@@ -362,69 +362,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private static <T> String extensionConstructorMessage(Class<? extends T> extensionClass, Class<T> extensionPointType) {
         return "constructor for extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]";
-    }
-
-    // jar-hell check the bundle against the parent classloader and extended plugins
-    // the plugin cli does it, but we do it again, in case users mess with jar files manually
-    public static void checkBundleJarHell(Set<URL> systemLoaderURLs, PluginBundle bundle, Map<String, Set<URL>> transitiveUrls) {
-        // invariant: any plugins this plugin bundle extends have already been added to transitiveUrls
-        List<String> exts = bundle.plugin.getExtendedPlugins();
-
-        try {
-            final Logger logger = LogManager.getLogger(JarHell.class);
-            Set<URL> extendedPluginUrls = new HashSet<>();
-            for (String extendedPlugin : exts) {
-                Set<URL> pluginUrls = transitiveUrls.get(extendedPlugin);
-                assert pluginUrls != null : "transitive urls should have already been set for " + extendedPlugin;
-
-                // consistency check: extended plugins should not have duplicate codebases with each other
-                Set<URL> intersection = new HashSet<>(extendedPluginUrls);
-                intersection.retainAll(pluginUrls);
-                if (intersection.isEmpty() == false) {
-                    throw new IllegalStateException(
-                        "jar hell! extended plugins " + exts + " have duplicate codebases with each other: " + intersection
-                    );
-                }
-
-                // jar hell check: extended plugins (so far) do not have jar hell with each other
-                extendedPluginUrls.addAll(pluginUrls);
-                JarHell.checkJarHell(extendedPluginUrls, logger::debug);
-
-                // consistency check: each extended plugin should not have duplicate codebases with implementation+spi of this plugin
-                intersection = new HashSet<>(bundle.allUrls);
-                intersection.retainAll(pluginUrls);
-                if (intersection.isEmpty() == false) {
-                    throw new IllegalStateException(
-                        "jar hell! duplicate codebases with extended plugin [" + extendedPlugin + "]: " + intersection
-                    );
-                }
-
-                // jar hell check: extended plugins (so far) do not have jar hell with implementation+spi of this plugin
-                Set<URL> implementation = new HashSet<>(bundle.allUrls);
-                implementation.addAll(extendedPluginUrls);
-                JarHell.checkJarHell(implementation, logger::debug);
-            }
-
-            // Set transitive urls for other plugins to extend this plugin. Note that jarhell has already been checked above.
-            // This uses the extension urls (spi if set) since the implementation will not be in the transitive classpath at runtime.
-            extendedPluginUrls.addAll(bundle.getExtensionUrls());
-            transitiveUrls.put(bundle.plugin.getName(), extendedPluginUrls);
-
-            // check we don't have conflicting codebases with core
-            Set<URL> intersection = new HashSet<>(systemLoaderURLs);
-            intersection.retainAll(bundle.allUrls);
-            if (intersection.isEmpty() == false) {
-                throw new IllegalStateException("jar hell! duplicate codebases between plugin and core: " + intersection);
-            }
-            // check we don't have conflicting classes
-            Set<URL> union = new HashSet<>(systemLoaderURLs);
-            union.addAll(bundle.allUrls);
-            JarHell.checkJarHell(union, logger::debug);
-        } catch (final IllegalStateException ise) {
-            throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " due to jar hell", ise);
-        } catch (final Exception e) {
-            throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " while checking for jar hell", e);
-        }
     }
 
     private Plugin loadBundle(PluginBundle bundle, Map<String, LoadedPlugin> loaded) {

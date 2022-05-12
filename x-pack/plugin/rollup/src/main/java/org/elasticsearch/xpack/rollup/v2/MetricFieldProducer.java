@@ -214,7 +214,7 @@ abstract class MetricFieldProducer {
                     metricValues.put(metric.name, metric.get());
                 }
             }
-            return metricValues;
+            return Collections.unmodifiableMap(metricValues);
         }
     }
 

@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
@@ -130,7 +131,7 @@ class RollupShardIndexer {
             timeSeriesSearcher.search(new MatchAllDocsQuery(), bucketCollector);
             bucketCollector.postCollection();
         }
-        // TODO: check that numIndexed == numSent, otherwise throw an exception
+
         logger.info(
             "Shard {} successfully sent [{}], indexed [{}], failed [{}]",
             indexShard.shardId(),
@@ -138,6 +139,12 @@ class RollupShardIndexer {
             numIndexed.get(),
             numFailed.get()
         );
+
+        if (numIndexed.get() != numSent.get()) {
+            throw new ElasticsearchException(
+                "Failed to index all rollup documents. Sent [" + numSent.get() + "], indexed [" + numIndexed.get() + "]."
+            );
+        }
         return numIndexed.get();
     }
 

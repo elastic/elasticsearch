@@ -11,6 +11,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -149,6 +150,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         // 5. Add rollup index to data stream
         // 7. Delete the source index
         // 8. Mark rollup index as "completed successfully"
+        // 9. Refresh rollup index
         // At any point if there is an issue, delete the rollup index
 
         // 1. Extract rollup config from source index field caps
@@ -454,8 +456,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                // Rollup finished successfully
-                listener.onResponse(AcknowledgedResponse.TRUE);
+                // 9. Refresh rollup index
+                refreshIndex(rollupIndex, listener);
             }
 
             @Override
@@ -463,6 +465,18 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 listener.onFailure(new ElasticsearchException("Failed to finalize the rollup state for index [" + rollupIndex + "]", e));
             }
         });
+    }
+
+    private void refreshIndex(String index, ActionListener<AcknowledgedResponse> listener) {
+        client.admin()
+            .indices()
+            .refresh(
+                new RefreshRequest(index),
+                ActionListener.wrap(
+                    refreshResponse -> listener.onResponse(AcknowledgedResponse.TRUE),
+                    e -> listener.onFailure(new ElasticsearchException("Failed to refresh index [" + index + "]", e))
+                )
+            );
     }
 
     private void deleteSourceIndex(final String sourceIndex, final String rollupIndex, ActionListener<AcknowledgedResponse> listener) {

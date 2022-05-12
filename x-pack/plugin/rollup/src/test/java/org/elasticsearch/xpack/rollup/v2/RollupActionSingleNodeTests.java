@@ -382,7 +382,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         AcknowledgedResponse response = client().execute(RollupAction.INSTANCE, new RollupAction.Request(sourceIndex, rollupIndex, config))
             .actionGet();
         assertTrue(response.isAcknowledged());
-        client().admin().indices().prepareRefresh(rollupIndex).get();
     }
 
     private RolloverResponse rollover(String dataStreamName) throws ExecutionException, InterruptedException {

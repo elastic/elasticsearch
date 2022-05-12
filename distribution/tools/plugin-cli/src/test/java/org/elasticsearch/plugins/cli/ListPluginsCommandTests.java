@@ -14,6 +14,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -26,7 +27,12 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.equalTo;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class ListPluginsCommandTests extends CommandTestCase {
@@ -43,7 +49,7 @@ public class ListPluginsCommandTests extends CommandTestCase {
     }
 
     private static String buildMultiline(String... args) {
-        return Arrays.stream(args).collect(Collectors.joining("\n", "", "\n"));
+        return Arrays.stream(args).collect(Collectors.joining(System.lineSeparator(), "", System.lineSeparator()));
     }
 
     private static void buildFakePlugin(final Environment env, final String description, final String name, final String classname)
@@ -225,32 +231,23 @@ public class ListPluginsCommandTests extends CommandTestCase {
 
         execute();
         String message = "plugin [fake_plugin1] was built for Elasticsearch version 1.0.0 but version " + Version.CURRENT + " is required";
-        assertEquals("""
-            fake_plugin1
-            fake_plugin2
-            """, terminal.getOutput());
-        assertEquals("WARNING: " + message + "\n", terminal.getErrorOutput());
+        assertThat(terminal.getOutput().lines().toList(), equalTo(List.of("fake_plugin1", "fake_plugin2")));
+        assertThat(terminal.getErrorOutput(), containsString("WARNING: " + message));
 
         terminal.reset();
         execute("-s");
-        assertEquals("""
-            fake_plugin1
-            fake_plugin2
-            """, terminal.getOutput());
+        assertThat(terminal.getOutput().lines().toList(), equalTo(List.of("fake_plugin1", "fake_plugin2")));
+        assertThat(terminal.getErrorOutput(), emptyString());
     }
 
     @Override
     protected Command newCommand() {
         return new ListPluginsCommand() {
             @Override
-            protected Environment createEnv(OptionSet options) {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) {
                 return env;
             }
 
-            @Override
-            protected boolean addShutdownHook() {
-                return false;
-            }
         };
     }
 }

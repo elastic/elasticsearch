@@ -87,6 +87,34 @@ public class ProfileIT extends ESRestTestCase {
         assertThat(profile1, equalTo(activateProfileMap));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testProfileHasPrivileges() throws IOException {
+        final Map<String, Object> activateProfileMap = doActivateProfile();
+        final String profileUid = (String) activateProfileMap.get("uid");
+        final Request profileHasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
+        profileHasPrivilegesRequest.setJsonEntity("""
+            {
+              "uids": ["some_missing_profile", "%s"],
+              "privileges": {
+                "index": [
+                  {
+                    "names": [ "rac_index_1" ],
+                    "privileges": [ "read" ]
+                  }
+                ],
+                "cluster": [
+                  "cluster:monitor/health"
+                ]
+              }
+            }""".formatted(profileUid));
+
+        final Response profileHasPrivilegesResponse = adminClient().performRequest(profileHasPrivilegesRequest);
+        assertOK(profileHasPrivilegesResponse);
+        Map<String, Object> profileHasPrivilegesResponseMap = responseAsMap(profileHasPrivilegesResponse);
+        assertThat(profileHasPrivilegesResponseMap.keySet(), contains("has_privilege_uids"));
+        assertThat(((List<String>) profileHasPrivilegesResponseMap.get("has_privilege_uids")), contains(profileUid));
+    }
+
     public void testGetProfile() throws IOException {
         final String uid = randomAlphaOfLength(20);
         final String source = SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, Instant.now().toEpochMilli());

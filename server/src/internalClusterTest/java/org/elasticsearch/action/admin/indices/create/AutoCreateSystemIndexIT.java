@@ -104,7 +104,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         assertThat(response.aliases().get(INDEX_NAME + "-2").get(0), equalTo(AliasMetadata.builder(INDEX_NAME).isHidden(true).build()));
     }
 
-    public void testAutoCreateSystemIndicesAllowsWriteToAlias() throws Exception {
+    public void testWriteToAliasPrimaryAutoCreatedFirst() throws Exception {
         {
             CreateIndexRequest request = new CreateIndexRequest(PRIMARY_INDEX_NAME);
             client().execute(AutoCreateAction.INSTANCE, request).get();
@@ -112,6 +112,25 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         {
             CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME + "-2");
+            client().execute(AutoCreateAction.INSTANCE, request).get();
+        }
+
+        IndexResponse response = client().prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
+        assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+    }
+
+    /**
+     * Like {@link #testWriteToAliasPrimaryAutoCreatedFirst()}, but with indices created in the opposite order
+     * @throws Exception
+     */
+    public void testWriteToAliasSecondaryAutoCreatedFirst() throws Exception {
+        {
+            CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME + "-2");
+            client().execute(AutoCreateAction.INSTANCE, request).get();
+        }
+
+        {
+            CreateIndexRequest request = new CreateIndexRequest(PRIMARY_INDEX_NAME);
             client().execute(AutoCreateAction.INSTANCE, request).get();
         }
 

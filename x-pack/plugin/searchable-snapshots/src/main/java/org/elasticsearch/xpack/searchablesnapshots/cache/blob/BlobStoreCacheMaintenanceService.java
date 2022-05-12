@@ -390,10 +390,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
         @Override
         public void onFailure(Exception e) {
-            logger.warn(
-                () -> new ParameterizedMessage("snapshot blob cache maintenance task failed for cluster state update [{}]", event.source()),
-                e
-            );
+            logger.warn(() -> "snapshot blob cache maintenance task failed for cluster state update [" + event.source() + "]", e);
         }
     }
 

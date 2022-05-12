@@ -241,7 +241,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         ActionListener<Void> notifyDeploymentOfStopped = ActionListener.wrap(
             _void -> updateStoredState(task.getModelId(), new RoutingStateAndReason(RoutingState.STOPPED, reason), listener),
             failed -> { // if we failed to stop the process, something strange is going on, but we should still notify of stop
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to stop due to error", task.getModelId()), failed);
+                logger.warn(() -> "[" + task.getModelId() + "] failed to stop due to error", failed);
                 updateStoredState(task.getModelId(), new RoutingStateAndReason(RoutingState.STOPPED, reason), listener);
             }
         );
@@ -260,10 +260,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                 } else {
                     // this is an unexpected error
                     // TODO this means requests may still be routed here, should we not stop deployment?
-                    logger.warn(
-                        () -> new ParameterizedMessage("[{}] failed to set routing state to stopping due to error", task.getModelId()),
-                        e
-                    );
+                    logger.warn(() -> "[" + task.getModelId() + "] failed to set routing state to stopping due to error", e);
                 }
                 stopDeploymentAsync(task, reason, notifyDeploymentOfStopped);
             })
@@ -343,11 +340,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                             task,
                             NODE_NO_LONGER_REFERENCED,
                             ActionListener.wrap(
-                                r -> logger.trace(() -> new ParameterizedMessage("[{}] stopped deployment", task.getModelId())),
-                                e -> logger.warn(
-                                    () -> new ParameterizedMessage("[{}] failed to fully stop deployment", task.getModelId()),
-                                    e
-                                )
+                                r -> logger.trace(() -> "[" + task.getModelId() + "] stopped deployment"),
+                                e -> logger.warn(() -> "[" + task.getModelId() + "] failed to fully stop deployment", e)
                             )
                         );
                     }
@@ -363,8 +357,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     t,
                     ASSIGNMENT_NO_LONGER_EXISTS,
                     ActionListener.wrap(
-                        r -> logger.trace(() -> new ParameterizedMessage("[{}] stopped deployment", t.getModelId())),
-                        e -> logger.warn(() -> new ParameterizedMessage("[{}] failed to fully stop deployment", t.getModelId()), e)
+                        r -> logger.trace(() -> "[" + t.getModelId() + "] stopped deployment"),
+                        e -> logger.warn(() -> "[" + t.getModelId() + "] failed to fully stop deployment", e)
                     )
                 );
             }
@@ -457,7 +451,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     }
 
     private void handleLoadFailure(TrainedModelDeploymentTask task, Exception ex) {
-        logger.error(() -> new ParameterizedMessage("[{}] model failed to load", task.getModelId()), ex);
+        logger.error(() -> "[" + task.getModelId() + "] model failed to load", ex);
         if (task.isStopped()) {
             logger.debug(
                 () -> new ParameterizedMessage(

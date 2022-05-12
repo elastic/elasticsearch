@@ -269,10 +269,7 @@ public class RestoreService implements ClusterStateApplier {
                 );
             }, listener::onFailure), listener::onFailure);
         } catch (Exception e) {
-            logger.warn(
-                () -> new ParameterizedMessage("[{}] failed to restore snapshot", request.repository() + ":" + request.snapshot()),
-                e
-            );
+            logger.warn(() -> "[" + request.repository() + ":" + request.snapshot() + "] failed to restore snapshot", e);
             listener.onFailure(e);
         }
     }
@@ -1676,10 +1673,8 @@ public class RestoreService implements ClusterStateApplier {
                     return convertedIndexMetadataBuilder.build();
                 }
             } catch (Exception e) {
-                logger.warn(
-                    new ParameterizedMessage("could not import mappings for legacy index {}", snapshotIndexMetadata.getIndex().getName()),
-                    e
-                );
+                final var metadata = snapshotIndexMetadata;
+                logger.warn(() -> "could not import mappings for legacy index " + metadata.getIndex().getName(), e);
                 // put mapping into _meta/legacy_mappings instead without adding anything else
                 convertedIndexMetadataBuilder = IndexMetadata.builder(snapshotIndexMetadata);
 

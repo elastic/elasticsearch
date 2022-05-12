@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -49,7 +48,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -1526,7 +1524,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 dataStream.validate(indices::get);
             }
 
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams, dataStreamAliases));
+            this.customs.put(
+                DataStreamMetadata.TYPE,
+                new DataStreamMetadata(
+                    ImmutableOpenMap.<String, DataStream>builder().putAllFromMap(dataStreams).build(),
+                    ImmutableOpenMap.<String, DataStreamAlias>builder().putAllFromMap(dataStreamAliases).build()
+                )
+            );
             return this;
         }
 
@@ -1550,92 +1554,30 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
             previousIndicesLookup = null;
-
-            final DataStreamMetadata dataStreamMetadata = dataStreamMetadata();
-            Map<String, DataStream> existingDataStreams = dataStreamMetadata.dataStreams();
-            Map<String, DataStreamAlias> dataStreamAliases = new HashMap<>(dataStreamMetadata.getDataStreamAliases());
-            if (existingDataStreams.containsKey(dataStream) == false) {
-                throw new IllegalArgumentException("alias [" + aliasName + "] refers to a non existing data stream [" + dataStream + "]");
+            final DataStreamMetadata existing = dataStreamMetadata();
+            final DataStreamMetadata updated = existing.withAlias(aliasName, dataStream, isWriteDataStream, filter);
+            if (existing == updated) {
+                return false;
             }
-
-            Map<String, Object> filterAsMap;
-            if (filter != null) {
-                filterAsMap = XContentHelper.convertToMap(XContentFactory.xContent(filter), filter, true);
-            } else {
-                filterAsMap = null;
-            }
-
-            DataStreamAlias alias = dataStreamAliases.get(aliasName);
-            if (alias == null) {
-                String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStream : null;
-                alias = new DataStreamAlias(aliasName, List.of(dataStream), writeDataStream, filterAsMap);
-            } else {
-                DataStreamAlias copy = alias.update(dataStream, isWriteDataStream, filterAsMap);
-                if (copy == alias) {
-                    return false;
-                }
-                alias = copy;
-            }
-            dataStreamAliases.put(aliasName, alias);
-
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams, dataStreamAliases));
+            this.customs.put(DataStreamMetadata.TYPE, updated);
             return true;
         }
 
         public Builder removeDataStream(String name) {
             previousIndicesLookup = null;
-
-            final DataStreamMetadata dataStreamMetadata = dataStreamMetadata();
-            Map<String, DataStream> existingDataStreams = new HashMap<>(dataStreamMetadata.dataStreams());
-            Map<String, DataStreamAlias> existingDataStreamAliases = new HashMap<>(dataStreamMetadata.getDataStreamAliases());
-            existingDataStreams.remove(name);
-
-            Set<String> aliasesToDelete = new HashSet<>();
-            List<DataStreamAlias> aliasesToUpdate = new ArrayList<>();
-            for (var alias : existingDataStreamAliases.values()) {
-                DataStreamAlias copy = alias.removeDataStream(name);
-                if (copy != null) {
-                    if (copy == alias) {
-                        continue;
-                    }
-                    aliasesToUpdate.add(copy);
-                } else {
-                    aliasesToDelete.add(alias.getName());
-                }
-            }
-            for (DataStreamAlias alias : aliasesToUpdate) {
-                existingDataStreamAliases.put(alias.getName(), alias);
-            }
-            for (String aliasToDelete : aliasesToDelete) {
-                existingDataStreamAliases.remove(aliasToDelete);
-            }
-
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams, existingDataStreamAliases));
+            this.customs.put(DataStreamMetadata.TYPE, dataStreamMetadata().withRemovedDataStream(name));
             return this;
         }
 
         public boolean removeDataStreamAlias(String aliasName, String dataStreamName, boolean mustExist) {
             previousIndicesLookup = null;
 
-            final DataStreamMetadata dataStreamMetadata = dataStreamMetadata();
-            Map<String, DataStreamAlias> dataStreamAliases = new HashMap<>(dataStreamMetadata.getDataStreamAliases());
-
-            DataStreamAlias existing = dataStreamAliases.get(aliasName);
-            if (mustExist && existing == null) {
-                throw new ResourceNotFoundException("alias [" + aliasName + "] doesn't exist");
-            } else if (existing == null) {
+            final DataStreamMetadata existing = dataStreamMetadata();
+            final DataStreamMetadata updated = existing.withRemovedAlias(aliasName, dataStreamName, mustExist);
+            if (existing == updated) {
                 return false;
             }
-            DataStreamAlias copy = existing.removeDataStream(dataStreamName);
-            if (copy == existing) {
-                return false;
-            }
-            if (copy != null) {
-                dataStreamAliases.put(aliasName, copy);
-            } else {
-                dataStreamAliases.remove(aliasName);
-            }
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreamMetadata.dataStreams(), dataStreamAliases));
+            this.customs.put(DataStreamMetadata.TYPE, updated);
             return true;
         }
 

@@ -1,0 +1,6 @@
+pr: 86580
+summary: Correctly calculate disk usage for frozen data tier telemetry
+area: Stats
+type: bug
+issues:
+ - 86055

@@ -521,7 +521,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
                         @Override
                         public void handleException(TransportException exp) {
-                            logger.debug(new ParameterizedMessage("failed [{}]", thisTask), exp);
+                            logger.debug(() -> "failed [" + thisTask + "]", exp);
                             fail(exp);
                             onWorkerCompletion();
                         }
@@ -639,7 +639,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                     )
                 );
             } else {
-                logger.debug(new ParameterizedMessage("analysis of repository [{}] failed", request.repositoryName), exception);
+                logger.debug(() -> "analysis of repository [" + request.repositoryName + "] failed", exception);
                 listener.onFailure(
                     new RepositoryVerificationException(
                         request.getRepositoryName(),

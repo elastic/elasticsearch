@@ -580,7 +580,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
             .addAggregation(
                 timeSeriesAggregation("by_ts").field("metric_0")
                     .interval(fixedInterval)
-                    .downsample(fixedInterval, Function.irate)
+                    .downsample(fixedInterval, Function.sum)
                     .size(data.size())
             )
             .get();

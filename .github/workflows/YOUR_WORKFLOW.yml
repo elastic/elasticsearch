@@ -1,0 +1,22 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+name: Label issues
+on:
+  issues:
+    types:
+      - reopened
+      - opened
+jobs:
+  label_issues:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Label issues
+        uses: andymckay/labeler@e6c4322d0397f3240f0e7e30a33b5c5df2d39e90
+        with:
+          add-labels: "mswe265,enhancement"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}

@@ -77,7 +77,9 @@ public class SearchStatesIT extends AbstractCCSRestTestCase {
     }
 
     protected static RestHighLevelClient newRemoteClient() {
-        return new RestHighLevelClient(RestClient.builder(randomFrom(parseHosts("tests.rest.remote_cluster"))));
+        return new RestHighLevelClientBuilder(RestClient.builder(randomFrom(parseHosts("tests.rest.remote_cluster"))).build())
+            .setApiCompatibilityMode(false)
+            .build();
     }
 
     static int indexDocs(RestHighLevelClient client, String index, int numDocs) throws IOException {

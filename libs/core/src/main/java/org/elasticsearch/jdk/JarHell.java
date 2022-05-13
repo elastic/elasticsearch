@@ -324,7 +324,7 @@ public class JarHell {
         try {
             return uri.toURL();
         } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
+            throw new AssertionError(e);
         }
     }
 }

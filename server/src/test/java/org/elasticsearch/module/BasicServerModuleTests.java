@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.test.hamcrest.ModuleDescriptorMatchers.exportsOf;
+import static org.elasticsearch.test.hamcrest.ModuleDescriptorMatchers.opensOf;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
@@ -41,7 +42,7 @@ public class BasicServerModuleTests extends ESTestCase {
         // should only be exported to security.
         assertThat(md.exports(), hasItem(exportsOf("org.elasticsearch.plugins.interceptor", Set.of("org.elasticsearch.security"))));
 
-        // additional qualified export constraint go here.
+        // additional qualified export constraint go here
     }
 
     // Ensures that there are no unqualified opens - too dangerous
@@ -50,14 +51,13 @@ public class BasicServerModuleTests extends ESTestCase {
         assertThat(md.opens().stream().filter(not(ModuleDescriptor.Opens::isQualified)).collect(Collectors.toSet()), empty());
     }
 
-    // opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
-    public void testEnsureQualifiedOpens() {
+    public void testQualifiedOpens() {
         var md = getServerDescriptor();
 
-        // We tolerate introspection by log4j, for appenders, etc
-        // assertThat(md.exports(), hasItem(exportsOf("org.elasticsearch.common.logging", Set.of("org.apache.logging.log4j.core"))));
+        // We tolerate introspection by log4j, for Plugins, e.g. ECSJsonLayout
+        assertThat(md.opens(), hasItem(opensOf("org.elasticsearch.common.logging", Set.of("org.apache.logging.log4j.core"))));
 
-        // additional qualified opens constraint go here.
+        // additional qualified opens constraint go here
     }
 
     private static ModuleDescriptor getServerDescriptor() {

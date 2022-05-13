@@ -49,8 +49,7 @@ and go to **Dev Tools > Console**.
 [role="screenshot"]
 image::images/kibana-console.png[{kib} Console,align="center"]
 
-. Inspect the `cluster.routing.allocation.total_shards_per_node` <<cluster-get-settings, cluster setting>> 
-for the index with unassigned shards:
+. Inspect the `cluster.routing.allocation.total_shards_per_node` <<cluster-get-settings, cluster setting>>:
 +
 [source,console]
 ----

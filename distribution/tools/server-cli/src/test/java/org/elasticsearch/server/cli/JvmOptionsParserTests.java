@@ -9,6 +9,7 @@
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -31,6 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
+@WithoutSecurityManager
 public class JvmOptionsParserTests extends ESTestCase {
 
     public void testSubstitution() {

@@ -127,7 +127,6 @@ dependencies {
     testFixturesApi platform(buildLibs.spock.platform)
     testFixturesApi(buildLibs.spock.core) {
         exclude module: "groovy"
-        exclude module: "asm"
     }
 
     integTestImplementation(buildLibs.spock.junit4) {

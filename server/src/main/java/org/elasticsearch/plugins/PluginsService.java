@@ -51,6 +51,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -547,5 +548,138 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     @SuppressWarnings("unchecked")
     public <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance())).toList();
+    }
+
+    static final LayerAndLoader createModuleLayer(PluginBundle bundle, ClassLoader parentLoader, List<ModuleLayer> parentLayers) {
+        assert bundle.plugin.getModuleName().isPresent();
+        return createModuleLayer(
+            bundle.plugin.getClassname(),
+            bundle.plugin.getModuleName().get(),
+            urlsToPaths(bundle.urls),
+            parentLoader,
+            parentLayers
+        );
+    }
+
+    static final LayerAndLoader createSpiModuleLayer(
+        String moduleName,
+        Set<URL> urls,
+        ClassLoader parentLoader,
+        List<ModuleLayer> parentLayers
+    ) {
+        // assert bundle.plugin.getModuleName().isPresent();
+        return createModuleLayer(
+            null,  // no entry point
+            moduleName + ".spi",  // by convention ?
+            urlsToPaths(urls),
+            parentLoader,
+            parentLayers
+        );
+    }
+
+    private static final Module serverModule = PluginsService.class.getModule();
+
+    static final LayerAndLoader createModuleLayer(
+        String className,
+        String moduleName,
+        Path[] paths,
+        ClassLoader parentLoader,
+        List<ModuleLayer> parentLayers
+    ) {
+        PrivilegedAction<LayerAndLoader> pa = () -> {
+            logger.debug(() -> "creating module layer and loader for module " + moduleName);
+            var finder = ModuleFinder.of(paths);
+            List<ModuleLayer> pls;
+            List<Configuration> cfs;
+            if (parentLayers == null || parentLayers.isEmpty()) {
+                pls = List.of(ModuleLayer.boot());
+                cfs = List.of(ModuleLayer.boot().configuration());
+            } else {
+                pls = parentLayers;
+                cfs = parentLayers.stream().map(ModuleLayer::configuration).toList();
+            }
+            logger.debug(() -> "parent layers, size:" + pls.size() + ", " + pls);
+            logger.debug(() -> "parent configurations, size:" + cfs.size() + ", " + cfs);
+
+            // TODO resolve AND BIND ?
+            var configuration = Configuration.resolve(ModuleFinder.of(), cfs, finder, Set.of(moduleName));
+            var controller = ModuleLayer.defineModulesWithOneLoader(configuration, pls, parentLoader);
+            var pluginModule = controller.layer().findModule(moduleName).get();
+            if (className != null) {
+                // ensure that the main class is accessible to server
+                controller.addOpens(pluginModule, toPackageName(className), serverModule);
+            }
+            // Reinstate qualified exports, if any, from server to plugin module (in child layer)
+            addQualifiedExports(pluginModule);
+            addQualifiedOpens(pluginModule);
+
+            logger.debug(() -> "created module layer and loader for module " + moduleName);
+            return new LayerAndLoader(controller.layer(), controller.layer().findLoader(moduleName));
+        };
+        return AccessController.doPrivileged(pa);
+    }
+
+    /**
+     * Adds qualified exports declared in the server module descriptor to the target module.
+     * This is most useful when the target is in a child layer of the server.
+     */
+    private static void addQualifiedExports(Module target) {
+        serverModule.getDescriptor()
+            .exports()
+            .stream()
+            .filter(ModuleDescriptor.Exports::isQualified)
+            .filter(exports -> exports.targets().contains(target.getName()))
+            .forEach(exports -> serverModule.addExports(exports.source(), target));
+    }
+
+    /**
+     * Adds qualified opens declared in the server module descriptor to the target module.
+     * This is most useful when the target is in a child layer of the server.
+     */
+    private static void addQualifiedOpens(Module target) {
+        serverModule.getDescriptor()
+            .opens()
+            .stream()
+            .filter(ModuleDescriptor.Opens::isQualified)
+            .filter(opens -> opens.targets().contains(target.getName()))
+            .forEach(opens -> serverModule.addExports(opens.source(), target));
+    }
+
+    /**
+     * Tuple of module layer and loader.
+     * Modular Plugins are mapped to a single non-null layer and loader.
+     * Non-Modular plugins have a null layer.
+     */
+    record LayerAndLoader(ModuleLayer layer, ClassLoader loader) {
+
+        LayerAndLoader {
+            Objects.requireNonNull(loader);
+        }
+
+        LayerAndLoader(ClassLoader loader) {
+            this(null, loader);
+        }
+    }
+
+    @SuppressForbidden(reason = "I need to convert URL's to Paths")
+    static final Path[] urlsToPaths(Set<URL> urls) {
+        return urls.stream().map(PluginsService::uncheckedToURI).map(PathUtils::get).toArray(Path[]::new);
+    }
+
+    static final URI uncheckedToURI(URL url) {
+        try {
+            return url.toURI();
+        } catch (URISyntaxException e) {
+            throw new UncheckedIOException(new IOException(e));
+        }
+    }
+
+    static final String toPackageName(String className) {
+        assert className.endsWith(".") == false;
+        int index = className.lastIndexOf(".");
+        if (index == -1) {
+            throw new IllegalStateException("invalid class name:" + className);
+        }
+        return className.substring(0, index);
     }
 }

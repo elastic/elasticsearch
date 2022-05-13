@@ -43,6 +43,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);
+        project.getPluginManager().apply(ElasticsearchJavaModulePathPlugin.class);
 
         // configureConfigurations(project);
         configureJars(project);
@@ -134,8 +135,12 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
         javadoc.configure(doc -> doc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath()));
 
+        // ensure that modular dependencies can be found on the module path
+        javadoc.configure(
+            doc -> doc.getOptions().modulePath(Util.getJavaMainSourceSet(project).get().getCompileClasspath().getFiles().stream().toList())
+        );
+
         // ensure javadoc task is run with 'check'
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));
     }
-
 }

@@ -113,8 +113,7 @@ final class Security {
     static void configure(Environment environment, boolean filterBadDefaults) throws IOException, NoSuchAlgorithmException {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
-        Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
-        Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(systemLoaderURLs);
+        Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());
         Policy.setPolicy(
             new ESPolicy(
                 codebases,

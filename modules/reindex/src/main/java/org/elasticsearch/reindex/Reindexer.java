@@ -28,11 +28,18 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -112,6 +119,7 @@ public class Reindexer {
                     assigningBulkClient,
                     threadPool,
                     scriptService,
+                    clusterService.state(),
                     reindexSslConfig,
                     request,
                     listener
@@ -177,6 +185,11 @@ public class Reindexer {
      * possible.
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<ReindexRequest, TransportReindexAction> {
+        /**
+         * Mapper for the {@code _id} of the destination index used to
+         * normalize {@code _id}s landing in the index.
+         */
+        private final IdFieldMapper destinationIndexIdMapper;
 
         /**
          * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
@@ -193,6 +206,7 @@ public class Reindexer {
             ParentTaskAssigningClient bulkClient,
             ThreadPool threadPool,
             ScriptService scriptService,
+            ClusterState state,
             ReindexSslConfig sslConfig,
             ReindexRequest request,
             ActionListener<BulkByScrollResponse> listener
@@ -214,6 +228,20 @@ public class Reindexer {
                 scriptService,
                 sslConfig
             );
+            this.destinationIndexIdMapper = destinationIndexMode(state).buildNoFieldDataIdFieldMapper();
+        }
+
+        private IndexMode destinationIndexMode(ClusterState state) {
+            IndexMetadata destMeta = state.metadata().index(mainRequest.getDestination().index());
+            if (destMeta != null) {
+                return IndexSettings.MODE.get(destMeta.getSettings());
+            }
+            String template = MetadataIndexTemplateService.findV2Template(state.metadata(), mainRequest.getDestination().index(), false);
+            if (template == null) {
+                return IndexMode.STANDARD;
+            }
+            Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), template);
+            return IndexSettings.MODE.get(settings);
         }
 
         @Override
@@ -285,7 +313,7 @@ public class Reindexer {
             }
 
             // id and source always come from the found doc. Scripts can change them but they operate on the index request.
-            index.id(doc.getId());
+            index.id(destinationIndexIdMapper.reindexId(doc.getId()));
 
             // the source xcontent type and destination could be different
             final XContentType sourceXContentType = doc.getXContentType();

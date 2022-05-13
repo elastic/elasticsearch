@@ -66,6 +66,8 @@ class WindowsServiceCli extends MultiCommand {
                     addArg(args, "--ServiceUser", serviceUsername);
                     addArg(args, "--ServicePassword", servicePassword);
                 } // else WHY ISN'T THIS AN ERROR? username provided but no password...
+            } else {
+                addArg(args, "--ServiceUser", "LocalSystem");
             }
 
             String serviceParams = pinfo.envVars().get("SERVICE_PARAMS");

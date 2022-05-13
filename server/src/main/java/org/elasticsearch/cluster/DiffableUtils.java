@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 
 import java.io.IOException;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -204,7 +203,7 @@ public final class DiffableUtils {
                     inserts++;
                 } else if (entry.getValue().equals(previousValue) == false) {
                     if (valueSerializer.supportsDiffableValues()) {
-                        diffs.add(new AbstractMap.SimpleEntry<>(entry.getKey(), valueSerializer.diff(entry.getValue(), previousValue)));
+                        diffs.add(Map.entry(entry.getKey(), valueSerializer.diff(entry.getValue(), previousValue)));
                     } else {
                         upserts.add(entry);
                     }
@@ -287,7 +286,7 @@ public final class DiffableUtils {
                     inserts++;
                 } else if (entry.getValue().equals(beforeValue) == false) {
                     if (valueSerializer.supportsDiffableValues()) {
-                        diffs.add(new AbstractMap.SimpleEntry<>(entry.getKey(), valueSerializer.diff(entry.getValue(), beforeValue)));
+                        diffs.add(Map.entry(entry.getKey(), valueSerializer.diff(entry.getValue(), beforeValue)));
                     } else {
                         upserts.add(entry);
                     }
@@ -369,14 +368,14 @@ public final class DiffableUtils {
             for (int i = 0; i < diffsCount; i++) {
                 K key = keySerializer.readKey(in);
                 Diff<T> diff = valueSerializer.readDiff(in, key);
-                diffs.add(new AbstractMap.SimpleEntry<>(key, diff));
+                diffs.add(Map.entry(key, diff));
             }
             int upsertsCount = in.readVInt();
             upserts = upsertsCount == 0 ? List.of() : new ArrayList<>(upsertsCount);
             for (int i = 0; i < upsertsCount; i++) {
                 K key = keySerializer.readKey(in);
                 T newValue = valueSerializer.read(in, key);
-                upserts.add(new AbstractMap.SimpleEntry<>(key, newValue));
+                upserts.add(Map.entry(key, newValue));
             }
         }
 

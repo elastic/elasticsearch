@@ -165,7 +165,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         ) {
             return ExpressionRoleMapping.parse(id, parser);
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("Role mapping [{}] cannot be parsed and will be skipped", id), e);
+            logger.warn(() -> "Role mapping [" + id + "] cannot be parsed and will be skipped", e);
             return null;
         }
     }
@@ -205,7 +205,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             try {
                 inner.accept(request, ActionListener.wrap(r -> refreshRealms(listener, r), listener::onFailure));
             } catch (Exception e) {
-                logger.error(new ParameterizedMessage("failed to modify role-mapping [{}]", name), e);
+                logger.error(() -> "failed to modify role-mapping [" + name + "]", e);
                 listener.onFailure(e);
             }
         }
@@ -238,7 +238,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error(new ParameterizedMessage("failed to put role-mapping [{}]", mapping.getName()), e);
+                        logger.error(() -> "failed to put role-mapping [" + mapping.getName() + "]", e);
                         listener.onFailure(e);
                     }
                 },
@@ -271,7 +271,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.error(new ParameterizedMessage("failed to delete role-mapping [{}]", request.getName()), e);
+                            logger.error(() -> "failed to delete role-mapping [" + request.getName() + "]", e);
                             listener.onFailure(e);
 
                         }
@@ -369,7 +369,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                 );
                 listener.onResponse(result);
             }, ex -> {
-                logger.warn(new ParameterizedMessage("Failed to clear cache for realms [{}]", Arrays.toString(realmNames)), ex);
+                logger.warn(() -> "Failed to clear cache for realms [" + Arrays.toString(realmNames) + "]", ex);
                 listener.onFailure(ex);
             })
         );

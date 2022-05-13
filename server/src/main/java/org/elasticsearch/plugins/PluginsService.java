@@ -259,9 +259,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         Map<String, LoadedPlugin> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
+        Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
         for (PluginBundle bundle : sortedBundles) {
             if (bundle.plugin.getType() != PluginType.BOOTSTRAP) {
-                PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls);
+                PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
                 loadBundle(bundle, loaded);
             }
         }

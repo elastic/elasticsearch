@@ -876,7 +876,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                                             .entry(
                                                 "filters",
                                                 matchesList().item(
-                                                    matchesMap().entry("query", "DocValuesFieldExistsQuery [field=f]")
+                                                    matchesMap().entry("query", "FieldExistsQuery [field=f]")
                                                         .entry("specialized_for", "docvalues_field_exists")
                                                         .entry("results_from_metadata", greaterThan(0))
                                                 )

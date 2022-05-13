@@ -76,10 +76,14 @@ public class GeoHexCellIdSource extends ValuesSource.Numeric {
         private final boolean crossesDateline;
         private final GeoBoundingBox bbox;
 
+        private final long northPoleHex, southPoleHex;
+
         protected BoundedCellValues(MultiGeoPointValues geoValues, int precision, GeoBoundingBox bbox) {
             super(geoValues, precision);
             this.crossesDateline = bbox.right() < bbox.left();
             this.bbox = bbox;
+            northPoleHex = H3.geoToH3(90, 0, precision);
+            southPoleHex = H3.geoToH3(-90, 0, precision);
         }
 
         @Override
@@ -120,7 +124,11 @@ public class GeoHexCellIdSource extends ValuesSource.Numeric {
                 minLat = Math.min(minLat, boundaryLat);
                 maxLat = Math.max(maxLat, boundaryLat);
             }
-            if (maxLon - minLon > 180) {
+            if (northPoleHex == hex) {
+                return minLat < bbox.top();
+            } else if (southPoleHex == hex) {
+                return maxLat > bbox.bottom();
+            } else if (maxLon - minLon > 180) {
                 return intersects(-180, minLon, minLat, maxLat) || intersects(maxLon, 180, minLat, maxLat);
             } else {
                 return intersects(minLon, maxLon, minLat, maxLat);

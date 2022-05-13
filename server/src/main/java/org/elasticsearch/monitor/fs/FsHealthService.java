@@ -10,15 +10,14 @@ package org.elasticsearch.monitor.fs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -182,7 +181,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                         }
                     }
                 } catch (Exception ex) {
-                    logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
+                    logger.error(() -> "health check of [" + path + "] failed", ex);
                     if (currentUnhealthyPaths == null) {
                         currentUnhealthyPaths = new HashSet<>(1);
                     }

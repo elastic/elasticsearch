@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.logstash.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
@@ -75,10 +74,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                                 clearScrollRequest,
                                 ActionListener.wrap(
                                     (r) -> {},
-                                    e -> logger.warn(
-                                        new ParameterizedMessage("clear scroll failed for scroll id [{}]", response.getScrollId()),
-                                        e
-                                    )
+                                    e -> logger.warn(() -> "clear scroll failed for scroll id [" + response.getScrollId() + "]", e)
                                 )
                             );
                         }

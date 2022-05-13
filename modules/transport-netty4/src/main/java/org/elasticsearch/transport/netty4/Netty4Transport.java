@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
@@ -374,7 +373,7 @@ public class Netty4Transport extends TcpTransport {
         ch.pipeline()
             .addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE)
             .addLast("logging", ESLoggingHandler.INSTANCE)
-            .addLast("chunked_writer", new Netty4WriteThrottlingHandler())
+            .addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()))
             .addLast("dispatcher", new Netty4MessageInboundHandler(this, recycler));
     }
 

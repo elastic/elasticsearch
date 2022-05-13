@@ -279,4 +279,9 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     public String documentDescription(ParsedDocument parsedDocument) {
         return "[" + parsedDocument.id() + "]";
     }
+
+    @Override
+    public String reindexId(String id) {
+        return id;
+    }
 }

@@ -652,10 +652,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 .settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build())
                 .build()
         );
-        templateMetadata.put(
-            "template3",
-            IndexTemplateMetadata.builder("template3").patterns(Arrays.asList("missing*")).order(3).build()
-        );
+        templateMetadata.put("template3", IndexTemplateMetadata.builder("template3").patterns(Arrays.asList("missing*")).order(3).build());
         templateMetadata.put(
             "template4",
             IndexTemplateMetadata.builder("template4")

@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.timeseries.aggregation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Rounding;
@@ -306,7 +307,22 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     protected LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
         throws IOException {
         if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
+            return new LeafBucketCollector() {
+                @Override
+                public void setScorer(Scorable arg0) throws IOException {
+                    // no-op
+                }
+
+                @Override
+                public void collect(int doc, long bucket) {
+                    // no-op
+                }
+
+                @Override
+                public boolean isNoop() {
+                    return false;
+                }
+            };
         }
         final SortedNumericDoubleValues values = valuesSource.doubleValues(context);
         return new Collector(sub, values, aggCtx, (doc) -> {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -86,7 +87,22 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
     protected LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
         throws IOException {
         if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
+            return new LeafBucketCollector() {
+                @Override
+                public void setScorer(Scorable arg0) throws IOException {
+                    // no-op
+                }
+
+                @Override
+                public void collect(int doc, long bucket) {
+                    // no-op
+                }
+
+                @Override
+                public boolean isNoop() {
+                    return false;
+                }
+            };
         }
         Metric metricType = getAggregateMetric();
         if (metricType != null) {

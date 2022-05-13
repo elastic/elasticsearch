@@ -19,6 +19,10 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 
 public class MatrixAggregationPlugin extends Plugin implements SearchPlugin {
+
+    /** Creates a new MatrixAggregationPlugin. */
+    public MatrixAggregationPlugin() {}
+
     @Override
     public List<AggregationSpec> getAggregations() {
         return singletonList(

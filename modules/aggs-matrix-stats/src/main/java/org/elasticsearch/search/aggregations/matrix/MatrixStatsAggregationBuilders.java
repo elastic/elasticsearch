@@ -11,6 +11,10 @@ import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 
 public class MatrixStatsAggregationBuilders {
+
+    /** Creates a new MatrixStatsAggregationBuilders. */
+    public MatrixStatsAggregationBuilders() {}
+
     /**
      * Create a new {@link MatrixStats} aggregation with the given name.
      */

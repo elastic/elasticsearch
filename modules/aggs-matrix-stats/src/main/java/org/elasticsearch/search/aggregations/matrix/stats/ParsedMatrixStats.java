@@ -23,6 +23,8 @@ import java.util.Objects;
 
 public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats {
 
+    private ParsedMatrixStats() {}
+
     private final Map<String, Long> counts = new LinkedHashMap<>();
     private final Map<String, Double> means = new HashMap<>();
     private final Map<String, Double> variances = new HashMap<>();

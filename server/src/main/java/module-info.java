@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 
+/** The Elasticsearch Server Module. */
 module org.elasticsearch.server {
     requires java.logging;
     requires java.security.jgss;
@@ -343,8 +344,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.usage;
     exports org.elasticsearch.watcher;
 
-    opens org.elasticsearch.client.internal.node; // #### for a test, replace with command line flag
-    opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
+    // opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;

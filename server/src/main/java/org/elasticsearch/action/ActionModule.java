@@ -478,25 +478,25 @@ public class ActionModule extends AbstractModule {
                 new RestHeaderDefinition(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, false)
             )
         ).collect(Collectors.toSet());
-        UnaryOperator<RestHandler> restWrapper = null;
+        UnaryOperator<RestHandler> restInterceptor = null;
         for (ActionPlugin plugin : actionPlugins) {
-            if (plugin instanceof RestInterceptor restWrapperPlugin) {
-                UnaryOperator<RestHandler> newRestWrapper = restWrapperPlugin.getRestHandlerInterceptor(threadPool.getThreadContext());
-                if (plugin.getClass().getCanonicalName() == null
-                    || plugin.getClass().getCanonicalName().startsWith("org.elasticsearch.xpack") == false) {
-                    throw new IllegalArgumentException(
-                        "The "
-                            + plugin.getClass().getName()
-                            + " plugin tried to install a custom REST "
-                            + "interceptor. This functionality is not available anymore."
-                    );
-                }
-                if (newRestWrapper != null) {
-                    logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
-                    if (restWrapper != null) {
-                        throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST wrapper");
+            if (plugin instanceof RestInterceptor riplugin) {
+                UnaryOperator<RestHandler> newRestInterceptor = riplugin.getRestHandlerInterceptor(threadPool.getThreadContext());
+                if (newRestInterceptor != null) {
+                    logger.debug("Using REST interceptor from plugin " + plugin.getClass().getName());
+                    if (plugin.getClass().getCanonicalName() == null
+                        || plugin.getClass().getCanonicalName().startsWith("org.elasticsearch.xpack") == false) {
+                        throw new IllegalArgumentException(
+                            "The "
+                                + plugin.getClass().getName()
+                                + " plugin tried to install a custom REST "
+                                + "interceptor. This functionality is not available anymore."
+                        );
                     }
-                    restWrapper = newRestWrapper;
+                    if (restInterceptor != null) {
+                        throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST interceptor");
+                    }
+                    restInterceptor = newRestInterceptor;
                 }
             }
         }
@@ -507,7 +507,7 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
 
-        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
+        restController = new RestController(headers, restInterceptor, nodeClient, circuitBreakerService, usageService);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {

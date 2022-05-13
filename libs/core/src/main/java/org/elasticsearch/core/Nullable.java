@@ -29,6 +29,5 @@ import javax.annotation.meta.TypeQualifierNickname;
 @CheckForNull
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.PARAMETER, ElementType.FIELD, ElementType.METHOD })
-@SuppressWarnings("exports")
 public @interface Nullable {
 }

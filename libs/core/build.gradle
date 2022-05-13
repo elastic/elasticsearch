@@ -44,5 +44,5 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("compileJava").configure {
   options.compilerArgs.add("-Xlint:-requires-automatic,-requires-transitive-automatic")
-  options.compilerArgs.add("-Xlint:-module") // qualified exports
+  options.compilerArgs.add("-Xlint:-module,-exports") // qualified exports
 }

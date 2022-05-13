@@ -714,8 +714,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     @SuppressWarnings("removal")
     static ClassLoader privilegedFindLoader(ModuleLayer layer, String name) {
-        return AccessController.doPrivileged(
-            (PrivilegedAction<ClassLoader>) () -> layer.findLoader(name)
-        );
+        return AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () -> layer.findLoader(name));
     }
 }

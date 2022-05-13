@@ -8,6 +8,8 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.test.ESTestCase;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,7 +26,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.junit.Assert.assertThat;
 
-public class MachineDependentHeapTests extends LaunchersTestCase {
+public class MachineDependentHeapTests extends ESTestCase {
 
     public void testDefaultHeapSize() throws Exception {
         MachineDependentHeap heap = new MachineDependentHeap(systemMemoryInGigabytes(8));

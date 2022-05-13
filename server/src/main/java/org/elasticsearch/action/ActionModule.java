@@ -482,6 +482,15 @@ public class ActionModule extends AbstractModule {
         for (ActionPlugin plugin : actionPlugins) {
             if (plugin instanceof RestInterceptor restWrapperPlugin) {
                 UnaryOperator<RestHandler> newRestWrapper = restWrapperPlugin.getRestHandlerInterceptor(threadPool.getThreadContext());
+                if (plugin.getClass().getCanonicalName() == null
+                    || plugin.getClass().getCanonicalName().startsWith("org.elasticsearch.xpack") == false) {
+                    throw new IllegalArgumentException(
+                        "The "
+                            + plugin.getClass().getName()
+                            + " plugin tried to install a custom REST "
+                            + "interceptor. This functionality is not available anymore."
+                    );
+                }
                 if (newRestWrapper != null) {
                     logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
                     if (restWrapper != null) {

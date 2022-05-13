@@ -36,8 +36,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -241,7 +243,6 @@ public class ActionModuleTests extends ESTestCase {
         }
     }
 
-    /*
     public void test3rdPartyHandlerIsNotInstalled() {
         Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", createTempDir()).build();
 
@@ -271,14 +272,13 @@ public class ActionModuleTests extends ESTestCase {
                 e.getMessage(),
                 Matchers.equalTo(
                     "The org.elasticsearch.action.ActionModuleTests$SecPlugin plugin tried to "
-                        + "install a custom REST wrapper. This functionality is not available anymore."
+                        + "install a custom REST interceptor. This functionality is not available anymore."
                 )
             );
         } finally {
             threadPool.shutdown();
         }
     }
-    */
 
     class FakeHandler implements RestHandler {
         @Override

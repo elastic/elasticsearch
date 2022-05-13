@@ -54,7 +54,7 @@ class JavaServerProcess implements ServerProcess {
         try {
             // start Elasticsearch, stashing the process into a volatile so the close via the shutdown handler will kill the process
             this.jvmProcess = createProcess(processInfo, args.configDir(), pluginsDir);
-            this.errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream(), args.daemonize());
+            this.errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream(), false);
             errorPump.start();
             logger.info("ES PID: " + jvmProcess.pid());
             sendArgs(args, jvmProcess.getOutputStream());
@@ -175,11 +175,11 @@ class JavaServerProcess implements ServerProcess {
         private final PrintWriter writer;
         private final boolean exitWhenReady;
 
-        private ErrorPumpThread(PrintWriter errOutput, InputStream errInput, boolean exitWhenRead) {
+        private ErrorPumpThread(PrintWriter errOutput, InputStream errInput, boolean exitWhenReady) {
             super("server-cli error pump");
             this.reader = new BufferedReader(new InputStreamReader(errInput, StandardCharsets.UTF_8));
             this.writer = errOutput;
-            this.exitWhenReady = exitWhenRead;
+            this.exitWhenReady = exitWhenReady;
         }
 
         @Override

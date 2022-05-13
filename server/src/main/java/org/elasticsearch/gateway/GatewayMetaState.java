@@ -243,7 +243,7 @@ public class GatewayMetaState implements Closeable {
     }
 
     private static boolean applyPluginUpgraders(
-        ImmutableOpenMap<String, IndexTemplateMetadata> existingData,
+        Map<String, IndexTemplateMetadata> existingData,
         UnaryOperator<Map<String, IndexTemplateMetadata>> upgrader,
         Consumer<String> removeData,
         BiConsumer<String, IndexTemplateMetadata> putData

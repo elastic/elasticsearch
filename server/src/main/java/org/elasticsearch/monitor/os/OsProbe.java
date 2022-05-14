@@ -63,6 +63,15 @@ public class OsProbe {
     // code, which does not have access to all the utility classes of the Elasticsearch server.
     private static final String memoryOverrideProperty = System.getProperty("es.total_memory_bytes");
 
+    /**
+     * com.ibm for J9
+     * com.sun for HotSpot
+     */
+    private static final List<String> OPERATING_SYSTEM_BEAN_CLASS_NAMES = Arrays.asList(
+        "com.sun.management.OperatingSystemMXBean", "com.ibm.lang.management.OperatingSystemMXBean");
+
+    private static final Class<?> OPERATING_SYSTEM_BEAN_CLASS;
+
     private static final Method getFreePhysicalMemorySize;
     private static final Method getTotalPhysicalMemorySize;
     private static final Method getFreeSwapSpaceSize;
@@ -71,6 +80,7 @@ public class OsProbe {
     private static final Method getSystemCpuLoad;
 
     static {
+        OPERATING_SYSTEM_BEAN_CLASS = loadFirstClass(OPERATING_SYSTEM_BEAN_CLASS_NAMES);
         getFreePhysicalMemorySize = getMethod("getFreePhysicalMemorySize");
         getTotalPhysicalMemorySize = getMethod("getTotalPhysicalMemorySize");
         getFreeSwapSpaceSize = getMethod("getFreeSwapSpaceSize");
@@ -889,12 +899,27 @@ public class OsProbe {
         return new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);
     }
 
+    private static Class<?> loadFirstClass(List<String> classNames) {
+        for (String className : classNames) {
+            try {
+                return Class.forName(className);
+            } catch (ClassNotFoundException e) {
+                logger.warn("Failed to load operating system bean class.", e);
+            }
+        }
+        return null;
+    }
+
     /**
      * Returns a given method of the OperatingSystemMXBean, or null if the method is not found or unavailable.
      */
     private static Method getMethod(String methodName) {
+        if (Objects.isNull(OPERATING_SYSTEM_BEAN_CLASS)) {
+            return null;
+        }
         try {
-            return Class.forName("com.sun.management.OperatingSystemMXBean").getMethod(methodName);
+            OPERATING_SYSTEM_BEAN_CLASS.cast(OPERATING_SYSTEM_BEAN);
+            return OPERATING_SYSTEM_BEAN_CLASS.getDeclaredMethod(methodName);
         } catch (Exception e) {
             // not available
             return null;

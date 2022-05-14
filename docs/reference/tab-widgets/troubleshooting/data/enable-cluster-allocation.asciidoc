@@ -111,7 +111,7 @@ value to allow all the data in the system to be fully allocated:
 +
 [source,console]
 ----
-PUT cluster/settings
+PUT _cluster/settings
 {
   "persistent" : {
     "cluster.routing.allocation.enable" : "all" <1>

@@ -918,7 +918,7 @@ public class OsProbe {
             return null;
         }
         try {
-            OPERATING_SYSTEM_BEAN_CLASS.cast(OPERATING_SYSTEM_BEAN);
+            OPERATING_SYSTEM_BEAN_CLASS.cast(osMxBean);
             return OPERATING_SYSTEM_BEAN_CLASS.getDeclaredMethod(methodName);
         } catch (Exception e) {
             // not available

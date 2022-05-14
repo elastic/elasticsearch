@@ -66,6 +66,8 @@ The response will look like this:
   }
 }
 ----
+// TESTRESPONSE[skip:the result is for illustrating purposes only]
+
 +
 <1> Represents the current configured value that controls if the index is allowed 
 to partially or totally allocate.

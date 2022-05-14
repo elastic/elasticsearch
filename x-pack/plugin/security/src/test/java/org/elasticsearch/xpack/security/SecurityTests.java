@@ -686,10 +686,10 @@ public class SecurityTests extends ESTestCase {
             // We will throw later if another wrapper is already installed
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "Security rest wrapper",
+                    "Security rest interceptor",
                     ActionModule.class.getName(),
                     Level.DEBUG,
-                    "Using REST wrapper from plugin org.elasticsearch.xpack.security.Security"
+                    "Using REST interceptor from plugin org.elasticsearch.xpack.security.Security"
                 )
             );
 

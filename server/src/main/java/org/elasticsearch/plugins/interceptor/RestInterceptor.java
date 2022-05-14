@@ -37,7 +37,7 @@ public interface RestInterceptor {
      * }
      * </pre>
      *
-     * Note: Only one installed plugin may implement a rest wrapper.
+     * Note: Only one installed plugin may implement a rest interceptor.
      */
     UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext);
 }

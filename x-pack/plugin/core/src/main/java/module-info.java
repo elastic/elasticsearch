@@ -18,6 +18,7 @@ module org.elasticsearch.xcore {
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
+    requires unboundid.ldapsdk;
 
     exports org.elasticsearch.xpack.cluster.action;
     exports org.elasticsearch.xpack.cluster.routing.allocation;

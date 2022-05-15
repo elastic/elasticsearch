@@ -637,7 +637,8 @@ public class MetadataIndexTemplateService {
                     indexTemplate.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(indexTemplate),
                     currentState.getMetadata(),
                     now,
-                    finalTemplate.map(Template::settings).orElse(Settings.EMPTY)
+                    finalTemplate.map(Template::settings).orElse(Settings.EMPTY),
+                    finalTemplate.map(Template::mappings).stream().toList()
                 )
             );
         }

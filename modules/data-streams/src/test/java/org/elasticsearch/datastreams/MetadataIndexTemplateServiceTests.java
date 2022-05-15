@@ -36,6 +36,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateTsdbMapping;
 import static org.elasticsearch.common.settings.Settings.builder;
+import static org.elasticsearch.datastreams.MetadataDataStreamRolloverServiceTests.createSettingsProvider;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
@@ -104,7 +105,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {
         var indicesService = getInstanceFromNode(IndicesService.class);
         var clusterService = getInstanceFromNode(ClusterService.class);
-        var indexSettingProviders = new IndexSettingProviders(Set.of(new DataStreamIndexSettingsProvider()));
+        var indexSettingProviders = new IndexSettingProviders(Set.of(createSettingsProvider(xContentRegistry())));
         var createIndexService = new MetadataCreateIndexService(
             Settings.EMPTY,
             clusterService,

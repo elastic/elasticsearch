@@ -23,7 +23,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,8 +42,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                     "index": {
                         "number_of_replicas": 0,
                         "number_of_shards": 2,
-                        "mode": "time_series",
-                        "routing_path": ["metricset", "time_series_dimension"]
+                        "mode": "time_series"
                     }
                 },
                 "mappings":{
@@ -328,7 +327,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.end_time"), notNullValue());
         assertThat(
             ObjectPath.evaluate(responseBody, "template.settings.index.routing_path"),
-            contains("metricset", "time_series_dimension")
+            containsInAnyOrder("metricset", "k8s.pod.uid")
         );
         assertThat(ObjectPath.evaluate(responseBody, "overlapping"), empty());
     }

@@ -102,6 +102,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
@@ -633,10 +634,11 @@ public class Node implements Closeable {
                 searchModule.getRequestCacheKeyDifferentiator()
             );
 
+            final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperService);
             IndexSettingProviders indexSettingProviders = new IndexSettingProviders(
                 pluginsService.filterPlugins(Plugin.class)
                     .stream()
-                    .flatMap(p -> p.getAdditionalIndexSettingProviders().stream())
+                    .flatMap(p -> p.getAdditionalIndexSettingProviders(parameters).stream())
                     .collect(Collectors.toSet())
             );
 

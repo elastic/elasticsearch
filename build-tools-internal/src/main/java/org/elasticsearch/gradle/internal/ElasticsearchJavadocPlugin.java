@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -46,6 +47,9 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
             // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
             javadoc.getOptions().setEncoding("UTF8");
             ((StandardJavadocDocletOptions) javadoc.getOptions()).addStringOption("Xdoclint:all,-missing", "-quiet");
+
+            // ensure that modular dependencies can be found on the module path
+            javadoc.getOptions().modulePath(Util.getJavaMainSourceSet(project).get().getCompileClasspath().getFiles().stream().toList());
         });
 
         // Relying on configurations introduced by the java plugin

@@ -1,5 +1,5 @@
 pr: 86802
-summary: "[Transforms] fix transform `_start` permissions to use stored headers in\
+summary: "Fix transform `_start` permissions to use stored headers in\
   \ the config"
 area: Transform
 type: bug

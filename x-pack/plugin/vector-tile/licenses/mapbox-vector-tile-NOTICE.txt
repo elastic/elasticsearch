@@ -1,1 +1,1 @@
-mapbox-vector-tile, with modifications
+mapbox-vector-tile (https://github.com/wdtinc/mapbox-vector-tile-java), with modifications

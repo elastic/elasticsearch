@@ -185,7 +185,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                         } catch (InterruptedException e) {
                             // fine - semaphore interrupt
                         } catch (AssertionError | Exception e) {
-                            logger.info(() -> new ParameterizedMessage("unexpected exception in background thread of [{}]", node), e);
+                            logger.info(() -> "unexpected exception in background thread of [" + node + "]", e);
                         }
                     }
                 });

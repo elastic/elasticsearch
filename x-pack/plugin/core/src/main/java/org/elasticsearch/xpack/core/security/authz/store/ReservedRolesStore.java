@@ -747,6 +747,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-endpoint.policy-*").privileges("read").build(),
                 // Endpoint metrics. Kibana requires read access to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-endpoint.metrics-*").privileges("read").build(),
+                // Endpoint events. Kibana reads endpoint alert lineage for building and sending telemetry
+                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.events.*").privileges("read").build(),
                 // Fleet package install and upgrade
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
@@ -770,11 +772,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .privileges("auto_configure", "read", "write")
                     .build(),
                 // Osquery manager specific action responses. Kibana reads from these to display responses to the user.
-                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-osquery_manager.action.responses-*").privileges("read").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".logs-osquery_manager.action.responses-*")
+                    .privileges("auto_configure", "create_index", "read", "index", "delete")
+                    .build(),
                 // Osquery manager specific actions. Kibana reads and writes to this index to track new actions and display them.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-osquery_manager.actions-*")
-                    .privileges("auto_configure", "read", "write")
+                    .privileges("auto_configure", "create_index", "read", "index", "write", "delete")
                     .build(),
                 // For ILM policy for APM, Endpoint, & Synthetics packages that have delete action
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -828,10 +833,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     public static boolean isReserved(String role) {
-        return RESERVED_ROLES.containsKey(role)
-            || UsernamesField.SYSTEM_ROLE.equals(role)
-            || UsernamesField.XPACK_ROLE.equals(role)
-            || UsernamesField.ASYNC_SEARCH_ROLE.equals(role);
+        return RESERVED_ROLES.containsKey(role);
     }
 
     public Map<String, Object> usageStats() {

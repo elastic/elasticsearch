@@ -1,0 +1,34 @@
+keyword:
+  - skip:
+      version: " - 8.2.99"
+      reason: introduced in 8.3.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              synthetic: true
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: foo
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1]
+  - match:
+      hits.hits.0._source:
+        kwd: foo

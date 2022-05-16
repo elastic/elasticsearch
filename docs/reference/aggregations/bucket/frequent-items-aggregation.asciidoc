@@ -49,14 +49,26 @@ A `frequent_items` aggregation looks like this in isolation:
 |`size` | (integer) The number of top item sets to return. | Optional | `10`
 |===
 
+
+[discrete]
+[[frequent-items-fields]]
+==== Fields
+
+Supported field types for the analyzed fields are keyword, numeric, ip, date, 
+and arrays of these types. You can also add runtime fields to your analyzed fields.
+
+If the combined cardinality of the analyzed fields are high, then the 
+aggregation might require a significant amount of system resources.
+
 [discrete]
 [[frequent-items-minimum-set-size]]
 ==== Minimum set size
 
 The minimum set size is the minimum number of items the set needs to contain. A 
-value of 1 returns the frequency of single items. The higher the minimum set 
-size the less items are returned. For example, the item set `orange, banana, 
-apple` is only returned if the minimum set size is 3 or lower.
+value of 1 returns the frequency of single items. Only item sets that contain at 
+least the number of `minimum_set_size` items are returned. For example, the item 
+set `orange, banana, apple` is only returned if the minimum set size is 3 or 
+lower.
 
 [discrete]
 [[frequent-items-minimum-support]]
@@ -90,6 +102,10 @@ aggregation.
 ==== Examples
 
 In the following examples, we use the e-commerce {kib} sample data set.
+
+
+[discrete]
+==== Aggregation with two analized fields
 
 In the first example, the goal is to find out based on transaction data (1.) 
 from what product categories the customers purchase products frequently together 
@@ -181,6 +197,10 @@ products from these categories together. The item set with the second highest
 support is `Women's Clothing` and `Women's Accessories` with customers mostly 
 from New York. Finally, the item set with the third highest support is 
 `Men's Clothing` and `Men's Shoes` with customers mostly from Cairo.
+
+
+[discrete]
+==== Analizing numeric values by using a runtime field
 
 The frequent items aggregation enables you to bucket numeric values by using 
 <<runtime,runtime fields>>. The next example demonstrates how to use a script to 

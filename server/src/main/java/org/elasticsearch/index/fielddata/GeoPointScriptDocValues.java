@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.script.GeoPointFieldScript;
 
 import java.util.Arrays;

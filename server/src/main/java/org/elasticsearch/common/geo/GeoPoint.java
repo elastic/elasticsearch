@@ -200,7 +200,7 @@ public class GeoPoint implements ToXContentFragment {
     public long getEncoded() {
         final int latitudeEncoded = GeoEncodingUtils.encodeLatitude(this.lat);
         final int longitudeEncoded = GeoEncodingUtils.encodeLongitude(this.lon);
-        return  (((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL);
+        return (((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL);
     }
 
     public GeoPoint resetFromEncoded(long encoded) {

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.common.geo.GeoPoint;
 
@@ -25,6 +24,7 @@ public final class GeoPointValues {
     GeoPointValues(NumericDocValues values) {
         this.values = values;
     }
+
     /**
      * Advance this instance to the given document id
      * @return true if there is a value for this document
@@ -40,5 +40,4 @@ public final class GeoPointValues {
     public GeoPoint geoPointValue() throws IOException {
         return point.resetFromEncoded(values.longValue());
     }
-
 }

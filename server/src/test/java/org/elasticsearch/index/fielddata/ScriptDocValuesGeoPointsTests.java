@@ -24,6 +24,7 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
         return new MultiGeoPointValues(new AbstractSortedNumericDocValues() {
             GeoPoint[] current;
             int i;
+
             @Override
             public long nextValue() {
                 return current[i++].getEncoded();

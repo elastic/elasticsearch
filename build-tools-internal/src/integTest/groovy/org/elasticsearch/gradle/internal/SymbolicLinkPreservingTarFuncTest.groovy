@@ -19,6 +19,7 @@ import spock.lang.Unroll
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.function.Function
 
 class SymbolicLinkPreservingTarFuncTest extends AbstractGradleFuncTest {
 
@@ -103,7 +104,7 @@ tasks.register("buildTar", SymbolicLinkPreservingTar) { SymbolicLinkPreservingTa
         preserverTimestamp << [true, false]
     }
 
-    private boolean assertTar(final File archive, final FileInputStreamWrapper wrapper, boolean preserveFileTimestamps)
+    private boolean assertTar(final File archive, final Function<? super FileInputStream, ? extends InputStream> wrapper, boolean preserveFileTimestamps)
             throws IOException {
         try (TarArchiveInputStream tar = new TarArchiveInputStream(wrapper.apply(new FileInputStream(archive)))) {
             TarArchiveEntry entry = tar.getNextTarEntry();
@@ -153,11 +154,6 @@ tasks.register("buildTar", SymbolicLinkPreservingTar) { SymbolicLinkPreservingTa
             assert linkToRealFolderEntry
         }
         true
-    }
-
-
-    interface FileInputStreamWrapper {
-        InputStream apply(FileInputStream fis) throws IOException;
     }
 
 }

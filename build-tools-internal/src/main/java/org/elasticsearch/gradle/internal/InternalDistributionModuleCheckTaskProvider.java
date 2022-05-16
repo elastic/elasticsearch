@@ -20,6 +20,7 @@ import org.gradle.api.tasks.TaskProvider;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
 import java.net.URI;
@@ -157,27 +158,25 @@ public class InternalDistributionModuleCheckTaskProvider {
 
         for (ModuleReference mref : esModules) {
             URI uri = URI.create("jar:" + mref.location().get());
-            Set<String> modServices = mref.descriptor().provides().stream().flatMap(p -> p.providers().stream()).collect(toSet());
+            Set<String> modServices = mref.descriptor().provides().stream().map(ModuleDescriptor.Provides::service).collect(toSet());
             try (var fileSystem = FileSystems.newFileSystem(uri, Map.of(), THIS_CLASS.getClassLoader())) {
                 Path servicesRoot = fileSystem.getPath("/META-INF/services");
                 if (Files.exists(servicesRoot)) {
-                    System.out.println("HEGO checking services for " + uri);
-                    System.out.println("HEGO   modServices " + modServices);
-                    Set<String> metaInfServices = Files.walk(servicesRoot)
+                    Files.walk(servicesRoot)
                         .filter(Files::isRegularFile)
                         .map(p -> servicesRoot.relativize(p))
                         .map(Path::toString)
-                        .collect(toSet());
-                    System.out.println("HEGO   metaInfServices= " + metaInfServices);
-                    for (String service : metaInfServices) {
-                        System.out.println(
-                            "HEGO   service " + service + ", modServices.contains(service)=" + modServices.contains(service)
-                        );
-                        if (modServices.contains(service) == false) {
-                            // throw new GradleException("Expected provides %s in module %s with provides %s."
-                            // .formatted(service, mref.descriptor().name(), mref.descriptor().provides()));
-                        }
-                    }
+                        .forEach(service -> {
+                            if (modServices.contains(service) == false) {
+                                throw new GradleException(
+                                    "Expected provides %s in module %s with provides %s.".formatted(
+                                        service,
+                                        mref.descriptor().name(),
+                                        mref.descriptor().provides()
+                                    )
+                                );
+                            }
+                        });
                 }
             }
         }

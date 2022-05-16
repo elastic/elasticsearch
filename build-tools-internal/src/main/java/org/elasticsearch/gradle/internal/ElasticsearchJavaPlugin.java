@@ -137,4 +137,5 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         // ensure javadoc task is run with 'check'
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));
     }
+
 }

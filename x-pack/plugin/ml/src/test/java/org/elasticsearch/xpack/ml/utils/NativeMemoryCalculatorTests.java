@@ -357,14 +357,22 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
 
         ByteSizeValue maxModelMemoryLimitToFit = NativeMemoryCalculator.calculateMaxModelMemoryLimitToFit(clusterSettings, nodes);
 
-        // Expect configured percentage of current node size (allowing for small rounding errors) - max is bigger but can't be added
+        // Expect configured percentage of max node size - our lazy nodes are exhausted, but are smaller so should scale up to the max
         assertThat(maxModelMemoryLimitToFit, notNullValue());
+        // Memory limit is rounded down to the next whole megabyte, so allow a 1MB range here
         assertThat(
             maxModelMemoryLimitToFit.getBytes() + Math.max(
                 Job.PROCESS_MEMORY_OVERHEAD.getBytes(),
                 DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes()
             ) + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
-            lessThanOrEqualTo(mlMachineMemory * mlMemoryPercent / 100)
+            lessThanOrEqualTo(mlMaxNodeSize * mlMemoryPercent / 100)
+        );
+        assertThat(
+            maxModelMemoryLimitToFit.getBytes() + Math.max(
+                Job.PROCESS_MEMORY_OVERHEAD.getBytes(),
+                DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes()
+            ) + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
+            greaterThan(mlMaxNodeSize * mlMemoryPercent / 100 - ByteSizeValue.ofMb(1).getBytes())
         );
 
         ByteSizeValue totalMlMemory = NativeMemoryCalculator.calculateTotalMlMemory(clusterSettings, nodes);
@@ -432,6 +440,84 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         assertThat(NativeMemoryCalculator.getMaxModelMemoryLimit(clusterService), is(expectedLimit));
+    }
+
+    public void testDynamicallyCalculateJvmSizeFromNativeMemorySize() {
+        // 1027 + 200 + 812 = 2039
+        // 40% of 2039 rounded down to lower multiple of 4 = 812
+        assertThat(
+            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1027).getBytes()),
+            is(ByteSizeValue.ofMb(812).getBytes())
+        );
+        // 1028 + 200 + 812 = 2040
+        // 40% of 2040 rounded down to lower multiple of 4 = 812
+        assertThat(
+            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1028).getBytes()),
+            is(ByteSizeValue.ofMb(816).getBytes())
+        );
+        assertThat(
+            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1029).getBytes()),
+            is(ByteSizeValue.ofMb(816).getBytes())
+        );
+        assertThat(
+            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1030).getBytes()),
+            is(ByteSizeValue.ofMb(816).getBytes())
+        );
+        assertThat(
+            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1031).getBytes()),
+            is(ByteSizeValue.ofMb(816).getBytes())
+        );
+        assertThat(
+            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1032).getBytes()),
+            is(ByteSizeValue.ofMb(816).getBytes())
+        );
+        // 1033 + 200 + 816 = 2049
+        // 40% of 2049 rounded down to lower multiple of 4 = 816
+        assertThat(
+            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1033).getBytes()),
+            is(ByteSizeValue.ofMb(816).getBytes())
+        );
+        // 1034 + 200 + 816 = 2050
+        // 40% of 2050 rounded down to lower multiple of 4 = 820
+        assertThat(
+            NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(ByteSizeValue.ofMb(1034).getBytes()),
+            is(ByteSizeValue.ofMb(820).getBytes())
+        );
+    }
+
+    public void testDynamicallyCalculateJvmSizeFromNativeMemorySizeConsistency() {
+
+        for (int i = 0; i < 1000; ++i) {
+            boolean useAuto = usually();
+            // This cannot go too high given the random job size because the JVM won't contract to accommodate a
+            // memory percent that's too high. In autoscaling we'll almost always be using auto anyway.
+            int maxMlMemoryPercent = randomIntBetween(20, 35);
+            ByteSizeValue mlNativeMemRequired = ByteSizeValue.ofMb(randomIntBetween(1, 50000));
+            long jvmSize = NativeMemoryCalculator.dynamicallyCalculateJvmSizeFromMlNativeMemorySize(mlNativeMemRequired.getBytes());
+            long nodeSize = NativeMemoryCalculator.calculateApproxNecessaryNodeSize(
+                mlNativeMemRequired.getBytes(),
+                jvmSize,
+                maxMlMemoryPercent,
+                useAuto
+            );
+            long allowedBytesForMl = NativeMemoryCalculator.allowedBytesForMl(nodeSize, jvmSize, maxMlMemoryPercent, useAuto);
+            assertThat(
+                "useAuto: "
+                    + useAuto
+                    + " maxMlMemoryPercent "
+                    + maxMlMemoryPercent
+                    + " mlNativeMemRequired: "
+                    + mlNativeMemRequired.getBytes()
+                    + " jvmSize "
+                    + jvmSize
+                    + " nodeSize "
+                    + nodeSize
+                    + " allowedBytesForMl "
+                    + allowedBytesForMl,
+                allowedBytesForMl,
+                greaterThanOrEqualTo(mlNativeMemRequired.getBytes())
+            );
+        }
     }
 
     DiscoveryNodes randomNodes(int numMlNodes, int numNonMlNodes, long mlMachineMemory) {

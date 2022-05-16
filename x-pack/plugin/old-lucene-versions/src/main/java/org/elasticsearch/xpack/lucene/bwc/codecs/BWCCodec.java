@@ -12,7 +12,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.NormsFormat;
-import org.apache.lucene.codecs.PointsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.TermVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
@@ -42,11 +41,6 @@ public abstract class BWCCodec extends Codec {
 
     @Override
     public TermVectorsFormat termVectorsFormat() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public PointsFormat pointsFormat() {
         throw new UnsupportedOperationException();
     }
 
@@ -85,7 +79,7 @@ public abstract class BWCCodec extends Codec {
         };
     }
 
-    // mark all fields as no term vectors, no norms, no payloads, no points, and no vectors.
+    // mark all fields as no term vectors, no norms, no payloads, and no vectors.
     private static FieldInfos filterFields(FieldInfos fieldInfos) {
         List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
         for (FieldInfo fieldInfo : fieldInfos) {
@@ -100,9 +94,9 @@ public abstract class BWCCodec extends Codec {
                     fieldInfo.getDocValuesType(),
                     fieldInfo.getDocValuesGen(),
                     fieldInfo.attributes(),
-                    0,
-                    0,
-                    0,
+                    fieldInfo.getPointDimensionCount(),
+                    fieldInfo.getPointIndexDimensionCount(),
+                    fieldInfo.getPointNumBytes(),
                     0,
                     fieldInfo.getVectorSimilarityFunction(),
                     fieldInfo.isSoftDeletesField()

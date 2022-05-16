@@ -17,13 +17,31 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+/**
+ * Loads source {@code _source} during the a GET or {@code _search}.
+ */
 public interface SourceLoader {
+    /**
+     * Build the loader for some segment.
+     */
+    Leaf leaf(LeafReader reader) throws IOException;
+
+    /**
+     * Loads {@code _source} from some segment.
+     */
     interface Leaf {
+        /**
+         * Load the {@code _source} for a document.
+         * @param fieldsVisitor field visitor populated with {@code _source} if it
+         *                      has been saved
+         * @param docId the doc to load
+         */
         BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException;
     }
 
-    Leaf leaf(LeafReader reader) throws IOException;
-
+    /**
+     * Load {@code _source} from a stored field.
+     */
     SourceLoader FROM_STORED_SOURCE = new SourceLoader() {
         @Override
         public Leaf leaf(LeafReader reader) {
@@ -36,6 +54,9 @@ public interface SourceLoader {
         }
     };
 
+    /**
+     * Load {@code _source} from doc vales.
+     */
     class Synthetic implements SourceLoader {
         private final SyntheticFieldLoader loader;
 
@@ -64,7 +85,13 @@ public interface SourceLoader {
         }
     }
 
+    /**
+     * Load a field for {@link Synthetic}.
+     */
     interface SyntheticFieldLoader {
+        /**
+         * Load no values.
+         */
         SyntheticFieldLoader NOTHING = r -> new Leaf() {
             @Override
             public void advanceToDoc(int docId) throws IOException {}
@@ -78,13 +105,28 @@ public interface SourceLoader {
             public void load(XContentBuilder b) throws IOException {}
         };
 
+        /**
+         * Build a loader for this field in the provided segment.
+         */
         Leaf leaf(LeafReader reader) throws IOException;
 
+        /**
+         * Loads values for a field in a particular leaf.
+         */
         interface Leaf {
+            /**
+             * Position the loader at a document.
+             */
             void advanceToDoc(int docId) throws IOException;
 
+            /**
+             * Is there a value for this field in this document?
+             */
             boolean hasValue();
 
+            /**
+             * Load values for this document.
+             */
             void load(XContentBuilder b) throws IOException;
         }
     }

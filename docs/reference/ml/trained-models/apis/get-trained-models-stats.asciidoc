@@ -120,17 +120,9 @@ The sum of `error_count` for all nodes in the deployment.
 (integer)
 The sum of `inference_count` for all nodes in the deployment.
 
-`inference_threads`:::
-(integer)
-The number of threads used by the inference process.
-
 `model_id`:::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
-
-`model_threads`:::
-(integer)
-The number of threads used when sending inference requests to the model.
 
 `nodes`:::
 (array of objects)
@@ -157,21 +149,9 @@ The number of errors when evaluating the trained model.
 (integer)
 The total number of inference calls made against this node for this model.
 
-`inference_threads`:::
-(integer)
-The number of threads used by the inference process.
-This value is limited by the number of hardware threads on the node;
-it might therefore differ from the `inference_threads` value in the <<start-trained-model-deployment>> API.
-
 `last_access`:::
 (long)
 The epoch time stamp of the last inference call for the model on this node.
-
-`model_threads`:::
-(integer)
-The number of threads used when sending inference requests to the model.
-This value is limited by the number of hardware threads on the node;
-it might therefore differ from the `model_threads` value in the <<start-trained-model-deployment>> API.
 
 `node`:::
 (object)
@@ -199,6 +179,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-id]
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 ========
+
+`number_of_allocations`:::
+(integer)
+The number of allocations assigned to this node.
+This value is limited by the number of hardware threads on the node;
+it might therefore differ from the `number_of_allocations` value in the <<start-trained-model-deployment>> API.
 
 `number_of_pending_requests`:::
 (integer)
@@ -240,6 +226,12 @@ queue was full.
 (long)
 The epoch timestamp when the allocation started.
 
+`threads_per_allocation`:::
+(integer)
+The number of threads for each allocation during inference.
+This value is limited by the number of hardware threads on the node;
+it might therefore differ from the `threads_per_allocation` value in the <<start-trained-model-deployment>> API.
+
 `timeout_count`:::
 (integer)
 The number of inference requests that timed out before being processed.
@@ -248,6 +240,11 @@ The number of inference requests that timed out before being processed.
 (integer)
 The number of requests processed in the last 1 minute.
 ======
+
+`number_of_allocations`:::
+(integer)
+The requested number of allocations for the trained model deployment.
+
 `peak_throughput_per_minute`:::
 (integer)
 The peak number of requests processed in a 1 minute period for
@@ -279,6 +276,10 @@ The overall state of the deployment. The values may be:
 * `started`: The deployment is usable as at least one node has the model allocated.
 * `stopping`: The deployment is preparing to stop and deallocate the model from the relevant nodes.
 --
+
+`threads_per_allocation`:::
+(integer)
+The number of threads per allocation used by the inference process.
 
 `timeout_count`:::
 (integer)

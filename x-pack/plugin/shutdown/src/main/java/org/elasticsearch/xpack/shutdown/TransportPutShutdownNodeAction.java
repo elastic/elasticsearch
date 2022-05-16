@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -110,7 +109,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
     record PutShutdownNodeTask(Request request, ActionListener<AcknowledgedResponse> listener) implements ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
-            logger.error(new ParameterizedMessage("failed to put shutdown for node [{}]", request.getNodeId()), e);
+            logger.error(() -> "failed to put shutdown for node [" + request.getNodeId() + "]", e);
             listener.onFailure(e);
         }
     }

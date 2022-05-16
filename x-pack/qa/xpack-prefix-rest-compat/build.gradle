@@ -57,7 +57,7 @@ File serviceTokens = file("$extraResourceDir/service_tokens")
 // it can run in a FIPS 140 JVM
 // TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
 // https://github.com/elastic/elasticsearch/pull/32201
-tasks.register("copyExtraResources", Copy) {
+def copyExtraResources = tasks.register("copyExtraResources", Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
   }
@@ -67,7 +67,12 @@ tasks.register("copyExtraResources", Copy) {
   into extraResourceDir
 }
 // Add keystores to test classpath: it expects it there
-sourceSets."yamlRestTestV${compatVersion}Compat".resources.srcDir(extraResourceDir)
+sourceSets."yamlRestTestV${compatVersion}Compat".resources.compiledBy(copyExtraResources, t -> {
+  def dirProp = project.objects.directoryProperty()
+  dirProp.set(t.destinationDir)
+  return dirProp;
+})
+
 tasks.named("processYamlRestTestV${compatVersion}CompatResources").configure {
   dependsOn("copyExtraResources")
 }

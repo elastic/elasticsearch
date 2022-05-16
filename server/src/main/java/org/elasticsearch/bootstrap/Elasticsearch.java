@@ -20,6 +20,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.NodeValidationException;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.security.Permission;
@@ -58,10 +59,8 @@ class Elasticsearch {
         PrintStream out = getStdout();
         PrintStream err = getStderr();
         try {
-            err.println("Reading args from server-cli");
             final var in = new InputStreamStreamInput(System.in);
             final ServerArgs serverArgs = new ServerArgs(in);
-            err.println(serverArgs);
             elasticsearch.init(
                 serverArgs.daemonize(),
                 serverArgs.pidFile(),
@@ -75,20 +74,7 @@ class Elasticsearch {
                 out.close();
                 err.close();
             } else {
-                new Thread(() -> {
-                    int msg = -1;
-                    try {
-                        msg = in.read();
-                    } catch (IOException e) {}
-                    if (msg == BootstrapInfo.SERVER_SHUTDOWN_MARKER) {
-                        out.println("Got shutdown signal from parent process");
-                        exit(0);
-                    } else {
-                        err.println("Parent process died, shutting down...");
-                        // parent process died or there was an error reading from it
-                        exit(1);
-                    }
-                }).start();
+                startCliMonitorThread(System.in);
             }
 
         } catch (NodeValidationException e) {
@@ -157,6 +143,29 @@ class Elasticsearch {
                     + ".log"
             );
         }
+    }
+
+    /**
+     * Starts a thread that monitors stdin for a shutdown signal.
+     *
+     * If the shutdown signal is received, Elasticsearch exits with status code 0.
+     * If the pipe is broken, Elasticsearch exits with status code 1.
+     *
+     * @param stdin Standard input for this process
+     */
+    private static void startCliMonitorThread(InputStream stdin) {
+        new Thread(() -> {
+            int msg = -1;
+            try {
+                msg = stdin.read();
+            } catch (IOException e) {}
+            if (msg == BootstrapInfo.SERVER_SHUTDOWN_MARKER) {
+                exit(0);
+            } else {
+                // parent process died or there was an error reading from it
+                exit(1);
+            }
+        }).start();
     }
 
     private static void overrideDnsCachePolicyProperties() {

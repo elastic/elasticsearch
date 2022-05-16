@@ -181,7 +181,8 @@ node can't be elected as `master`, or if the node can't hold data
 * Any of the
 {ref}/security-settings.html#transport-tls-ssl-settings[`xpack.security.transport.ssl.*`] or 
 {ref}/security-settings.html#http-tls-ssl-settings[`xpack.security.http.ssl.*`]
-settings have a value set
+settings have a value set in the `elasticsearch.yml` configuration file or in
+the `elasticsearch.keystore`
 * Any of the `discovery.type`, `discovery.seed_hosts`, or
 `cluster.initial_master_nodes`
 {ref}/modules-discovery-settings.html[discovery and cluster formation settings] 
@@ -195,13 +196,3 @@ Exceptions are when `discovery.type` is set to `single-node`, or when
 node.
 ====
 --
-
-[discrete]
-[[stack-existing-keystore-detected]]
-==== Keystore settings detected
-If we detect any of the
-<<stack-existing-environment-detected,existing environment configurations>> or
-<<stack-existing-settings-detected,existing settings>>, we can't generate a
-password for the `elastic` user. In addition, if either the `bootstrap.password` 
-or `autoconfiguration.password_hash` settings have values in the
-`elasticsearch.keystore`, no password is generated for the `elastic` user.

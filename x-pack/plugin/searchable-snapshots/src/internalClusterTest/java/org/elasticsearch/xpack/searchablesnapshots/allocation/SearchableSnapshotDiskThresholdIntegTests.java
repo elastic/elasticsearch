@@ -106,6 +106,8 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                             .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
                             .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
                             .put(DataTier.TIER_PREFERENCE_SETTING.getKey(), DataTier.DATA_HOT)
+                            // Disable merges. A merge can cause discrepancy between the size we detect and the size in the snapshot,
+                            // which could make room for more shards.
                             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                             .build()
                     );

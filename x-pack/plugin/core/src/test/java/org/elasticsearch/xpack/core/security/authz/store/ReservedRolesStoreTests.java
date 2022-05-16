@@ -683,7 +683,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // read-only indices for Endpoint events (to build timelines)
-        Arrays.asList(".logs-endpoint.events.process-default-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+        Arrays.asList("logs-endpoint.events.process-default-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
@@ -699,7 +699,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // read-only indices for Endpoint events (to build timelines)
-        Arrays.asList(".logs-endpoint.events.network-default-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+        Arrays.asList("logs-endpoint.events.network-default-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));

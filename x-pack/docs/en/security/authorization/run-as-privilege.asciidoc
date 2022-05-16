@@ -47,7 +47,7 @@ The `run_as` privilege essentially operates like a secondary form of
 authenticates to {es}, an authorization process determines whether the user
 behind an incoming request is allowed to run that request. If the authenticated
 user has the `run_as` privilege in their list of permissions, {es} _discards_ the 
-authenticated user and associated roles. It thenlooks in each of the configured
+authenticated user and associated roles. It then looks in each of the configured
 realms in the realm chain until it finds the username that's associated with the
 `run_as` user, and uses those roles to submit any requests.
 

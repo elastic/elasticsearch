@@ -1010,17 +1010,6 @@ public class AggregationResultUtilsTests extends ESTestCase {
         );
     }
 
-    public void testGenerateKeyForRange() {
-        assertThat(AggregationResultUtils.generateKeyForRange(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY), is(equalTo("*-*")));
-        assertThat(AggregationResultUtils.generateKeyForRange(Double.NEGATIVE_INFINITY, 0.0), is(equalTo("*-0")));
-        assertThat(AggregationResultUtils.generateKeyForRange(0.0, 0.0), is(equalTo("0-0")));
-        assertThat(AggregationResultUtils.generateKeyForRange(10.0, 10.0), is(equalTo("10-10")));
-        assertThat(AggregationResultUtils.generateKeyForRange(10.5, 10.5), is(equalTo("10_5-10_5")));
-        assertThat(AggregationResultUtils.generateKeyForRange(10.5, 19.5), is(equalTo("10_5-19_5")));
-        assertThat(AggregationResultUtils.generateKeyForRange(19.5, 20), is(equalTo("19_5-20")));
-        assertThat(AggregationResultUtils.generateKeyForRange(20, Double.POSITIVE_INFINITY), is(equalTo("20-*")));
-    }
-
     public static SingleBucketAggregation createSingleBucketAgg(String name, long docCount, Aggregation... subAggregations) {
         SingleBucketAggregation agg = mock(SingleBucketAggregation.class);
         when(agg.getDocCount()).thenReturn(docCount);

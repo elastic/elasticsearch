@@ -355,13 +355,6 @@ public final class AggregationResultUtils {
         }
     }
 
-    static String generateKeyForRange(double from, double to) {
-        return new StringBuilder().append(Double.isInfinite(from) ? "*" : OutputFieldNameConverter.fromDouble(from))
-            .append("-")
-            .append(Double.isInfinite(to) ? "*" : OutputFieldNameConverter.fromDouble(to))
-            .toString();
-    }
-
     static class SingleBucketAggExtractor implements AggValueExtractor {
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {

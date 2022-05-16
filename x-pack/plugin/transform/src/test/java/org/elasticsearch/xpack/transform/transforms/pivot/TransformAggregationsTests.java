@@ -360,4 +360,15 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("percentiles", outputTypes.get("filter_1.filter_2.percentiles.88_8"));
         assertEquals("percentiles", outputTypes.get("filter_1.filter_2.percentiles.99_5"));
     }
+
+    public void testGenerateKeyForRange() {
+        assertThat(TransformAggregations.generateKeyForRange(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY), is(equalTo("*-*")));
+        assertThat(TransformAggregations.generateKeyForRange(Double.NEGATIVE_INFINITY, 0.0), is(equalTo("*-0")));
+        assertThat(TransformAggregations.generateKeyForRange(0.0, 0.0), is(equalTo("0-0")));
+        assertThat(TransformAggregations.generateKeyForRange(10.0, 10.0), is(equalTo("10-10")));
+        assertThat(TransformAggregations.generateKeyForRange(10.5, 10.5), is(equalTo("10_5-10_5")));
+        assertThat(TransformAggregations.generateKeyForRange(10.5, 19.5), is(equalTo("10_5-19_5")));
+        assertThat(TransformAggregations.generateKeyForRange(19.5, 20), is(equalTo("19_5-20")));
+        assertThat(TransformAggregations.generateKeyForRange(20, Double.POSITIVE_INFINITY), is(equalTo("20-*")));
+    }
 }

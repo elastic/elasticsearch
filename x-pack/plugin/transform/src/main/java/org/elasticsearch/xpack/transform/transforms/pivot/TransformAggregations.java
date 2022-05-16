@@ -222,7 +222,7 @@ public final class TransformAggregations {
             HashMap<String, String> outputTypes = new HashMap<>();
             HashMap<String, String> inputTypes = new HashMap<>();
             for (Range range : rangeAgg.ranges()) {
-                String fieldName = rangeAgg.getName() + "." + AggregationResultUtils.generateKeyForRange(range.getFrom(), range.getTo());
+                String fieldName = rangeAgg.getName() + "." + generateKeyForRange(range.getFrom(), range.getTo());
                 if (rangeAgg.getSubAggregations().isEmpty()) {
                     outputTypes.put(fieldName, AggregationType.RANGE.getName());
                     continue;
@@ -286,5 +286,13 @@ public final class TransformAggregations {
 
         // catch all in case no special handling required
         return new Tuple<>(Collections.emptyMap(), Collections.singletonMap(agg.getName(), agg.getType()));
+    }
+
+    // Visible for testing
+    static String generateKeyForRange(double from, double to) {
+        return new StringBuilder().append(Double.isInfinite(from) ? "*" : OutputFieldNameConverter.fromDouble(from))
+            .append("-")
+            .append(Double.isInfinite(to) ? "*" : OutputFieldNameConverter.fromDouble(to))
+            .toString();
     }
 }

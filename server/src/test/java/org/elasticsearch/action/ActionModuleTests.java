@@ -24,7 +24,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
-import org.elasticsearch.plugins.interceptor.RestInterceptor;
+import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -290,7 +290,7 @@ public class ActionModuleTests extends ESTestCase {
         public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {}
     }
 
-    class SecPlugin implements ActionPlugin, RestInterceptor {
+    class SecPlugin implements ActionPlugin, RestInterceptorActionPlugin {
         @Override
         public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
             return UnaryOperator.identity();

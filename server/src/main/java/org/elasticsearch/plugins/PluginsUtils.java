@@ -16,11 +16,13 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.jdk.JarHell;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -113,12 +115,12 @@ public class PluginsUtils {
     }
 
     /** Get bundles for plugins installed in the given modules directory. */
-    public static Set<PluginBundle> getModuleBundles(Path modulesDirectory) throws IOException {
+    static Set<PluginBundle> getModuleBundles(Path modulesDirectory) throws IOException {
         return findBundles(modulesDirectory, "module");
     }
 
     /** Get bundles for plugins installed in the given plugins directory. */
-    public static Set<PluginBundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
+    static Set<PluginBundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
         return findBundles(pluginsDirectory, "plugin");
     }
 
@@ -154,9 +156,60 @@ public class PluginsUtils {
         return new PluginBundle(info, plugin);
     }
 
+    public static Map<String, List<String>> getPluginDependencies(List<String> pluginNames, Path directory) throws IOException {
+        final Map<String, List<String>> usedBy = new HashMap<>();
+        Set<PluginBundle> bundles = getPluginBundles(directory);
+        for (PluginBundle bundle : bundles) {
+            for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
+                for (String name : pluginNames) {
+                    if (extendedPlugin.equals(name)) {
+                        usedBy.computeIfAbsent(bundle.plugin.getName(), (_key -> new ArrayList<>())).add(name);
+                    }
+                }
+            }
+        }
+        if (usedBy.isEmpty()) {
+            return null;
+        }
+        return usedBy;
+    }
+
+    public static void preInstallJarHellCheck(
+        PluginInfo candidateInfo,
+        Path candidateDir,
+        Path pluginsDir,
+        Path modulesDir,
+        String jarFilter
+    ) throws Exception {
+        // create list of current jars in classpath
+        final Set<URL> classpath = JarHell.parseClassPath().stream().filter(url -> {
+            try {
+                return url.toURI().getPath().matches(jarFilter) == false;
+            } catch (final URISyntaxException e) {
+                throw new AssertionError(e);
+            }
+        }).collect(Collectors.toSet());
+
+        // read existing bundles. this does some checks on the installation too.
+        Set<PluginBundle> bundles = new HashSet<>(getPluginBundles(pluginsDir));
+        bundles.addAll(getModuleBundles(modulesDir));
+        bundles.add(new PluginBundle(candidateInfo, candidateDir));
+        List<PluginBundle> sortedBundles = sortBundles(bundles);
+
+        // check jarhell of all plugins so we know this plugin and anything depending on it are ok together
+        // TODO: optimize to skip any bundles not connected to the candidate plugin?
+        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        for (PluginBundle bundle : sortedBundles) {
+            checkBundleJarHell(classpath, bundle, transitiveUrls);
+        }
+
+        // TODO: no jars should be an error
+        // TODO: verify the classname exists in one of the jars!
+    }
+
     // jar-hell check the bundle against the parent classloader and extended plugins
     // the plugin cli does it, but we do it again, in case users mess with jar files manually
-    public static void checkBundleJarHell(Set<URL> systemLoaderURLs, PluginBundle bundle, Map<String, Set<URL>> transitiveUrls) {
+    static void checkBundleJarHell(Set<URL> systemLoaderURLs, PluginBundle bundle, Map<String, Set<URL>> transitiveUrls) {
         // invariant: any plugins this plugin bundle extends have already been added to transitiveUrls
         List<String> exts = bundle.plugin.getExtendedPlugins();
 
@@ -225,7 +278,7 @@ public class PluginsUtils {
      *
      * @throws IllegalStateException if a dependency cycle is found
      */
-    public static List<PluginBundle> sortBundles(Set<PluginBundle> bundles) {
+    static List<PluginBundle> sortBundles(Set<PluginBundle> bundles) {
         Map<String, PluginBundle> namedBundles = bundles.stream().collect(Collectors.toMap(b -> b.plugin.getName(), Function.identity()));
         LinkedHashSet<PluginBundle> sortedBundles = new LinkedHashSet<>();
         LinkedHashSet<String> dependencyStack = new LinkedHashSet<>();
@@ -271,5 +324,4 @@ public class PluginsUtils {
 
         sortedBundles.add(bundle);
     }
-
 }

@@ -13,7 +13,6 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.plugins.PluginsUtils;
 
 import java.io.IOException;
@@ -21,11 +20,9 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.StringJoiner;
 import java.util.stream.Stream;
 
@@ -89,21 +86,9 @@ public class RemovePluginAction {
 
     private void ensurePluginsNotUsedByOtherPlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
         // First make sure nothing extends this plugin
-        final Map<String, List<String>> usedBy = new HashMap<>();
-        Set<PluginBundle> bundles = PluginsUtils.getPluginBundles(env.pluginsFile());
-        for (PluginBundle bundle : bundles) {
-            for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
-                for (PluginDescriptor plugin : plugins) {
-                    String pluginId = plugin.getId();
-                    if (extendedPlugin.equals(pluginId)) {
-                        usedBy.computeIfAbsent(bundle.plugin.getName(), (_key -> new ArrayList<>())).add(pluginId);
-                    }
-                }
-            }
-        }
-        if (usedBy.isEmpty()) {
-            return;
-        }
+        List<String> pluginNames = plugins.stream().map(PluginDescriptor::getId).toList();
+        final Map<String, List<String>> usedBy = PluginsUtils.getPluginDependencies(pluginNames, env.pluginsFile());
+        if (usedBy == null) return;
 
         final StringJoiner message = new StringJoiner("\n");
         message.add("Cannot remove plugins because the following are extended by other plugins:");

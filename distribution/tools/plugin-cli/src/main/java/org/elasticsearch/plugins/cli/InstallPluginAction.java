@@ -37,9 +37,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.Platforms;
-import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginsUtils;
 
@@ -53,7 +51,6 @@ import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
 import java.net.Proxy;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLDecoder;
@@ -73,7 +70,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -877,30 +873,7 @@ public class InstallPluginAction implements Closeable {
      * check a candidate plugin for jar hell before installing it
      */
     void jarHellCheck(PluginInfo candidateInfo, Path candidateDir, Path pluginsDir, Path modulesDir) throws Exception {
-        // create list of current jars in classpath
-        final Set<URL> classpath = JarHell.parseClassPath().stream().filter(url -> {
-            try {
-                return url.toURI().getPath().matches(LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR) == false;
-            } catch (final URISyntaxException e) {
-                throw new AssertionError(e);
-            }
-        }).collect(Collectors.toSet());
-
-        // read existing bundles. this does some checks on the installation too.
-        Set<PluginBundle> bundles = new HashSet<>(PluginsUtils.getPluginBundles(pluginsDir));
-        bundles.addAll(PluginsUtils.getModuleBundles(modulesDir));
-        bundles.add(new PluginBundle(candidateInfo, candidateDir));
-        List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
-
-        // check jarhell of all plugins so we know this plugin and anything depending on it are ok together
-        // TODO: optimize to skip any bundles not connected to the candidate plugin?
-        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
-        for (PluginBundle bundle : sortedBundles) {
-            PluginsUtils.checkBundleJarHell(classpath, bundle, transitiveUrls);
-        }
-
-        // TODO: no jars should be an error
-        // TODO: verify the classname exists in one of the jars!
+        PluginsUtils.preInstallJarHellCheck(candidateInfo, candidateDir, pluginsDir, modulesDir, LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR);
     }
 
     /**

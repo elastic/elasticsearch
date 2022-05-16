@@ -9,6 +9,7 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -46,6 +47,24 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
         Settings settings = Settings.EMPTY;
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "field1": {
+                            "type": "long"
+                        },
+                        "field2": {
+                            "type": "keyword"
+                        },
+                        "field3": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        }
+                    }
+                }
+            }
+            """;
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
@@ -53,11 +72,12 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             metadata,
             now,
             settings,
-            List.of(new CompressedXContent("{}"))
+            List.of(new CompressedXContent(mapping))
         );
-        assertThat(result.size(), equalTo(2));
+        assertThat(result.size(), equalTo(3));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), equalTo(List.of("field3")));
     }
 
     public void testGetAdditionalIndexSettingsLookAheadTime() throws Exception {

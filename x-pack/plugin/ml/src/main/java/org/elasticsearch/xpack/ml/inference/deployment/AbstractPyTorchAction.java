@@ -107,5 +107,9 @@ abstract class AbstractPyTorchAction<T> extends AbstractRunnable {
         return processContext;
     }
 
+    TimeValue getTimeout() {
+        return timeout;
+    }
+
     protected abstract Logger getLogger();
 }

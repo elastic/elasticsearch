@@ -204,6 +204,7 @@ public abstract class PackagingTestCase extends Assert {
         // move log file so we can avoid false positives when grepping for
         // messages in logs during test
         if (installation != null && failed == false) {
+
             if (Files.exists(installation.logs)) {
                 Path logFile = installation.logs.resolve("elasticsearch.log");
                 String prefix = this.getClass().getSimpleName() + "." + testNameRule.getMethodName();
@@ -212,8 +213,8 @@ public abstract class PackagingTestCase extends Assert {
                     try {
                         FileUtils.mv(logFile, newFile);
                     } catch (Exception e) {
-                        // There was a problem moving the log file. This usually means Windows wackiness
-                        // where something still has the file open. Here we dump the log files to see
+                        // There was a problem cleaning up log files. This usually means Windows wackiness
+                        // where something still has the file open. Here we dump what we can of the log files to see
                         // if ES is still running.
                         dumpDebug();
                         throw e;
@@ -227,6 +228,7 @@ public abstract class PackagingTestCase extends Assert {
             if (Files.exists(Archives.getPowershellErrorPath(installation))) {
                 FileUtils.rmWithRetries(Archives.getPowershellErrorPath(installation));
             }
+
         }
 
     }

@@ -79,14 +79,16 @@ public abstract class Terminal {
         this.currentVerbosity = verbosity;
     }
 
+    /**
+     * Return the current verbosity level of this terminal.
+     */
     public Verbosity getVerbosity() {
         return currentVerbosity;
     }
 
     private char[] read(String prompt) {
-        // prompts should go to standard error to avoid mixing with list output
-        errWriter.print(prompt);
-        errWriter.flush();
+        errWriter.print(prompt); // prompts should go to standard error to avoid mixing with list output
+        errWriter.flush(); // flush to ensure it is seen
         final char[] line = readLineToCharArray(reader);
         if (line == null) {
             throw new IllegalStateException("unable to read from standard input; is standard input open and a tty attached?");

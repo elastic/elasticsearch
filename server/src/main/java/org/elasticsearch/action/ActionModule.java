@@ -271,7 +271,7 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
-import org.elasticsearch.plugins.interceptor.RestInterceptor;
+import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -480,7 +480,7 @@ public class ActionModule extends AbstractModule {
         ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restInterceptor = null;
         for (ActionPlugin plugin : actionPlugins) {
-            if (plugin instanceof RestInterceptor riplugin) {
+            if (plugin instanceof RestInterceptorActionPlugin riplugin) {
                 UnaryOperator<RestHandler> newRestInterceptor = riplugin.getRestHandlerInterceptor(threadPool.getThreadContext());
                 if (newRestInterceptor != null) {
                     logger.debug("Using REST interceptor from plugin " + plugin.getClass().getName());

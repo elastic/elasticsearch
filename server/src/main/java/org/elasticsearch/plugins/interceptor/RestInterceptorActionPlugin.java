@@ -9,14 +9,15 @@
 package org.elasticsearch.plugins.interceptor;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestHandler;
 
 import java.util.function.UnaryOperator;
 
 /**
- * An interceptor for handling incoming the REST requests.
+ * An action plugin that intercepts incoming the REST requests.
  */
-public interface RestInterceptor {
+public interface RestInterceptorActionPlugin extends ActionPlugin {
 
     /**
      * Returns a function used to intercept each rest request before handling the request.

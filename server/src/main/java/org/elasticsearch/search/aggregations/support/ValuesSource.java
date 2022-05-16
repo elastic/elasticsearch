@@ -704,8 +704,8 @@ public abstract class ValuesSource {
         public static final GeoPoint EMPTY = new GeoPoint() {
 
             @Override
-            public MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-                return org.elasticsearch.index.fielddata.FieldData.emptyMultiGeoPoints();
+            public SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context) {
+                return DocValues.emptySortedNumeric();
             }
 
             @Override
@@ -726,7 +726,19 @@ public abstract class ValuesSource {
             throw new AggregationExecutionException("can't round a [GEO_POINT]");
         }
 
-        public abstract MultiGeoPointValues geoPointValues(LeafReaderContext context);
+        /**
+         * Return geo-point values.
+         */
+        public final MultiGeoPointValues geoPointValues(LeafReaderContext context) {
+            return new MultiGeoPointValues(geoSortedNumericDocValues(context));
+        }
+
+        /**
+         * Return the internal representation of geo_point doc values as a {@link SortedNumericDocValues}.
+         * A point is encoded as a long that can be decoded by using
+         * {@link org.elasticsearch.common.geo.GeoPoint#resetFromEncoded(long)}
+         */
+        public abstract SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context);
 
         public static class Fielddata extends GeoPoint {
 
@@ -741,8 +753,9 @@ public abstract class ValuesSource {
                 return indexFieldData.load(context).getBytesValues();
             }
 
-            public org.elasticsearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-                return indexFieldData.load(context).getGeoPointValues();
+            @Override
+            public SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getSortedNumericDocValues();
             }
         }
     }

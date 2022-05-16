@@ -7,6 +7,9 @@
  */
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.geo.GeoPoint;
 
 import java.io.IOException;
@@ -26,23 +29,32 @@ import java.io.IOException;
  * The set of values associated with a document might contain duplicates and
  * comes in a non-specified order.
  */
-public abstract class MultiGeoPointValues {
+public final class MultiGeoPointValues {
+
+    private final GeoPoint point = new GeoPoint();
+    private final SortedNumericDocValues numericValues;
 
     /**
      * Creates a new {@link MultiGeoPointValues} instance
      */
-    protected MultiGeoPointValues() {}
+    public MultiGeoPointValues(SortedNumericDocValues numericValues) {
+        this.numericValues = numericValues;
+    }
 
     /**
      * Advance this instance to the given document id
      * @return true if there is a value for this document
      */
-    public abstract boolean advanceExact(int doc) throws IOException;
+    public boolean advanceExact(int doc) throws IOException {
+        return numericValues.advanceExact(doc);
+    }
 
     /**
      * Return the number of geo points the current document has.
      */
-    public abstract int docValueCount();
+    public int docValueCount() {
+        return numericValues.docValueCount();
+    }
 
     /**
      * Return the next value associated with the current document. This must not be
@@ -52,6 +64,16 @@ public abstract class MultiGeoPointValues {
      *
      * @return the next value for the current docID set to {@link #advanceExact(int)}.
      */
-    public abstract GeoPoint nextValue() throws IOException;
+    public GeoPoint nextValue() throws IOException {
+        return point.resetFromEncoded(numericValues.nextValue());
+    }
+
+    /**
+     * Returns a single-valued view of the {@link MultiGeoPointValues} if possible, otherwise null.
+     */
+    GeoPointValues getGeoPointValues() {
+        final NumericDocValues singleton = DocValues.unwrapSingleton(numericValues);
+        return singleton != null ? new GeoPointValues(singleton) : null;
+    }
 
 }

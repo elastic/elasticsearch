@@ -346,53 +346,6 @@ public class MissingValuesTests extends ESTestCase {
         }
     }
 
-    public void testMissingGeoPoints() throws IOException {
-        final int numDocs = TestUtil.nextInt(random(), 1, 100);
-        final GeoPoint[][] values = new GeoPoint[numDocs][];
-        for (int i = 0; i < numDocs; ++i) {
-            values[i] = new GeoPoint[random().nextInt(4)];
-            for (int j = 0; j < values[i].length; ++j) {
-                values[i][j] = new GeoPoint(randomDouble() * 90, randomDouble() * 180);
-            }
-        }
-        MultiGeoPointValues asGeoValues = new MultiGeoPointValues() {
-
-            int doc = -1;
-            int i;
-
-            @Override
-            public GeoPoint nextValue() {
-                return values[doc][i++];
-            }
-
-            @Override
-            public boolean advanceExact(int docId) {
-                doc = docId;
-                i = 0;
-                return values[doc].length > 0;
-            }
-
-            @Override
-            public int docValueCount() {
-                return values[doc].length;
-            }
-        };
-        final GeoPoint missing = new GeoPoint(randomDouble() * 90, randomDouble() * 180);
-        MultiGeoPointValues withMissingReplaced = MissingValues.replaceMissing(asGeoValues, missing);
-        for (int i = 0; i < numDocs; ++i) {
-            assertTrue(withMissingReplaced.advanceExact(i));
-            if (values[i].length > 0) {
-                assertEquals(values[i].length, withMissingReplaced.docValueCount());
-                for (int j = 0; j < values[i].length; ++j) {
-                    assertEquals(values[i][j], withMissingReplaced.nextValue());
-                }
-            } else {
-                assertEquals(1, withMissingReplaced.docValueCount());
-                assertEquals(missing, withMissingReplaced.nextValue());
-            }
-        }
-    }
-
     public void testFloatingPointDetection() {
         assertFalse(MissingValues.replaceMissing(ValuesSource.Numeric.EMPTY, 3).isFloatingPoint());
         assertTrue(MissingValues.replaceMissing(ValuesSource.Numeric.EMPTY, 3.5).isFloatingPoint());

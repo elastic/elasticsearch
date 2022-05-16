@@ -14,7 +14,6 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,27 +55,6 @@ public enum FieldData {
      */
     public static SortedNumericDoubleValues emptySortedNumericDoubles() {
         return singleton(emptyNumericDouble());
-    }
-
-    public static GeoPointValues emptyGeoPoint() {
-        return new GeoPointValues() {
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                return false;
-            }
-
-            @Override
-            public GeoPoint geoPointValue() {
-                throw new UnsupportedOperationException();
-            }
-        };
-    }
-
-    /**
-     * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
-     */
-    public static MultiGeoPointValues emptyMultiGeoPoints() {
-        return singleton(emptyGeoPoint());
     }
 
     /**
@@ -235,22 +213,11 @@ public enum FieldData {
     }
 
     /**
-     * Returns a multi-valued view over the provided {@link GeoPointValues}.
-     */
-    public static MultiGeoPointValues singleton(GeoPointValues values) {
-        return new SingletonMultiGeoPointValues(values);
-    }
-
-    /**
      * Returns a single-valued view of the {@link MultiGeoPointValues},
-     * if it was previously wrapped with {@link #singleton(GeoPointValues)},
-     * or null.
+     * if the wrapped {@link SortedNumericDocValues} is a singleton.
      */
     public static GeoPointValues unwrapSingleton(MultiGeoPointValues values) {
-        if (values instanceof SingletonMultiGeoPointValues) {
-            return ((SingletonMultiGeoPointValues) values).getGeoPointValues();
-        }
-        return null;
+        return values.getGeoPointValues();
     }
 
     /**

@@ -57,7 +57,10 @@ public class ReactiveReasonTests extends ESTestCase {
             assertEquals(unassignedShardIds.stream().map(ShardId::toString).collect(Collectors.toList()), map.get("unassigned_shard_ids"));
             List<String> xContentAssignedShardIds = (List<String>) map.get("assigned_shard_ids");
             assertEquals(
-                assignedShardIds.stream().map(ShardId::toString).limit(512).collect(Collectors.toList()),
+                assignedShardIds.stream()
+                    .map(ShardId::toString)
+                    .limit(ReactiveStorageDeciderService.ReactiveReason.MAX_ASSIGNED_SHARD_IDS)
+                    .collect(Collectors.toList()),
                 xContentAssignedShardIds
             );
             assertSorted(xContentAssignedShardIds.stream().map(ShardId::fromString).collect(Collectors.toList()));

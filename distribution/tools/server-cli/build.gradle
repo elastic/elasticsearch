@@ -20,9 +20,9 @@ tasks.named("test").configure {
   systemProperty "tests.security.manager", "false"
 }
 
-/*tasks.withType(CheckForbiddenApis).configureEach {
+tasks.withType(CheckForbiddenApis).configureEach {
   replaceSignatureFiles 'jdk-signatures'
-}*/
+}
 
 ["javadoc", "loggerUsageCheck", "jarHell"].each { tsk ->
   tasks.named(tsk).configure { enabled = false }

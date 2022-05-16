@@ -24,6 +24,12 @@ Requires the following privileges:
 * source indices: `read`, `view_index_metadata`
 * destination index: `read`, `create_index`, `index`. If a `retention_policy` is configured, the `delete` privilege is
   also required.
++
+--
+NOTE:  If you provide
+<<http-clients-secondary-authorization,secondary authorization headers>>, those
+credentials are used.
+--
 
 [[put-transform-desc]]
 == {api-description-title}

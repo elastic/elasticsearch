@@ -42,12 +42,14 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class TransformPivotRestIT extends TransformRestTestCase {
 
+    private static final String TEST_USER_NAME_NO_ACCESS = "no_authorization";
     private static final String TEST_USER_NAME = "transform_admin_plus_data";
     private static final String DATA_ACCESS_ROLE = "test_data_access";
     private static final String BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS = basicAuthHeaderValue(
         TEST_USER_NAME,
         TEST_PASSWORD_SECURE_STRING
     );
+    private static final String BASIC_AUTH_VALUE_NO_ACCESS = basicAuthHeaderValue(TEST_USER_NAME_NO_ACCESS, TEST_PASSWORD_SECURE_STRING);
 
     private static boolean indicesCreated = false;
 
@@ -94,6 +96,34 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_20", 3.769230769);
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
         assertOneCount(transformIndex + "/_search?q=reviewer:user_26", "hits.hits._source.affiliate_missing", 0);
+    }
+
+    public void testSimplePivotWithSecondaryHeaders() throws Exception {
+        setupUser(TEST_USER_NAME_NO_ACCESS, List.of("transform_admin"));
+        String transformId = "simple-pivot";
+        String transformIndex = "pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+        createPivotReviewsTransform(
+            transformId,
+            transformIndex,
+            null,
+            null,
+            BASIC_AUTH_VALUE_NO_ACCESS,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS,
+            REVIEWS_INDEX_NAME
+        );
+        startAndWaitForTransform(
+            transformId,
+            transformIndex,
+            BASIC_AUTH_VALUE_NO_ACCESS,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS,
+            new String[0]
+        );
+
+        // we expect 27 documents as there shall be 27 user_id's
+        // Just need to validate that things ran with secondary headers
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
     }
 
     public void testSimpleDataStreamPivot() throws Exception {

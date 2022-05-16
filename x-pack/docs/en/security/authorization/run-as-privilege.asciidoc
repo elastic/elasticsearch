@@ -8,12 +8,13 @@ authenticates users, you can use the _run as_ mechanism to restrict data access
 according to {es} permissions without having to re-authenticate each user.
 
 To "run as" (impersonate) another user, that user must exist in a realm that
-supports the _run as_ mechanism. Both the internal `native` and `file` realms
-support this out of the box. The LDAP realm must be configured to run in
-<<ldap-realm-configuration,_user search_ mode>>. The Active Directory realm must
-be <<ref-ad-settings,configured with a `bind_dn` and `secure_bind_password`>> to
-support _run as_. The Kerberos, OpenID Connect, PKI, and SAML realms do not
-support _run as_.
+supports the _run as_ mechanism. The internal `native` and `file` realms
+inherently support this capability, as does the JWT realm. To support `run_as`,
+in the LDAP realm, you have to run in
+<<ldap-realm-configuration,_user search_ mode>>. For Active Directory, you need
+to <<ref-ad-settings,configure a `bind_dn` and `secure_bind_password`>>.
+
+The Kerberos, OpenID Connect, PKI, and SAML realms do not support _run as_.
 
 To submit requests on behalf of other users, you need to have the `run_as`
 permission. For example, the following role grants permission to submit request
@@ -36,23 +37,19 @@ curl -H "es-security-runas-user: jacknich"  -u es_admin -XGET 'http://localhost:
 
 [[run-as-privilege-apply]]
 == Apply the `run_as` privilege to roles
-
 You can apply the `run_as` privilege when creating roles with the
 <<security-api-put-role,create or update roles API>>. Users who are assigned
 a role that contains the `run_as` privilege inherit all privileges from their
 role, and can also submit requests on behalf of the indicated users.
 
-When <<authorization_realms,delegated authorization>> is disabled, {es} handles
-role lookup. If delegated authorization is enabled and the `run_as` privilege
-is present, {es} uses the configured realms to check roles for the user with the
-`run_as` privilege in one of the following ways:
-
-* Directly look up a user with predefined roles, such as an LDAP user lookup in
-an LDAP server.
-* Indirectly look up a user through role mapping rules, such as lookup in a JWT
-or OIDC realm. 
-* Delegate authorization to another realm, which overrides direct and indirect
-lookup. 
+The `run_as` privilege essentially operates like a secondary form of
+<<authorization_realms,delegated authorization>>. After a user successfully
+authenticates to {es}, an authorization process determines whether the user
+behind an incoming request is allowed to run that request. If the authenticated
+user has the `run_as` privilege in their list of permissions, {es} _discards_ the 
+authenticated user and associated roles. It thenlooks in each of the configured
+realms in the realm chain until it finds the username that's associated with the
+`run_as` user, and uses those roles to submit any requests.
 
 Consider an admin role and an analyst role. The admin role has higher privileges,
 but might also want to submit requests as another user to test and verify their

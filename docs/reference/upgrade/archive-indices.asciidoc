@@ -16,6 +16,7 @@ can either be <<restore-snapshot-api,restored>>, or can be directly accessed
 via <<searchable-snapshots,searchable snapshots>> so that the archived data
 won't even need to fully reside on local disks for access.
 
+[discrete]
 [[archive-indices-supported-field-types]]
 === Supported field types
 
@@ -54,6 +55,7 @@ the mapping where the original mapping is stored in the _meta section of
 the imported index's mapping, and relies on the user to put the relevant
 mapping parts manually in place.
 
+[discrete]
 === Supported APIs
 
 Archive indices are read-only, and provide data access via the
@@ -66,6 +68,7 @@ they are <<archive-indices-supported-field-types,supported by the given field ty
 Due to `_source` access the data can also be <<docs-reindex,reindexed>>
 to a new index that has full compatibility with the current {es} version.
 
+[discrete]
 === How to upgrade older {es} 5 or 6 clusters?
 
 Take a snapshot of the indices in the old cluster, delete indices that are not

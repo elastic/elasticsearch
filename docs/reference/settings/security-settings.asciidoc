@@ -1758,6 +1758,7 @@ As per `claim_patterns.principal`, but for the _dn_ property.
 (<<static-cluster-setting,Static>>)
 The maximum allowed clock skew to be taken into consideration when validating
 id tokens with regards to their creation and expiration times.
+Defaults to `60s`.
 // end::oidc-allowed-clock-skew-tag[]
 
 // tag::oidc-populate-user-metadata-tag[]
@@ -1820,6 +1821,7 @@ a maximum period inactivity between two consecutive data packets). Defaults to
 Controls the behavior of the http client used for back-channel communication to
 the OpenID Connect Provider endpoints. Specifies the maximum number of
 connections allowed across all endpoints.
+Defaults to `200`.
 // end::oidc-http-max-connections-tag[]
 
 // tag::oidc-http-max-endpoint-connections-tag[]
@@ -1828,6 +1830,7 @@ connections allowed across all endpoints.
 Controls the behavior of the http client used for back-channel communication to
 the OpenID Connect Provider endpoints. Specifies the maximum number of
 connections allowed per endpoint.
+Defaults to `200`.
 // end::oidc-http-max-endpoint-connections-tag[]
 
 [discrete]
@@ -2115,6 +2118,64 @@ Controls the behavior of the http client used for fetching the JSON Web Key Set
 from a remote URL. Specifies the maximum number of
 connections allowed per endpoint.
 // end::jwt-http-max-endpoint-connections-tag[]
+
+`jwt.cache.size`::
+(<<static-cluster-setting,Static>>)
+Specifies the maximum number of JWT cache entries. If clients use a different
+JWT for every request, set to `0` to disable the JWT cache. Defaults to `100000`.
+
+`jwt.cache.ttl`::
+(<<static-cluster-setting,Static>>)
+Specifies the time-to-live for the period of time to cache JWT entries.
+JWTs can only be cached if client authentication is successful (or disabled).
+Uses the standard {es} <<time-units,time units>>. If clients use a different JWT
+for every request, set to `0` to disable the JWT cache. Defaults to `20m`.
+
+// tag::jwt-pkc-jwkset-path-tag[]
+`pkc_jwkset_path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The file path or URL to a JSON Web Key Set with the public key material that
+the JWT Realm uses for verifying token signatures. If a path is provided,
+then it is resolved relative to the {es} configuration directory.
+If a URL is provided, then it must be either a `file` URL or an `https` URL.
+{es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
+requests, but will attempt to refresh the JWK upon signature verification
+failure, as this might indicate that the JWT Provider has
+rotated the signing keys.
++
+File-based resources are polled at a frequency determined by the global {es}
+`resource.reload.interval.high` setting, which defaults to `5s`.
+// end::jwt-pkc-jwkset-path-tag[]
+
+// tag::jwt-hmac-jwkset-tag[]
+`hmac_jwkset` {ess-icon}::
+(<<secure-settings,Secure>>)
+Contents of a JSON Web Key Set (JWKS), including the secret key that the JWT
+realm uses to verify token signatures. This format supports multiple keys and
+optional attributes, and is preferred over the `hmac_key` setting. Cannot be
+used in conjunction with the `hmac_key` setting. Refer to
+<<jwt-realm-configuration,Configure {es} to use a JWT realm>>.
+// end::jwt-hmac-jwkset-tag[]
+
+// tag::jwt-hmac-key-tag[]
+`hmac_key` {ess-icon}::
+(<<secure-settings,Secure>>)
+Contents of a single JSON Web Key (JWK), including the secret key that the JWT
+realm uses to verify token signatures. This format only supports a single key
+without attributes, and cannot be used with the `hmac_jwkset` setting. This
+format is compatible with OIDC. The HMAC key must be a UNICODE string, where
+the key bytes are the UTF-8 encoding of the UNICODE string.
+The `hmac_jwkset` setting is preferred. Refer to
+<<jwt-realm-configuration,Configure {es} to use a JWT realm>>.
+
+// end::jwt-hmac-key-tag[]
+
+// tag::jwt-populate-user-metadata-tag[]
+`populate_user_metadata` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies whether to populate the {es} user's metadata with the values that are
+provided by the JWT claims. Defaults to `true`.
+// end::jwt-populate-user-metadata-tag[]
 
 [discrete]
 [[ref-jwt-ssl-settings]]

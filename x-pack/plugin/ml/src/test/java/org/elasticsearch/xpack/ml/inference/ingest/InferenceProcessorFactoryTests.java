@@ -23,7 +23,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ESTestCase;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
@@ -137,6 +140,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 DiscoveryNodes.builder()
                     .add(new DiscoveryNode("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
                     .add(new DiscoveryNode("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302), Version.CURRENT))
+                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304), Version.CURRENT))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )
@@ -389,17 +393,21 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
     public void testParseFromMap() {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client, clusterService, Settings.EMPTY);
-        for (String name : List.of(
-            ClassificationConfig.NAME.getPreferredName(),
-            RegressionConfig.NAME.getPreferredName(),
-            FillMaskConfig.NAME,
-            NerConfig.NAME,
-            PassThroughConfig.NAME,
-            TextClassificationConfig.NAME,
-            TextEmbeddingConfig.NAME,
-            ZeroShotClassificationConfig.NAME
+        for (var nameAndMap : List.of(
+            Tuple.tuple(ClassificationConfig.NAME.getPreferredName(), Map.of()),
+            Tuple.tuple(RegressionConfig.NAME.getPreferredName(), Map.of()),
+            Tuple.tuple(FillMaskConfig.NAME, Map.of()),
+            Tuple.tuple(NerConfig.NAME, Map.of()),
+            Tuple.tuple(PassThroughConfig.NAME, Map.of()),
+            Tuple.tuple(TextClassificationConfig.NAME, Map.of()),
+            Tuple.tuple(TextEmbeddingConfig.NAME, Map.of()),
+            Tuple.tuple(ZeroShotClassificationConfig.NAME, Map.of()),
+            Tuple.tuple(QuestionAnsweringConfig.NAME, Map.of("question", "What is the answer to life, the universe and everything?"))
         )) {
-            assertThat(processorFactory.inferenceConfigUpdateFromMap(Map.of(name, Map.of())).getName(), equalTo(name));
+            assertThat(
+                processorFactory.inferenceConfigUpdateFromMap(Map.of(nameAndMap.v1(), nameAndMap.v2())).getName(),
+                equalTo(nameAndMap.v1())
+            );
         }
     }
 
@@ -412,7 +420,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     }
 
     private static ClusterState builderClusterStateWithModelReferences(Version minNodeVersion, String... modelId) throws IOException {
-        Map<String, PipelineConfiguration> configurations = new HashMap<>(modelId.length);
+        Map<String, PipelineConfiguration> configurations = Maps.newMapWithExpectedSize(modelId.length);
         for (String id : modelId) {
             configurations.put(
                 "pipeline_with_model_" + id,
@@ -427,6 +435,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 DiscoveryNodes.builder()
                     .add(new DiscoveryNode("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), minNodeVersion))
                     .add(new DiscoveryNode("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302), Version.CURRENT))
+                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304), Version.CURRENT))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )

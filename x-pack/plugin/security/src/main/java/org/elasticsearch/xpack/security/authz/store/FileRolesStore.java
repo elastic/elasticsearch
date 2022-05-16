@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
@@ -23,7 +24,9 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -120,7 +123,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
 
     public Map<String, Object> usageStats() {
         final Map<String, RoleDescriptor> localPermissions = permissions;
-        Map<String, Object> usageStats = new HashMap<>(3);
+        Map<String, Object> usageStats = Maps.newMapWithExpectedSize(3);
         usageStats.put("size", localPermissions.size());
 
         boolean dls = false;
@@ -285,8 +288,10 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         NamedXContentRegistry xContentRegistry
     ) {
         String roleName = null;
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try {
-            XContentParser parser = YamlXContent.yamlXContent.createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, segment);
+            XContentParser parser = YamlXContent.yamlXContent.createParser(parserConfig, segment);
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.START_OBJECT) {
                 token = parser.nextToken();
@@ -324,11 +329,11 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
             assert roleName != null;
             if (logger.isDebugEnabled()) {
                 final String finalRoleName = roleName;
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("parsing exception for role [{}]", finalRoleName), e);
+                logger.debug((Supplier<?>) () -> "parsing exception for role [" + finalRoleName + "]", e);
             } else {
                 logger.error(e.getMessage() + ". skipping role...");
             }
-        } catch (IOException e) {
+        } catch (IOException | XContentParseException e) {
             if (roleName != null) {
                 final String finalRoleName = roleName;
                 logger.error(
@@ -340,10 +345,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     e
                 );
             } else {
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage("invalid role definition in roles file [{}]. skipping role...", path),
-                    e
-                );
+                logger.error((Supplier<?>) () -> "invalid role definition in roles file [" + path + "]. skipping role...", e);
             }
         }
         return null;

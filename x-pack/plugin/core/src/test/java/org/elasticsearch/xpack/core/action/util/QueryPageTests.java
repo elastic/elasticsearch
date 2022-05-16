@@ -94,15 +94,12 @@ public class QueryPageTests extends AbstractWireSerializingTestCase<QueryPage<Qu
         List<QueryPageTests.QueryPageTester> page = instance.results();
         long count = instance.count();
         switch (between(0, 1)) {
-            case 0:
+            case 0 -> {
                 page = new ArrayList<>(page);
-                page.add(new QueryPageTests.QueryPageTester(randomAlphaOfLength(10), randomLong()));
-                break;
-            case 1:
-                count += between(1, 20);
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+                page.add(new QueryPageTester(randomAlphaOfLength(10), randomLong()));
+            }
+            case 1 -> count += between(1, 20);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new QueryPage<>(page, count, resultsField);
     }

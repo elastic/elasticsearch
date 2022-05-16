@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.exc.InputCoercionException;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -20,7 +17,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -30,16 +26,17 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -52,6 +49,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -105,7 +103,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 false,
                 () -> null,
                 (n, c, o) -> parseNullValueAsString(o),
-                m -> toType(m).nullValue
+                m -> toType(m).nullValue,
+                XContentBuilder::field,
+                Objects::toString
             ).acceptsNull();
 
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
@@ -216,6 +216,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name());
         }
 
         @Override
@@ -333,7 +338,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public Function<byte[], Number> pointReaderIfPossible() {
-            if (isSearchable()) {
+            if (isIndexed()) {
                 // convert from the shifted value back to the original value
                 return (value) -> convertUnsignedLongToDouble(LongPoint.decodeDimension(value, 0));
             }
@@ -526,7 +531,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 } else {
                     numericValue = parseUnsignedLong(parser.text());
                 }
-            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
+            } catch (IllegalArgumentException e) {
                 if (ignoreMalformed.value() && parser.currentToken().isValue()) {
                     context.addIgnoredField(mappedFieldType.name());
                     return;
@@ -545,12 +550,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         if (dimension && numericValue != null) {
-            // We encode the tsid part of the dimension field. However, there is no point
-            // in encoding the tsid value if we do not generate the _tsid field.
-            BytesReference bytes = context.getMetadataMapper(TimeSeriesIdFieldMapper.NAME) != null
-                ? TimeSeriesIdFieldMapper.encodeTsidUnsignedLongValue(numericValue)
-                : null;
-            context.doc().addDimensionBytes(fieldType().name(), bytes);
+            context.getDimensions().addUnsignedLong(fieldType().name(), numericValue);
         }
 
         List<Field> fields = new ArrayList<>();
@@ -646,4 +646,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         return value ^ MASK_2_63;
     }
 
+    @Override
+    public void doValidate(MappingLookup lookup) {
+        if (dimension && null != lookup.nestedLookup().getNestedParent(name())) {
+            throw new IllegalArgumentException(
+                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
+            );
+        }
+    }
 }

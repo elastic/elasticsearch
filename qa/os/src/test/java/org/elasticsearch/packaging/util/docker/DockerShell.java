@@ -53,8 +53,8 @@ public class DockerShell extends Shell {
                 logger.error(
                     "Command [{}] failed.\n\nContainer stdout: [{}]\n\nContainer stderr: [{}]",
                     script,
-                    dockerLogs.stdout,
-                    dockerLogs.stderr
+                    dockerLogs.stdout(),
+                    dockerLogs.stderr()
                 );
             } catch (ShellException shellException) {
                 logger.error(

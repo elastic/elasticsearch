@@ -177,12 +177,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     logger.trace("received node stats response");
 
                     for (final FailedNodeException failure : nodesStatsResponse.failures()) {
-                        final Throwable cause = failure.getCause();
-                        if (logger.isDebugEnabled()) {
-                            logger.warn(new ParameterizedMessage("failed to retrieve stats for node [{}]", failure.nodeId()), cause);
-                        } else {
-                            logger.warn("failed to retrieve stats for node [{}]: {}", failure.nodeId(), cause.getMessage());
-                        }
+                        logger.warn(() -> "failed to retrieve stats for node [" + failure.nodeId() + "]", failure.getCause());
                     }
 
                     ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsagesBuilder = ImmutableOpenMap.builder();
@@ -221,24 +216,15 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     if (indicesStatsResponse.getShardFailures().length > 0) {
                         final Set<String> failedNodeIds = new HashSet<>();
                         for (final DefaultShardOperationFailedException shardFailure : indicesStatsResponse.getShardFailures()) {
-                            if (shardFailure.getCause() instanceof FailedNodeException) {
-                                final FailedNodeException failedNodeException = (FailedNodeException) shardFailure.getCause();
+                            if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
                                 if (failedNodeIds.add(failedNodeException.nodeId())) {
-                                    if (logger.isDebugEnabled()) {
-                                        logger.warn(
-                                            new ParameterizedMessage(
-                                                "failed to retrieve shard stats from node [{}]",
-                                                failedNodeException.nodeId()
-                                            ),
-                                            failedNodeException
-                                        );
-                                    } else {
-                                        logger.warn(
-                                            "failed to retrieve shard stats from node [{}]: {}",
-                                            failedNodeException.nodeId(),
-                                            failedNodeException.getCause().getMessage()
-                                        );
-                                    }
+                                    logger.warn(
+                                        new ParameterizedMessage(
+                                            "failed to retrieve shard stats from node [{}]",
+                                            failedNodeException.nodeId()
+                                        ),
+                                        failedNodeException.getCause()
+                                    );
                                 }
                                 logger.trace(
                                     new ParameterizedMessage(
@@ -310,7 +296,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                             logger.trace("notifying [{}] of new cluster info", listener);
                             listener.accept(clusterInfo);
                         } catch (Exception e) {
-                            logger.info(new ParameterizedMessage("failed to notify [{}] of new cluster info", listener), e);
+                            logger.info(() -> "failed to notify [" + listener + "] of new cluster info", e);
                         }
                     }
                     assert anyListeners : "expected to notify at least one listener";
@@ -549,7 +535,12 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
     }
 
-    private static class IndicesStatsSummary {
+    private record IndicesStatsSummary(
+        ImmutableOpenMap<String, Long> shardSizes,
+        ImmutableOpenMap<ShardId, Long> shardDataSetSizes,
+        ImmutableOpenMap<ShardRouting, String> shardRoutingToDataPath,
+        ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
+    ) {
         static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of(),
@@ -557,22 +548,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             ImmutableOpenMap.of()
         );
 
-        final ImmutableOpenMap<String, Long> shardSizes;
-        final ImmutableOpenMap<ShardId, Long> shardDataSetSizes;
-        final ImmutableOpenMap<ShardRouting, String> shardRoutingToDataPath;
-        final ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace;
-
-        IndicesStatsSummary(
-            ImmutableOpenMap<String, Long> shardSizes,
-            ImmutableOpenMap<ShardId, Long> shardDataSetSizes,
-            ImmutableOpenMap<ShardRouting, String> shardRoutingToDataPath,
-            ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
-        ) {
-            this.shardSizes = shardSizes;
-            this.shardDataSetSizes = shardDataSetSizes;
-            this.shardRoutingToDataPath = shardRoutingToDataPath;
-            this.reservedSpace = reservedSpace;
-        }
     }
 
 }

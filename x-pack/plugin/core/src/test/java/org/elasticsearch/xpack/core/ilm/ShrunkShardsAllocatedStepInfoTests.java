@@ -46,17 +46,10 @@ public class ShrunkShardsAllocatedStepInfoTests extends AbstractXContentTestCase
         int actualShards = instance.getActualShards();
         boolean allShardsActive = instance.allShardsActive();
         switch (between(0, 2)) {
-            case 0:
-                shrunkIndexExists = shrunkIndexExists == false;
-                break;
-            case 1:
-                actualShards += between(1, 20);
-                break;
-            case 2:
-                allShardsActive = allShardsActive == false;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> shrunkIndexExists = shrunkIndexExists == false;
+            case 1 -> actualShards += between(1, 20);
+            case 2 -> allShardsActive = allShardsActive == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new Info(shrunkIndexExists, actualShards, allShardsActive);
     }

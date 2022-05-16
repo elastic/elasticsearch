@@ -839,7 +839,7 @@ public final class SamlRealm extends Realm implements Releasable {
             try {
                 onChange.run();
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("An error occurred while reloading file [{}]", file), e);
+                logger.warn(() -> "An error occurred while reloading file [" + file + "]", e);
             }
         }
     }
@@ -905,7 +905,7 @@ public final class SamlRealm extends Realm implements Releasable {
                                 return null;
                             }
                             return value;
-                        }).filter(Objects::nonNull).collect(Collectors.toUnmodifiableList())
+                        }).filter(Objects::nonNull).toList()
                     );
                 } else {
                     return new AttributeParser(

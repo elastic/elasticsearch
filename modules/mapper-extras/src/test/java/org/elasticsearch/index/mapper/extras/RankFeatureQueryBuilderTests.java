@@ -147,4 +147,21 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
             e.getMessage()
         );
     }
+
+    public void testParseDefaultsRemoved() throws IOException {
+        String json = """
+            {
+              "rank_feature" : {
+                "field": "foo",
+                "boost": 1,
+                "saturation": {}
+              }
+            }""";
+        checkGeneratedJson("""
+            {
+              "rank_feature": {
+                "field": "foo"
+              }
+            }""", parseQuery(json));
+    }
 }

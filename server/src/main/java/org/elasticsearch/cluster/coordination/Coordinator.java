@@ -15,15 +15,15 @@ import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
+import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
@@ -53,6 +53,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.ConfiguredHostsResolver;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -66,6 +67,7 @@ import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse.Empty;
@@ -79,6 +81,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -114,6 +117,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         Setting.Property.NodeScope
     );
 
+    public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";
+
     private final Settings settings;
     private final boolean singleNodeDiscovery;
     private final ElectionStrategy electionStrategy;
@@ -121,6 +126,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final MasterService masterService;
     private final AllocationService allocationService;
     private final JoinHelper joinHelper;
+    private final JoinValidationService joinValidationService;
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
     private final NoMasterBlockService noMasterBlockService;
@@ -189,18 +195,22 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.electionStrategy = electionStrategy;
         this.joinReasonService = new JoinReasonService(transportService.getThreadPool()::relativeTimeInMillis);
         this.joinHelper = new JoinHelper(
-            settings,
             allocationService,
             masterService,
+            clusterApplier,
             transportService,
             this::getCurrentTerm,
-            this::getStateForMasterService,
             this::handleJoinRequest,
             this::joinLeaderInTerm,
-            this.onJoinValidators,
             rerouteService,
             nodeHealthService,
             joinReasonService
+        );
+        this.joinValidationService = new JoinValidationService(
+            settings,
+            transportService,
+            this::getStateForMasterService,
+            this.onJoinValidators
         );
         this.persistedStateSupplier = persistedStateSupplier;
         this.noMasterBlockService = new NoMasterBlockService(settings, clusterSettings);
@@ -225,12 +235,18 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             new HandshakingTransportAddressConnector(settings, transportService),
             configuredHostsResolver
         );
-        this.publicationHandler = new PublicationTransportHandler(
-            transportService,
-            namedWriteableRegistry,
-            this::handlePublishRequest,
-            this::handleApplyCommit
+        transportService.registerRequestHandler(
+            COMMIT_STATE_ACTION_NAME,
+            Names.CLUSTER_COORDINATION,
+            false,
+            false,
+            ApplyCommitRequest::new,
+            (request, channel, task) -> handleApplyCommit(
+                request,
+                new ChannelActionListener<>(channel, COMMIT_STATE_ACTION_NAME, request).map(r -> Empty.INSTANCE)
+            )
         );
+        this.publicationHandler = new PublicationTransportHandler(transportService, namedWriteableRegistry, this::handlePublishRequest);
         this.leaderChecker = new LeaderChecker(settings, transportService, this::onLeaderFailure, nodeHealthService);
         this.followersChecker = new FollowersChecker(
             settings,
@@ -239,7 +255,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             this::removeNode,
             nodeHealthService
         );
-        this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
+        this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService);
         this.clusterApplier = clusterApplier;
         masterService.setClusterStateSupplier(this::getStateForMasterService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
@@ -274,11 +290,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             settings,
             getStateForMasterService(),
             peerFinder.getLastResolvedAddresses(),
-            Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false))
-                .collect(Collectors.toList()),
+            Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false)).toList(),
             getCurrentTerm(),
             electionStrategy,
-            nodeHealthService.getHealth()
+            nodeHealthService.getHealth(),
+            joinHelper.getInFlightJoinStatuses()
         );
     }
 
@@ -299,27 +315,16 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private void removeNode(DiscoveryNode discoveryNode, String reason) {
         synchronized (mutex) {
             if (mode == Mode.LEADER) {
+                var task = new NodeRemovalClusterStateTaskExecutor.Task(
+                    discoveryNode,
+                    reason,
+                    () -> joinReasonService.onNodeRemoved(discoveryNode, reason)
+                );
                 masterService.submitStateUpdateTask(
                     "node-left",
-                    new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, reason),
+                    task,
                     ClusterStateTaskConfig.build(Priority.IMMEDIATE),
-                    nodeRemovalExecutor,
-                    new ClusterStateTaskListener() {
-                        @Override
-                        public void onFailure(final String source, final Exception e) {
-                            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-                        }
-
-                        @Override
-                        public void onNoLongerMaster(String source) {
-                            logger.debug("no longer master while processing node removal [{}]", source);
-                        }
-
-                        @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                            joinReasonService.onNodeRemoved(discoveryNode, reason);
-                        }
-                    }
+                    nodeRemovalExecutor
                 );
             }
         }
@@ -508,7 +513,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         final StartJoinRequest startJoinRequest = new StartJoinRequest(newMaster, Math.max(getCurrentTerm(), maxTermSeen) + 1);
         logger.info("abdicating to {} with term {}", newMaster, startJoinRequest.getTerm());
         getLastAcceptedState().nodes().mastersFirstStream().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
-        // handling of start join messages on the local node will be dispatched to the generic thread-pool
+        // handling of start join messages on the local node will be dispatched to the coordination thread-pool
         assert mode == Mode.LEADER : "should still be leader after sending abdication messages " + mode;
         // explicitly move node to candidate state so that the next cluster state update task yields an onNoLongerMaster event
         becomeCandidate("after abdicating to " + newMaster);
@@ -569,21 +574,52 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             return;
         }
 
-        transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(connectionReference -> {
-            boolean retainConnection = false;
-            try {
-                validateJoinRequest(
-                    joinRequest,
-                    ActionListener.runBefore(joinListener, () -> Releasables.close(connectionReference))
-                        .delegateFailure((l, ignored) -> processJoinRequest(joinRequest, l))
-                );
-                retainConnection = true;
-            } finally {
-                if (retainConnection == false) {
-                    Releasables.close(connectionReference);
+        transportService.connectToNode(joinRequest.getSourceNode(), new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable response) {
+                boolean retainConnection = false;
+                try {
+                    validateJoinRequest(
+                        joinRequest,
+                        ActionListener.runBefore(joinListener, () -> Releasables.close(response))
+                            .delegateFailure((l, ignored) -> processJoinRequest(joinRequest, l))
+                    );
+                    retainConnection = true;
+                } catch (Exception e) {
+                    joinListener.onFailure(e);
+                } finally {
+                    if (retainConnection == false) {
+                        Releasables.close(response);
+                    }
                 }
             }
-        }, joinListener::onFailure));
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn(
+                    new ParameterizedMessage(
+                        "received join request from [{}] but could not connect back to the joining node",
+                        joinRequest.getSourceNode()
+                    ),
+                    e
+                );
+
+                joinListener.onFailure(
+                    // NodeDisconnectedException mainly to suppress uninteresting stack trace
+                    new NodeDisconnectedException(
+                        joinRequest.getSourceNode(),
+                        String.format(
+                            Locale.ROOT,
+                            "failure when opening connection back from [%s] to [%s]",
+                            getLocalNode().descriptionWithoutAttributes(),
+                            joinRequest.getSourceNode().descriptionWithoutAttributes()
+                        ),
+                        JoinHelper.JOIN_ACTION_NAME,
+                        e
+                    )
+                );
+            }
+        });
     }
 
     private void validateJoinRequest(JoinRequest joinRequest, ActionListener<Void> validateListener) {
@@ -591,7 +627,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         // Before letting the node join the cluster, ensure:
         // - it's a new enough version to pass the version barrier
         // - we have a healthy STATE channel to the node
-        // - if we're already master that it can make sense of a the current cluster state.
+        // - if we're already master that it can make sense of the current cluster state.
         // - we have a healthy PING channel to the node
 
         final ListenableActionFuture<Empty> validateStateListener = new ListenableActionFuture<>();
@@ -606,7 +642,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     stateForJoinValidation.getNodes().getMinNodeVersion()
                 );
             }
-            sendJoinValidate(joinRequest.getSourceNode(), stateForJoinValidation, validateStateListener);
+            sendJoinValidate(joinRequest.getSourceNode(), validateStateListener);
         } else {
             sendJoinPing(joinRequest.getSourceNode(), TransportRequestOptions.Type.STATE, validateStateListener);
         }
@@ -637,17 +673,21 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         });
     }
 
-    private void sendJoinValidate(DiscoveryNode discoveryNode, ClusterState clusterState, ActionListener<Empty> listener) {
-        transportService.sendRequest(
-            discoveryNode,
-            JoinHelper.JOIN_VALIDATE_ACTION_NAME,
-            new ValidateJoinRequest(clusterState),
-            TransportRequestOptions.of(null, TransportRequestOptions.Type.STATE),
-            new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
-                logger.warn(() -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", discoveryNode), e);
-                listener.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
-            }), i -> Empty.INSTANCE, Names.GENERIC)
-        );
+    private void sendJoinValidate(DiscoveryNode discoveryNode, ActionListener<Empty> listener) {
+        joinValidationService.validateJoin(discoveryNode, listener.delegateResponse((delegate, e) -> {
+            logger.warn(() -> "failed to validate incoming join request from node [" + discoveryNode + "]", e);
+            delegate.onFailure(
+                new IllegalStateException(
+                    String.format(
+                        Locale.ROOT,
+                        "failure when sending a join validation request from [%s] to [%s]",
+                        getLocalNode().descriptionWithoutAttributes(),
+                        discoveryNode.descriptionWithoutAttributes()
+                    ),
+                    e
+                )
+            );
+        }));
     }
 
     private void sendJoinPing(DiscoveryNode discoveryNode, TransportRequestOptions.Type channelType, ActionListener<Empty> listener) {
@@ -661,8 +701,18 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     () -> new ParameterizedMessage("failed to ping joining node [{}] on channel type [{}]", discoveryNode, channelType),
                     e
                 );
-                listener.onFailure(new IllegalStateException("failure when sending a join ping request to node", e));
-            }), i -> Empty.INSTANCE, Names.GENERIC)
+                listener.onFailure(
+                    new IllegalStateException(
+                        String.format(
+                            Locale.ROOT,
+                            "failure when sending a join ping request from [%s] to [%s]",
+                            getLocalNode().descriptionWithoutAttributes(),
+                            discoveryNode.descriptionWithoutAttributes()
+                        ),
+                        e
+                    )
+                );
+            }), i -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
         );
     }
 
@@ -680,7 +730,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinListener);
 
                 if (prevElectionWon == false && coordState.electionWon()) {
-                    becomeLeader("handleJoinRequest");
+                    becomeLeader();
                 }
             }
         } catch (Exception e) {
@@ -721,21 +771,20 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
             if (applierState.nodes().getMasterNodeId() != null) {
                 applierState = clusterStateWithNoMasterBlock(applierState);
-                clusterApplier.onNewClusterState("becoming candidate: " + method, () -> applierState, ActionListener.wrap(() -> {}));
+                clusterApplier.onNewClusterState("becoming candidate: " + method, () -> applierState, ActionListener.noop());
             }
         }
 
         preVoteCollector.update(getPreVoteResponse(), null);
     }
 
-    void becomeLeader(String method) {
+    private void becomeLeader() {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
         assert getLocalNode().isMasterNode() : getLocalNode() + " became a leader but is not master-eligible";
 
         logger.debug(
-            "{}: coordinator becoming LEADER in term {} (was {}, lastKnownLeader was [{}])",
-            method,
+            "handleJoinRequest: coordinator becoming LEADER in term {} (was {}, lastKnownLeader was [{}])",
             getCurrentTerm(),
             mode,
             lastKnownLeader
@@ -799,22 +848,20 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     private void cleanMasterService() {
-        masterService.submitStateUpdateTask("clean-up after stepping down as master", new LocalClusterUpdateTask() {
+        new LocalMasterServiceTask(Priority.NORMAL) {
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 // ignore
                 logger.trace("failed to clean-up after stepping down as master", e);
             }
 
             @Override
-            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
+            public void execute(ClusterState currentState) {
                 if (currentState.nodes().isLocalNodeElectedMaster() == false) {
                     allocationService.cleanCaches();
                 }
-                return unchanged();
             }
-
-        });
+        }.submit(masterService, "clean-up after stepping down as master");
     }
 
     private PreVoteResponse getPreVoteResponse() {
@@ -859,9 +906,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
             final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
-            if (lastAcceptedState.metadata().clusterUUIDCommitted()) {
-                logger.info("cluster UUID [{}]", lastAcceptedState.metadata().clusterUUID());
-            }
+            clusterBootstrapService.logBootstrapState(lastAcceptedState.metadata());
             final VotingConfiguration votingConfiguration = lastAcceptedState.getLastCommittedConfiguration();
             if (singleNodeDiscovery
                 && votingConfiguration.isEmpty() == false
@@ -909,6 +954,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     @Override
     protected void doStop() {
         configuredHostsResolver.stop();
+        joinValidationService.stop();
     }
 
     @Override
@@ -928,8 +974,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         synchronized (mutex) {
             final Optional<DiscoveryNode> peerFinderLeader = peerFinder.getLeader();
             assert peerFinder.getCurrentTerm() == getCurrentTerm();
-            assert followersChecker.getFastResponseState().term == getCurrentTerm() : followersChecker.getFastResponseState();
-            assert followersChecker.getFastResponseState().mode == getMode() : followersChecker.getFastResponseState();
+            assert followersChecker.getFastResponseState().term() == getCurrentTerm() : followersChecker.getFastResponseState();
+            assert followersChecker.getFastResponseState().mode() == getMode() : followersChecker.getFastResponseState();
             assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID);
             assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse()) : preVoteCollector + " vs " + getPreVoteResponse();
 
@@ -1051,7 +1097,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             knownNodes.add(getLocalNode());
             peerFinder.getFoundPeers().forEach(knownNodes::add);
 
-            if (votingConfiguration.hasQuorum(knownNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList())) == false) {
+            if (votingConfiguration.hasQuorum(knownNodes.stream().map(DiscoveryNode::getId).toList()) == false) {
                 logger.debug(
                     "skip setting initial configuration as not enough nodes discovered to form a quorum in the "
                         + "initial configuration [knownNodes={}, {}]",
@@ -1098,7 +1144,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         // ... and also automatically exclude the node IDs of master-ineligible nodes that were previously master-eligible and are still in
         // the voting config. We could exclude all the master-ineligible nodes here, but there could be quite a few of them and that makes
         // the logging much harder to follow.
-        final Stream<String> masterIneligibleNodeIdsInVotingConfig = StreamSupport.stream(clusterState.nodes().spliterator(), false)
+        final Stream<String> masterIneligibleNodeIdsInVotingConfig = clusterState.nodes()
+            .stream()
             .filter(
                 n -> n.isMasterNode() == false
                     && (clusterState.getLastAcceptedConfiguration().getNodeIds().contains(n.getId())
@@ -1106,7 +1153,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             )
             .map(DiscoveryNode::getId);
 
-        final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
+        final Set<DiscoveryNode> liveNodes = clusterState.nodes()
+            .stream()
             .filter(DiscoveryNode::isMasterNode)
             .filter(coordinationState.get()::containsJoinVoteFor)
             .collect(Collectors.toSet());
@@ -1155,7 +1203,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         return true;
     }
 
-    private AtomicBoolean reconfigurationTaskScheduled = new AtomicBoolean();
+    private final AtomicBoolean reconfigurationTaskScheduled = new AtomicBoolean();
 
     private void scheduleReconfigurationIfNeeded() {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
@@ -1165,7 +1213,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         final ClusterState state = getLastAcceptedState();
         if (improveConfiguration(state) != state && reconfigurationTaskScheduled.compareAndSet(false, true)) {
             logger.trace("scheduling reconfiguration");
-            masterService.submitStateUpdateTask("reconfigure", new ClusterStateUpdateTask(Priority.URGENT) {
+            submitUnbatchedTask("reconfigure", new ClusterStateUpdateTask(Priority.URGENT) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     reconfigurationTaskScheduled.set(false);
@@ -1175,12 +1223,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     reconfigurationTaskScheduled.set(false);
                     logger.debug("reconfiguration failed", e);
                 }
             });
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(String source, ClusterStateUpdateTask task) {
+        masterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     // exposed for tests
@@ -1216,7 +1269,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         try {
             return coordinationState.get().handleJoin(join);
         } catch (CoordinationStateRejectedException e) {
-            logger.debug(new ParameterizedMessage("failed to add {} - ignoring", join), e);
+            logger.debug(() -> "failed to add " + join + " - ignoring", e);
             return false;
         }
     }
@@ -1346,7 +1399,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 }
             }
         } catch (Exception e) {
-            logger.debug(() -> new ParameterizedMessage("[{}] publishing failed", clusterStatePublicationEvent.getSummary()), e);
+            logger.debug(() -> "[" + clusterStatePublicationEvent.getSummary() + "] publishing failed", e);
             publishListener.onFailure(new FailedToCommitClusterStateException("publishing failed", e));
         }
     }
@@ -1398,6 +1451,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         return onJoinValidators;
     }
 
+    // for tests
+    boolean hasIdleJoinValidationService() {
+        return joinValidationService.isIdle();
+    }
+
     public enum Mode {
         CANDIDATE,
         LEADER,
@@ -1416,7 +1474,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 settings,
                 transportService,
                 transportAddressConnector,
-                singleNodeDiscovery ? hostsResolver -> Collections.emptyList() : configuredHostsResolver
+                singleNodeDiscovery ? hostsResolver -> {} : configuredHostsResolver
             );
         }
 
@@ -1438,10 +1496,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         @Override
         protected void onFoundPeersUpdated() {
             synchronized (mutex) {
-                final Iterable<DiscoveryNode> foundPeers = getFoundPeers();
                 if (mode == Mode.CANDIDATE) {
                     final VoteCollection expectedVotes = new VoteCollection();
-                    foundPeers.forEach(expectedVotes::addVote);
+                    getFoundPeers().forEach(expectedVotes::addVote);
                     expectedVotes.addVote(Coordinator.this.getLocalNode());
                     final boolean foundQuorum = coordinationState.get().isElectionQuorum(expectedVotes);
 
@@ -1594,7 +1651,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 public String toString() {
                     return "scheduled timeout for " + CoordinatorPublication.this;
                 }
-            }, publishTimeout, Names.GENERIC);
+            }, publishTimeout, Names.CLUSTER_COORDINATION);
 
             this.infoTimeoutHandler = transportService.getThreadPool().schedule(new Runnable() {
                 @Override
@@ -1608,7 +1665,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 public String toString() {
                     return "scheduled timeout for reporting on " + CoordinatorPublication.this;
                 }
-            }, publishInfoTimeout, Names.GENERIC);
+            }, publishInfoTimeout, Names.CLUSTER_COORDINATION);
         }
 
         private void removePublicationAndPossiblyBecomeCandidate(String reason) {
@@ -1701,7 +1758,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                                         futureVoteCollection
                                                     );
                                                 })
-                                                .collect(Collectors.toList());
+                                                .toList();
                                             if (masterCandidates.isEmpty() == false) {
                                                 abdicateTo(masterCandidates.get(random.nextInt(masterCandidates.size())));
                                                 attemptReconfiguration = false;
@@ -1796,13 +1853,25 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             publicationContext.sendPublishRequest(destination, publishRequest, wrapWithMutex(responseActionListener));
         }
 
+        private static final TransportRequestOptions COMMIT_STATE_REQUEST_OPTIONS = TransportRequestOptions.of(
+            null,
+            TransportRequestOptions.Type.STATE
+        );
+
         @Override
         protected void sendApplyCommit(
             DiscoveryNode destination,
             ApplyCommitRequest applyCommit,
             ActionListener<Empty> responseActionListener
         ) {
-            publicationContext.sendApplyCommit(destination, applyCommit, wrapWithMutex(responseActionListener));
+            assert transportService.getThreadPool().getThreadContext().isSystemContext();
+            transportService.sendRequest(
+                destination,
+                COMMIT_STATE_ACTION_NAME,
+                applyCommit,
+                COMMIT_STATE_REQUEST_OPTIONS,
+                new ActionListenerResponseHandler<>(wrapWithMutex(responseActionListener), in -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
+            );
         }
     }
 }

@@ -1,0 +1,5 @@
+pr: 85008
+summary: "TSDB: shrink `_id` inverted index"
+area: TSDB
+type: enhancement
+issues: []

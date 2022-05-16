@@ -205,7 +205,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         );
 
         assertThat(
-            indexNameExpressionResolver.resolveSearchRoutingAllIndices(state.metadata(), "0,1,2,tw , ltw , lw"),
+            IndexNameExpressionResolver.resolveSearchRoutingAllIndices(state.metadata(), "0,1,2,tw , ltw , lw"),
             equalTo(
                 newMap(
                     "test1",

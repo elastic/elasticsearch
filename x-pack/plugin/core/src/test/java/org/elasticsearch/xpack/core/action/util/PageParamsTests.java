@@ -55,14 +55,9 @@ public class PageParamsTests extends AbstractSerializingTestCase<PageParams> {
         int size = instance.getSize();
         int amountToAdd = between(1, 20);
         switch (between(0, 1)) {
-            case 0:
-                from += amountToAdd;
-                break;
-            case 1:
-                size += amountToAdd;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> from += amountToAdd;
+            case 1 -> size += amountToAdd;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new PageParams(from, size);
     }

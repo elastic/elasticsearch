@@ -102,12 +102,12 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     // Takes a registry of indices and returns a mapping of index name to which tier it most prefers. Always 1 to 1, some may filter out.
     static Map<String, String> tierIndices(ImmutableOpenMap<String, IndexMetadata> indices) {
         Map<String, String> indexByTier = new HashMap<>();
-        indices.forEach(entry -> {
-            String tierPref = entry.value.getSettings().get(DataTier.TIER_PREFERENCE);
+        indices.entrySet().forEach(entry -> {
+            String tierPref = entry.getValue().getSettings().get(DataTier.TIER_PREFERENCE);
             if (Strings.hasText(tierPref)) {
                 String[] tiers = tierPref.split(",");
                 if (tiers.length > 0) {
-                    indexByTier.put(entry.key, tiers[0]);
+                    indexByTier.put(entry.getKey(), tiers[0]);
                 }
             }
         });
@@ -203,7 +203,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         final List<IndexShardStats> allShardStats = nodeStats.getIndices().getShardStats(index);
         if (allShardStats != null) {
             for (IndexShardStats shardStat : allShardStats) {
-                accumulator.totalByteCount += shardStat.getTotal().getStore().getSizeInBytes();
+                accumulator.totalByteCount += shardStat.getTotal().getStore().totalDataSetSizeInBytes();
                 accumulator.docCount += shardStat.getTotal().getDocs().getCount();
 
                 // Accumulate stats about started shards
@@ -215,7 +215,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
                     if (primaryStoreStats != null) {
                         // if primaryStoreStats is null, it means there is no primary on the node in question
                         accumulator.primaryShardCount++;
-                        long primarySize = primaryStoreStats.getSizeInBytes();
+                        long primarySize = primaryStoreStats.totalDataSetSizeInBytes();
                         accumulator.primaryByteCount += primarySize;
                         accumulator.valueSketch.add(primarySize);
                     }

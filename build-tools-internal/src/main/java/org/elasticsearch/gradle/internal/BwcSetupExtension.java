@@ -70,7 +70,7 @@ public class BwcSetupExtension {
                 @Override
                 public void execute(Task t) {
                     // Execution time so that the checkouts are available
-                    String compilerVersionInfoPath = minimumCompilerVersionPath(unreleasedVersionInfo.get().version);
+                    String compilerVersionInfoPath = minimumCompilerVersionPath(unreleasedVersionInfo.get().version());
                     String minimumCompilerVersion = readFromFile(new File(checkoutDir.get(), compilerVersionInfoPath));
                     loggedExec.environment("JAVA_HOME", getJavaHome(Integer.parseInt(minimumCompilerVersion)));
                 }
@@ -82,6 +82,8 @@ public class BwcSetupExtension {
             } else {
                 loggedExec.executable(new File(checkoutDir.get(), "gradlew").toString());
             }
+
+            loggedExec.args("-g", project.getGradle().getGradleUserHomeDir());
             if (project.getGradle().getStartParameter().isOffline()) {
                 loggedExec.args("--offline");
             }
@@ -108,8 +110,8 @@ public class BwcSetupExtension {
             if (project.getGradle().getStartParameter().isParallelProjectExecutionEnabled()) {
                 loggedExec.args("--parallel");
             }
-            loggedExec.setStandardOutput(new IndentingOutputStream(System.out, unreleasedVersionInfo.get().version));
-            loggedExec.setErrorOutput(new IndentingOutputStream(System.err, unreleasedVersionInfo.get().version));
+            loggedExec.setStandardOutput(new IndentingOutputStream(System.out, unreleasedVersionInfo.get().version()));
+            loggedExec.setErrorOutput(new IndentingOutputStream(System.err, unreleasedVersionInfo.get().version()));
             configAction.execute(loggedExec);
         });
     }

@@ -52,6 +52,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private static final Version SORT_BY_SHARDS_OR_REPO_VERSION = Version.V_7_16_0;
 
+    private static final Version INDICES_FLAG_VERSION = Version.V_8_3_0;
+
     public static final int NO_LIMIT = -1;
 
     /**
@@ -83,6 +85,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     private boolean ignoreUnavailable;
 
     private boolean verbose = DEFAULT_VERBOSE_MODE;
+
+    private boolean includeIndexNames = true;
 
     public GetSnapshotsRequest() {}
 
@@ -129,6 +133,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             }
             if (in.getVersion().onOrAfter(FROM_SORT_VALUE_VERSION)) {
                 fromSortValue = in.readOptionalString();
+            }
+            if (in.getVersion().onOrAfter(INDICES_FLAG_VERSION)) {
+                includeIndexNames = in.readBoolean();
             }
         }
     }
@@ -183,6 +190,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             out.writeOptionalString(fromSortValue);
         } else if (fromSortValue != null) {
             throw new IllegalArgumentException("can't use after-value in snapshot request with node version [" + out.getVersion() + "]");
+        }
+        if (out.getVersion().onOrAfter(INDICES_FLAG_VERSION)) {
+            out.writeBoolean(includeIndexNames);
         }
     }
 
@@ -324,6 +334,15 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return this;
     }
 
+    public GetSnapshotsRequest includeIndexNames(boolean indices) {
+        this.includeIndexNames = indices;
+        return this;
+    }
+
+    public boolean includeIndexNames() {
+        return includeIndexNames;
+    }
+
     public After after() {
         return after;
     }
@@ -412,24 +431,16 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         }
 
         public static SortBy of(String value) {
-            switch (value) {
-                case "start_time":
-                    return START_TIME;
-                case "name":
-                    return NAME;
-                case "duration":
-                    return DURATION;
-                case "index_count":
-                    return INDICES;
-                case "shard_count":
-                    return SHARDS;
-                case "failed_shard_count":
-                    return FAILED_SHARDS;
-                case "repository":
-                    return REPOSITORY;
-                default:
-                    throw new IllegalArgumentException("unknown sort order [" + value + "]");
-            }
+            return switch (value) {
+                case "start_time" -> START_TIME;
+                case "name" -> NAME;
+                case "duration" -> DURATION;
+                case "index_count" -> INDICES;
+                case "shard_count" -> SHARDS;
+                case "failed_shard_count" -> FAILED_SHARDS;
+                case "repository" -> REPOSITORY;
+                default -> throw new IllegalArgumentException("unknown sort order [" + value + "]");
+            };
         }
     }
 
@@ -458,32 +469,15 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             if (snapshotInfo == null) {
                 return null;
             }
-            final String afterValue;
-            switch (sortBy) {
-                case START_TIME:
-                    afterValue = String.valueOf(snapshotInfo.startTime());
-                    break;
-                case NAME:
-                    afterValue = snapshotInfo.snapshotId().getName();
-                    break;
-                case DURATION:
-                    afterValue = String.valueOf(snapshotInfo.endTime() - snapshotInfo.startTime());
-                    break;
-                case INDICES:
-                    afterValue = String.valueOf(snapshotInfo.indices().size());
-                    break;
-                case SHARDS:
-                    afterValue = String.valueOf(snapshotInfo.totalShards());
-                    break;
-                case FAILED_SHARDS:
-                    afterValue = String.valueOf(snapshotInfo.failedShards());
-                    break;
-                case REPOSITORY:
-                    afterValue = snapshotInfo.repository();
-                    break;
-                default:
-                    throw new AssertionError("unknown sort column [" + sortBy + "]");
-            }
+            final String afterValue = switch (sortBy) {
+                case START_TIME -> String.valueOf(snapshotInfo.startTime());
+                case NAME -> snapshotInfo.snapshotId().getName();
+                case DURATION -> String.valueOf(snapshotInfo.endTime() - snapshotInfo.startTime());
+                case INDICES -> String.valueOf(snapshotInfo.indices().size());
+                case SHARDS -> String.valueOf(snapshotInfo.totalShards());
+                case FAILED_SHARDS -> String.valueOf(snapshotInfo.failedShards());
+                case REPOSITORY -> snapshotInfo.repository();
+            };
             return new After(afterValue, snapshotInfo.repository(), snapshotInfo.snapshotId().getName());
         }
 

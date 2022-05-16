@@ -170,7 +170,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         ClusterState state,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        logger.debug(() -> new ParameterizedMessage("[{}] received start request", request.getId()));
+        logger.debug(() -> "[" + request.getId() + "] received start request");
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
@@ -284,21 +284,15 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         // Step 5. Validate dest index is empty if task is starting for first time
         ActionListener<StartContext> toValidateDestEmptyListener = ActionListener.wrap(startContext -> {
             switch (startContext.startingState) {
-                case FIRST_TIME:
-                    checkDestIndexIsEmptyIfExists(parentTaskClient, startContext, toValidateMappingsListener);
-                    break;
-                case RESUMING_REINDEXING:
-                case RESUMING_ANALYZING:
-                case RESUMING_INFERENCE:
-                    toValidateMappingsListener.onResponse(startContext);
-                    break;
-                case FINISHED:
+                case FIRST_TIME -> checkDestIndexIsEmptyIfExists(parentTaskClient, startContext, toValidateMappingsListener);
+                case RESUMING_REINDEXING, RESUMING_ANALYZING, RESUMING_INFERENCE -> toValidateMappingsListener.onResponse(startContext);
+                case FINISHED -> {
                     logger.info("[{}] Job has already finished", startContext.config.getId());
                     finalListener.onFailure(ExceptionsHelper.badRequestException("Cannot start because the job has already finished"));
-                    break;
-                default:
-                    finalListener.onFailure(ExceptionsHelper.serverError("Unexpected starting state {}", startContext.startingState));
-                    break;
+                }
+                default -> finalListener.onFailure(
+                    ExceptionsHelper.serverError("Unexpected starting state {}", startContext.startingState)
+                );
             }
         }, finalListener::onFailure);
 

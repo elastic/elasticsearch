@@ -14,10 +14,10 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
@@ -44,6 +44,7 @@ import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -93,6 +94,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
+@TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
     /**
@@ -172,10 +174,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode leader = cluster.getAnyLeader();
             logger.info("--> adding two new healthy nodes");
             ClusterNode newNode1 = cluster.new ClusterNode(
-                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, () -> healthStatusInfo.get()
+                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, healthStatusInfo::get
             );
             ClusterNode newNode2 = cluster.new ClusterNode(
-                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, () -> healthStatusInfo.get()
+                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, healthStatusInfo::get
             );
             cluster.clusterNodes.add(newNode1);
             cluster.clusterNodes.add(newNode2);
@@ -1003,7 +1005,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testDiffBasedPublishing() {
-        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+        try (Cluster cluster = new Cluster(randomIntBetween(2, 5))) {
             cluster.runRandomly();
             cluster.stabilise();
 
@@ -1039,7 +1041,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 );
                 assertEquals(
                     cn.toString(),
-                    prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + 1,
+                    prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + (cn == leader ? 0 : 1),
                     postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount()
                 );
                 assertEquals(
@@ -1132,12 +1134,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 return cs;
             }, new ClusterStateTaskListener() {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     assert false : e;
                 }
             });
@@ -1219,12 +1221,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 return ClusterState.builder(cs).putCustom(customName, new DelayedCustom(contextAdvancer)).build();
             }, new ClusterStateTaskListener() {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     assert false : e;
                 }
             });
@@ -1280,12 +1282,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 return ClusterState.builder(cs).build();
             }, new ClusterStateTaskListener() {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     fail("shouldn't have processed cluster state");
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     notifyAdvancer.advanceTime();
                 }
             });
@@ -1428,7 +1430,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 return ClusterState.builder(cs)
                     .metadata(Metadata.builder(cs.metadata()).persistentSettings(settingsBuilder.build()))
                     .build();
-            }, (source, e) -> {});
+            }, (e) -> {});
             cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing setting update");
 
             final ClusterNode removedNode = cluster.getAnyNode();
@@ -1478,6 +1480,55 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @TestLogging(
+        reason = "test includes assertions about ClusterBootstrapService logging",
+        value = "org.elasticsearch.cluster.coordination.ClusterBootstrapService:INFO"
+    )
+    public void testClusterUUIDLogging() throws IllegalAccessException {
+        final var mockAppender = new MockLogAppender();
+        mockAppender.start();
+        final var serviceLogger = LogManager.getLogger(ClusterBootstrapService.class);
+        Loggers.addAppender(serviceLogger, mockAppender);
+
+        mockAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "fresh node message",
+                ClusterBootstrapService.class.getCanonicalName(),
+                Level.INFO,
+                "this node has not joined a bootstrapped cluster yet; [cluster.initial_master_nodes] is set to []"
+            )
+        );
+
+        try (var cluster = new Cluster(randomIntBetween(1, 3))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            mockAppender.assertAllExpectationsMatched();
+
+            final var restartingNode = cluster.getAnyNode();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "restarted node message",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.INFO,
+                    "this node is locked into cluster UUID ["
+                        + restartingNode.getLastAppliedClusterState().metadata().clusterUUID()
+                        + "] and will not attempt further cluster bootstrapping"
+                )
+            );
+            restartingNode.close();
+            cluster.clusterNodes.replaceAll(cn -> cn == restartingNode ? cn.restartedNode() : cn);
+            cluster.stabilise();
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(serviceLogger, mockAppender);
+            mockAppender.stop();
+        }
+    }
+
+    @TestLogging(
+        reason = "test includes assertions about Coordinator and JoinHelper logging",
+        value = "org.elasticsearch.cluster.coordination.Coordinator:WARN,org.elasticsearch.cluster.coordination.JoinHelper:INFO"
+    )
     public void testNodeCannotJoinIfJoinPingValidationFailsOnMaster() throws IllegalAccessException {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 3))) {
             cluster.runRandomly();
@@ -1578,6 +1629,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @TestLogging(
+        reason = "test includes assertions about JoinHelper logging",
+        value = "org.elasticsearch.cluster.coordination.JoinHelper:INFO"
+    )
     public void testCannotJoinClusterWithDifferentUUID() throws IllegalAccessException {
         try (Cluster cluster1 = new Cluster(randomIntBetween(1, 3))) {
             cluster1.runRandomly();
@@ -1623,6 +1678,108 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             );
             cluster1.clusterNodes.replaceAll(cn -> cn == newNode ? detachedNode : cn);
             cluster1.stabilise();
+        }
+    }
+
+    @TestLogging(
+        reason = "test includes assertions about logging",
+        value = "org.elasticsearch.cluster.coordination.Coordinator:WARN,org.elasticsearch.cluster.coordination.JoinHelper:INFO"
+    )
+    public void testReportsConnectBackProblemsDuringJoining() throws IllegalAccessException {
+        try (var cluster = new Cluster(3)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final var partitionedNode = cluster.getAnyNode();
+            partitionedNode.disconnect();
+            cluster.stabilise();
+
+            logger.info("--> healing [{}] but blocking handshakes", partitionedNode);
+            partitionedNode.heal();
+            final var leader = cluster.getAnyLeader();
+            leader.addActionBlock(TransportService.HANDSHAKE_ACTION_NAME);
+
+            final var mockAppender = new MockLogAppender();
+            mockAppender.start();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "connect-back failure",
+                    Coordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*received join request from ["
+                        + partitionedNode.getLocalNode().descriptionWithoutAttributes()
+                        + "] but could not connect back to the joining node"
+                )
+            );
+            mockAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+                boolean matched = false;
+
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getLevel() != Level.INFO) {
+                        return;
+                    }
+                    if (event.getLoggerName().equals(JoinHelper.class.getCanonicalName()) == false) {
+                        return;
+                    }
+
+                    var cause = event.getThrown();
+                    if (cause == null) {
+                        return;
+                    }
+                    cause = cause.getCause();
+                    if (cause == null) {
+                        return;
+                    }
+                    if (Regex.simpleMatch(
+                        "* failure when opening connection back from ["
+                            + leader.getLocalNode().descriptionWithoutAttributes()
+                            + "] to ["
+                            + partitionedNode.getLocalNode().descriptionWithoutAttributes()
+                            + "]",
+                        cause.getMessage()
+                    ) == false) {
+                        return;
+                    }
+                    if (cause.getStackTrace() != null && cause.getStackTrace().length != 0) {
+                        return;
+                    }
+                    matched = true;
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertTrue(matched);
+                }
+            });
+            final var coordinatorLogger = LogManager.getLogger(Coordinator.class);
+            Loggers.addAppender(coordinatorLogger, mockAppender);
+            final var joinHelperLogger = LogManager.getLogger(JoinHelper.class);
+            Loggers.addAppender(joinHelperLogger, mockAppender);
+            try {
+                cluster.runFor(
+                    // This expects 8 tasks to be executed after PeerFinder handling wakeup:
+                    //
+                    // * connectToRemoteMasterNode[0.0.0.0:11]
+                    // * [internal:transport/handshake] from {node1} to {node2}
+                    // * response to [internal:transport/handshake] from {node1} to {node2}
+                    // * [internal:discovery/request_peers] from {node1} to
+                    // * response to [internal:discovery/request_peers] from {node1} to {node2}
+                    // * [internal:cluster/coordination/join] from {node1} to {node2}
+                    // * [internal:transport/handshake] from {node2} to {node1} (rejected due to action block)
+                    // * error response to [internal:cluster/coordination/join] from {node1} to {node2}
+                    //
+                    defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) + 8 * DEFAULT_DELAY_VARIABILITY,
+                    "allowing time for join attempt"
+                );
+                mockAppender.assertAllExpectationsMatched();
+            } finally {
+                Loggers.removeAppender(joinHelperLogger, mockAppender);
+                Loggers.removeAppender(coordinatorLogger, mockAppender);
+                mockAppender.stop();
+            }
+
+            leader.clearActionBlocks();
         }
     }
 
@@ -1793,7 +1950,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    private static class BrokenCustom extends AbstractDiffable<ClusterState.Custom> implements ClusterState.Custom {
+    private static class BrokenCustom implements SimpleDiffable<ClusterState.Custom>, ClusterState.Custom {
 
         static final String EXCEPTION_MESSAGE = "simulated";
 
@@ -1820,7 +1977,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testClusterRecoversAfterExceptionDuringSerialization() {
-        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+        try (Cluster cluster = new Cluster(randomIntBetween(2, 5))) {
             cluster.runRandomly();
             cluster.stabilise();
 
@@ -1829,15 +1986,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             logger.info("--> submitting broken task to [{}]", leader1);
 
             final AtomicBoolean failed = new AtomicBoolean();
-            leader1.submitUpdateTask(
-                "broken-task",
-                cs -> ClusterState.builder(cs).putCustom("broken", new BrokenCustom()).build(),
-                (source, e) -> {
-                    assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
-                    assertThat(e.getCause().getMessage(), equalTo(BrokenCustom.EXCEPTION_MESSAGE));
-                    failed.set(true);
-                }
-            );
+            leader1.submitUpdateTask("broken-task", cs -> ClusterState.builder(cs).putCustom("broken", new BrokenCustom()).build(), (e) -> {
+                assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
+                assertThat(e.getCause().getMessage(), equalTo(BrokenCustom.EXCEPTION_MESSAGE));
+                failed.set(true);
+            });
             cluster.runFor(2 * DEFAULT_DELAY_VARIABILITY + 1, "processing broken task");
             assertTrue(failed.get());
 
@@ -1858,6 +2011,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @TestLogging(
+        reason = "testing ClusterFormationFailureHelper logging",
+        value = "org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper:WARN"
+    )
     public void testLogsWarningPeriodicallyIfClusterNotFormed() throws IllegalAccessException {
         final long warningDelayMillis;
         final Settings settings;
@@ -1915,7 +2072,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                                         .<String>getValue(DeterministicTaskQueue.NODE_ID_LOG_CONTEXT_KEY)
                                         .equals(DeterministicTaskQueue.getNodeIdForLogContext(n.getLocalNode()))
                                 )
-                                .collect(Collectors.toList());
+                                .toList();
                             assertThat(matchingNodes, hasSize(1));
 
                             assertTrue(
@@ -1952,7 +2109,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    @TestLogging(reason = "testing debug logging of LagDetector", value = "org.elasticsearch.cluster.coordination.LagDetector:DEBUG")
+    @TestLogging(
+        reason = "testing LagDetector and CoordinatorPublication logging",
+        value = "org.elasticsearch.cluster.coordination.LagDetector:DEBUG,"
+            + "org.elasticsearch.cluster.coordination.Coordinator.CoordinatorPublication:INFO"
+    )
     public void testLogsMessagesIfPublicationDelayed() throws IllegalAccessException {
         try (Cluster cluster = new Cluster(between(3, 5))) {
             cluster.runRandomly();

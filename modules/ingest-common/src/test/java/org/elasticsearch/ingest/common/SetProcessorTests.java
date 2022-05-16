@@ -182,8 +182,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     private static void assertMapEquals(Object actual, Object expected) {
-        if (expected instanceof Map) {
-            Map<?, ?> expectedMap = (Map<?, ?>) expected;
+        if (expected instanceof Map<?, ?> expectedMap) {
             Map<?, ?> actualMap = (Map<?, ?>) actual;
             assertThat(actualMap.keySet().toArray(), arrayContainingInAnyOrder(expectedMap.keySet().toArray()));
             for (Map.Entry<?, ?> entry : actualMap.entrySet()) {

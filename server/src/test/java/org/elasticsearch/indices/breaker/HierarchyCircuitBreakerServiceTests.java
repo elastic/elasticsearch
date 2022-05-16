@@ -36,7 +36,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -608,7 +607,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 assertThat(output.permanentChildUsage, equalTo(input.permanentChildUsage));
                 countDown.get().countDown();
             } while (Thread.interrupted() == false);
-        })).collect(Collectors.toList());
+        })).toList();
 
         threads.forEach(Thread::start);
         barrier.await(20, TimeUnit.SECONDS);

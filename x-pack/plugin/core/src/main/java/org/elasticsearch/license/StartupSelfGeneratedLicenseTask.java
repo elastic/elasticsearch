@@ -8,7 +8,6 @@ package org.elasticsearch.license;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,6 +23,8 @@ import java.util.UUID;
 
 public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(StartupSelfGeneratedLicenseTask.class);
+
+    static final String TASK_SOURCE = "maybe generate license for cluster";
 
     /**
      * Max number of nodes licensed by generated trial license
@@ -41,7 +42,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
         LicensesMetadata licensesMetadata = newState.metadata().custom(LicensesMetadata.TYPE);
         if (logger.isDebugEnabled()) {
             logger.debug("registered self generated license: {}", licensesMetadata);
@@ -73,7 +74,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
         Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
         String type = license.type();
         long issueDate = license.issueDate();
-        long expiryDate = license.expiryDate();
+        long expiryDate = LicenseService.getExpiryDate(license);
         // extend the basic license expiration date if needed since extendBasic will not be called now
         if (License.LicenseType.isBasic(type) && expiryDate != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
             expiryDate = LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
@@ -98,8 +99,8 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, @Nullable Exception e) {
-        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+    public void onFailure(@Nullable Exception e) {
+        logger.error((Supplier<?>) () -> "unexpected failure during [" + TASK_SOURCE + "]", e);
     }
 
     private ClusterState extendBasic(ClusterState currentState, LicensesMetadata currentLicenseMetadata) {

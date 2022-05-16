@@ -80,17 +80,7 @@ public class Decorations {
 
     }
 
-    public static class TargetType implements Decoration {
-
-        private final Class<?> targetType;
-
-        public TargetType(Class<?> targetType) {
-            this.targetType = Objects.requireNonNull(targetType);
-        }
-
-        public Class<?> getTargetType() {
-            return targetType;
-        }
+    public record TargetType(Class<?> targetType) implements Decoration {
 
         public String getTargetCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(targetType);
@@ -107,51 +97,22 @@ public class Decorations {
 
     // standard output for user expression node during semantic phase
 
-    public static class ValueType implements Decoration {
-
-        private final Class<?> valueType;
-
-        public ValueType(Class<?> valueType) {
-            this.valueType = Objects.requireNonNull(valueType);
-        }
-
-        public Class<?> getValueType() {
-            return valueType;
-        }
+    public record ValueType(Class<?> valueType) implements Decoration {
 
         public String getValueCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(valueType);
         }
     }
 
-    public static class StaticType implements Decoration {
-
-        private final Class<?> staticType;
-
-        public StaticType(Class<?> staticType) {
-            this.staticType = Objects.requireNonNull(staticType);
-        }
-
-        public Class<?> getStaticType() {
-            return staticType;
-        }
+    public record StaticType(Class<?> staticType) implements Decoration {
 
         public String getStaticCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(staticType);
         }
     }
 
-    public static class PartialCanonicalTypeName implements Decoration {
+    public record PartialCanonicalTypeName(String partialCanonicalTypeName) implements Decoration {
 
-        private final String partialCanonicalTypeName;
-
-        public PartialCanonicalTypeName(String partialCanonicalTypeName) {
-            this.partialCanonicalTypeName = Objects.requireNonNull(partialCanonicalTypeName);
-        }
-
-        public String getPartialCanonicalTypeName() {
-            return partialCanonicalTypeName;
-        }
     }
 
     public interface DefOptimized extends Condition {
@@ -176,381 +137,121 @@ public class Decorations {
 
     }
 
-    public static class ExpressionPainlessCast implements Decoration {
+    public record ExpressionPainlessCast(PainlessCast expressionPainlessCast) implements Decoration {}
 
-        private final PainlessCast expressionPainlessCast;
+    public record SemanticVariable(Variable semanticVariable) implements Decoration {}
 
-        public ExpressionPainlessCast(PainlessCast expressionPainlessCast) {
-            this.expressionPainlessCast = Objects.requireNonNull(expressionPainlessCast);
-        }
+    public record IterablePainlessMethod(PainlessMethod iterablePainlessMethod) implements Decoration {}
 
-        public PainlessCast getExpressionPainlessCast() {
-            return expressionPainlessCast;
-        }
-    }
-
-    public static class SemanticVariable implements Decoration {
-
-        private final Variable semanticVariable;
-
-        public SemanticVariable(Variable semanticVariable) {
-            this.semanticVariable = semanticVariable;
-        }
-
-        public Variable getSemanticVariable() {
-            return semanticVariable;
-        }
-    }
-
-    public static class IterablePainlessMethod implements Decoration {
-
-        private final PainlessMethod iterablePainlessMethod;
-
-        public IterablePainlessMethod(PainlessMethod iterablePainlessMethod) {
-            this.iterablePainlessMethod = Objects.requireNonNull(iterablePainlessMethod);
-        }
-
-        public PainlessMethod getIterablePainlessMethod() {
-            return iterablePainlessMethod;
-        }
-    }
-
-    public static class UnaryType implements Decoration {
-
-        private final Class<?> unaryType;
-
-        public UnaryType(Class<?> unaryType) {
-            this.unaryType = Objects.requireNonNull(unaryType);
-        }
-
-        public Class<?> getUnaryType() {
-            return unaryType;
-        }
+    public record UnaryType(Class<?> unaryType) implements Decoration {
 
         public String getUnaryCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(unaryType);
         }
     }
 
-    public static class BinaryType implements Decoration {
-
-        private final Class<?> binaryType;
-
-        public BinaryType(Class<?> binaryType) {
-            this.binaryType = Objects.requireNonNull(binaryType);
-        }
-
-        public Class<?> getBinaryType() {
-            return binaryType;
-        }
+    public record BinaryType(Class<?> binaryType) implements Decoration {
 
         public String getBinaryCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(binaryType);
         }
     }
 
-    public static class ShiftType implements Decoration {
-
-        private final Class<?> shiftType;
-
-        public ShiftType(Class<?> shiftType) {
-            this.shiftType = Objects.requireNonNull(shiftType);
-        }
-
-        public Class<?> getShiftType() {
-            return shiftType;
-        }
+    public record ShiftType(Class<?> shiftType) implements Decoration {
 
         public String getShiftCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(shiftType);
         }
     }
 
-    public static class ComparisonType implements Decoration {
-
-        private final Class<?> comparisonType;
-
-        public ComparisonType(Class<?> comparisonType) {
-            this.comparisonType = Objects.requireNonNull(comparisonType);
-        }
-
-        public Class<?> getComparisonType() {
-            return comparisonType;
-        }
+    public record ComparisonType(Class<?> comparisonType) implements Decoration {
 
         public String getComparisonCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(comparisonType);
         }
     }
 
-    public static class CompoundType implements Decoration {
-
-        private final Class<?> compoundType;
-
-        public CompoundType(Class<?> compoundType) {
-            this.compoundType = Objects.requireNonNull(compoundType);
-        }
-
-        public Class<?> getCompoundType() {
-            return compoundType;
-        }
+    public record CompoundType(Class<?> compoundType) implements Decoration {
 
         public String getCompoundCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(compoundType);
         }
     }
 
-    public static class UpcastPainlessCast implements Decoration {
+    public record UpcastPainlessCast(PainlessCast upcastPainlessCast) implements Decoration {}
 
-        private final PainlessCast upcastPainlessCast;
-
-        public UpcastPainlessCast(PainlessCast upcastPainlessCast) {
-            this.upcastPainlessCast = Objects.requireNonNull(upcastPainlessCast);
-        }
-
-        public PainlessCast getUpcastPainlessCast() {
-            return upcastPainlessCast;
-        }
-    }
-
-    public static class DowncastPainlessCast implements Decoration {
-
-        private final PainlessCast downcastPainlessCast;
+    public record DowncastPainlessCast(PainlessCast downcastPainlessCast) implements Decoration {
 
         public DowncastPainlessCast(PainlessCast downcastPainlessCast) {
             this.downcastPainlessCast = Objects.requireNonNull(downcastPainlessCast);
         }
-
-        public PainlessCast getDowncastPainlessCast() {
-            return downcastPainlessCast;
-        }
     }
 
-    public static class StandardPainlessField implements Decoration {
+    public record StandardPainlessField(PainlessField standardPainlessField) implements Decoration {}
 
-        private final PainlessField standardPainlessField;
+    public record StandardPainlessConstructor(PainlessConstructor standardPainlessConstructor) implements Decoration {}
 
-        public StandardPainlessField(PainlessField standardPainlessField) {
-            this.standardPainlessField = Objects.requireNonNull(standardPainlessField);
-        }
+    public record StandardPainlessMethod(PainlessMethod standardPainlessMethod) implements Decoration {}
 
-        public PainlessField getStandardPainlessField() {
-            return standardPainlessField;
-        }
-    }
+    public interface DynamicInvocation extends Condition {}
 
-    public static class StandardPainlessConstructor implements Decoration {
+    public record GetterPainlessMethod(PainlessMethod getterPainlessMethod) implements Decoration {}
 
-        private final PainlessConstructor standardPainlessConstructor;
+    public record SetterPainlessMethod(PainlessMethod setterPainlessMethod) implements Decoration {}
 
-        public StandardPainlessConstructor(PainlessConstructor standardPainlessConstructor) {
-            this.standardPainlessConstructor = Objects.requireNonNull(standardPainlessConstructor);
-        }
+    public record StandardConstant(Object standardConstant) implements Decoration {}
 
-        public PainlessConstructor getStandardPainlessConstructor() {
-            return standardPainlessConstructor;
-        }
-    }
+    public record StandardLocalFunction(LocalFunction localFunction) implements Decoration {}
 
-    public static class StandardPainlessMethod implements Decoration {
+    public record ThisPainlessMethod(PainlessMethod thisPainlessMethod) implements Decoration {}
 
-        private final PainlessMethod standardPainlessMethod;
+    public record StandardPainlessClassBinding(PainlessClassBinding painlessClassBinding) implements Decoration {}
 
-        public StandardPainlessMethod(PainlessMethod standardPainlessMethod) {
-            this.standardPainlessMethod = Objects.requireNonNull(standardPainlessMethod);
-        }
-
-        public PainlessMethod getStandardPainlessMethod() {
-            return standardPainlessMethod;
-        }
-    }
-
-    public interface DynamicInvocation extends Condition {
+    public record StandardPainlessInstanceBinding(PainlessInstanceBinding painlessInstanceBinding) implements Decoration {
 
     }
 
-    public static class GetterPainlessMethod implements Decoration {
+    public record MethodNameDecoration(String methodName) implements Decoration {
 
-        private final PainlessMethod getterPainlessMethod;
-
-        public GetterPainlessMethod(PainlessMethod getterPainlessMethod) {
-            this.getterPainlessMethod = Objects.requireNonNull(getterPainlessMethod);
-        }
-
-        public PainlessMethod getGetterPainlessMethod() {
-            return getterPainlessMethod;
-        }
     }
 
-    public static class SetterPainlessMethod implements Decoration {
-
-        private final PainlessMethod setterPainlessMethod;
-
-        public SetterPainlessMethod(PainlessMethod setterPainlessMethod) {
-            this.setterPainlessMethod = Objects.requireNonNull(setterPainlessMethod);
-        }
-
-        public PainlessMethod getSetterPainlessMethod() {
-            return setterPainlessMethod;
-        }
-    }
-
-    public static class StandardConstant implements Decoration {
-
-        private final Object standardConstant;
-
-        public StandardConstant(Object standardConstant) {
-            this.standardConstant = Objects.requireNonNull(standardConstant);
-        }
-
-        public Object getStandardConstant() {
-            return standardConstant;
-        }
-    }
-
-    public static class StandardLocalFunction implements Decoration {
-
-        private final LocalFunction localFunction;
-
-        public StandardLocalFunction(LocalFunction localFunction) {
-            this.localFunction = Objects.requireNonNull(localFunction);
-        }
-
-        public LocalFunction getLocalFunction() {
-            return localFunction;
-        }
-    }
-
-    public static class ThisPainlessMethod implements Decoration {
-
-        private final PainlessMethod thisPainlessMethod;
-
-        public ThisPainlessMethod(PainlessMethod thisPainlessMethod) {
-            this.thisPainlessMethod = Objects.requireNonNull(thisPainlessMethod);
-        }
-
-        public PainlessMethod getThisPainlessMethod() {
-            return thisPainlessMethod;
-        }
-    }
-
-    public static class StandardPainlessClassBinding implements Decoration {
-
-        private final PainlessClassBinding painlessClassBinding;
-
-        public StandardPainlessClassBinding(PainlessClassBinding painlessClassBinding) {
-            this.painlessClassBinding = Objects.requireNonNull(painlessClassBinding);
-        }
-
-        public PainlessClassBinding getPainlessClassBinding() {
-            return painlessClassBinding;
-        }
-    }
-
-    public static class StandardPainlessInstanceBinding implements Decoration {
-
-        private final PainlessInstanceBinding painlessInstanceBinding;
-
-        public StandardPainlessInstanceBinding(PainlessInstanceBinding painlessInstanceBinding) {
-            this.painlessInstanceBinding = Objects.requireNonNull(painlessInstanceBinding);
-        }
-
-        public PainlessInstanceBinding getPainlessInstanceBinding() {
-            return painlessInstanceBinding;
-        }
-    }
-
-    public static class MethodNameDecoration implements Decoration {
-
-        private final String methodName;
-
-        public MethodNameDecoration(String methodName) {
-            this.methodName = Objects.requireNonNull(methodName);
-        }
-
-        public String getMethodName() {
-            return methodName;
-        }
-    }
-
-    public static class ReturnType implements Decoration {
-
-        private final Class<?> returnType;
-
-        public ReturnType(Class<?> returnType) {
-            this.returnType = Objects.requireNonNull(returnType);
-        }
-
-        public Class<?> getReturnType() {
-            return returnType;
-        }
+    public record ReturnType(Class<?> returnType) implements Decoration {
 
         public String getReturnCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(returnType);
         }
     }
 
-    public static class TypeParameters implements Decoration {
-
-        private final List<Class<?>> typeParameters;
+    public record TypeParameters(List<Class<?>> typeParameters) implements Decoration {
 
         public TypeParameters(List<Class<?>> typeParameters) {
             this.typeParameters = Collections.unmodifiableList(new ArrayList<>(Objects.requireNonNull(typeParameters)));
         }
-
-        public List<Class<?>> getTypeParameters() {
-            return typeParameters;
-        }
     }
 
-    public static class ParameterNames implements Decoration {
-
-        private final List<String> parameterNames;
+    public record ParameterNames(List<String> parameterNames) implements Decoration {
 
         public ParameterNames(List<String> parameterNames) {
             this.parameterNames = Collections.unmodifiableList(new ArrayList<>(Objects.requireNonNull(parameterNames)));
         }
+    }
 
-        public List<String> getParameterNames() {
-            return parameterNames;
+    public record ReferenceDecoration(FunctionRef reference) implements Decoration {}
+
+    public record EncodingDecoration(Def.Encoding encoding) implements Decoration {
+
+        public static EncodingDecoration of(boolean isStatic, boolean needsInstance, String symbol, String methodName, int captures) {
+            return new EncodingDecoration(new Def.Encoding(isStatic, needsInstance, symbol, methodName, captures));
         }
     }
 
-    public static class ReferenceDecoration implements Decoration {
-
-        private final FunctionRef reference;
-
-        public ReferenceDecoration(FunctionRef reference) {
-            this.reference = Objects.requireNonNull(reference);
-        }
-
-        public FunctionRef getReference() {
-            return reference;
-        }
-    }
-
-    public static class EncodingDecoration implements Decoration {
-
-        private final Def.Encoding encoding;
-
-        public EncodingDecoration(boolean isStatic, boolean needsInstance, String symbol, String methodName, int captures) {
-            this.encoding = new Def.Encoding(isStatic, needsInstance, symbol, methodName, captures);
-        }
-
-        public Def.Encoding getEncoding() {
-            return encoding;
-        }
-    }
-
-    public static class CapturesDecoration implements Decoration {
-
-        private final List<Variable> captures;
+    public record CapturesDecoration(List<Variable> captures) implements Decoration {
 
         public CapturesDecoration(List<Variable> captures) {
             this.captures = Collections.unmodifiableList(new ArrayList<>(Objects.requireNonNull(captures)));
         }
 
-        public List<Variable> getCaptures() {
+        public List<Variable> captures() {
             return captures;
         }
     }
@@ -559,17 +260,7 @@ public class Decorations {
 
     }
 
-    public static class InstanceType implements Decoration {
-
-        private final Class<?> instanceType;
-
-        public InstanceType(Class<?> instanceType) {
-            this.instanceType = Objects.requireNonNull(instanceType);
-        }
-
-        public Class<?> getInstanceType() {
-            return instanceType;
-        }
+    public record InstanceType(Class<?> instanceType) implements Decoration {
 
         public String getInstanceCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(instanceType);
@@ -584,45 +275,13 @@ public class Decorations {
 
     }
 
-    public static class AccessDepth implements Decoration {
-
-        private final int accessDepth;
-
-        public AccessDepth(int accessDepth) {
-            this.accessDepth = accessDepth;
-        }
-
-        public int getAccessDepth() {
-            return accessDepth;
-        }
-    }
+    public record AccessDepth(int accessDepth) implements Decoration {}
 
     // standard output for user tree to ir tree phase
 
-    public static class IRNodeDecoration implements Decoration {
+    public record IRNodeDecoration(IRNode irNode) implements Decoration {}
 
-        private final IRNode irNode;
-
-        public IRNodeDecoration(IRNode irNode) {
-            this.irNode = Objects.requireNonNull(irNode);
-        }
-
-        public IRNode getIRNode() {
-            return irNode;
-        }
-    }
-
-    public static class Converter implements Decoration {
-        private final LocalFunction converter;
-
-        public Converter(LocalFunction converter) {
-            this.converter = converter;
-        }
-
-        public LocalFunction getConverter() {
-            return converter;
-        }
-    }
+    public record Converter(LocalFunction converter) implements Decoration {}
 
     // collect additional information about where doc is used
 

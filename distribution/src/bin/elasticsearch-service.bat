@@ -107,7 +107,7 @@ if exist "%ES_JAVA_HOME%\bin\server\jvm.dll" (
 
 :foundJVM
 if not defined ES_TMPDIR (
-  for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory"`) do set ES_TMPDIR=%%a
+  for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!SERVER_CLI_CLASSPATH!" "org.elasticsearch.server.cli.TempDirectory"`) do set ES_TMPDIR=%%a
 )
 
 rem The JVM options parser produces the final JVM options to start
@@ -121,7 +121,7 @@ rem   - third, JVM options from ES_JAVA_OPTS are applied
 rem   - fourth, ergonomic JVM options are applied
 
 @setlocal
-for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.JvmOptionsParser" "!ES_PATH_CONF!" "!ES_HOME!"/plugins ^|^| echo jvm_options_parser_failed`) do set ES_JAVA_OPTS=%%a
+for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!SERVER_CLI_CLASSPATH!" "org.elasticsearch.server.cli.JvmOptionsParser" "!ES_PATH_CONF!" "!ES_HOME!"/plugins ^|^| echo jvm_options_parser_failed`) do set ES_JAVA_OPTS=%%a
 @endlocal & set "MAYBE_JVM_OPTIONS_PARSER_FAILED=%ES_JAVA_OPTS%" & set ES_JAVA_OPTS=%ES_JAVA_OPTS%
 
 if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
@@ -194,7 +194,7 @@ if "%JVM_SS%" == "" (
 set OTHER_JAVA_OPTS=%OTHER_JAVA_OPTS:"=%
 set OTHER_JAVA_OPTS=%OTHER_JAVA_OPTS:~1%
 
-set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.path.conf="%ES_PATH_CONF%";-Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%";-Des.distribution.type="%ES_DISTRIBUTION_TYPE%";-Des.bundled_jdk="%ES_BUNDLED_JDK%"
+set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.path.conf="%ES_PATH_CONF%";-Des.distribution.type="%ES_DISTRIBUTION_TYPE%"
 
 if "%ES_START_TYPE%" == "" set ES_START_TYPE=manual
 if "%ES_STOP_TIMEOUT%" == "" set ES_STOP_TIMEOUT=0
@@ -206,6 +206,8 @@ if not "%SERVICE_USERNAME%" == "" (
 	if not "%SERVICE_PASSWORD%" == "" (
 		set SERVICE_PARAMS=%SERVICE_PARAMS% --ServiceUser "%SERVICE_USERNAME%" --ServicePassword "%SERVICE_PASSWORD%"
 	)
+) else (
+    set SERVICE_PARAMS=%SERVICE_PARAMS% --ServiceUser LocalSystem
 )
 "%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main ++StartParams --quiet --StopClass org.elasticsearch.bootstrap.Elasticsearch --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %OTHER_JAVA_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%ES_JAVA_HOME%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" %SERVICE_PARAMS% ++Environment HOSTNAME="%%COMPUTERNAME%%"
 

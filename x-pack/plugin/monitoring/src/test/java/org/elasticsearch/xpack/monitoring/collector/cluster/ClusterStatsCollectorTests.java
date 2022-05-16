@@ -158,22 +158,12 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final boolean transportTLSEnabled;
 
         if (securityEnabled) {
-            switch (mode) {
-                case TRIAL:
-                    transportTLSEnabled = randomBoolean();
-                    break;
-                case BASIC:
-                    transportTLSEnabled = false;
-                    break;
-                case STANDARD:
-                case GOLD:
-                case PLATINUM:
-                case ENTERPRISE:
-                    transportTLSEnabled = true;
-                    break;
-                default:
-                    throw new AssertionError("Unknown mode [" + mode + "]");
-            }
+            transportTLSEnabled = switch (mode) {
+                case TRIAL -> randomBoolean();
+                case BASIC -> false;
+                case STANDARD, GOLD, PLATINUM, ENTERPRISE -> true;
+                default -> throw new AssertionError("Unknown mode [" + mode + "]");
+            };
 
             if (randomBoolean()) {
                 settings.put(XPackSettings.SECURITY_ENABLED.getKey(), true);
@@ -306,7 +296,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release! See the breaking changes documentation for the next major version."
+                + "in a future release."
         );
     }
 
@@ -377,7 +367,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release! See the breaking changes documentation for the next major version."
+                + "in a future release."
         );
     }
 
@@ -442,7 +432,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release! See the breaking changes documentation for the next major version."
+                + "in a future release."
         );
     }
 

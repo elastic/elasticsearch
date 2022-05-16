@@ -9,7 +9,7 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,7 +26,7 @@ import java.util.Objects;
 /**
  * Holds the results of migrating a single feature. See also {@link FeatureMigrationResults}.
  */
-public class SingleFeatureMigrationResult extends AbstractDiffable<SingleFeatureMigrationResult> implements Writeable, ToXContent {
+public class SingleFeatureMigrationResult implements SimpleDiffable<SingleFeatureMigrationResult>, Writeable, ToXContent {
     private static final String NAME = "feature_migration_status";
     private static final ParseField SUCCESS_FIELD = new ParseField("successful");
     private static final ParseField FAILED_INDEX_NAME_FIELD = new ParseField("failed_index");

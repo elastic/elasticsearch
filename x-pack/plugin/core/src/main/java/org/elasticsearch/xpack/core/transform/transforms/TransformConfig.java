@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,7 +50,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class holds the configuration details of a data frame transform
  */
-public class TransformConfig extends AbstractDiffable<TransformConfig> implements Writeable, ToXContentObject {
+public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeable, ToXContentObject {
 
     /**
      * Version of the last time the config defaults have been changed.
@@ -452,7 +452,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             settings.writeTo(out);
         }
         if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeMap(metadata);
+            out.writeGenericMap(metadata);
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalNamedWriteable(retentionPolicyConfig);
@@ -622,7 +622,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     builder.getSettings().getDocsPerSecond(),
                     builder.getSettings().getDatesAsEpochMillis(),
                     builder.getSettings().getAlignCheckpoints(),
-                    builder.getSettings().getUsePit()
+                    builder.getSettings().getUsePit(),
+                    builder.getSettings().getDeduceMappings()
                 )
             );
         }
@@ -635,7 +636,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     builder.getSettings().getDocsPerSecond(),
                     true,
                     builder.getSettings().getAlignCheckpoints(),
-                    builder.getSettings().getUsePit()
+                    builder.getSettings().getUsePit(),
+                    builder.getSettings().getDeduceMappings()
                 )
             );
         }
@@ -648,12 +650,17 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     builder.getSettings().getDocsPerSecond(),
                     builder.getSettings().getDatesAsEpochMillis(),
                     false,
-                    builder.getSettings().getUsePit()
+                    builder.getSettings().getUsePit(),
+                    builder.getSettings().getDeduceMappings()
                 )
             );
         }
 
         return builder.setVersion(Version.CURRENT).build();
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     public static class Builder {

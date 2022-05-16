@@ -16,10 +16,8 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVers
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.common.xcontent.XContentFieldFilter;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -33,8 +31,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -75,7 +71,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long version,
         VersionType versionType,
         FetchSourceContext fetchSourceContext
-    ) {
+    ) throws IOException {
         return get(id, gFields, realtime, version, versionType, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, fetchSourceContext);
     }
 
@@ -88,7 +84,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long ifSeqNo,
         long ifPrimaryTerm,
         FetchSourceContext fetchSourceContext
-    ) {
+    ) throws IOException {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
@@ -105,7 +101,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm) {
+    public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
         return get(
             id,
             new String[] { RoutingFieldMapper.NAME },
@@ -125,7 +121,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
      * <p>
      * Note: Call <b>must</b> release engine searcher associated with engineGetResult!
      */
-    public GetResult get(Engine.GetResult engineGetResult, String id, String[] fields, FetchSourceContext fetchSourceContext) {
+    public GetResult get(Engine.GetResult engineGetResult, String id, String[] fields, FetchSourceContext fetchSourceContext)
+        throws IOException {
         if (engineGetResult.exists() == false) {
             return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
         }
@@ -149,7 +146,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     /**
      * decides what needs to be done based on the request input and always returns a valid non-null FetchSourceContext
      */
-    private FetchSourceContext normalizeFetchSourceContent(@Nullable FetchSourceContext context, @Nullable String[] gFields) {
+    private static FetchSourceContext normalizeFetchSourceContent(@Nullable FetchSourceContext context, @Nullable String[] gFields) {
         if (context != null) {
             return context;
         }
@@ -173,7 +170,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long ifSeqNo,
         long ifPrimaryTerm,
         FetchSourceContext fetchSourceContext
-    ) {
+    ) throws IOException {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
 
         Engine.GetResult get = indexShard.get(
@@ -203,7 +200,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         String[] storedFields,
         FetchSourceContext fetchSourceContext,
         Engine.GetResult get
-    ) {
+    ) throws IOException {
         assert get.exists() : "method should only be called if document could be retrieved";
 
         // check first if stored fields to be loaded don't contain an object field
@@ -231,7 +228,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get id [" + id + "]", e);
             }
-            source = fieldVisitor.source();
+            source = mappingLookup.newSourceLoader().leaf(docIdAndVersion.reader).source(fieldVisitor, docIdAndVersion.docId);
 
             // put stored fields into result objects
             if (fieldVisitor.fields().isEmpty() == false) {
@@ -253,15 +250,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             if (fetchSourceContext.fetchSource() == false) {
                 source = null;
             } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
-                Map<String, Object> sourceAsMap;
-                // TODO: The source might be parsed and available in the sourceLookup but that one uses unordered maps so different.
-                // Do we care?
-                Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source, true);
-                XContentType sourceContentType = typeMapTuple.v1();
-                sourceAsMap = typeMapTuple.v2();
-                sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
                 try {
-                    source = BytesReference.bytes(XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap));
+                    source = XContentFieldFilter.newFieldFilter(fetchSourceContext.includes(), fetchSourceContext.excludes())
+                        .apply(source, null);
                 } catch (IOException e) {
                     throw new ElasticsearchException("Failed to get id [" + id + "] with includes/excludes set", e);
                 }

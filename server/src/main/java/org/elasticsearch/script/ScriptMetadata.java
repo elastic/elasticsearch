@@ -190,17 +190,14 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
 
         while (token != Token.END_OBJECT) {
             switch (token) {
-                case FIELD_NAME:
-                    id = parser.currentName();
-                    break;
-                case START_OBJECT:
+                case FIELD_NAME -> id = parser.currentName();
+                case START_OBJECT -> {
                     if (id == null) {
                         throw new ParsingException(
                             parser.getTokenLocation(),
                             "unexpected token [" + token + "], expected [<id>, <code>, {]"
                         );
                     }
-
                     StoredScriptSource source = StoredScriptSource.fromXContent(parser, true);
                     // as of 8.0 we drop scripts/templates with an empty source
                     // this check should be removed for the next upgradable version after 8.0
@@ -214,11 +211,12 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
                     } else {
                         scripts.put(id, source);
                     }
-
                     id = null;
-                    break;
-                default:
-                    throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected [<id>, <code>, {]");
+                }
+                default -> throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "unexpected token [" + token + "], expected [<id>, <code>, {]"
+                );
             }
 
             token = parser.nextToken();

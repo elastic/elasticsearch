@@ -79,7 +79,7 @@ public class AllocationDecidersTests extends ESTestCase {
         }));
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
-        final RoutingAllocation allocation = new RoutingAllocation(deciders, clusterState.getRoutingNodes(), clusterState, null, null, 0L);
+        final RoutingAllocation allocation = new RoutingAllocation(deciders, clusterState, null, null, 0L);
 
         allocation.setDebugMode(mode);
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message");
@@ -97,7 +97,12 @@ public class AllocationDecidersTests extends ESTestCase {
         verify(deciders.canAllocate(shardRouting, allocation), matcher);
         verify(deciders.canRebalance(shardRouting, allocation), matcher);
         verify(deciders.canRebalance(allocation), matcher);
-        verify(deciders.canRemain(shardRouting, routingNode, allocation), matcher);
+        final Decision canRemainResult = deciders.canRemain(shardRouting, routingNode, allocation);
+        if (allocation.debugDecision()) {
+            verify(canRemainResult, matcher);
+        } else {
+            assertSame(canRemainResult, Decision.YES);
+        }
         verify(deciders.canForceAllocatePrimary(shardRouting, routingNode, allocation), matcher);
         verify(deciders.shouldAutoExpandToNode(idx, null, allocation), matcher);
     }
@@ -217,14 +222,7 @@ public class AllocationDecidersTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
 
-        final RoutingAllocation allocation = new RoutingAllocation(
-            allocationDeciders,
-            clusterState.getRoutingNodes(),
-            clusterState,
-            null,
-            null,
-            0L
-        );
+        final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, 0L);
         assertSame(Decision.NO, allocationDeciders.canAllocate(shardRouting, routingNode, allocation));
         assertSame(Decision.NO, allocationDeciders.canRebalance(shardRouting, allocation));
         assertSame(Decision.NO, allocationDeciders.canRemain(shardRouting, routingNode, allocation));

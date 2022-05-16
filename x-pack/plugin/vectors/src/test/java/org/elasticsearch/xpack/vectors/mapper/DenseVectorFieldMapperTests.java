@@ -11,11 +11,12 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene91.Lucene91HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.KnnVectorFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -33,7 +34,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper.VectorSimilarity;
-import org.elasticsearch.xpack.vectors.query.KnnVectorFieldExistsQuery;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -41,8 +42,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-import static org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.apache.lucene.codecs.lucene91.Lucene91HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene91.Lucene91HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -123,6 +124,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
         assertThat(fieldType, instanceOf(DenseVectorFieldType.class));
+        assertEquals(fieldType.isIndexed(), indexed);
         assertEquals(fieldType.isSearchable(), indexed);
     }
 
@@ -228,7 +230,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(
             e.getCause().getMessage(),
             containsString(
-                "The [dot_product] similarity can only be used with unit-length vectors. " + "Preview of invalid vector: [-12.1, 2.7, -4.0]"
+                "The [dot_product] similarity can only be used with unit-length vectors. Preview of invalid vector: [-12.1, 2.7, -4.0]"
             )
         );
 
@@ -245,6 +247,23 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             containsString(
                 "The [dot_product] similarity can only be used with unit-length vectors. "
                     + "Preview of invalid vector: [-12.1, 2.7, -4.0, 1.05, 10.0, ...]"
+            )
+        );
+    }
+
+    public void testCosineWithZeroVector() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(
+                b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", VectorSimilarity.cosine)
+            )
+        );
+        float[] vector = { -0.0f, 0.0f, 0.0f };
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", vector))));
+        assertNotNull(e.getCause());
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "The [cosine] similarity does not support vectors with zero magnitude. Preview of invalid vector: [-0.0, 0.0, 0.0]"
             )
         );
     }
@@ -450,12 +469,22 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        assertThat(knnVectorsFormat, instanceOf(Lucene90HnswVectorsFormat.class));
-        String expectedString = "Lucene90HnswVectorsFormat(name = Lucene90HnswVectorsFormat, maxConn = "
+        assertThat(knnVectorsFormat, instanceOf(Lucene91HnswVectorsFormat.class));
+        String expectedString = "Lucene91HnswVectorsFormat(name = Lucene91HnswVectorsFormat, maxConn = "
             + m
             + ", beamWidth="
             + efConstruction
             + ")";
         assertEquals(expectedString, knnVectorsFormat.toString());
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

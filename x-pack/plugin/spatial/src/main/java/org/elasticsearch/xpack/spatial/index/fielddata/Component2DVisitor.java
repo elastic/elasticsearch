@@ -99,18 +99,12 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
      * calling the {@link #reset()} method.
      */
     public static Component2DVisitor getVisitor(Component2D component2D, ShapeField.QueryRelation relation, CoordinateEncoder encoder) {
-        switch (relation) {
-            case CONTAINS:
-                return new ContainsVisitor(component2D, encoder);
-            case INTERSECTS:
-                return new IntersectsVisitor(component2D, encoder);
-            case DISJOINT:
-                return new DisjointVisitor(component2D, encoder);
-            case WITHIN:
-                return new WithinVisitor(component2D, encoder);
-            default:
-                throw new IllegalArgumentException("Invalid query relation:[" + relation + "]");
-        }
+        return switch (relation) {
+            case CONTAINS -> new ContainsVisitor(component2D, encoder);
+            case INTERSECTS -> new IntersectsVisitor(component2D, encoder);
+            case DISJOINT -> new DisjointVisitor(component2D, encoder);
+            case WITHIN -> new WithinVisitor(component2D, encoder);
+        };
     }
 
     /**

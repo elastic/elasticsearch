@@ -10,12 +10,12 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.MockAnalyzer;
-import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -25,6 +25,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
@@ -60,7 +61,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -2978,7 +2978,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         ensureGreen();
 
         int COUNT = between(20, 100);
-        Map<String, String> prefixes = new HashMap<>(COUNT);
+        Map<String, String> prefixes = Maps.newMapWithExpectedSize(COUNT);
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[COUNT];
         for (int i = 0; i < COUNT; i++) {
@@ -3606,7 +3606,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         @Override
         public Map<String, AnalysisModule.AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
             return singletonMap("mock_whitespace", (indexSettings, environment, name, settings) -> {
-                return new AbstractIndexAnalyzerProvider<Analyzer>(indexSettings, name, settings) {
+                return new AbstractIndexAnalyzerProvider<Analyzer>(name, settings) {
 
                     MockAnalyzer instance = new MockAnalyzer(random(), MockTokenizer.WHITESPACE, false);
 

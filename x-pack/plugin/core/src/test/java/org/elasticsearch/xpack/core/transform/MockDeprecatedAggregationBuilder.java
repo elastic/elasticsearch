@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -99,5 +100,10 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
     public static MockDeprecatedAggregationBuilder fromXContent(XContentParser p) {
         deprecationLogger.warn(DeprecationCategory.OTHER, "deprecated_mock", DEPRECATION_MESSAGE);
         return new MockDeprecatedAggregationBuilder();
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

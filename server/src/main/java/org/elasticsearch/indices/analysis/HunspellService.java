@@ -18,7 +18,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -119,7 +119,7 @@ public class HunspellService {
         return dictionary;
     }
 
-    private Path resolveHunspellDirectory(Environment env) {
+    private static Path resolveHunspellDirectory(Environment env) {
         return env.configFile().resolve("hunspell");
     }
 
@@ -199,7 +199,7 @@ public class HunspellService {
             }
 
         } catch (Exception e) {
-            logger.error(() -> new ParameterizedMessage("Could not load hunspell dictionary [{}]", locale), e);
+            logger.error(() -> "Could not load hunspell dictionary [" + locale + "]", e);
             throw e;
         } finally {
             IOUtils.close(affixStream);

@@ -10,7 +10,10 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -24,9 +27,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -42,10 +43,10 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
-import org.elasticsearch.index.mapper.NestedObjectMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RuntimeField;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -58,7 +59,6 @@ import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -99,6 +99,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final IndexSearcher searcher;
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
+    private Set<String> fieldsInIndex = null;
 
     private final Index fullyQualifiedIndex;
     private final Predicate<String> indexNameMatcher;
@@ -125,7 +126,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         MappingLookup mappingLookup,
         SimilarityService similarityService,
         ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfiguration,
         NamedWriteableRegistry namedWriteableRegistry,
         Client client,
         IndexSearcher searcher,
@@ -146,8 +147,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             mappingLookup,
             similarityService,
             scriptService,
-            // TODO pass the parser configuration into this method?
-            XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE).withRegistry(xContentRegistry),
+            parserConfiguration,
             namedWriteableRegistry,
             client,
             searcher,
@@ -304,16 +304,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mapperService.documentParser().parseDocument(source, mappingLookup);
     }
 
-    public boolean hasNested() {
-        return mappingLookup.hasNested();
+    public NestedLookup nestedLookup() {
+        return mappingLookup.nestedLookup();
     }
 
     public boolean hasMappings() {
         return mappingLookup.hasMappings();
-    }
-
-    public List<NestedObjectMapper> nestedMappings() {
-        return mappingLookup.getNestedMappers();
     }
 
     /**
@@ -375,18 +371,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
     }
 
-    /**
-     *
-     * @param name name of the object
-     * @return can be null e.g. if field is root of a composite runtime field
-     */
-    @Nullable
-    public ObjectMapper getObjectMapper(String name) {
-        return mappingLookup.objectMappers().get(name);
-    }
-
     public boolean isMetadataField(String field) {
         return mapperService.isMetadataField(field);
+    }
+
+    public boolean isMultiField(String field) {
+        if (runtimeMappings.containsKey(field)) {
+            return false;
+        }
+        return mapperService.isMultiField(field);
     }
 
     public Set<String> sourcePath(String fullName) {
@@ -395,6 +388,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public boolean isSourceEnabled() {
         return mappingLookup.isSourceEnabled();
+    }
+
+    public SourceLoader newSourceLoader() {
+        return mappingLookup.newSourceLoader();
     }
 
     /**
@@ -619,7 +616,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return client;
     }
 
-    public QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
+    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
         return AbstractQueryBuilder.parseInnerQueryBuilder(parser);
     }
 
@@ -646,6 +643,25 @@ public class SearchExecutionContext extends QueryRewriteContext {
      *  for instance if this rewrite context is used to index queries (percolation). */
     public IndexSearcher searcher() {
         return searcher;
+    }
+
+    /**
+     * Is this field present in the underlying lucene index for the current shard?
+     */
+    public boolean fieldExistsInIndex(String fieldname) {
+        if (searcher == null) {
+            return false;
+        }
+        if (fieldsInIndex == null) {
+            fieldsInIndex = new HashSet<>();
+            for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
+                FieldInfos fis = ctx.reader().getFieldInfos();
+                for (FieldInfo fi : fis) {
+                    fieldsInIndex.add(fi.name);
+                }
+            }
+        }
+        return fieldsInIndex.contains(fieldname);
     }
 
     /**
@@ -684,17 +700,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public MappingLookup.CacheKey mappingCacheKey() {
         return mappingLookup.cacheKey();
-    }
-
-    /**
-     * Given a nested object path, returns the path to its nested parent
-     *
-     * In particular, if a nested field `foo` contains an object field
-     * `bar.baz`, then calling this method with `foo.bar.baz` will return
-     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
-     */
-    public String getNestedParent(String nestedPath) {
-        return mappingLookup.getNestedParent(nestedPath);
     }
 
     public NestedDocuments getNestedDocuments() {

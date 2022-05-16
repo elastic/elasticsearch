@@ -10,9 +10,7 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
@@ -25,13 +23,12 @@ import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -45,8 +42,8 @@ import org.elasticsearch.node.NodeValidationException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
@@ -170,7 +167,7 @@ final class Bootstrap {
         Settings settings = environment.settings();
 
         try {
-            spawner.spawnNativeControllers(environment, true);
+            spawner.spawnNativeControllers(environment);
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
@@ -301,7 +298,7 @@ final class Bootstrap {
         final SecureSettings keystore = BootstrapUtil.loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
 
-        BootstrapInfo.setConsoleOutput(getConsole(environment));
+        BootstrapInfo.setConsole(getConsole(environment));
 
         // the LogConfigurator will replace System.out and System.err with redirects to our logfile, so we need to capture
         // the stream objects before calling LogConfigurator to be able to close them when appropriate
@@ -310,7 +307,7 @@ final class Bootstrap {
 
         LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
         try {
-            LogConfigurator.configure(environment);
+            LogConfigurator.configure(environment, quiet == false);
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
@@ -323,16 +320,6 @@ final class Bootstrap {
         }
 
         try {
-            final boolean closeStandardStreams = (foreground == false) || quiet;
-            if (closeStandardStreams) {
-                final Logger rootLogger = LogManager.getRootLogger();
-                final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
-                if (maybeConsoleAppender != null) {
-                    Loggers.removeAppender(rootLogger, maybeConsoleAppender);
-                }
-                sysOutCloser.run();
-            }
-
             // fail if somebody replaced the lucene jars
             checkLucene();
 
@@ -366,58 +353,36 @@ final class Bootstrap {
 
             INSTANCE.start();
 
-            // We don't close stderr if `--quiet` is passed, because that
-            // hides fatal startup errors. For example, if Elasticsearch is
-            // running via systemd, the init script only specifies
-            // `--quiet`, not `-d`, so we want users to be able to see
-            // startup errors via journalctl.
             if (foreground == false) {
+                LogConfigurator.removeConsoleAppender();
+                sysOutCloser.run();
                 sysErrorCloser.run();
             }
 
         } catch (NodeValidationException | RuntimeException e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
-            final Logger rootLogger = LogManager.getRootLogger();
-            final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
-            if (foreground && maybeConsoleAppender != null) {
-                Loggers.removeAppender(rootLogger, maybeConsoleAppender);
-            }
-            Logger logger = LogManager.getLogger(Bootstrap.class);
-            // HACK, it sucks to do this, but we will run users out of disk space otherwise
-            if (e instanceof CreationException) {
-                // guice: log the shortened exc to the log file
-                ByteArrayOutputStream os = new ByteArrayOutputStream();
-                PrintStream ps = null;
-                try {
-                    ps = new PrintStream(os, false, "UTF-8");
-                } catch (UnsupportedEncodingException uee) {
-                    assert false;
-                    e.addSuppressed(uee);
+            LogConfigurator.logWithoutConsole(Bootstrap.class, logger -> {
+                // HACK, it sucks to do this, but we will run users out of disk space otherwise
+                if (e instanceof CreationException) {
+                    // guice: log the shortened exc to the log file
+                    ByteArrayOutputStream os = new ByteArrayOutputStream();
+                    PrintStream ps = new PrintStream(os, false, StandardCharsets.UTF_8);
+                    new StartupException(e).printStackTrace(ps);
+                    ps.flush();
+                    logger.error("Guice Exception: {}", os.toString(StandardCharsets.UTF_8));
+                } else if (e instanceof NodeValidationException) {
+                    logger.error("node validation exception\n{}", e.getMessage());
+                } else {
+                    // full exception
+                    logger.error("Exception", e);
                 }
-                new StartupException(e).printStackTrace(ps);
-                ps.flush();
-                try {
-                    logger.error("Guice Exception: {}", os.toString("UTF-8"));
-                } catch (UnsupportedEncodingException uee) {
-                    assert false;
-                    e.addSuppressed(uee);
-                }
-            } else if (e instanceof NodeValidationException) {
-                logger.error("node validation exception\n{}", e.getMessage());
-            } else {
-                // full exception
-                logger.error("Exception", e);
-            }
-            // re-enable it if appropriate, so they can see any logging during the shutdown process
-            if (foreground && maybeConsoleAppender != null) {
-                Loggers.addAppender(rootLogger, maybeConsoleAppender);
-            }
+            });
 
             throw e;
         }
     }
 
-    private static PrintStream getConsole(Environment environment) {
+    private static ConsoleLoader.Console getConsole(Environment environment) {
         return ConsoleLoader.loadConsole(environment);
     }
 

@@ -135,18 +135,13 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
 
     public static IndexLongFieldRange readFrom(StreamInput in) throws IOException {
         final byte type = in.readByte();
-        switch (type) {
-            case WIRE_TYPE_NO_SHARDS:
-                return NO_SHARDS;
-            case WIRE_TYPE_UNKNOWN:
-                return UNKNOWN;
-            case WIRE_TYPE_EMPTY:
-                return EMPTY;
-            case WIRE_TYPE_OTHER:
-                return new IndexLongFieldRange(in.readBoolean() ? in.readVIntArray() : null, in.readZLong(), in.readZLong());
-            default:
-                throw new IllegalStateException("type [" + type + "] not known");
-        }
+        return switch (type) {
+            case WIRE_TYPE_NO_SHARDS -> NO_SHARDS;
+            case WIRE_TYPE_UNKNOWN -> UNKNOWN;
+            case WIRE_TYPE_EMPTY -> EMPTY;
+            case WIRE_TYPE_OTHER -> new IndexLongFieldRange(in.readBoolean() ? in.readVIntArray() : null, in.readZLong(), in.readZLong());
+            default -> throw new IllegalStateException("type [" + type + "] not known");
+        };
     }
 
     @Override

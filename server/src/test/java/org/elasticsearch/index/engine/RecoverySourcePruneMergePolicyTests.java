@@ -30,8 +30,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.NullInfoStream;
 import org.apache.lucene.util.InfoStream;
-import org.apache.lucene.util.NullInfoStream;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -75,9 +75,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                     if (extra_source != null) {
                         assertEquals(DocIdSetIterator.NO_MORE_DOCS, extra_source.nextDoc());
                     }
-                    if (leafReader instanceof CodecReader && reader instanceof StandardDirectoryReader) {
-                        CodecReader codecReader = (CodecReader) leafReader;
-                        StandardDirectoryReader sdr = (StandardDirectoryReader) reader;
+                    if (leafReader instanceof CodecReader codecReader && reader instanceof StandardDirectoryReader sdr) {
                         SegmentInfos segmentInfos = sdr.getSegmentInfos();
                         MergePolicy.MergeSpecification forcedMerges = mp.findForcedDeletesMerges(
                             segmentInfos,

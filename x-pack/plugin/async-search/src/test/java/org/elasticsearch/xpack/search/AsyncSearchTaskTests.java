@@ -411,7 +411,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         ShardSearchFailure... failures
     ) {
         InternalSearchResponse response = new InternalSearchResponse(
-            SearchHits.empty(),
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
             InternalAggregations.EMPTY,
             null,
             null,

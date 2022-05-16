@@ -49,13 +49,13 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         Object lower, upper;
         // switch between numeric and date ranges
         switch (randomIntBetween(0, 2)) {
-            case 0:
+            case 0 -> {
                 // use mapped integer field for numeric range queries
                 query = new RangeQueryBuilder(randomFrom(INT_FIELD_NAME, INT_RANGE_FIELD_NAME, INT_ALIAS_FIELD_NAME));
                 lower = randomIntBetween(1, 100);
                 upper = randomIntBetween(101, 200);
-                break;
-            case 1:
+            }
+            case 1 -> {
                 // use mapped date field, using date string representation
                 Instant now = Instant.now();
                 ZonedDateTime start = now.minusMillis(randomIntBetween(0, 1000000)).atZone(ZoneOffset.UTC);
@@ -74,13 +74,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                         query.format(format);
                     }
                 }
-                break;
-            case 2:
-            default:
+            }
+            default -> {
                 query = new RangeQueryBuilder(randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME));
                 lower = "a" + randomAlphaOfLengthBetween(1, 10);
                 upper = "z" + randomAlphaOfLengthBetween(1, 10);
-                break;
+            }
         }
 
         // Update query builder with lower bound, sometimes leaving it unset

@@ -27,27 +27,9 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     protected abstract void registerParameters(ParameterChecker checker) throws IOException;
 
-    private static class ConflictCheck {
-        final XContentBuilder init;
-        final XContentBuilder update;
+    private record ConflictCheck(XContentBuilder init, XContentBuilder update) {}
 
-        private ConflictCheck(XContentBuilder init, XContentBuilder update) {
-            this.init = init;
-            this.update = update;
-        }
-    }
-
-    private static class UpdateCheck {
-        final XContentBuilder init;
-        final XContentBuilder update;
-        final Consumer<DocumentMapper> check;
-
-        private UpdateCheck(XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {
-            this.init = init;
-            this.update = update;
-            this.check = check;
-        }
-    }
+    private record UpdateCheck(XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {}
 
     public class ParameterChecker {
 

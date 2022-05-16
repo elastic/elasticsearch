@@ -72,6 +72,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.IntPredicate;
@@ -232,7 +233,7 @@ public class TextFieldMapper extends FieldMapper {
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
-        final Parameter<String> indexOptions = TextParams.indexOptions(m -> ((TextFieldMapper) m).indexOptions);
+        final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> ((TextFieldMapper) m).indexOptions);
         final Parameter<Boolean> norms = TextParams.norms(true, m -> ((TextFieldMapper) m).norms);
         final Parameter<String> termVectors = TextParams.termVectors(m -> ((TextFieldMapper) m).termVectors);
 
@@ -242,7 +243,9 @@ public class TextFieldMapper extends FieldMapper {
             true,
             () -> DEFAULT_FILTER,
             TextFieldMapper::parseFrequencyFilter,
-            m -> ((TextFieldMapper) m).freqFilter
+            m -> ((TextFieldMapper) m).freqFilter,
+            XContentBuilder::field,
+            Objects::toString
         );
         final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
             "eager_global_ordinals",
@@ -257,7 +260,9 @@ public class TextFieldMapper extends FieldMapper {
             false,
             () -> null,
             TextFieldMapper::parsePrefixConfig,
-            m -> ((TextFieldMapper) m).indexPrefixes
+            m -> ((TextFieldMapper) m).indexPrefixes,
+            XContentBuilder::field,
+            Objects::toString
         ).acceptsNull();
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -526,6 +531,11 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return false;
         }
 
         boolean accept(int length) {
@@ -825,7 +835,7 @@ public class TextFieldMapper extends FieldMapper {
             return createPhraseQuery(stream, field, slop, enablePositionIncrements);
         }
 
-        private int countTokens(TokenStream ts) throws IOException {
+        private static int countTokens(TokenStream ts) throws IOException {
             ts.reset();
             int count = 0;
             while (ts.incrementToken()) {
@@ -1125,5 +1135,34 @@ public class TextFieldMapper extends FieldMapper {
         b.freqFilter.toXContent(builder, includeDefaults);
         b.indexPrefixes.toXContent(builder, includeDefaults);
         b.indexPhrases.toXContent(builder, includeDefaults);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        for (Mapper sub : this) {
+            if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
+                if (kwd.fieldType().hasDocValues()
+                    && kwd.hasNormalizer() == false
+                    && kwd.fieldType().ignoreAbove() == KeywordFieldMapper.Defaults.IGNORE_ABOVE) {
+
+                    return kwd.syntheticFieldLoader(simpleName());
+                }
+            }
+        }
+        throw new IllegalArgumentException(
+            String.format(
+                Locale.ROOT,
+                "field [%s] of type [%s] doesn't support synthetic source unless it has a sub-field of"
+                    + " type [keyword] with doc values enabled and without ignore_above or a normalizer",
+                name(),
+                typeName()
+            )
+        );
     }
 }

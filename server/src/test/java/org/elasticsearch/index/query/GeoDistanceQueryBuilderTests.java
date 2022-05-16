@@ -10,6 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -42,15 +43,9 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         }
         int selector = randomIntBetween(0, 2);
         switch (selector) {
-            case 0:
-                qb.distance(randomDouble(), randomFrom(DistanceUnit.values()));
-                break;
-            case 1:
-                qb.distance(distance, randomFrom(DistanceUnit.values()));
-                break;
-            case 2:
-                qb.distance(distance);
-                break;
+            case 0 -> qb.distance(randomDouble(), randomFrom(DistanceUnit.values()));
+            case 1 -> qb.distance(distance, randomFrom(DistanceUnit.values()));
+            case 2 -> qb.distance(distance);
         }
 
         qb.point(new GeoPoint(GeometryTestUtils.randomLat(), GeometryTestUtils.randomLon()));
@@ -126,25 +121,11 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
             Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
 
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
-            assertEquals(
-                LatLonPoint.newDistanceQuery(
-                    expectedFieldName,
-                    queryBuilder.point().lat(),
-                    queryBuilder.point().lon(),
-                    queryBuilder.distance()
-                ),
-                indexQuery
-            );
+            double qLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(queryBuilder.point().lat()));
+            double qLon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(queryBuilder.point().lon()));
+            assertEquals(LatLonPoint.newDistanceQuery(expectedFieldName, qLat, qLon, queryBuilder.distance()), indexQuery);
             Query dvQuery = ((IndexOrDocValuesQuery) query).getRandomAccessQuery();
-            assertEquals(
-                LatLonDocValuesField.newSlowDistanceQuery(
-                    expectedFieldName,
-                    queryBuilder.point().lat(),
-                    queryBuilder.point().lon(),
-                    queryBuilder.distance()
-                ),
-                dvQuery
-            );
+            assertEquals(LatLonDocValuesField.newSlowDistanceQuery(expectedFieldName, qLat, qLon, queryBuilder.distance()), dvQuery);
         } else {
             assertEquals(GeoShapeFieldMapper.GeoShapeFieldType.class, fieldType.getClass());
         }
@@ -332,7 +313,12 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         // The parsedQuery contains IndexOrDocValuesQuery, which wraps LatLonPointDistanceQuery which in turn has default visibility,
         // so we cannot access its fields directly to check and have to use toString() here instead.
-        assertEquals(parsedQuery.toString(), "mapped_geo_point:" + lat + "," + lon + " +/- " + distanceUnit.toMeters(distance) + " meters");
+        double qLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
+        double qLon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
+        assertEquals(
+            parsedQuery.toString(),
+            "mapped_geo_point:" + qLat + "," + qLon + " +/- " + distanceUnit.toMeters(distance) + " meters"
+        );
     }
 
     public void testFromJson() throws IOException {

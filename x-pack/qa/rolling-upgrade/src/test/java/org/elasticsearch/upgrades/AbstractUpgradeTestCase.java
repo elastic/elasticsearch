@@ -77,16 +77,12 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         UPGRADED;
 
         public static ClusterType parse(String value) {
-            switch (value) {
-                case "old_cluster":
-                    return OLD;
-                case "mixed_cluster":
-                    return MIXED;
-                case "upgraded_cluster":
-                    return UPGRADED;
-                default:
-                    throw new AssertionError("unknown cluster type: " + value);
-            }
+            return switch (value) {
+                case "old_cluster" -> OLD;
+                case "mixed_cluster" -> MIXED;
+                case "upgraded_cluster" -> UPGRADED;
+                default -> throw new AssertionError("unknown cluster type: " + value);
+            };
         }
     }
 

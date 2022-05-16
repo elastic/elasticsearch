@@ -1,0 +1,5 @@
+pr: 85025
+summary: Upgrade to lucene 9.1.0-snapshot-5b522487ba8
+area: Search
+type: upgrade
+issues: []

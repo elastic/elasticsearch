@@ -253,7 +253,7 @@ public class LeaderChecker {
                         }
 
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
-                            logger.debug(new ParameterizedMessage("leader [{}] disconnected during check", leader), exp);
+                            logger.debug(() -> "leader [" + leader + "] disconnected during check", exp);
                             leaderFailed(
                                 () -> new ParameterizedMessage(
                                     "master node [{}] disconnected, restarting discovery [{}]",
@@ -264,7 +264,7 @@ public class LeaderChecker {
                             );
                             return;
                         } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
-                            logger.debug(new ParameterizedMessage("leader [{}] health check failed", leader), exp);
+                            logger.debug(() -> "leader [" + leader + "] health check failed", exp);
                             leaderFailed(
                                 () -> new ParameterizedMessage(
                                     "master node [{}] reported itself as unhealthy [{}], {}",
@@ -331,7 +331,7 @@ public class LeaderChecker {
 
         void leaderFailed(MessageSupplier messageSupplier, Exception e) {
             if (isClosed.compareAndSet(false, true)) {
-                transportService.getThreadPool().generic().execute(new Runnable() {
+                transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION).execute(new Runnable() {
                     @Override
                     public void run() {
                         leaderFailureListener.onLeaderFailure(messageSupplier, e);
@@ -423,7 +423,7 @@ public class LeaderChecker {
         /**
          * Called when a leader failure is detected. Checking the leader health is somewhat asynchronous, so this method may report a leader
          * failure after the node has already decided there's no known leader for some other reason. This method is called on the {@code
-         * GENERIC} thread pool.
+         * COORDINATION} thread pool.
          *
          * @param messageSupplier The message to log if prior to this failure there was a known master in the cluster.
          * @param exception       An exception that gives more detail of the leader failure.

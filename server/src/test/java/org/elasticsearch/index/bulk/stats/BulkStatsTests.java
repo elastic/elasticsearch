@@ -32,50 +32,44 @@ public class BulkStatsTests extends AbstractWireSerializingTestCase<BulkStats> {
 
     @Override
     protected BulkStats mutateInstance(BulkStats instance) {
-        switch (between(0, 4)) {
-            case 0:
-                return new BulkStats(
-                    randomValueOtherThan(instance.getTotalOperations(), ESTestCase::randomNonNegativeLong),
-                    instance.getTotalTimeInMillis(),
-                    instance.getTotalSizeInBytes(),
-                    instance.getAvgTimeInMillis(),
-                    instance.getAvgTimeInMillis()
-                );
-            case 1:
-                return new BulkStats(
-                    instance.getTotalOperations(),
-                    randomValueOtherThan(instance.getTotalTimeInMillis(), ESTestCase::randomNonNegativeLong),
-                    instance.getTotalSizeInBytes(),
-                    instance.getAvgTimeInMillis(),
-                    instance.getAvgTimeInMillis()
-                );
-            case 2:
-                return new BulkStats(
-                    instance.getTotalOperations(),
-                    instance.getTotalTimeInMillis(),
-                    randomValueOtherThan(instance.getTotalSizeInBytes(), ESTestCase::randomNonNegativeLong),
-                    instance.getAvgTimeInMillis(),
-                    instance.getAvgTimeInMillis()
-                );
-            case 3:
-                return new BulkStats(
-                    instance.getTotalOperations(),
-                    instance.getTotalTimeInMillis(),
-                    instance.getTotalSizeInBytes(),
-                    randomValueOtherThan(instance.getAvgTimeInMillis(), ESTestCase::randomNonNegativeLong),
-                    instance.getAvgTimeInMillis()
-                );
-            case 4:
-                return new BulkStats(
-                    instance.getTotalOperations(),
-                    instance.getTotalTimeInMillis(),
-                    instance.getTotalSizeInBytes(),
-                    instance.getAvgTimeInMillis(),
-                    randomValueOtherThan(instance.getAvgSizeInBytes(), ESTestCase::randomNonNegativeLong)
-                );
-            default:
-                throw new AssertionError("failure, got illegal switch case");
-        }
+        return switch (between(0, 4)) {
+            case 0 -> new BulkStats(
+                randomValueOtherThan(instance.getTotalOperations(), ESTestCase::randomNonNegativeLong),
+                instance.getTotalTimeInMillis(),
+                instance.getTotalSizeInBytes(),
+                instance.getAvgTimeInMillis(),
+                instance.getAvgTimeInMillis()
+            );
+            case 1 -> new BulkStats(
+                instance.getTotalOperations(),
+                randomValueOtherThan(instance.getTotalTimeInMillis(), ESTestCase::randomNonNegativeLong),
+                instance.getTotalSizeInBytes(),
+                instance.getAvgTimeInMillis(),
+                instance.getAvgTimeInMillis()
+            );
+            case 2 -> new BulkStats(
+                instance.getTotalOperations(),
+                instance.getTotalTimeInMillis(),
+                randomValueOtherThan(instance.getTotalSizeInBytes(), ESTestCase::randomNonNegativeLong),
+                instance.getAvgTimeInMillis(),
+                instance.getAvgTimeInMillis()
+            );
+            case 3 -> new BulkStats(
+                instance.getTotalOperations(),
+                instance.getTotalTimeInMillis(),
+                instance.getTotalSizeInBytes(),
+                randomValueOtherThan(instance.getAvgTimeInMillis(), ESTestCase::randomNonNegativeLong),
+                instance.getAvgTimeInMillis()
+            );
+            case 4 -> new BulkStats(
+                instance.getTotalOperations(),
+                instance.getTotalTimeInMillis(),
+                instance.getTotalSizeInBytes(),
+                instance.getAvgTimeInMillis(),
+                randomValueOtherThan(instance.getAvgSizeInBytes(), ESTestCase::randomNonNegativeLong)
+            );
+            default -> throw new AssertionError("failure, got illegal switch case");
+        };
     }
 
     public void testAddTotals() {

@@ -8,9 +8,6 @@
 
 package org.elasticsearch.http;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -52,6 +49,7 @@ import java.nio.channels.CancelledKeyException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -66,7 +64,6 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_
 
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
-    private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
 
     protected final Settings settings;
     public final HttpHandlingSettings handlingSettings;
@@ -262,12 +259,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         // if no matching boundAddress found, check if there is a unique port for all bound addresses
         if (publishPort < 0) {
-            final IntSet ports = new IntHashSet();
+            final Set<Integer> ports = new HashSet<>();
             for (TransportAddress boundAddress : boundAddresses) {
                 ports.add(boundAddress.getPort());
             }
             if (ports.size() == 1) {
-                publishPort = ports.iterator().next().value;
+                publishPort = ports.iterator().next();
             }
         }
 
@@ -293,7 +290,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 // just close and ignore - we are already stopped and just need to make sure we release all resources
                 return;
             }
-            if (NetworkExceptionHelper.getCloseConnectionExceptionLevel(e) != Level.OFF) {
+            if (NetworkExceptionHelper.getCloseConnectionExceptionLevel(e, false) != Level.OFF) {
                 logger.trace(
                     () -> new ParameterizedMessage(
                         "close connection exception caught while handling client http traffic, closing connection {}",
@@ -330,8 +327,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }
     }
 
-    protected void onServerException(HttpServerChannel channel, Exception e) {
-        logger.error(new ParameterizedMessage("exception from http server channel caught on transport layer [channel={}]", channel), e);
+    protected static void onServerException(HttpServerChannel channel, Exception e) {
+        logger.error(() -> "exception from http server channel caught on transport layer [channel=" + channel + "]", e);
     }
 
     protected void serverAcceptedChannel(HttpChannel httpChannel) {
@@ -491,7 +488,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         if (HttpUtils.shouldCloseConnection(request)) {
             return ActionListener.wrap(() -> CloseableChannel.closeChannel(httpChannel));
         } else {
-            return NO_OP;
+            return ActionListener.noop();
         }
+    }
+
+    public ThreadPool getThreadPool() {
+        return threadPool;
     }
 }

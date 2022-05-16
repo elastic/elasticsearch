@@ -12,6 +12,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -933,8 +934,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
         // save the BoostQuery wrapped structure if present
         List<Float> boosts = new ArrayList<>();
-        while (query instanceof BoostQuery) {
-            BoostQuery boostQuery = (BoostQuery) query;
+        while (query instanceof BoostQuery boostQuery) {
             boosts.add(boostQuery.getBoost());
             query = boostQuery.getQuery();
         }
@@ -948,5 +948,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         }
 
         return query;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

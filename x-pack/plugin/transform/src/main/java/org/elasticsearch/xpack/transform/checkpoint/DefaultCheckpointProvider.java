@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -21,8 +22,10 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
@@ -58,6 +61,9 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     protected final TransformConfigManager transformConfigManager;
     protected final TransformAuditor transformAuditor;
     protected final TransformConfig transformConfig;
+
+    // set of clusters that do not support 8.2+ checkpoint actions
+    private final Set<String> fallbackToBWC = new HashSet<>();
 
     DefaultCheckpointProvider(
         final Clock clock,
@@ -130,7 +136,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                     remoteClient,
                     transformConfig.getHeaders(),
                     remoteIndex.getValue().toArray(new String[0]),
-                    remoteIndex.getKey() + RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR,
+                    remoteIndex.getKey(),
                     groupedListener
                 );
             }
@@ -139,11 +145,69 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         }
     }
 
-    private static void getCheckpointsFromOneCluster(
+    private void getCheckpointsFromOneCluster(
         Client client,
         Map<String, String> headers,
         String[] indices,
-        String prefix,
+        String cluster,
+        ActionListener<Map<String, long[]>> listener
+    ) {
+        if (fallbackToBWC.contains(cluster)) {
+            getCheckpointsFromOneClusterBWC(client, headers, indices, cluster, listener);
+        } else {
+            getCheckpointsFromOneClusterV2(client, headers, indices, cluster, ActionListener.wrap(response -> {
+                logger.debug(
+                    "[{}] Successfully retrieved checkpoints from cluster [{}] using transform checkpoint API",
+                    transformConfig.getId(),
+                    cluster
+                );
+                listener.onResponse(response);
+            }, e -> {
+                Throwable unwrappedException = ExceptionsHelper.unwrapCause(e);
+                if (unwrappedException instanceof ActionNotFoundTransportException) {
+                    // this is an implementation detail, so not necessary to audit or warn, but only report as debug
+                    logger.debug(
+                        "[{}] Cluster [{}] does not support transform checkpoint API, falling back to legacy checkpointing",
+                        transformConfig.getId(),
+                        cluster
+                    );
+
+                    fallbackToBWC.add(cluster);
+                    getCheckpointsFromOneClusterBWC(client, headers, indices, cluster, listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            }));
+        }
+    }
+
+    private static void getCheckpointsFromOneClusterV2(
+        Client client,
+        Map<String, String> headers,
+        String[] indices,
+        String cluster,
+        ActionListener<Map<String, long[]>> listener
+    ) {
+        GetCheckpointAction.Request getCheckpointRequest = new GetCheckpointAction.Request(indices, IndicesOptions.LENIENT_EXPAND_OPEN);
+
+        ClientHelper.executeWithHeadersAsync(
+            headers,
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            GetCheckpointAction.INSTANCE,
+            getCheckpointRequest,
+            ActionListener.wrap(checkpointResponse -> listener.onResponse(checkpointResponse.getCheckpoints()), listener::onFailure)
+        );
+    }
+
+    /**
+     * BWC fallback for nodes/cluster older than 8.2
+     */
+    private static void getCheckpointsFromOneClusterBWC(
+        Client client,
+        Map<String, String> headers,
+        String[] indices,
+        String cluster,
         ActionListener<Map<String, long[]>> listener
     ) {
         // 1st get index to see the indexes the user has access to
@@ -189,14 +253,14 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                             );
                             return;
                         }
-                        listener.onResponse(extractIndexCheckPoints(response.getShards(), userIndices, prefix));
+                        listener.onResponse(extractIndexCheckPoints(response.getShards(), userIndices, cluster));
                     }, e -> listener.onFailure(new CheckpointException("Failed to create checkpoint", e)))
                 );
             }, e -> listener.onFailure(new CheckpointException("Failed to create checkpoint", e)))
         );
     }
 
-    static Map<String, long[]> extractIndexCheckPoints(ShardStats[] shards, Set<String> userIndices, String prefix) {
+    static Map<String, long[]> extractIndexCheckPoints(ShardStats[] shards, Set<String> userIndices, String cluster) {
         Map<String, TreeMap<Integer, Long>> checkpointsByIndex = new TreeMap<>();
 
         for (ShardStats shard : shards) {
@@ -205,7 +269,9 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             if (userIndices.contains(indexName)) {
                 // SeqNoStats could be `null`, assume the global checkpoint to be -1 in this case
                 long globalCheckpoint = shard.getSeqNoStats() == null ? -1L : shard.getSeqNoStats().getGlobalCheckpoint();
-                String fullIndexName = prefix + indexName;
+                String fullIndexName = cluster.isEmpty()
+                    ? indexName
+                    : cluster + RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR + indexName;
                 if (checkpointsByIndex.containsKey(fullIndexName)) {
                     // we have already seen this index, just check/add shards
                     TreeMap<Integer, Long> checkpoints = checkpointsByIndex.get(fullIndexName);

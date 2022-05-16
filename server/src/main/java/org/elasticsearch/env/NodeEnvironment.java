@@ -35,11 +35,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
@@ -55,7 +56,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
@@ -182,6 +182,11 @@ public final class NodeEnvironment implements Closeable {
      */
     private static final String SNAPSHOT_CACHE_FOLDER = "snapshot_cache";
 
+    /**
+     * Searchable snapshot's shared cache file
+     */
+    static final String SEARCHABLE_SHARED_CACHE_FILE = "shared_snapshot_cache";
+
     public static class NodeLock implements Releasable {
 
         private final Lock[] locks;
@@ -248,6 +253,7 @@ public final class NodeEnvironment implements Closeable {
     /**
      * Setup the environment.
      * @param settings settings from elasticsearch.yml
+     * @param environment global environment
      */
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         boolean success = false;
@@ -256,6 +262,12 @@ public final class NodeEnvironment implements Closeable {
             sharedDataPath = environment.sharedDataFile();
 
             for (Path path : environment.dataFiles()) {
+                if (Files.exists(path)) {
+                    // Call to toRealPath required to resolve symlinks.
+                    // We let it fall through to create directories to ensure the symlink
+                    // isn't a file instead of a directory.
+                    path = path.toRealPath();
+                }
                 Files.createDirectories(path);
             }
 
@@ -296,7 +308,7 @@ public final class NodeEnvironment implements Closeable {
                     final String content = "written by Elasticsearch v"
                         + Version.CURRENT
                         + " to prevent a downgrade to a version prior to v8.0.0 which would result in data loss";
-                    Files.write(legacyNodesPath, content.getBytes(StandardCharsets.UTF_8));
+                    Files.writeString(legacyNodesPath, content);
                     IOUtils.fsync(legacyNodesPath, false);
                     IOUtils.fsync(dataPath, true);
                 }
@@ -391,6 +403,9 @@ public final class NodeEnvironment implements Closeable {
         // move contents from legacy path to new path
         assert nodeLock.getNodePaths().length == legacyNodeLock.getNodePaths().length;
         try {
+            // first check if we are upgrading from an index compatible version
+            checkForIndexCompatibility(logger, legacyNodeLock.getNodePaths());
+
             final List<CheckedRunnable<IOException>> upgradeActions = new ArrayList<>();
             for (int i = 0; i < legacyNodeLock.getNodePaths().length; i++) {
                 final NodePath legacyNodePath = legacyNodeLock.getNodePaths()[i];
@@ -413,7 +428,13 @@ public final class NodeEnvironment implements Closeable {
                 );
 
                 final Set<String> ignoredFileNames = new HashSet<>(
-                    Arrays.asList(NODE_LOCK_FILENAME, TEMP_FILE_NAME, TEMP_FILE_NAME + ".tmp", TEMP_FILE_NAME + ".final")
+                    Arrays.asList(
+                        NODE_LOCK_FILENAME,
+                        TEMP_FILE_NAME,
+                        TEMP_FILE_NAME + ".tmp",
+                        TEMP_FILE_NAME + ".final",
+                        SEARCHABLE_SHARED_CACHE_FILE
+                    )
                 );
 
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(legacyNodePath.path)) {
@@ -468,6 +489,46 @@ public final class NodeEnvironment implements Closeable {
         IOUtils.rm(Stream.of(environment.dataFiles()).map(path -> path.resolve("nodes")).toArray(Path[]::new));
 
         return true;
+    }
+
+    /**
+     * Checks to see if we can upgrade to this version based on the existing index state. Upgrading
+     * from older versions can cause irreversible changes if allowed.
+     * @param logger
+     * @param nodePaths
+     * @throws IOException
+     */
+    static void checkForIndexCompatibility(Logger logger, NodePath... nodePaths) throws IOException {
+        final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
+        NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(paths);
+
+        // We are upgrading the cluster, but we didn't find any previous metadata. Corrupted state or incompatible version.
+        if (metadata == null) {
+            throw new CorruptStateException(
+                "Format version is not supported. Upgrading to ["
+                    + Version.CURRENT
+                    + "] is only supported from version ["
+                    + Version.CURRENT.minimumCompatibilityVersion()
+                    + "]."
+            );
+        }
+
+        metadata.verifyUpgradeToCurrentVersion();
+
+        logger.info("oldest index version recorded in NodeMetadata {}", metadata.oldestIndexVersion());
+
+        if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
+            throw new IllegalStateException(
+                "cannot upgrade node because incompatible indices created with version ["
+                    + metadata.oldestIndexVersion()
+                    + "] exist, while the minimum compatible index version is ["
+                    + Version.CURRENT.minimumIndexCompatibilityVersion()
+                    + "]. "
+                    + "Upgrade your older indices by reindexing them in version ["
+                    + Version.CURRENT.minimumCompatibilityVersion()
+                    + "] first."
+            );
+        }
     }
 
     private void maybeLogPathDetails() throws IOException {
@@ -551,12 +612,15 @@ public final class NodeEnvironment implements Closeable {
             final NodeMetadata legacyMetadata = NodeMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths);
             if (legacyMetadata == null) {
                 assert nodeIds.isEmpty() : nodeIds;
-                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT);
+                // If we couldn't find legacy metadata, we set the latest index version to this version. This happens
+                // when we are starting a new node and there are no indices to worry about.
+                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, Version.CURRENT);
             } else {
                 assert nodeIds.equals(Collections.singleton(legacyMetadata.nodeId())) : nodeIds + " doesn't match " + legacyMetadata;
                 metadata = legacyMetadata;
             }
         }
+
         metadata = metadata.upgradeToCurrentVersion();
         assert metadata.nodeVersion().equals(Version.CURRENT) : metadata.nodeVersion() + " != " + Version.CURRENT;
 
@@ -803,8 +867,9 @@ public final class NodeEnvironment implements Closeable {
         final InternalShardLock shardLock;
         final boolean acquired;
         synchronized (shardLocks) {
-            if (shardLocks.containsKey(shardId)) {
-                shardLock = shardLocks.get(shardId);
+            final InternalShardLock found = shardLocks.get(shardId);
+            if (found != null) {
+                shardLock = found;
                 shardLock.incWaitCount();
                 acquired = false;
             } else {
@@ -1167,7 +1232,7 @@ public final class NodeEnvironment implements Closeable {
                     logger.trace("releasing lock [{}]", lock);
                     lock.close();
                 } catch (IOException e) {
-                    logger.trace(() -> new ParameterizedMessage("failed to release lock [{}]", lock), e);
+                    logger.trace(() -> "failed to release lock [" + lock + "]", e);
                 }
             }
         }
@@ -1218,7 +1283,7 @@ public final class NodeEnvironment implements Closeable {
         }
     }
 
-    private void ensureNoShardData(final NodePath[] nodePaths) throws IOException {
+    private static void ensureNoShardData(final NodePath[] nodePaths) throws IOException {
         List<Path> shardDataPaths = collectShardDataPaths(nodePaths);
         if (shardDataPaths.isEmpty() == false) {
             final String message = String.format(
@@ -1231,7 +1296,7 @@ public final class NodeEnvironment implements Closeable {
         }
     }
 
-    private void ensureNoIndexMetadata(final NodePath[] nodePaths) throws IOException {
+    private static void ensureNoIndexMetadata(final NodePath[] nodePaths) throws IOException {
         List<Path> indexMetadataPaths = collectIndexMetadataPaths(nodePaths);
         if (indexMetadataPaths.isEmpty() == false) {
             final String message = String.format(

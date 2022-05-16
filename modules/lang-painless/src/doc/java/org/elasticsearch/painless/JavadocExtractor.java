@@ -35,7 +35,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -193,14 +192,7 @@ public class JavadocExtractor {
         return type;
     }
 
-    public static class MethodSignature {
-        public final String name;
-        public final List<String> parameterTypes;
-
-        public MethodSignature(String name, List<String> parameterTypes) {
-            this.name = name;
-            this.parameterTypes = parameterTypes;
-        }
+    public record MethodSignature(String name, List<String> parameterTypes) {
 
         public static MethodSignature fromDeclaration(MethodDeclaration declaration) {
             return new MethodSignature(
@@ -208,29 +200,9 @@ public class JavadocExtractor {
                 declaration.getParameters().stream().map(p -> stripTypeParameters(p.getType().asString())).collect(Collectors.toList())
             );
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof MethodSignature) == false) return false;
-            MethodSignature that = (MethodSignature) o;
-            return Objects.equals(name, that.name) && Objects.equals(parameterTypes, that.parameterTypes);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, parameterTypes);
-        }
     }
 
-    public static class ParsedMethod {
-        public final ParsedJavadoc javadoc;
-        public final List<String> parameterNames;
-
-        public ParsedMethod(ParsedJavadoc javadoc, List<String> parameterNames) {
-            this.javadoc = javadoc;
-            this.parameterNames = parameterNames;
-        }
+    public record ParsedMethod(ParsedJavadoc javadoc, List<String> parameterNames) {
 
         public ParsedMethod asAugmented() {
             if (parameterNames.size() == 0) {

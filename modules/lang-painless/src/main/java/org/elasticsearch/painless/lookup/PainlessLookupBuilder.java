@@ -9,6 +9,7 @@
 package org.elasticsearch.painless.lookup;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
@@ -29,6 +30,7 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -259,6 +261,26 @@ public final class PainlessLookupBuilder {
         }
     }
 
+    /**
+     * Returns a lookup with the capability of looking up members in the target
+     * class.
+     *
+     * <p> If the target class is in the same module as this module, then the
+     * returned lookup has this class as its lookup class and holds the
+     * {@link Lookup#MODULE} mode. If the target class is not in this module,
+     * then the returned lookup has the target class as its lookup class and
+     * holds the {@link Lookup#UNCONDITIONAL} mode.
+     */
+    private static Lookup lookup(Class<?> targetClass) {
+        if (targetClass.getModule() == PainlessLookupBuilder.class.getModule()) {
+            var l = MethodHandles.lookup().dropLookupMode(Lookup.PACKAGE);
+            assert l.lookupModes() == (Lookup.PUBLIC | Lookup.MODULE) : "lookup modes:" + Integer.toHexString(l.lookupModes());
+            return l;
+        } else {
+            return MethodHandles.publicLookup().in(targetClass);
+        }
+    }
+
     public void addPainlessClass(ClassLoader classLoader, String javaClassName, Map<Class<?>, Object> annotations) {
 
         Objects.requireNonNull(classLoader);
@@ -480,7 +502,7 @@ public final class PainlessLookupBuilder {
         MethodHandle methodHandle;
 
         try {
-            methodHandle = MethodHandles.publicLookup().in(targetClass).unreflectConstructor(javaConstructor);
+            methodHandle = lookup(targetClass).unreflectConstructor(javaConstructor);
         } catch (IllegalAccessException iae) {
             throw new IllegalArgumentException(
                 "method handle not found for constructor "
@@ -523,7 +545,7 @@ public final class PainlessLookupBuilder {
                     + "[["
                     + targetCanonicalClassName
                     + "], "
-                    + typesToCanonicalTypeNames(existingPainlessConstructor.typeParameters)
+                    + typesToCanonicalTypeNames(existingPainlessConstructor.typeParameters())
                     + "]"
             );
         }
@@ -767,7 +789,7 @@ public final class PainlessLookupBuilder {
 
         // injections alter the type parameters required for the user to call this method, since some are injected by compiler
         if (annotations.containsKey(InjectConstantAnnotation.class)) {
-            int numInjections = ((InjectConstantAnnotation) annotations.get(InjectConstantAnnotation.class)).injects.size();
+            int numInjections = ((InjectConstantAnnotation) annotations.get(InjectConstantAnnotation.class)).injects().size();
 
             if (numInjections > 0) {
                 typeParameters.subList(0, numInjections).clear();
@@ -798,7 +820,7 @@ public final class PainlessLookupBuilder {
 
         if (augmentedClass == null) {
             try {
-                methodHandle = MethodHandles.publicLookup().in(targetClass).unreflect(javaMethod);
+                methodHandle = lookup(targetClass).unreflect(javaMethod);
             } catch (IllegalAccessException iae) {
                 throw new IllegalArgumentException(
                     "method handle not found for method "
@@ -808,13 +830,16 @@ public final class PainlessLookupBuilder {
                         + methodName
                         + "], "
                         + typesToCanonicalTypeNames(typeParameters)
+                        + "], "
+                        + "with lookup ["
+                        + lookup(targetClass)
                         + "]",
                     iae
                 );
             }
         } else {
             try {
-                methodHandle = MethodHandles.publicLookup().in(augmentedClass).unreflect(javaMethod);
+                methodHandle = lookup(augmentedClass).unreflect(javaMethod);
             } catch (IllegalAccessException iae) {
                 throw new IllegalArgumentException(
                     "method handle not found for method "
@@ -880,9 +905,9 @@ public final class PainlessLookupBuilder {
                     + methodName
                     + "], "
                     + "["
-                    + typeToCanonicalTypeName(existingPainlessMethod.returnType)
+                    + typeToCanonicalTypeName(existingPainlessMethod.returnType())
                     + "], "
-                    + typesToCanonicalTypeNames(existingPainlessMethod.typeParameters)
+                    + typesToCanonicalTypeNames(existingPainlessMethod.typeParameters())
                     + "]"
             );
         }
@@ -920,7 +945,7 @@ public final class PainlessLookupBuilder {
         }
 
         String augmentedCanonicalClassName = annotations.containsKey(AugmentedAnnotation.class)
-            ? ((AugmentedAnnotation) annotations.get(AugmentedAnnotation.class)).getAugmentedCanonicalClassName()
+            ? ((AugmentedAnnotation) annotations.get(AugmentedAnnotation.class)).augmentedCanonicalClassName()
             : null;
 
         Class<?> augmentedClass = null;
@@ -1119,9 +1144,9 @@ public final class PainlessLookupBuilder {
                         + "[["
                         + targetCanonicalClassName
                         + "], ["
-                        + existingPainlessField.javaField.getName()
+                        + existingPainlessField.javaField().getName()
                         + "], "
-                        + typeToCanonicalTypeName(existingPainlessField.typeParameter)
+                        + typeToCanonicalTypeName(existingPainlessField.typeParameter())
                         + "] "
                         + "with the same name and different type parameters"
                 );
@@ -1162,9 +1187,9 @@ public final class PainlessLookupBuilder {
                         + "[["
                         + targetCanonicalClassName
                         + "], ["
-                        + existingPainlessField.javaField.getName()
+                        + existingPainlessField.javaField().getName()
                         + "], "
-                        + typeToCanonicalTypeName(existingPainlessField.typeParameter)
+                        + typeToCanonicalTypeName(existingPainlessField.typeParameter())
                         + "] "
                         + "with the same name and different type parameters"
                 );
@@ -1382,7 +1407,7 @@ public final class PainlessLookupBuilder {
         MethodHandle methodHandle;
 
         try {
-            methodHandle = MethodHandles.publicLookup().in(targetClass).unreflect(javaMethod);
+            methodHandle = lookup(targetClass).unreflect(javaMethod);
         } catch (IllegalAccessException iae) {
             throw new IllegalArgumentException(
                 "imported method handle [["
@@ -1433,9 +1458,9 @@ public final class PainlessLookupBuilder {
                     + methodName
                     + "], "
                     + "["
-                    + typeToCanonicalTypeName(existingImportedPainlessMethod.returnType)
+                    + typeToCanonicalTypeName(existingImportedPainlessMethod.returnType())
                     + "], "
-                    + typesToCanonicalTypeNames(existingImportedPainlessMethod.typeParameters)
+                    + typesToCanonicalTypeNames(existingImportedPainlessMethod.typeParameters())
                     + "]"
             );
         }
@@ -1766,9 +1791,9 @@ public final class PainlessLookupBuilder {
                     + methodName
                     + "], "
                     + "["
-                    + typeToCanonicalTypeName(existingPainlessClassBinding.returnType)
+                    + typeToCanonicalTypeName(existingPainlessClassBinding.returnType())
                     + "], "
-                    + typesToCanonicalTypeNames(existingPainlessClassBinding.typeParameters)
+                    + typesToCanonicalTypeNames(existingPainlessClassBinding.typeParameters())
                     + "]"
             );
         }
@@ -2001,11 +2026,11 @@ public final class PainlessLookupBuilder {
                     + methodName
                     + "], "
                     + "["
-                    + typeToCanonicalTypeName(existingPainlessInstanceBinding.returnType)
+                    + typeToCanonicalTypeName(existingPainlessInstanceBinding.returnType())
                     + "], "
-                    + typesToCanonicalTypeNames(existingPainlessInstanceBinding.typeParameters)
+                    + typesToCanonicalTypeNames(existingPainlessInstanceBinding.typeParameters())
                     + "], "
-                    + existingPainlessInstanceBinding.annotations
+                    + existingPainlessInstanceBinding.annotations()
             );
         }
     }
@@ -2016,7 +2041,7 @@ public final class PainlessLookupBuilder {
         generateRuntimeMethods();
         cacheRuntimeHandles();
 
-        Map<Class<?>, PainlessClass> classesToPainlessClasses = new HashMap<>(classesToPainlessClassBuilders.size());
+        Map<Class<?>, PainlessClass> classesToPainlessClasses = Maps.newMapWithExpectedSize(classesToPainlessClassBuilders.size());
 
         for (Map.Entry<Class<?>, PainlessClassBuilder> painlessClassBuilderEntry : classesToPainlessClassBuilders.entrySet()) {
             classesToPainlessClasses.put(painlessClassBuilderEntry.getKey(), painlessClassBuilderEntry.getValue().build());
@@ -2186,7 +2211,7 @@ public final class PainlessLookupBuilder {
             painlessClassBuilder.runtimeMethods.putAll(painlessClassBuilder.methods);
 
             for (PainlessMethod painlessMethod : painlessClassBuilder.runtimeMethods.values()) {
-                for (Class<?> typeParameter : painlessMethod.typeParameters) {
+                for (Class<?> typeParameter : painlessMethod.typeParameters()) {
                     if (typeParameter == Byte.class
                         || typeParameter == Short.class
                         || typeParameter == Character.class
@@ -2202,12 +2227,12 @@ public final class PainlessLookupBuilder {
     }
 
     private void generateBridgeMethod(PainlessClassBuilder painlessClassBuilder, PainlessMethod painlessMethod) {
-        String painlessMethodKey = buildPainlessMethodKey(painlessMethod.javaMethod.getName(), painlessMethod.typeParameters.size());
+        String painlessMethodKey = buildPainlessMethodKey(painlessMethod.javaMethod().getName(), painlessMethod.typeParameters().size());
         PainlessMethod bridgePainlessMethod = painlessBridgeCache.get(painlessMethod);
 
         if (bridgePainlessMethod == null) {
-            Method javaMethod = painlessMethod.javaMethod;
-            boolean isStatic = Modifier.isStatic(painlessMethod.javaMethod.getModifiers());
+            Method javaMethod = painlessMethod.javaMethod();
+            boolean isStatic = Modifier.isStatic(painlessMethod.javaMethod().getModifiers());
 
             int bridgeClassFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
             int bridgeClassAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
@@ -2267,10 +2292,10 @@ public final class PainlessLookupBuilder {
                 }
             }
 
-            MethodType bridgeMethodType = MethodType.methodType(painlessMethod.returnType, bridgeTypeParameters);
+            MethodType bridgeMethodType = MethodType.methodType(painlessMethod.returnType(), bridgeTypeParameters);
             MethodWriter bridgeMethodWriter = new MethodWriter(
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
-                new org.objectweb.asm.commons.Method(painlessMethod.javaMethod.getName(), bridgeMethodType.toMethodDescriptorString()),
+                new org.objectweb.asm.commons.Method(painlessMethod.javaMethod().getName(), bridgeMethodType.toMethodDescriptorString()),
                 bridgeClassWriter,
                 null,
                 null
@@ -2310,14 +2335,14 @@ public final class PainlessLookupBuilder {
 
                 Class<?> bridgeClass = bridgeLoader.defineBridge(bridgeClassName.replace('/', '.'), bridgeClassWriter.toByteArray());
                 Method bridgeMethod = bridgeClass.getMethod(
-                    painlessMethod.javaMethod.getName(),
+                    painlessMethod.javaMethod().getName(),
                     bridgeTypeParameters.toArray(new Class<?>[0])
                 );
-                MethodHandle bridgeHandle = MethodHandles.publicLookup().in(bridgeClass).unreflect(bridgeClass.getMethods()[0]);
+                MethodHandle bridgeHandle = lookup(bridgeClass).unreflect(bridgeClass.getMethods()[0]);
                 bridgePainlessMethod = new PainlessMethod(
                     bridgeMethod,
                     bridgeClass,
-                    painlessMethod.returnType,
+                    painlessMethod.returnType(),
                     bridgeTypeParameters,
                     bridgeHandle,
                     bridgeMethodType,
@@ -2347,8 +2372,8 @@ public final class PainlessLookupBuilder {
             String methodKey = painlessMethodEntry.getKey();
             PainlessMethod painlessMethod = painlessMethodEntry.getValue();
             PainlessMethod bridgePainlessMethod = painlessClassBuilder.runtimeMethods.get(methodKey);
-            String methodName = painlessMethod.javaMethod.getName();
-            int typeParametersSize = painlessMethod.typeParameters.size();
+            String methodName = painlessMethod.javaMethod().getName();
+            int typeParametersSize = painlessMethod.typeParameters().size();
 
             if (typeParametersSize == 0
                 && methodName.startsWith("get")
@@ -2356,7 +2381,7 @@ public final class PainlessLookupBuilder {
                 && Character.isUpperCase(methodName.charAt(3))) {
                 painlessClassBuilder.getterMethodHandles.putIfAbsent(
                     Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4),
-                    bridgePainlessMethod.methodHandle
+                    bridgePainlessMethod.methodHandle()
                 );
             } else if (typeParametersSize == 0
                 && methodName.startsWith("is")
@@ -2364,7 +2389,7 @@ public final class PainlessLookupBuilder {
                 && Character.isUpperCase(methodName.charAt(2))) {
                     painlessClassBuilder.getterMethodHandles.putIfAbsent(
                         Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3),
-                        bridgePainlessMethod.methodHandle
+                        bridgePainlessMethod.methodHandle()
                     );
                 } else if (typeParametersSize == 1
                     && methodName.startsWith("set")
@@ -2372,14 +2397,14 @@ public final class PainlessLookupBuilder {
                     && Character.isUpperCase(methodName.charAt(3))) {
                         painlessClassBuilder.setterMethodHandles.putIfAbsent(
                             Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4),
-                            bridgePainlessMethod.methodHandle
+                            bridgePainlessMethod.methodHandle()
                         );
                     }
         }
 
         for (PainlessField painlessField : painlessClassBuilder.fields.values()) {
-            painlessClassBuilder.getterMethodHandles.put(painlessField.javaField.getName().intern(), painlessField.getterMethodHandle);
-            painlessClassBuilder.setterMethodHandles.put(painlessField.javaField.getName().intern(), painlessField.setterMethodHandle);
+            painlessClassBuilder.getterMethodHandles.put(painlessField.javaField().getName().intern(), painlessField.getterMethodHandle());
+            painlessClassBuilder.setterMethodHandles.put(painlessField.javaField().getName().intern(), painlessField.setterMethodHandle());
         }
     }
 }

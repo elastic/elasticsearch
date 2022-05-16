@@ -8,10 +8,14 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.VersionCheckingStreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -20,8 +24,9 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Base64;
+import java.util.List;
 
-final class TransportSearchHelper {
+public final class TransportSearchHelper {
 
     private static final String INCLUDE_CONTEXT_UUID = "include_context_uuid";
 
@@ -89,6 +94,50 @@ final class TransportSearchHelper {
         } catch (Exception e) {
             throw new IllegalArgumentException("Cannot parse scroll id", e);
         }
+    }
+
+    private static final List<Version> ALL_VERSIONS = Version.getDeclaredVersions(Version.class);
+    private static final Version CCS_CHECK_VERSION = getPreviousMinorSeries(Version.CURRENT);
+
+    /**
+    * Using the 'search.check_ccs_compatibility' setting, clients can ask for an early
+    * check that inspects the incoming request and tries to verify that it can be handled by
+    * a CCS compliant earlier version, e.g. currently a N-1 version where N is the current minor.
+    *
+    * Checking the compatibility involved serializing the request to a stream output that acts like
+    * it was on the previous minor version. This should e.g. trigger errors for {@link Writeable} parts of
+    * the requests that were not available in those versions.
+    */
+    public static void checkCCSVersionCompatibility(Writeable writeableRequest) {
+        try {
+            writeableRequest.writeTo(new VersionCheckingStreamOutput(CCS_CHECK_VERSION));
+        } catch (Exception e) {
+            // if we cannot serialize, raise this as an error to indicate to the caller that CCS has problems with this request
+            throw new IllegalArgumentException(
+                "["
+                    + writeableRequest.getClass()
+                    + "] is not compatible with version "
+                    + CCS_CHECK_VERSION
+                    + " and the '"
+                    + SearchService.CCS_VERSION_CHECK_SETTING.getKey()
+                    + "' setting is enabled.",
+                e
+            );
+        }
+    }
+
+    /**
+     * Returns the first minor version previous to the minor version passed in.
+     * I.e 8.2.1 will return 8.1.0
+     */
+    static Version getPreviousMinorSeries(Version current) {
+        for (int i = ALL_VERSIONS.size() - 1; i >= 0; i--) {
+            Version v = ALL_VERSIONS.get(i);
+            if (v.before(current) && (v.minor < current.minor || v.major < current.major)) {
+                return Version.fromId(v.major * 1000000 + v.minor * 10000 + 99);
+            }
+        }
+        throw new IllegalArgumentException("couldn't find any released versions of the minor before [" + current + "]");
     }
 
     private TransportSearchHelper() {

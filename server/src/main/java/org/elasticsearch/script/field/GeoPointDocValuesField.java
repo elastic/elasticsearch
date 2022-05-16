@@ -11,6 +11,7 @@ package org.elasticsearch.script.field;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 
@@ -18,7 +19,11 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class GeoPointDocValuesField implements DocValuesField<GeoPoint>, ScriptDocValues.GeometrySupplier<GeoPoint> {
+public class GeoPointDocValuesField extends AbstractScriptFieldFactory<GeoPoint>
+    implements
+        Field<GeoPoint>,
+        DocValuesScriptFieldFactory,
+        ScriptDocValues.GeometrySupplier<GeoPoint> {
 
     protected final MultiGeoPointValues input;
     protected final String name;
@@ -30,6 +35,7 @@ public class GeoPointDocValuesField implements DocValuesField<GeoPoint>, ScriptD
     private ScriptDocValues.GeoPoints geoPoints = null;
     private final GeoPoint centroid = new GeoPoint();
     private final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
+    private int labelIndex = 0;
 
     public GeoPointDocValuesField(MultiGeoPointValues input, String name) {
         this.input = input;
@@ -67,11 +73,13 @@ public class GeoPointDocValuesField implements DocValuesField<GeoPoint>, ScriptD
         centroid.reset(point.lat(), point.lon());
         boundingBox.topLeft().reset(point.lat(), point.lon());
         boundingBox.bottomRight().reset(point.lat(), point.lon());
+        labelIndex = 0;
     }
 
     private void setMultiValue() throws IOException {
         double centroidLat = 0;
         double centroidLon = 0;
+        labelIndex = 0;
         double maxLon = Double.NEGATIVE_INFINITY;
         double minLon = Double.POSITIVE_INFINITY;
         double maxLat = Double.NEGATIVE_INFINITY;
@@ -85,14 +93,24 @@ public class GeoPointDocValuesField implements DocValuesField<GeoPoint>, ScriptD
             minLon = Math.min(minLon, values[i].getLon());
             maxLat = Math.max(maxLat, values[i].getLat());
             minLat = Math.min(minLat, values[i].getLat());
+            labelIndex = closestPoint(labelIndex, i, (minLat + maxLat) / 2, (minLon + maxLon) / 2);
         }
         centroid.reset(centroidLat / count, centroidLon / count);
         boundingBox.topLeft().reset(maxLat, minLon);
         boundingBox.bottomRight().reset(minLat, maxLon);
     }
 
+    private int closestPoint(int a, int b, double lat, double lon) {
+        if (a == b) {
+            return a;
+        }
+        double distA = GeoUtils.planeDistance(lat, lon, values[a].lat(), values[a].lon());
+        double distB = GeoUtils.planeDistance(lat, lon, values[b].lat(), values[b].lon());
+        return distA < distB ? a : b;
+    }
+
     @Override
-    public ScriptDocValues<GeoPoint> getScriptDocValues() {
+    public ScriptDocValues<GeoPoint> toScriptDocValues() {
         if (geoPoints == null) {
             geoPoints = new ScriptDocValues.GeoPoints(this);
         }
@@ -115,6 +133,11 @@ public class GeoPointDocValuesField implements DocValuesField<GeoPoint>, ScriptD
     @Override
     public GeoBoundingBox getInternalBoundingBox() {
         return boundingBox;
+    }
+
+    @Override
+    public GeoPoint getInternalLabelPosition() {
+        return values[labelIndex];
     }
 
     @Override

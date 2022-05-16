@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.cache.Cache;
@@ -33,6 +32,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -41,7 +41,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static java.util.function.Predicate.not;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 public class RoleDescriptorStore implements RoleReferenceResolver {
@@ -82,10 +81,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final Set<String> roleNames = Set.copyOf(new HashSet<>(List.of(namedRoleReference.getRoleNames())));
         if (roleNames.isEmpty()) {
-            assert false : "empty role names should have short circuited earlier";
             listener.onResponse(RolesRetrievalResult.EMPTY);
-        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
-            assert false : "superuser role should have short circuited earlier";
+        } else if (roleNames.equals(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))) {
             listener.onResponse(RolesRetrievalResult.SUPERUSER);
         } else {
             resolveRoleNames(roleNames, listener);
@@ -99,7 +96,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptorsBytes(
             apiKeyRoleReference.getApiKeyId(),
-            apiKeyRoleReference.getRoleDescriptorsBytes()
+            apiKeyRoleReference.getRoleDescriptorsBytes(),
+            apiKeyRoleReference.getRoleType()
         );
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
@@ -113,7 +111,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptors(
             bwcApiKeyRoleReference.getApiKeyId(),
-            bwcApiKeyRoleReference.getRoleDescriptorsMap()
+            bwcApiKeyRoleReference.getRoleDescriptorsMap(),
+            bwcApiKeyRoleReference.getRoleType()
         );
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
@@ -139,16 +138,9 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             if (missingRoles) {
                 logger.debug(() -> new ParameterizedMessage("Could not find roles with names {}", rolesRetrievalResult.getMissingRoles()));
             }
-            final Set<RoleDescriptor> effectiveDescriptors;
-            Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
-            if (roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)
-                && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
-                effectiveDescriptors = roleDescriptors.stream()
-                    .filter(not(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity))
-                    .collect(Collectors.toSet());
-            } else {
-                effectiveDescriptors = roleDescriptors;
-            }
+            final Set<RoleDescriptor> effectiveDescriptors = maybeSkipRolesUsingDocumentOrFieldLevelSecurity(
+                rolesRetrievalResult.getRoleDescriptors()
+            );
             logger.trace(
                 () -> new ParameterizedMessage(
                     "Exposing effective role descriptors [{}] for role names [{}]",
@@ -170,20 +162,33 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         }, listener::onFailure));
     }
 
-    public void getRoleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> listener) {
-        roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {
-            if (rolesRetrievalResult.isSuccess()) {
-                listener.onResponse(rolesRetrievalResult.getRoleDescriptors());
-            } else {
-                listener.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
-            }
-        }, listener::onFailure));
+    private Set<RoleDescriptor> maybeSkipRolesUsingDocumentOrFieldLevelSecurity(Set<RoleDescriptor> roleDescriptors) {
+        if (shouldSkipRolesUsingDocumentOrFieldLevelSecurity(roleDescriptors) == false) {
+            return roleDescriptors;
+        }
+
+        final Map<Boolean, Set<RoleDescriptor>> partitionedRoleDescriptors = roleDescriptors.stream()
+            .collect(Collectors.partitioningBy(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity, Collectors.toSet()));
+
+        final Set<RoleDescriptor> roleDescriptorsToSkip = partitionedRoleDescriptors.get(true);
+        logger.warn(
+            "User roles [{}] are disabled because they require field or document level security. "
+                + "The current license is non-compliant for [field and document level security].",
+            roleDescriptorsToSkip.stream().map(RoleDescriptor::getName).collect(Collectors.joining(","))
+        );
+
+        return partitionedRoleDescriptors.get(false);
+    }
+
+    private boolean shouldSkipRolesUsingDocumentOrFieldLevelSecurity(Set<RoleDescriptor> roleDescriptors) {
+        return roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)
+            && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false;
     }
 
     private void roleDescriptors(Set<String> roleNames, ActionListener<RolesRetrievalResult> rolesResultListener) {
         final Set<String> filteredRoleNames = roleNames.stream().filter((s) -> {
             if (negativeLookupCache.get(s) != null) {
-                logger.debug(() -> new ParameterizedMessage("Requested role [{}] does not exist (cached)", s));
+                logger.debug(() -> "Requested role [" + s + "] does not exist (cached)");
                 return false;
             } else {
                 return true;
@@ -239,11 +244,15 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                         roleNames.remove(descriptor.getName());
                     }
                 } else {
-                    logger.warn(new ParameterizedMessage("role retrieval failed from [{}]", rolesProvider), result.getFailure());
+                    logger.warn(
+                        new ParameterizedMessage("role [{}] retrieval failed from [{}]", roleNames, rolesProvider),
+                        result.getFailure()
+                    );
                     rolesResult.setFailure();
                 }
                 providerListener.onResponse(result);
             }, providerListener::onFailure));
         }, asyncRoleProviders, threadContext, Function.identity(), iterationPredicate).run();
     }
+
 }

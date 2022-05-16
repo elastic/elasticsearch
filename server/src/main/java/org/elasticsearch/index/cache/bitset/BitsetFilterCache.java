@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.cache.bitset;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
@@ -38,7 +37,7 @@ import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.index.IndexWarmer.TerminationHandle;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -238,9 +237,10 @@ public final class BitsetFilterCache extends AbstractIndexComponent
             final Set<Query> warmUp = new HashSet<>();
             final MapperService mapperService = indexShard.mapperService();
             MappingLookup lookup = mapperService.mappingLookup();
-            if (lookup.hasNested()) {
+            NestedLookup nestedLookup = lookup.nestedLookup();
+            if (nestedLookup != NestedLookup.EMPTY) {
                 warmUp.add(Queries.newNonNestedFilter());
-                lookup.getNestedParentMappers().stream().map(NestedObjectMapper::nestedTypeFilter).forEach(warmUp::add);
+                warmUp.addAll(nestedLookup.getNestedParentFilters().values());
             }
 
             final CountDownLatch latch = new CountDownLatch(reader.leaves().size() * warmUp.size());
@@ -260,9 +260,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
                                     );
                             }
                         } catch (Exception e) {
-                            indexShard.warmerService()
-                                .logger()
-                                .warn(() -> new ParameterizedMessage("failed to load " + "bitset for [{}]", filterToWarm), e);
+                            indexShard.warmerService().logger().warn(() -> "failed to load " + "bitset for [" + filterToWarm + "]", e);
                         } finally {
                             latch.countDown();
                         }

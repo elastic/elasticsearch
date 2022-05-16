@@ -10,13 +10,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Initializes the {@link LifecycleExecutionState} for an index. This should be the first Step called on an index.
@@ -39,37 +40,46 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
             return clusterState;
         }
 
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
-        LifecycleExecutionState lifecycleState;
-        try {
-            lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-            if (lifecycleState.getLifecycleDate() != null) {
-                return clusterState;
-            }
-
-            if (shouldParseIndexName(indexMetadata.getSettings())) {
-                long parsedOriginationDate = parseIndexNameAndExtractDate(index.getName());
-                indexMetadataBuilder.settingsVersion(indexMetadata.getSettingsVersion() + 1)
-                    .settings(
-                        Settings.builder()
-                            .put(indexMetadata.getSettings())
-                            .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
-                            .build()
-                    );
-            }
-        } catch (Exception e) {
-            String policy = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-            throw new InitializePolicyException(policy, index.getName(), e);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
+        if (lifecycleState.lifecycleDate() != null) {
+            return clusterState;
         }
 
-        ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
+        LifecycleExecutionState newLifecycleState = LifecycleExecutionState.builder(lifecycleState)
+            .setIndexCreationDate(indexMetadata.getCreationDate())
+            .build();
 
-        LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
-        newCustomData.setIndexCreationDate(indexMetadata.getCreationDate());
-        indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
+        Long parsedOriginationDate = null;
+        try {
+            if (shouldParseIndexName(indexMetadata.getSettings())) {
+                long parsedDate = parseIndexNameAndExtractDate(index.getName()); // can't return null
+                parsedOriginationDate = parsedDate;
+            }
+        } catch (Exception e) {
+            String policyName = indexMetadata.getLifecyclePolicyName();
+            throw new InitializePolicyException(policyName, index.getName(), e);
+        }
 
-        newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder).build(false));
-        return newClusterStateBuilder.build();
+        if (parsedOriginationDate == null) {
+            // we don't need to update the LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, so we can use the fast path
+            return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
+                clusterState,
+                indexMetadata.getIndex(),
+                newLifecycleState
+            );
+        } else {
+            // we do need to update the LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, so we can't use the fast path
+            IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
+            builder.settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                .settings(
+                    Settings.builder()
+                        .put(indexMetadata.getSettings())
+                        .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
+                        .build()
+                );
+            builder.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.asMap());
+            return ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata()).put(builder).build()).build();
+        }
     }
 
     @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction.Response;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchIntervalTests;
 
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -17,7 +18,7 @@ import java.util.stream.Stream;
 public class GetDatafeedRunningStateActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     static Response.RunningState randomRunningState() {
-        return new Response.RunningState(randomBoolean(), randomBoolean());
+        return new Response.RunningState(randomBoolean(), randomBoolean(), randomBoolean() ? null : SearchIntervalTests.createRandom());
     }
 
     @Override

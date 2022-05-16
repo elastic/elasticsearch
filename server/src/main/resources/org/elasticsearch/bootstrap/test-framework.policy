@@ -78,9 +78,14 @@ grant codeBase "${codebase.mocksocket}" {
   permission java.net.SocketPermission "*", "accept,connect";
 };
 
-grant codeBase "${codebase.elasticsearch-nio}" {
-  // elasticsearch-nio makes and accepts socket connections
-  permission java.net.SocketPermission "*", "accept,connect";
+// the test framework can dynamically remove the security manager
+// for tests that need to run without it
+grant codeBase "${codebase.elasticsearch}" {
+  permission java.lang.RuntimePermission "setSecurityManager";
+};
+// this is the test-framework, but the jar is horribly named
+grant codeBase "${codebase.framework}" {
+  permission java.lang.RuntimePermission "setSecurityManager";
 };
 
 grant codeBase "${codebase.elasticsearch-rest-client}" {
@@ -100,4 +105,24 @@ grant codeBase "${codebase.httpasyncclient}" {
   permission java.net.SocketPermission "*", "connect";
   // rest client uses system properties which gets the default proxy
   permission java.net.NetPermission "getProxySelector";
+};
+
+grant codeBase "${codebase.netty-common}" {
+   // for reading the system-wide configuration for the backlog of established sockets
+   permission java.io.FilePermission "/proc/sys/net/core/somaxconn", "read";
+   // Netty sets custom classloader for some of its internal threads
+   permission java.lang.RuntimePermission "setContextClassLoader";
+   permission java.net.SocketPermission "*", "accept,connect";
+};
+
+grant codeBase "${codebase.netty-transport}" {
+   // Netty NioEventLoop wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
+   // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
+   permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
+   permission java.net.SocketPermission "*", "accept,connect";
+};
+
+grant {
+  permission java.net.SocketPermission "127.0.0.1", "connect, resolve";
+  permission java.nio.file.LinkPermission "symbolic";
 };

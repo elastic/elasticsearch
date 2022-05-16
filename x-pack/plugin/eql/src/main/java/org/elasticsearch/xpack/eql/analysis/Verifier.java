@@ -181,18 +181,10 @@ public class Verifier {
 
                         int queriesCount = s.queries().size();
                         switch (queriesCount) {
-                            case 2:
-                                b.set(SEQUENCE_QUERIES_TWO.ordinal());
-                                break;
-                            case 3:
-                                b.set(SEQUENCE_QUERIES_THREE.ordinal());
-                                break;
-                            case 4:
-                                b.set(SEQUENCE_QUERIES_FOUR.ordinal());
-                                break;
-                            default:
-                                b.set(SEQUENCE_QUERIES_FIVE_OR_MORE.ordinal());
-                                break;
+                            case 2 -> b.set(SEQUENCE_QUERIES_TWO.ordinal());
+                            case 3 -> b.set(SEQUENCE_QUERIES_THREE.ordinal());
+                            case 4 -> b.set(SEQUENCE_QUERIES_FOUR.ordinal());
+                            default -> b.set(SEQUENCE_QUERIES_FIVE_OR_MORE.ordinal());
                         }
                         if (j.until().keys().isEmpty() == false) {
                             b.set(SEQUENCE_UNTIL.ordinal());
@@ -201,18 +193,10 @@ public class Verifier {
                         b.set(FeatureMetric.JOIN.ordinal());
                         int queriesCount = j.queries().size();
                         switch (queriesCount) {
-                            case 2:
-                                b.set(JOIN_QUERIES_TWO.ordinal());
-                                break;
-                            case 3:
-                                b.set(JOIN_QUERIES_THREE.ordinal());
-                                break;
-                            case 4:
-                                b.set(JOIN_QUERIES_FOUR.ordinal());
-                                break;
-                            default:
-                                b.set(JOIN_QUERIES_FIVE_OR_MORE.ordinal());
-                                break;
+                            case 2 -> b.set(JOIN_QUERIES_TWO.ordinal());
+                            case 3 -> b.set(JOIN_QUERIES_THREE.ordinal());
+                            case 4 -> b.set(JOIN_QUERIES_FOUR.ordinal());
+                            default -> b.set(JOIN_QUERIES_FIVE_OR_MORE.ordinal());
                         }
                         if (j.until().keys().isEmpty() == false) {
                             b.set(JOIN_UNTIL.ordinal());

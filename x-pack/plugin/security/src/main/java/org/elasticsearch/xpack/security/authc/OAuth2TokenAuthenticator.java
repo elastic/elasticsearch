@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 
 class OAuth2TokenAuthenticator implements Authenticator {
 
@@ -52,9 +52,9 @@ class OAuth2TokenAuthenticator implements Authenticator {
                 listener.onResponse(AuthenticationResult.unsuccessful("invalid token", null));
             }
         }, e -> {
-            logger.debug(new ParameterizedMessage("Failed to validate token authentication for request [{}]", context.getRequest()), e);
+            logger.debug(() -> "Failed to validate token authentication for request [" + context.getRequest() + "]", e);
             if (e instanceof ElasticsearchSecurityException
-                && false == tokenService.isExpiredTokenException((ElasticsearchSecurityException) e)) {
+                && false == TokenService.isExpiredTokenException((ElasticsearchSecurityException) e)) {
                 // intentionally ignore the returned exception; we call this primarily
                 // for the auditing as we already have a purpose built exception
                 context.getRequest().tamperedRequest();

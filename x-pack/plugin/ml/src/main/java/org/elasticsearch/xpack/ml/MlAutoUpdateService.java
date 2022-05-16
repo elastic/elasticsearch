@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,7 +19,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 public class MlAutoUpdateService implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(MlAutoUpdateService.class);
@@ -62,21 +60,21 @@ public class MlAutoUpdateService implements ClusterStateListener {
             .filter(action -> completedUpdates.contains(action.getName()) == false)
             .filter(action -> action.isAbleToRun(event.state()))
             .filter(action -> currentlyUpdating.add(action.getName()))
-            .collect(Collectors.toList());
+            .toList();
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> toRun.forEach(this::runUpdate));
     }
 
     private void runUpdate(UpdateAction action) {
         try {
-            logger.debug(() -> new ParameterizedMessage("[{}] starting executing update action", action.getName()));
+            logger.debug(() -> "[" + action.getName() + "] starting executing update action");
             action.runUpdate();
             this.completedUpdates.add(action.getName());
-            logger.debug(() -> new ParameterizedMessage("[{}] succeeded executing update action", action.getName()));
+            logger.debug(() -> "[" + action.getName() + "] succeeded executing update action");
         } catch (Exception ex) {
-            logger.warn(new ParameterizedMessage("[{}] failure executing update action", action.getName()), ex);
+            logger.warn(() -> "[" + action.getName() + "] failure executing update action", ex);
         } finally {
             this.currentlyUpdating.remove(action.getName());
-            logger.debug(() -> new ParameterizedMessage("[{}] no longer executing update action", action.getName()));
+            logger.debug(() -> "[" + action.getName() + "] no longer executing update action");
         }
     }
 

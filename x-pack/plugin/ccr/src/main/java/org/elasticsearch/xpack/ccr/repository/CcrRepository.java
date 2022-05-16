@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ccr.repository;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -43,10 +41,11 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
@@ -103,7 +102,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -135,25 +133,16 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private final String localClusterName;
     private final String remoteClusterAlias;
     private final Client client;
-    private final CcrLicenseChecker ccrLicenseChecker;
     private final ThreadPool threadPool;
 
     private final CounterMetric throttledTime = new CounterMetric();
 
-    public CcrRepository(
-        RepositoryMetadata metadata,
-        Client client,
-        CcrLicenseChecker ccrLicenseChecker,
-        Settings settings,
-        CcrSettings ccrSettings,
-        ThreadPool threadPool
-    ) {
+    public CcrRepository(RepositoryMetadata metadata, Client client, Settings settings, CcrSettings ccrSettings, ThreadPool threadPool) {
         this.metadata = metadata;
         this.ccrSettings = ccrSettings;
         this.localClusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings).value();
         assert metadata.name().startsWith(NAME_PREFIX) : "CcrRepository metadata.name() must start with: " + NAME_PREFIX;
         this.remoteClusterAlias = Strings.split(metadata.name(), NAME_PREFIX)[1];
-        this.ccrLicenseChecker = ccrLicenseChecker;
         this.client = client;
         this.threadPool = threadPool;
     }
@@ -243,7 +232,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         // Validates whether the leader cluster has been configured properly:
         PlainActionFuture<String[]> future = PlainActionFuture.newFuture();
         IndexMetadata leaderIndexMetadata = clusterState.getState().metadata().index(leaderIndex);
-        ccrLicenseChecker.fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetadata, future::onFailure, future::onResponse);
+        CcrLicenseChecker.fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetadata, future::onFailure, future::onResponse);
         String[] leaderHistoryUUIDs = future.actionGet(ccrSettings.getRecoveryActionTimeout());
 
         IndexMetadata.Builder imdBuilder = IndexMetadata.builder(leaderIndex);
@@ -261,8 +250,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         imdBuilder.putMapping(leaderIndexMetadata.mapping());
         imdBuilder.setRoutingNumShards(leaderIndexMetadata.getRoutingNumShards());
         // We assert that insync allocation ids are not empty in `PrimaryShardAllocator`
-        for (IntObjectCursor<Set<String>> entry : leaderIndexMetadata.getInSyncAllocationIds()) {
-            imdBuilder.putInSyncAllocationIds(entry.key, Collections.singleton(IN_SYNC_ALLOCATION_ID));
+        for (var key : leaderIndexMetadata.getInSyncAllocationIds().keySet()) {
+            imdBuilder.putInSyncAllocationIds(key, Collections.singleton(IN_SYNC_ALLOCATION_ID));
         }
 
         return imdBuilder.build();
@@ -281,8 +270,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             Metadata remoteMetadata = response.getState().getMetadata();
 
             Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
-            Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = new HashMap<>(copiedSnapshotIds.size());
-            Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
+            Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
+            Map<IndexId, List<SnapshotId>> indexSnapshots = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
 
             ImmutableOpenMap<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
             for (String indexName : remoteMetadata.getConcreteAllIndices()) {
@@ -441,7 +430,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         }
     }
 
-    private void createEmptyStore(Store store) {
+    private static void createEmptyStore(Store store) {
         store.incRef();
         try {
             store.createEmpty();
@@ -709,10 +698,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                         listener.onFailure(e);
                                     } catch (Exception ex) {
                                         e.addSuppressed(ex);
-                                        logger.warn(
-                                            () -> new ParameterizedMessage("failed to execute failure callback for chunk request"),
-                                            e
-                                        );
+                                        logger.warn("failed to execute failure callback for chunk request", e);
                                     }
                                 });
                             }

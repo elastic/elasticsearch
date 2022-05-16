@@ -19,7 +19,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -102,7 +102,10 @@ public final class JobModelSnapshotUpgrader {
     }
 
     synchronized void start() {
-        task.setJobModelSnapshotUpgrader(this);
+        if (task.setJobModelSnapshotUpgrader(this) == false) {
+            this.killProcess(task.getReasonCancelled());
+            return;
+        }
 
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService autodetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
@@ -344,7 +347,7 @@ public final class JobModelSnapshotUpgrader {
                             )
                         );
                     } else {
-                        logger.error(new ParameterizedMessage("[{}] Unexpected exception writing to process", job.getId()), e);
+                        logger.error(() -> "[" + job.getId() + "] Unexpected exception writing to process", e);
                         handler.accept(null, e);
                     }
                 }

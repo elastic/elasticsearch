@@ -15,6 +15,12 @@ public record ModelStats(
     LongSummaryStatistics timingStats,
     Instant lastUsed,
     int pendingCount,
-    Integer inferenceThreads,
-    Integer modelThreads
+    int errorCount,
+    int rejectedExecutionCount,
+    int timeoutCount,
+    Integer threadsPerAllocation,
+    Integer numberOfAllocations,
+    long peakThroughput,
+    long throughputLastPeriod,
+    Double avgInferenceTimeLastPeriod
 ) {}

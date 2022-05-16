@@ -2,8 +2,8 @@
 ==== Start {es} with security enabled
 
 When installing {es}, security features are enabled and configured by default.
-When you start {es} for the first time, the following security configuration
-occurs automatically: 
+When you install {es}, the following security configuration
+occurs automatically:
 
 * Authentication and authorization are enabled, and a password is generated for
 the `elastic` built-in superuser.
@@ -39,7 +39,7 @@ Generate an enrollment token for Elasticsearch nodes with
 
 ===== Reconfigure a node to join an existing cluster
 
-When you start {es} for the first time, the installation process configures a
+When you install {es}, the installation process configures a
 single-node cluster by default. If you want a node to join an existing cluster
 instead, generate an enrollment token on an existing node _before_ you start
 the new node for the first time.
@@ -48,24 +48,19 @@ the new node for the first time.
 +
 [source, sh]
 ----
-bin/elasticsearch-create-enrollment-token -s node
+/usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s node
 ----
 
 . Copy the enrollment token, which is output to your terminal.
 
-. On your new {es} node, pass the enrollment token as a parameter to the 
+. On your new {es} node, pass the enrollment token as a parameter to the
 `elasticsearch-reconfigure-node` tool:
 +
 [source, sh]
 ----
-bin/elasticsearch-reconfigure-node --enrollment-token <enrollment-token>
+/usr/share/elasticsearch/bin/elasticsearch-reconfigure-node --enrollment-token <enrollment-token>
 ----
 +
 {es} is now configured to join the existing cluster.
 
-. Start your new node.
-+
-[source, sh]
-----
-bin/elasticsearch
-----
+. <<{distro}-running-systemd, Start your new node using `systemd`>>.

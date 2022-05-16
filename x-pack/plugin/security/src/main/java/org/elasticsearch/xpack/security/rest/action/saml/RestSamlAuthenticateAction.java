@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * A REST handler that attempts to authenticate a user based on the provided SAML response/assertion.
  */
 public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements RestRequestFilter {
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(RestSamlAuthenticateAction.class);
 
     static class Input {
         String content;

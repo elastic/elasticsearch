@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -43,25 +44,26 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAllocationAction;
+import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
-import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
-import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
+import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.Collections;
@@ -70,6 +72,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -79,16 +82,17 @@ import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPa
 
 public class TransportStartTrainedModelDeploymentAction extends TransportMasterNodeAction<
     StartTrainedModelDeploymentAction.Request,
-    CreateTrainedModelAllocationAction.Response> {
+    CreateTrainedModelAssignmentAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportStartTrainedModelDeploymentAction.class);
 
     private final XPackLicenseState licenseState;
     private final Client client;
-    private final TrainedModelAllocationService trainedModelAllocationService;
+    private final TrainedModelAssignmentService trainedModelAssignmentService;
     private final NamedXContentRegistry xContentRegistry;
     private final MlMemoryTracker memoryTracker;
     protected volatile int maxLazyMLNodes;
+    protected volatile long maxMLNodeSize;
 
     @Inject
     public TransportStartTrainedModelDeploymentAction(
@@ -100,7 +104,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         XPackLicenseState licenseState,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Settings settings,
-        TrainedModelAllocationService trainedModelAllocationService,
+        TrainedModelAssignmentService trainedModelAssignmentService,
         NamedXContentRegistry xContentRegistry,
         MlMemoryTracker memoryTracker
     ) {
@@ -112,20 +116,26 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             actionFilters,
             StartTrainedModelDeploymentAction.Request::new,
             indexNameExpressionResolver,
-            CreateTrainedModelAllocationAction.Response::new,
+            CreateTrainedModelAssignmentAction.Response::new,
             ThreadPool.Names.SAME
         );
         this.licenseState = Objects.requireNonNull(licenseState);
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ML_ORIGIN);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.memoryTracker = Objects.requireNonNull(memoryTracker);
-        this.trainedModelAllocationService = Objects.requireNonNull(trainedModelAllocationService);
+        this.trainedModelAssignmentService = Objects.requireNonNull(trainedModelAssignmentService);
         this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
+        this.maxMLNodeSize = MachineLearning.MAX_ML_NODE_SIZE.get(settings).getBytes();
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_ML_NODE_SIZE, this::setMaxMLNodeSize);
     }
 
     private void setMaxLazyMLNodes(int value) {
         this.maxLazyMLNodes = value;
+    }
+
+    private void setMaxMLNodeSize(ByteSizeValue value) {
+        this.maxMLNodeSize = value.getBytes();
     }
 
     @Override
@@ -133,18 +143,40 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         Task task,
         StartTrainedModelDeploymentAction.Request request,
         ClusterState state,
-        ActionListener<CreateTrainedModelAllocationAction.Response> listener
+        ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) throws Exception {
-        logger.trace(() -> new ParameterizedMessage("[{}] received deploy request", request.getModelId()));
+        logger.trace(() -> "[" + request.getModelId() + "] received deploy request");
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
 
-        ActionListener<CreateTrainedModelAllocationAction.Response> waitForDeploymentToStart = ActionListener.wrap(
-            modelAllocation -> waitForDeploymentState(request.getModelId(), request.getTimeout(), request.getWaitForState(), listener),
+        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot start a new model deployment as not all nodes are on version {}. All nodes must be the same version",
+                    RestStatus.FORBIDDEN,
+                    state.getNodes().getMaxNodeVersion()
+                )
+            );
+            return;
+        }
+
+        if (TrainedModelAssignmentMetadata.fromState(state).modelAssignments().size() >= MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Could not start model deployment because existing deployments reached the limit of [{}]",
+                    RestStatus.TOO_MANY_REQUESTS,
+                    MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS
+                )
+            );
+            return;
+        }
+
+        ActionListener<CreateTrainedModelAssignmentAction.Response> waitForDeploymentToStart = ActionListener.wrap(
+            modelAssignment -> waitForDeploymentState(request.getModelId(), request.getTimeout(), request.getWaitForState(), listener),
             e -> {
-                logger.warn(() -> new ParameterizedMessage("[{}] creating new allocation failed", request.getModelId()), e);
+                logger.warn(() -> "[" + request.getModelId() + "] creating new assignment failed", e);
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(
                         "Cannot start deployment [{}] because it has already been started",
@@ -191,8 +223,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     TaskParams taskParams = new TaskParams(
                         trainedModelConfig.getModelId(),
                         modelBytes,
-                        request.getInferenceThreads(),
-                        request.getModelThreads(),
+                        request.getThreadsPerAllocation(),
+                        request.getNumberOfAllocations(),
                         request.getQueueCapacity()
                     );
                     PersistentTasksCustomMetadata persistentTasks = clusterService.state()
@@ -201,7 +233,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     memoryTracker.refresh(
                         persistentTasks,
                         ActionListener.wrap(
-                            aVoid -> trainedModelAllocationService.createNewModelAllocation(taskParams, waitForDeploymentToStart),
+                            aVoid -> trainedModelAssignmentService.createNewModelAssignment(taskParams, waitForDeploymentToStart),
                             listener::onFailure
                         )
                     );
@@ -239,20 +271,20 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         String modelId,
         TimeValue timeout,
         AllocationStatus.State state,
-        ActionListener<CreateTrainedModelAllocationAction.Response> listener
+        ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
-        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(modelId, state, maxLazyMLNodes);
-        trainedModelAllocationService.waitForAllocationCondition(
+        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(modelId, state, maxLazyMLNodes, maxMLNodeSize);
+        trainedModelAssignmentService.waitForAssignmentCondition(
             modelId,
             predicate,
             timeout,
-            new TrainedModelAllocationService.WaitForAllocationListener() {
+            new TrainedModelAssignmentService.WaitForAssignmentListener() {
                 @Override
-                public void onResponse(TrainedModelAllocation allocation) {
+                public void onResponse(TrainedModelAssignment allocation) {
                     if (predicate.exception != null) {
                         deleteFailedDeployment(modelId, predicate.exception, listener);
                     } else {
-                        listener.onResponse(new CreateTrainedModelAllocationAction.Response(allocation));
+                        listener.onResponse(new CreateTrainedModelAssignmentAction.Response(allocation));
                     }
                 }
 
@@ -267,9 +299,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     private void deleteFailedDeployment(
         String modelId,
         Exception exception,
-        ActionListener<CreateTrainedModelAllocationAction.Response> listener
+        ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
-        trainedModelAllocationService.deleteModelAllocation(modelId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
+        trainedModelAssignmentService.deleteModelAssignment(modelId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
             logger.error(
                 new ParameterizedMessage(
                     "[{}] Failed to delete model allocation that had failed with the reason [{}]",
@@ -402,23 +434,25 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         private final String modelId;
         private final AllocationStatus.State waitForState;
         private final int maxLazyMLNodes;
+        private final long maxMLNodeSize;
 
-        DeploymentStartedPredicate(String modelId, AllocationStatus.State waitForState, int maxLazyMLNodes) {
+        DeploymentStartedPredicate(String modelId, AllocationStatus.State waitForState, int maxLazyMLNodes, long maxMLNodeSize) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
             this.waitForState = waitForState;
             this.maxLazyMLNodes = maxLazyMLNodes;
+            this.maxMLNodeSize = maxMLNodeSize;
         }
 
         @Override
         public boolean test(ClusterState clusterState) {
-            TrainedModelAllocation trainedModelAllocation = TrainedModelAllocationMetadata.allocationForModelId(clusterState, modelId)
+            TrainedModelAssignment trainedModelAssignment = TrainedModelAssignmentMetadata.assignmentForModelId(clusterState, modelId)
                 .orElse(null);
-            if (trainedModelAllocation == null) {
+            if (trainedModelAssignment == null) {
                 // Something weird happened, it should NEVER be null...
                 return true;
             }
 
-            final Set<Map.Entry<String, RoutingStateAndReason>> nodesAndState = trainedModelAllocation.getNodeRoutingTable().entrySet();
+            final Set<Map.Entry<String, RoutingStateAndReason>> nodesAndState = trainedModelAssignment.getNodeRoutingTable().entrySet();
 
             Map<String, String> nodeFailuresAndReasons = new HashMap<>();
             Set<String> nodesStillInitializing = new LinkedHashSet<>();
@@ -441,16 +475,20 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             }
             Set<String> nodesShuttingDown = nodesShuttingDown(clusterState);
             List<DiscoveryNode> nodes = clusterState.nodes()
-                .getAllNodes()
                 .stream()
                 .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
-                .filter(TaskParams::mayAllocateToNode)
+                .filter(TaskParams::mayAssignToNode)
                 .collect(Collectors.toList());
+            OptionalLong smallestMLNode = nodes.stream().map(NodeLoadDetector::getNodeSize).flatMapToLong(OptionalLong::stream).min();
 
             // No nodes allocated at all!
-            if (nodesAndState.isEmpty() && maxLazyMLNodes <= nodes.size()) {
+            if (nodesAndState.isEmpty()
+                // We cannot scale horizontally
+                && maxLazyMLNodes <= nodes.size()
+                // We cannot scale vertically
+                && (smallestMLNode.isEmpty() || smallestMLNode.getAsLong() >= maxMLNodeSize)) {
                 String msg = "Could not start deployment because no suitable nodes were found, allocation explanation ["
-                    + trainedModelAllocation.getReason()
+                    + trainedModelAssignment.getReason()
                     + "]";
                 logger.warn("[{}] {}", modelId, msg);
                 Exception detail = new IllegalStateException(msg);
@@ -462,7 +500,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return true;
             }
 
-            AllocationStatus allocationStatus = trainedModelAllocation.calculateAllocationStatus(nodes).orElse(null);
+            AllocationStatus allocationStatus = trainedModelAssignment.calculateAllocationStatus(nodes).orElse(null);
             if (allocationStatus == null || allocationStatus.calculateState().compareTo(waitForState) >= 0) {
                 return true;
             }
@@ -474,7 +512,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 () -> new ParameterizedMessage(
                     "[{}] tested with state [{}] and nodes {} still initializing",
                     modelId,
-                    trainedModelAllocation.getAllocationState(),
+                    trainedModelAssignment.getAssignmentState(),
                     nodesStillInitializing
                 )
             );

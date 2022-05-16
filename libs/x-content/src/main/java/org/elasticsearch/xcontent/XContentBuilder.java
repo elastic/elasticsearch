@@ -10,10 +10,10 @@ package org.elasticsearch.xcontent;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.Streams;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
-import java.io.FilterOutputStream;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -157,9 +157,9 @@ public final class XContentBuilder implements Closeable, Flushable {
             dateTransformers.putAll(addlDateTransformers);
         }
 
-        WRITERS = Collections.unmodifiableMap(writers);
-        HUMAN_READABLE_TRANSFORMERS = Collections.unmodifiableMap(humanReadableTransformer);
-        DATE_TRANSFORMERS = Collections.unmodifiableMap(dateTransformers);
+        WRITERS = Map.copyOf(writers);
+        HUMAN_READABLE_TRANSFORMERS = Map.copyOf(humanReadableTransformer);
+        DATE_TRANSFORMERS = Map.copyOf(dateTransformers);
     }
 
     @FunctionalInterface
@@ -867,6 +867,29 @@ public final class XContentBuilder implements Closeable, Flushable {
         return field(name).value(value);
     }
 
+    public XContentBuilder field(String name, Number value) throws IOException {
+        field(name);
+        if (value instanceof Short) {
+            return value(value.shortValue());
+        } else if (value instanceof Integer) {
+            return value(value.intValue());
+        } else if (value instanceof Long) {
+            return value(value.longValue());
+        } else if (value instanceof Float) {
+            return value(value.floatValue());
+        } else if (value instanceof Double) {
+            return value(value.doubleValue());
+        } else if (value instanceof BigInteger) {
+            generator.writeNumber((BigInteger) value);
+            return this;
+        } else if (value instanceof BigDecimal) {
+            generator.writeNumber((BigDecimal) value);
+            return this;
+        } else {
+            return value(value);
+        }
+    }
+
     public XContentBuilder array(String name, Object... values) throws IOException {
         return field(name).values(values, true);
     }
@@ -1174,13 +1197,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
         generator.writeDirectField(name, os -> {
             os.write('\"');
-            final FilterOutputStream noClose = new FilterOutputStream(os) {
-                @Override
-                public void close() {
-                    // We need to close the output stream that is wrapped by a Base64 encoder to flush the outstanding buffer
-                    // of the encoder, but we must not close the underlying output stream of the XContentBuilder.
-                }
-            };
+            // We need to close the output stream that is wrapped by a Base64 encoder to flush the outstanding buffer
+            // of the encoder, but we must not close the underlying output stream of the XContentBuilder.
+            final OutputStream noClose = Streams.noCloseStream(os);
             final OutputStream encodedOutput = Base64.getEncoder().wrap(noClose);
             writer.accept(encodedOutput);
             encodedOutput.close(); // close to flush the outstanding buffer used in the Base64 Encoder

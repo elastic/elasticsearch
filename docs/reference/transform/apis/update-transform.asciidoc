@@ -19,10 +19,11 @@ Updates certain properties of a {transform}.
 
 Requires the following privileges:
 
-* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this
   privilege)
 * source indices: `read`, `view_index_metadata`
-* destination index: `read`, `index`.
+* destination index: `read`, `index`. If a `retention_policy` is configured, `delete` index privilege is
+also required.
 
 
 [[update-transform-desc]]
@@ -151,6 +152,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-doc
 `align_checkpoints`:::
 (Optional, boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-align-checkpoints]
+`deduce_mappings`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-deduce-mappings]
 `max_page_search_size`:::
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]

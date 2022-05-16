@@ -3,6 +3,20 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="migration-api-feature-upgrade"]
+=== Feature upgrade APIs
+
+Refer to <<feature-migration-api,Feature migration APIs>>.
+
+[role="exclude",id="java-clients"]
+=== Java transport client and security
+
+The Java transport client has been removed. Use the
+https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.15/java-rest-high.html[Java
+high-level REST client] instead. For migration steps, refer to the
+https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.15/java-rest-high-level-migration.html[migration
+guide].
+
 // [START] Snapshot and restore
 
 [role="exclude",id="snapshot-lifecycle-management"]
@@ -58,7 +72,7 @@ See <<back-up-config-files>> and <<cluster-state-snapshots>>.
 // [END] Snapshot and restore
 
 [role="exclude",id="configuring-tls-docker"]
-== Encrypting communications in an {es} Docker Container
+=== Encrypting communications in an {es} Docker Container
 
 Refer to <<docker-compose-file,Starting a multi-node cluster with Docker Compose>>.
 
@@ -70,7 +84,7 @@ Refer to <<docker-compose-file,Starting a multi-node cluster with Docker Compose
 // [START] Remote clusters
 
 [role="exclude",id="ccs-clients-integrations"]
-== {ccs-cap}, clients, and integrations
+=== {ccs-cap}, clients, and integrations
 
 Refer to <<security-clients-integrations,Securing clients and integrations>>.
 
@@ -295,6 +309,11 @@ See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
 === Encrypting communications
 
 See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
+
+[role="exclude",id="security-api-search-user-profile"]
+=== Search user profile API
+
+See <<security-api-suggest-user-profile,Suggest user profile API>>.
 // [END] Security redirects
 
 [roles="exclude",id="modules-scripting-stored-scripts"]
@@ -345,8 +364,9 @@ See <<xpack-ccr,Cross-cluster replication>>.
 [role="exclude",id="indices-upgrade"]
 === Upgrade API
 
-The `_upgrade` API is no longer useful and will be removed. Instead, see
-<<reindex-upgrade>>.
+The `_upgrade` API is no longer useful and will be removed.
+For information about upgrading, see
+{stack-ref}/upgrading-elasticsearch.html[Upgrading {es}].
 
 [role="exclude",id="mapping-parent-field"]
 === `_parent` field
@@ -379,19 +399,19 @@ See <<commands>>.
 === Calendar resources
 
 See <<ml-get-calendar>> and
-{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
+{ml-docs}/ml-ad-run-jobs.html#ml-ad-calendars[Calendars and scheduled events].
 
 [role="exclude",id="ml-filter-resource"]
 === Filter resources
 
 See <<ml-get-filter>> and
-{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-rules[Machine learning custom rules].
+{ml-docs}/ml-ad-run-jobs.html#ml-ad-rules[Machine learning custom rules].
 
 [role="exclude",id="ml-event-resource"]
 === Scheduled event resources
 
 See <<ml-get-calendar-event>> and
-{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
+{ml-docs}/ml-ad-run-jobs.html#ml-ad-calendars[Calendars and scheduled events].
 
 [role="exclude",id="index-apis"]
 === Index APIs
@@ -1715,7 +1735,7 @@ See <<getting-started>>.
 See <<getting-started>>.
 
 [role="exclude",id="jvm-options"]
-=== Settng JVM options
+=== Setting JVM options
 
 See <<set-jvm-options>>.
 
@@ -1793,4 +1813,52 @@ See <<security-api-kibana-enrollment>>.
 See the <<sql-search-api-request-body,request body parameters>> for the
 <<sql-search-api,SQL search API>>.
 
+[role="exclude",id="restart-upgrade"]
+=== Full cluster restart upgrade
 
+When upgrading to {es} 8.0 and later, you must first upgrade to {prev-major-last}
+even if you opt to perform a full-cluster restart instead of a rolling upgrade.
+For more information about upgrading, refer to
+{stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
+
+[role="exclude",id="rolling-upgrades"]
+=== Rolling upgrade
+
+When upgrading to {es} 8.0 and later, you must first upgrade to {prev-major-last}
+whether you opt to perform a rolling upgrade (upgrade one node at a time) or a full-cluster restart upgrade.
+For more information about upgrading, refer to
+{stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
+
+[role="exclude",id="reindex-upgrade"]
+=== Reindex before upgrading
+
+//tag::upgrade-reindex[]
+Before upgrading to {es} 8.0 and later, you must reindex any indices created in
+a 6.x version. We recommend using the **Upgrade Assistant** to guide you
+through this process.
+
+For more information about upgrading, refer to
+{stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
+//end::upgrade-reindex[]
+
+For more information about reindexing, refer to <<docs-reindex>>.
+
+[role="exclude",id="reindex-upgrade-inplace"]
+=== Reindex in place
+
+include::redirects.asciidoc[tag=upgrade-reindex]
+
+For more information about reindexing, refer to <<docs-reindex>>.
+
+[role="exclude",id="reindex-upgrade-remote"]
+=== Reindex from a remote cluster
+
+include::redirects.asciidoc[tag=upgrade-reindex]
+
+For more information about reindexing from a remote cluster, refer to
+<<reindex-from-remote>>.
+
+[role="exclude",id="infer-trained-model-deployment"]
+=== Infer trained model deployment API
+
+See <<infer-trained-model>>.

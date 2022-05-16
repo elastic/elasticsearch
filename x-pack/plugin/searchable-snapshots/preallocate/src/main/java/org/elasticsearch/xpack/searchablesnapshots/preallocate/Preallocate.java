@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.preallocate;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
@@ -65,7 +64,7 @@ public class Preallocate {
                         }
                     }
                 } catch (final Exception e) {
-                    logger.warn(new ParameterizedMessage("failed to pre-allocate cache file [{}] using native methods", cacheFile), e);
+                    logger.warn(() -> "failed to pre-allocate cache file [" + cacheFile + "] using native methods", e);
                 }
             }
             // even if allocation was successful above, verify again here
@@ -73,11 +72,11 @@ public class Preallocate {
                 if (raf.length() != fileSize) {
                     logger.info("pre-allocating cache file [{}] ({}) using setLength method", cacheFile, new ByteSizeValue(fileSize));
                     raf.setLength(fileSize);
-                    success = true;
                     logger.debug("pre-allocated cache file [{}] using setLength method", cacheFile);
                 }
+                success = raf.length() == fileSize;
             } catch (final Exception e) {
-                logger.warn(new ParameterizedMessage("failed to pre-allocate cache file [{}] using setLength method", cacheFile), e);
+                logger.warn(() -> "failed to pre-allocate cache file [" + cacheFile + "] using setLength method", e);
                 throw e;
             }
         } finally {

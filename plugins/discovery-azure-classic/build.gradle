@@ -16,26 +16,26 @@ esplugin {
   classname 'org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin'
 }
 
-versions << [
+def localVersions = versions + [
   'azure' : '0.9.3',
   'jersey': '1.13'
 ]
 
 dependencies {
-  api "com.microsoft.azure:azure-svc-mgmt-compute:${versions.azure}"
-  api "com.microsoft.azure:azure-core:${versions.azure}"
-  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "com.microsoft.azure:azure-svc-mgmt-compute:${localVersions.azure}"
+  api "com.microsoft.azure:azure-core:${localVersions.azure}"
+  api "org.apache.httpcomponents:httpclient:${localVersions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${localVersions.httpcore}"
+  api "commons-logging:commons-logging:${localVersions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${localVersions.log4j}"
+  api "commons-codec:commons-codec:${localVersions.commonscodec}"
   api "commons-lang:commons-lang:2.6"
   api "commons-io:commons-io:2.4"
   api 'javax.mail:mail:1.4.5'
   api 'javax.inject:javax.inject:1'
-  api "com.sun.jersey:jersey-client:${versions.jersey}"
-  api "com.sun.jersey:jersey-core:${versions.jersey}"
-  api "com.sun.jersey:jersey-json:${versions.jersey}"
+  api "com.sun.jersey:jersey-client:${localVersions.jersey}"
+  api "com.sun.jersey:jersey-core:${localVersions.jersey}"
+  api "com.sun.jersey:jersey-json:${localVersions.jersey}"
   api 'org.codehaus.jettison:jettison:1.1'
   api 'com.sun.xml.bind:jaxb-impl:2.2.3-1'
   api 'org.codehaus.jackson:jackson-core-asl:1.9.2'

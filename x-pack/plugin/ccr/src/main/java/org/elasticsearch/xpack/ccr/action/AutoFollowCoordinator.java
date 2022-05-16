@@ -25,18 +25,18 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -256,16 +256,16 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
         this.patterns = Set.copyOf(autoFollowMetadata.getPatterns().keySet());
 
-        final CopyOnWriteHashMap<String, AutoFollower> autoFollowersCopy = CopyOnWriteHashMap.copyOf(this.autoFollowers);
+        final Map<String, AutoFollower> currentAutoFollowers = Map.copyOf(this.autoFollowers);
         Set<String> newRemoteClusters = autoFollowMetadata.getPatterns()
             .values()
             .stream()
             .filter(AutoFollowPattern::isActive)
             .map(AutoFollowPattern::getRemoteCluster)
-            .filter(remoteCluster -> autoFollowersCopy.containsKey(remoteCluster) == false)
+            .filter(remoteCluster -> currentAutoFollowers.containsKey(remoteCluster) == false)
             .collect(Collectors.toSet());
 
-        Map<String, AutoFollower> newAutoFollowers = new HashMap<>(newRemoteClusters.size());
+        Map<String, AutoFollower> newAutoFollowers = Maps.newMapWithExpectedSize(newRemoteClusters.size());
         for (String remoteCluster : newRemoteClusters) {
             AutoFollower autoFollower = new AutoFollower(
                 remoteCluster,
@@ -288,7 +288,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     request.waitForMetadataVersion(metadataVersion);
                     request.waitForTimeout(waitForMetadataTimeOut);
                     // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
-                    ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
+                    CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                         client,
                         remoteCluster,
                         request,
@@ -304,7 +304,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     Runnable successHandler,
                     Consumer<Exception> failureHandler
                 ) {
-                    Client followerClient = CcrLicenseChecker.wrapClient(client, headers);
+                    Client followerClient = CcrLicenseChecker.wrapClient(client, headers, clusterService.state());
                     followerClient.execute(
                         PutFollowAction.INSTANCE,
                         request,
@@ -314,7 +314,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
                 @Override
                 void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
-                    clusterService.submitStateUpdateTask("update_auto_follow_metadata", new ClusterStateUpdateTask() {
+                    submitUnbatchedTask("update_auto_follow_metadata", new ClusterStateUpdateTask() {
 
                         @Override
                         public ClusterState execute(ClusterState currentState) throws Exception {
@@ -322,12 +322,12 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         }
 
                         @Override
-                        public void onFailure(String source, Exception e) {
+                        public void onFailure(Exception e) {
                             handler.accept(e);
                         }
 
                         @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             handler.accept(null);
                         }
                     });
@@ -342,7 +342,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         }
 
         List<String> removedRemoteClusters = new ArrayList<>();
-        for (Map.Entry<String, AutoFollower> entry : autoFollowersCopy.entrySet()) {
+        for (Map.Entry<String, AutoFollower> entry : currentAutoFollowers.entrySet()) {
             String remoteCluster = entry.getKey();
             AutoFollower autoFollower = entry.getValue();
             boolean exist = autoFollowMetadata.getPatterns()
@@ -363,7 +363,16 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             }
         }
         assert assertNoOtherActiveAutoFollower(newAutoFollowers);
-        this.autoFollowers = autoFollowersCopy.copyAndPutAll(newAutoFollowers).copyAndRemoveAll(removedRemoteClusters);
+
+        Map<String, AutoFollower> updatedFollowers = new HashMap<>(currentAutoFollowers);
+        updatedFollowers.putAll(newAutoFollowers);
+        removedRemoteClusters.forEach(updatedFollowers.keySet()::remove);
+        this.autoFollowers = Collections.unmodifiableMap(updatedFollowers);
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private boolean assertNoOtherActiveAutoFollower(Map<String, AutoFollower> newAutoFollowers) {
@@ -595,8 +604,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         )
                     );
                 } else {
-                    final Settings leaderIndexSettings = remoteMetadata.getIndexSafe(indexToFollow).getSettings();
-                    if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexSettings) == false) {
+                    final IndexMetadata leaderIndexMetadata = remoteMetadata.getIndexSafe(indexToFollow);
+                    if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetadata.getSettings()) == false) {
                         String message = String.format(
                             Locale.ROOT,
                             "index [%s] cannot be followed, because soft deletes are not enabled",
@@ -610,7 +619,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             }
                             groupedListener.onResponse(new Tuple<>(indexToFollow, failure));
                         });
-                    } else if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndexSettings)) {
+                    } else if (leaderIndexMetadata.isSearchableSnapshot()) {
                         String message = String.format(
                             Locale.ROOT,
                             "index to follow [%s] is a searchable snapshot index and cannot be used for cross-cluster replication purpose",

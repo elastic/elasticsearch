@@ -63,16 +63,14 @@ public class NoMasterBlockService {
     }
 
     private static ClusterBlock parseNoMasterBlock(String value) {
-        switch (value) {
-            case "all":
-                return NO_MASTER_BLOCK_ALL;
-            case "write":
-                return NO_MASTER_BLOCK_WRITES;
-            case "metadata_write":
-                return NO_MASTER_BLOCK_METADATA_WRITES;
-            default:
-                throw new IllegalArgumentException("invalid no-master block [" + value + "], must be one of [all, write, metadata_write]");
-        }
+        return switch (value) {
+            case "all" -> NO_MASTER_BLOCK_ALL;
+            case "write" -> NO_MASTER_BLOCK_WRITES;
+            case "metadata_write" -> NO_MASTER_BLOCK_METADATA_WRITES;
+            default -> throw new IllegalArgumentException(
+                "invalid no-master block [" + value + "], must be one of [all, write, metadata_write]"
+            );
+        };
     }
 
     public ClusterBlock getNoMasterBlock() {

@@ -40,16 +40,13 @@ public class OldElasticsearch {
         // 0.90 must be explicitly foregrounded
         boolean explicitlyForeground;
         switch (args[2]) {
-            case "true":
-                explicitlyForeground = true;
-                break;
-            case "false":
-                explicitlyForeground = false;
-                break;
-            default:
+            case "true" -> explicitlyForeground = true;
+            case "false" -> explicitlyForeground = false;
+            default -> {
                 System.err.println("the third argument must be true or false");
                 System.exit(1);
                 return;
+            }
         }
 
         Iterator<Path> children = Files.list(unzipDir).iterator();

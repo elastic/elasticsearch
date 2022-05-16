@@ -394,7 +394,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
         private void fail(Exception e) {
             if (failure.compareAndSet(null, e)) {
-                transportService.getTaskManager().cancelTaskAndDescendants(task, "task failed", false, ActionListener.wrap(() -> {}));
+                transportService.getTaskManager().cancelTaskAndDescendants(task, "task failed", false, ActionListener.noop());
             } else {
                 if (innerFailures.tryAcquire()) {
                     final Throwable cause = ExceptionsHelper.unwrapCause(e);
@@ -428,7 +428,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                     null,
                     new RepositoryVerificationException(request.repositoryName, "analysis timed out after [" + request.getTimeout() + "]")
                 )) {
-                    transportService.getTaskManager().cancelTaskAndDescendants(task, "timed out", false, ActionListener.wrap(() -> {}));
+                    transportService.getTaskManager().cancelTaskAndDescendants(task, "timed out", false, ActionListener.noop());
                 }
                 // if this CAS failed then we're already failing for some other reason, nbd
                 return false;
@@ -521,7 +521,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
                         @Override
                         public void handleException(TransportException exp) {
-                            logger.debug(new ParameterizedMessage("failed [{}]", thisTask), exp);
+                            logger.debug(() -> "failed [" + thisTask + "]", exp);
                             fail(exp);
                             onWorkerCompletion();
                         }
@@ -639,7 +639,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                     )
                 );
             } else {
-                logger.debug(new ParameterizedMessage("analysis of repository [{}] failed", request.repositoryName), exception);
+                logger.debug(() -> "analysis of repository [" + request.repositoryName + "] failed", exception);
                 listener.onFailure(
                     new RepositoryVerificationException(
                         request.getRepositoryName(),

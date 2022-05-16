@@ -16,6 +16,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -26,11 +27,11 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
@@ -84,7 +85,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        clusterService.submitStateUpdateTask("unfollow_action", new ClusterStateUpdateTask() {
+        submitUnbatchedTask("unfollow_action", new ClusterStateUpdateTask() {
 
             @Override
             public ClusterState execute(final ClusterState current) {
@@ -93,12 +94,12 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             }
 
             @Override
-            public void onFailure(final String source, final Exception e) {
+            public void onFailure(final Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
+            public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
                 final IndexMetadata indexMetadata = oldState.metadata().index(request.getFollowerIndex());
                 final Map<String, String> ccrCustomMetadata = indexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
                 final String remoteClusterName = ccrCustomMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
@@ -178,14 +179,20 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             ) {
                 logger.trace("{} removing retention lease [{}] while unfollowing leader index", followerShardId, retentionLeaseId);
                 final ThreadContext threadContext = threadPool.getThreadContext();
+                // We're about to stash the thread context for this retention lease removal. The listener will be completed while the
+                // context is stashed. The context needs to be restored in the listener when it is completing or else it is simply wiped.
+                final ActionListener<ActionResponse.Empty> preservedListener = new ContextPreservingActionListener<>(
+                    threadContext.newRestorableContext(true),
+                    listener
+                );
                 try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
                     // we have to execute under the system context so that if security is enabled the removal is authorized
                     threadContext.markAsSystemContext();
-                    CcrRetentionLeases.asyncRemoveRetentionLease(leaderShardId, retentionLeaseId, remoteClient, listener);
+                    CcrRetentionLeases.asyncRemoveRetentionLease(leaderShardId, retentionLeaseId, remoteClient, preservedListener);
                 }
             }
 
-            private void handleException(
+            private static void handleException(
                 final ShardId followerShardId,
                 final String retentionLeaseId,
                 final ShardId leaderShardId,
@@ -221,6 +228,11 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             }
 
         });
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     @Override
@@ -269,7 +281,6 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
         // Remove ccr custom metadata
         newIndexMetadata.removeCustom(Ccr.CCR_CUSTOM_METADATA_KEY);
 
-        Metadata newMetadata = Metadata.builder(current.metadata()).put(newIndexMetadata).build();
-        return ClusterState.builder(current).metadata(newMetadata).build();
+        return current.copyAndUpdateMetadata(metadata -> metadata.put(newIndexMetadata));
     }
 }

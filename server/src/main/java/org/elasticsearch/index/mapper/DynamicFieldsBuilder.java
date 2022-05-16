@@ -157,7 +157,7 @@ final class DynamicFieldsBuilder {
     /**
      * Returns a dynamically created object mapper, eventually based on a matching dynamic template.
      */
-    Mapper createDynamicObjectMapper(DocumentParserContext context, String name) {
+    static Mapper createDynamicObjectMapper(DocumentParserContext context, String name) {
         Mapper mapper = createObjectMapperFromTemplate(context, name);
         return mapper != null ? mapper : new ObjectMapper.Builder(name).enabled(true).build(MapperBuilderContext.forPath(context.path()));
     }
@@ -165,7 +165,7 @@ final class DynamicFieldsBuilder {
     /**
      * Returns a dynamically created object mapper, based exclusively on a matching dynamic template, null otherwise.
      */
-    Mapper createObjectMapperFromTemplate(DocumentParserContext context, String name) {
+    static Mapper createObjectMapperFromTemplate(DocumentParserContext context, String name) {
         Mapper.Builder templateBuilder = findTemplateBuilderForObject(context, name);
         return templateBuilder == null ? null : templateBuilder.build(MapperBuilderContext.forPath(context.path()));
     }
@@ -174,7 +174,7 @@ final class DynamicFieldsBuilder {
      * Creates a dynamic string field based on a matching dynamic template.
      * No field is created in case there is no matching dynamic template.
      */
-    void createDynamicStringFieldFromTemplate(DocumentParserContext context, String name) throws IOException {
+    static void createDynamicStringFieldFromTemplate(DocumentParserContext context, String name) throws IOException {
         createDynamicField(context, name, DynamicTemplate.XContentFieldType.STRING, () -> {});
     }
 
@@ -311,7 +311,7 @@ final class DynamicFieldsBuilder {
         public void newDynamicStringField(DocumentParserContext context, String name) throws IOException {
             createDynamicField(
                 new TextFieldMapper.Builder(name, context.indexAnalyzers()).addMultiField(
-                    new KeywordFieldMapper.Builder("keyword").ignoreAbove(256)
+                    new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
                 ),
                 context
             );
@@ -324,7 +324,8 @@ final class DynamicFieldsBuilder {
                     name,
                     NumberFieldMapper.NumberType.LONG,
                     ScriptCompiler.NONE,
-                    context.indexSettings().getSettings()
+                    context.indexSettings().getSettings(),
+                    context.indexSettings().getIndexVersionCreated()
                 ),
                 context
             );
@@ -340,7 +341,8 @@ final class DynamicFieldsBuilder {
                     name,
                     NumberFieldMapper.NumberType.FLOAT,
                     ScriptCompiler.NONE,
-                    context.indexSettings().getSettings()
+                    context.indexSettings().getSettings(),
+                    context.indexSettings().getIndexVersionCreated()
                 ),
                 context
             );
@@ -348,7 +350,10 @@ final class DynamicFieldsBuilder {
 
         @Override
         public void newDynamicBooleanField(DocumentParserContext context, String name) throws IOException {
-            createDynamicField(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE), context);
+            createDynamicField(
+                new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, context.indexSettings().getIndexVersionCreated()),
+                context
+            );
         }
 
         @Override

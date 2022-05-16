@@ -184,13 +184,10 @@ public final class Uid {
             throw new IllegalArgumentException("Ids can't be empty");
         }
         final int magicChar = Byte.toUnsignedInt(idBytes[offset]);
-        switch (magicChar) {
-            case NUMERIC:
-                return decodeNumericId(idBytes, offset, length);
-            case UTF8:
-                return decodeUtf8Id(idBytes, offset, length);
-            default:
-                return decodeBase64Id(idBytes, offset, length);
-        }
+        return switch (magicChar) {
+            case NUMERIC -> decodeNumericId(idBytes, offset, length);
+            case UTF8 -> decodeUtf8Id(idBytes, offset, length);
+            default -> decodeBase64Id(idBytes, offset, length);
+        };
     }
 }

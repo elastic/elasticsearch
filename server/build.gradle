@@ -9,7 +9,6 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'nebula.optional-base'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -50,7 +49,7 @@ dependencies {
 
   // utilities
   api project(":libs:elasticsearch-cli")
-  api 'com.carrotsearch:hppc:0.8.1'
+  implementation 'com.carrotsearch:hppc:0.8.1'
 
   // percentiles aggregation
   api 'com.tdunning:t-digest:3.2'
@@ -59,7 +58,7 @@ dependencies {
 
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
+  api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   api "net.java.dev.jna:jna:${versions.jna}"
 
@@ -84,11 +83,18 @@ tasks.named("forbiddenPatterns").configure {
     exclude '**/*.st'
 }
 
+tasks.named('forbiddenApisMain').configure {
+  addSignatureFiles 'hppc-signatures'
+}
+tasks.named('forbiddenApisTest').configure {
+  addSignatureFiles 'hppc-signatures'
+}
+
 tasks.named("testingConventions").configure {
     naming.clear()
     naming {
         Tests {
-            baseClass "org.apache.lucene.util.LuceneTestCase"
+            baseClass "org.apache.lucene.tests.util.LuceneTestCase"
         }
         IT {
             baseClass "org.elasticsearch.test.ESIntegTestCase"
@@ -144,6 +150,13 @@ tasks.named("thirdPartyAudit").configure {
 
             // from log4j
             'com.conversantmedia.util.concurrent.SpinPolicy',
+            'com.fasterxml.jackson.core.JsonGenerator',
+            'com.fasterxml.jackson.core.JsonParser',
+            'com.fasterxml.jackson.core.JsonParser$Feature',
+            'com.fasterxml.jackson.core.JsonToken',
+            'com.fasterxml.jackson.core.PrettyPrinter',
+            'com.fasterxml.jackson.core.type.TypeReference',
+            'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
             'com.fasterxml.jackson.databind.SerializationFeature',
             'com.fasterxml.jackson.annotation.JsonInclude$Include',
             'com.fasterxml.jackson.databind.DeserializationContext',
@@ -238,11 +251,4 @@ tasks.named("licenseHeaders").configure {
     // Ignore temporary copies of impending 8.7 Lucene classes
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
-}
-
-tasks.named('splitPackagesAudit').configure {
-    // Lucene packages should be owned by Lucene!
-    // These are tricky because Lucene itself splits the index package,
-    // but this should be fixed in Lucene 9
-  ignoreClasses 'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper'
 }

@@ -684,16 +684,13 @@ public class CloseIndexIT extends ESIntegTestCase {
 
     static void assertException(final Throwable throwable, final String indexName) {
         final Throwable t = ExceptionsHelper.unwrapCause(throwable);
-        if (t instanceof ClusterBlockException) {
-            ClusterBlockException clusterBlockException = (ClusterBlockException) t;
+        if (t instanceof ClusterBlockException clusterBlockException) {
             assertThat(clusterBlockException.blocks(), hasSize(1));
             assertTrue(clusterBlockException.blocks().stream().allMatch(b -> b.id() == MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID));
-        } else if (t instanceof IndexClosedException) {
-            IndexClosedException indexClosedException = (IndexClosedException) t;
+        } else if (t instanceof IndexClosedException indexClosedException) {
             assertThat(indexClosedException.getIndex(), notNullValue());
             assertThat(indexClosedException.getIndex().getName(), equalTo(indexName));
-        } else if (t instanceof IndexNotFoundException) {
-            IndexNotFoundException indexNotFoundException = (IndexNotFoundException) t;
+        } else if (t instanceof IndexNotFoundException indexNotFoundException) {
             assertThat(indexNotFoundException.getIndex(), notNullValue());
             assertThat(indexNotFoundException.getIndex().getName(), equalTo(indexName));
         } else {

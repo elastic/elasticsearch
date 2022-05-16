@@ -48,18 +48,13 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         }
 
         public static Type fromId(byte id) {
-            switch (id) {
-                case 0:
-                    return TERMS;
-                case 1:
-                    return HISTOGRAM;
-                case 2:
-                    return DATE_HISTOGRAM;
-                case 3:
-                    return GEOTILE_GRID;
-                default:
-                    throw new IllegalArgumentException("unknown type");
-            }
+            return switch (id) {
+                case 0 -> TERMS;
+                case 1 -> HISTOGRAM;
+                case 2 -> DATE_HISTOGRAM;
+                case 3 -> GEOTILE_GRID;
+                default -> throw new IllegalArgumentException("unknown type");
+            };
         }
 
         public String value() {

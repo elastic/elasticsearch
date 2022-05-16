@@ -620,7 +620,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     static boolean shouldRetry(final Exception e) {
-        if (NetworkExceptionHelper.isConnectException(e) || NetworkExceptionHelper.getCloseConnectionExceptionLevel(e) != Level.OFF) {
+        if (NetworkExceptionHelper.isConnectException(e)
+            || NetworkExceptionHelper.getCloseConnectionExceptionLevel(e, false) != Level.OFF) {
             return true;
         }
 

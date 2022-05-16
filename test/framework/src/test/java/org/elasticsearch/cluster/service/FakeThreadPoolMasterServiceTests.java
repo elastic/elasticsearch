@@ -76,7 +76,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         masterService.start();
 
         AtomicBoolean firstTaskCompleted = new AtomicBoolean();
-        masterService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
+        masterService.submitUnbatchedStateUpdateTask("test1", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)
@@ -85,13 +85,13 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 assertFalse(firstTaskCompleted.get());
                 firstTaskCompleted.set(true);
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError();
             }
         });
@@ -116,7 +116,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertThat(runnableTasks.size(), equalTo(0));
 
         AtomicBoolean secondTaskCompleted = new AtomicBoolean();
-        masterService.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
+        masterService.submitUnbatchedStateUpdateTask("test2", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)
@@ -125,13 +125,13 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 assertFalse(secondTaskCompleted.get());
                 secondTaskCompleted.set(true);
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError();
             }
         });

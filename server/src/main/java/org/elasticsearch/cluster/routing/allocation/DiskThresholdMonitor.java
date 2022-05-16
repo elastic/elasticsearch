@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -47,7 +46,6 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 /**
  * Listens for a node to go over the high watermark and kicks off an empty
@@ -144,8 +142,7 @@ public class DiskThresholdMonitor {
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
 
         // Clean up nodes that have been removed from the cluster
-        final Set<String> nodes = new HashSet<>(usages.size());
-        usages.keys().iterator().forEachRemaining(item -> nodes.add(item.value));
+        final Set<String> nodes = new HashSet<>(usages.keySet());
         cleanUpRemovedNodes(nodes, nodesOverLowThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThresholdAndRelocating);
@@ -375,7 +372,8 @@ public class DiskThresholdMonitor {
         }
 
         // Generate a map of node name to ID so we can use it to look up node replacement targets
-        final Map<String, String> nodeNameToId = StreamSupport.stream(state.getRoutingNodes().spliterator(), false)
+        final Map<String, String> nodeNameToId = state.getRoutingNodes()
+            .stream()
             .collect(Collectors.toMap(rn -> rn.node().getName(), RoutingNode::nodeId, (s1, s2) -> s2));
 
         // Calculate both the source node id and the target node id of a "replace" type shutdown
@@ -435,7 +433,7 @@ public class DiskThresholdMonitor {
         );
     }
 
-    private void markNodesMissingUsageIneligibleForRelease(
+    private static void markNodesMissingUsageIneligibleForRelease(
         RoutingNodes routingNodes,
         ImmutableOpenMap<String, DiskUsage> usages,
         Set<String> indicesToMarkIneligibleForAutoRelease
@@ -460,7 +458,7 @@ public class DiskThresholdMonitor {
             setLastRunTimeMillis();
             listener.onResponse(r);
         }, e -> {
-            logger.debug(new ParameterizedMessage("setting indices [{}] read-only failed", readOnly), e);
+            logger.debug(() -> "setting indices [" + readOnly + "] read-only failed", e);
             setLastRunTimeMillis();
             listener.onFailure(e);
         });
@@ -481,7 +479,7 @@ public class DiskThresholdMonitor {
         }
     }
 
-    private boolean isDedicatedFrozenNode(RoutingNode routingNode) {
+    private static boolean isDedicatedFrozenNode(RoutingNode routingNode) {
         if (routingNode == null) {
             return false;
         }

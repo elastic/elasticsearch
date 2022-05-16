@@ -9,7 +9,7 @@
   - do:
       index:
         index:       src
-        id:          1
+        id:          "1"
         body:        {"text": "test"}
   - do:
       indices.refresh: {}
@@ -42,4 +42,4 @@
   - do:
       get:
         index: dest
-        id:    1
+        id:    "1"

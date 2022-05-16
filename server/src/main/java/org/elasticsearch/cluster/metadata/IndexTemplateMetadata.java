@@ -8,8 +8,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -17,7 +17,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
@@ -39,7 +38,7 @@ import java.util.Set;
 import static org.elasticsearch.core.RestApiVersion.V_8;
 import static org.elasticsearch.core.RestApiVersion.onOrAfter;
 
-public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadata> {
+public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetadata> {
 
     private final String name;
 
@@ -133,7 +132,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         if (this.mappings.isEmpty()) {
             return null;
         }
-        return this.mappings.iterator().next().value;
+        return this.mappings.values().iterator().next();
     }
 
     public CompressedXContent getMappings() {
@@ -199,7 +198,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
     }
 
     public static Diff<IndexTemplateMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(IndexTemplateMetadata::readFrom, in);
+        return SimpleDiffable.readDiffFrom(IndexTemplateMetadata::readFrom, in);
     }
 
     @Override
@@ -235,14 +234,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
 
     public static class Builder {
 
-        private static final Set<String> VALID_FIELDS = Sets.newHashSet(
-            "order",
-            "mappings",
-            "settings",
-            "index_patterns",
-            "aliases",
-            "version"
-        );
+        private static final Set<String> VALID_FIELDS = Set.of("order", "mappings", "settings", "index_patterns", "aliases", "version");
 
         private String name;
 

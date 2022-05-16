@@ -172,7 +172,15 @@ public class WatcherServiceTests extends ESTestCase {
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(RefreshRequest.class), anyActionListener());
 
         // empty scroll response, no further scrolling needed
-        SearchResponseSections scrollSearchSections = new SearchResponseSections(SearchHits.empty(), null, null, false, false, null, 1);
+        SearchResponseSections scrollSearchSections = new SearchResponseSections(
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
+            null,
+            null,
+            false,
+            false,
+            null,
+            1
+        );
         SearchResponse scrollSearchResponse = new SearchResponse(
             scrollSearchSections,
             "scrollId",

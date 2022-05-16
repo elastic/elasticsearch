@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ccr;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -55,7 +53,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -64,6 +62,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -486,8 +485,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             .indices()
             .getAliases(new GetAliasesRequest("follower_alias"))
             .actionGet();
-        assertThat(response.getAliases().keys().size(), equalTo(1));
-        assertThat(response.getAliases().keys().iterator().next().value, equalTo("follower"));
+        assertThat(response.getAliases().keySet().size(), equalTo(1));
+        assertThat(response.getAliases().keySet().iterator().next(), equalTo("follower"));
         final List<AliasMetadata> aliasMetadata = response.getAliases().get("follower");
         assertThat(aliasMetadata, hasSize(1));
         assertThat(aliasMetadata.get(0).alias(), equalTo("follower_alias"));
@@ -1199,7 +1198,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final PutFollowAction.Request followRequest = putFollow("leader", "follower");
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
         ClusterService clusterService = getLeaderCluster().getInstance(ClusterService.class, getLeaderCluster().getMasterName());
-        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final IndexMetadata indexMetadata = currentState.metadata().index("leader");
@@ -1222,7 +1221,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
         });
@@ -1267,7 +1266,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final ClusterService clusterService = getLeaderCluster().getInstance(ClusterService.class, getLeaderCluster().getMasterName());
         final SetOnce<Long> settingVersionOnLeader = new SetOnce<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final IndexMetadata indexMetadata = currentState.metadata().index("leader");
@@ -1286,13 +1285,13 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 settingVersionOnLeader.set(newState.metadata().index("leader").getSettingsVersion());
                 latch.countDown();
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
         });
@@ -1363,8 +1362,9 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 new Index("index1", leaderUUID)
             );
 
-            for (final ObjectCursor<IndexShardRoutingTable> shardRoutingTable : leaderRoutingTable.index("index1").shards().values()) {
-                final ShardId shardId = shardRoutingTable.value.shardId();
+            final IndexRoutingTable indexRoutingTable = leaderRoutingTable.index("index1");
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                final ShardId shardId = indexRoutingTable.shard(i).shardId();
                 leaderClient().execute(
                     RetentionLeaseActions.Remove.INSTANCE,
                     new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId)
@@ -1395,7 +1395,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final Consumer<Collection<ResourceNotFoundException>> exceptionConsumer
     ) throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
-        final Map<String, String> extraSettingsMap = new HashMap<>(2);
+        final Map<String, String> extraSettingsMap = Maps.newMapWithExpectedSize(2);
         extraSettingsMap.put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms");
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1), extraSettingsMap);
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
@@ -1660,13 +1660,13 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 TaskInfo taskInfo = null;
                 String expectedId = "id=" + shardFollowTask.getId();
                 for (TaskInfo info : taskInfos) {
-                    if (expectedId.equals(info.getDescription())) {
+                    if (expectedId.equals(info.description())) {
                         taskInfo = info;
                         break;
                     }
                 }
                 assertThat(taskInfo, notNullValue());
-                ShardFollowNodeTaskStatus status = (ShardFollowNodeTaskStatus) taskInfo.getStatus();
+                ShardFollowNodeTaskStatus status = (ShardFollowNodeTaskStatus) taskInfo.status();
                 assertThat(status, notNullValue());
                 assertThat(
                     "incorrect global checkpoint " + shardFollowTaskParams,

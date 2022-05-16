@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -69,6 +70,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
     ) {
         super(
             AddVotingConfigExclusionsAction.NAME,
+            false,
             transportService,
             clusterService,
             threadPool,
@@ -98,7 +100,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
         resolveVotingConfigExclusionsAndCheckMaximum(request, state, maxVotingConfigExclusions);
         // throws IAE if no nodes matched or maximum exceeded
 
-        clusterService.submitStateUpdateTask("add-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT) {
+        submitUnbatchedTask("add-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT) {
 
             private Set<VotingConfigExclusion> resolvedExclusions;
 
@@ -117,12 +119,12 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
 
                 final ClusterStateObserver observer = new ClusterStateObserver(
                     clusterService,
@@ -174,6 +176,11 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
                 }
             }
         });
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private static Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(

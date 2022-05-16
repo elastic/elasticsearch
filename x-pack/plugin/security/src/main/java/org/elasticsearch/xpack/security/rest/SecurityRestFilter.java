@@ -24,8 +24,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.MediaType;
-import org.elasticsearch.xcontent.MediaTypeRegistry;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
@@ -122,7 +120,7 @@ public class SecurityRestFilter implements RestHandler {
         }
     }
 
-    protected void handleException(ActionType actionType, RestRequest request, RestChannel channel, Exception e) {
+    protected static void handleException(ActionType actionType, RestRequest request, RestChannel channel, Exception e) {
         logger.debug(new ParameterizedMessage("{} failed for REST request [{}]", actionType, request.uri()), e);
         final RestStatus restStatus = ExceptionsHelper.status(e);
         try {
@@ -150,10 +148,7 @@ public class SecurityRestFilter implements RestHandler {
             });
         } catch (Exception inner) {
             inner.addSuppressed(e);
-            logger.error(
-                (Supplier<?>) () -> new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()),
-                inner
-            );
+            logger.error((Supplier<?>) () -> "failed to send failure response for uri [" + request.uri() + "]", inner);
         }
     }
 
@@ -185,7 +180,7 @@ public class SecurityRestFilter implements RestHandler {
     }
 
     @Override
-    public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
-        return restHandler.validAcceptMediaTypes();
+    public boolean mediaTypesValid(RestRequest request) {
+        return restHandler.mediaTypesValid(request);
     }
 }

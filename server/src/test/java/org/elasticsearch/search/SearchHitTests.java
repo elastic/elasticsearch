@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.get.GetResultTests;
 import org.elasticsearch.index.shard.ShardId;
@@ -95,7 +96,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         }
         if (randomBoolean()) {
             int size = randomIntBetween(0, 5);
-            Map<String, HighlightField> highlightFields = new HashMap<>(size);
+            Map<String, HighlightField> highlightFields = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 HighlightField testItem = HighlightFieldTests.createTestItem();
                 highlightFields.put(testItem.getName(), testItem);
@@ -116,7 +117,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         if (withOptionalInnerHits) {
             int innerHitsSize = randomIntBetween(0, 3);
             if (innerHitsSize > 0) {
-                Map<String, SearchHits> innerHits = new HashMap<>(innerHitsSize);
+                Map<String, SearchHits> innerHits = Maps.newMapWithExpectedSize(innerHitsSize);
                 for (int i = 0; i < innerHitsSize; i++) {
                     innerHits.put(randomAlphaOfLength(5), SearchHitsTests.createTestItem(xContentType, false, transportSerialization));
                 }

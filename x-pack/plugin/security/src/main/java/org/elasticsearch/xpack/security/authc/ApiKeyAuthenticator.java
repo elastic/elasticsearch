@@ -49,16 +49,13 @@ class ApiKeyAuthenticator implements Authenticator {
         ApiKeyCredentials apiKeyCredentials = (ApiKeyCredentials) authenticationToken;
         apiKeyService.tryAuthenticate(context.getThreadContext(), apiKeyCredentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
-                final Authentication authentication = apiKeyService.createApiKeyAuthentication(authResult, nodeName);
+                final Authentication authentication = Authentication.newApiKeyAuthentication(authResult, nodeName);
                 listener.onResponse(AuthenticationResult.success(authentication));
             } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                 Exception e = (authResult.getException() != null)
                     ? authResult.getException()
                     : Exceptions.authenticationError(authResult.getMessage());
-                logger.debug(
-                    new ParameterizedMessage("API key service terminated authentication for request [{}]", context.getRequest()),
-                    e
-                );
+                logger.debug(() -> "API key service terminated authentication for request [" + context.getRequest() + "]", e);
                 listener.onFailure(e);
             } else {
                 if (authResult.getMessage() != null) {

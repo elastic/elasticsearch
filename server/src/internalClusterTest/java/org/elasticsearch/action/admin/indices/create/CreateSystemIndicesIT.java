@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -17,7 +18,11 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -40,6 +45,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.INDEX_NAME;
@@ -47,6 +54,8 @@ import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_
 import static org.elasticsearch.test.XContentTestUtils.convertToXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class CreateSystemIndicesIT extends ESIntegTestCase {
@@ -91,9 +100,29 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      * settings when it is first used, when it is referenced via its concrete
      * index name.
      */
-    public void testNonPrimarySystemIndexIsAutoCreatedViaConcreteName() {
+    public void testNonPrimarySystemIndexIsAutoCreatedViaConcreteName() throws Exception {
         final String nonPrimarySystemIndex = INDEX_NAME + "-2";
-        doCreateTest(() -> indexDoc(nonPrimarySystemIndex, "1", "foo", "bar"), nonPrimarySystemIndex);
+        internalCluster().startNodes(1);
+
+        // Trigger the creation of the system index
+        indexDoc(nonPrimarySystemIndex, "1", "foo", "bar");
+        ensureGreen(nonPrimarySystemIndex);
+
+        assertFalse(indexExists(PRIMARY_INDEX_NAME));
+        assertTrue(indexExists(INDEX_NAME + "-2"));
+
+        // Check that a non-primary system index is not assigned as the write index for the alias
+        final GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
+            .actionGet();
+
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get(nonPrimarySystemIndex).size(), equalTo(1));
+        assertThat(
+            getAliasesResponse.getAliases().get(nonPrimarySystemIndex).get(0),
+            equalTo(AliasMetadata.builder(INDEX_NAME).isHidden(true).build())
+        );
     }
 
     /**
@@ -201,6 +230,31 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertAliases(concreteIndex);
     }
 
+    public void testConcurrentAutoCreates() throws InterruptedException {
+        internalCluster().startNodes(3);
+
+        final Client client = client();
+        final int count = randomIntBetween(5, 30);
+        final CountDownLatch latch = new CountDownLatch(count);
+        final ActionListener<BulkResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(BulkResponse o) {
+                latch.countDown();
+                assertFalse(o.hasFailures());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                latch.countDown();
+                throw new AssertionError(e);
+            }
+        };
+        for (int i = 0; i < count; i++) {
+            client.bulk(new BulkRequest().add(new IndexRequest(INDEX_NAME).source(Map.of("foo", "bar"))), listener);
+        }
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
     /**
      * Make sure that aliases are created hidden
      */
@@ -213,6 +267,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(concreteIndex).size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(concreteIndex).get(0).isHidden(), equalTo(true));
+        assertThat(getAliasesResponse.getAliases().get(concreteIndex).get(0).writeIndex(), equalTo(true));
     }
 
     private void assertHasAliases(Set<String> aliasNames) throws InterruptedException, java.util.concurrent.ExecutionException {
@@ -221,15 +276,20 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
             .get();
 
-        // Attempting to directly create a non-primary system index only creates the primary index
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).size(), equalTo(2));
         assertThat(
             getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
             equalTo(aliasNames)
         );
-        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(0).isHidden(), equalTo(true));
-        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(1).isHidden(), equalTo(true));
+        for (AliasMetadata aliasMetadata : getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME)) {
+            assertThat(aliasMetadata.isHidden(), equalTo(true));
+            if (aliasMetadata.alias().equals(INDEX_NAME)) {
+                assertThat(aliasMetadata.writeIndex(), is(true));
+            } else {
+                assertThat(aliasMetadata.writeIndex(), is(nullValue()));
+            }
+        }
     }
 
     /**

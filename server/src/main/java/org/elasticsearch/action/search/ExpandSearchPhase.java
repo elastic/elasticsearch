@@ -9,21 +9,20 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * This search phase is an optional phase that will be executed once all hits are fetched from the shards that executes
@@ -33,13 +32,13 @@ import java.util.List;
 final class ExpandSearchPhase extends SearchPhase {
     private final SearchPhaseContext context;
     private final InternalSearchResponse searchResponse;
-    private final AtomicArray<SearchPhaseResult> queryResults;
+    private final Supplier<SearchPhase> nextPhase;
 
-    ExpandSearchPhase(SearchPhaseContext context, InternalSearchResponse searchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+    ExpandSearchPhase(SearchPhaseContext context, InternalSearchResponse searchResponse, Supplier<SearchPhase> nextPhase) {
         super("expand");
         this.context = context;
         this.searchResponse = searchResponse;
-        this.queryResults = queryResults;
+        this.nextPhase = nextPhase;
     }
 
     /**
@@ -95,19 +94,19 @@ final class ExpandSearchPhase extends SearchPhase {
                         }
                         SearchHits innerHits = item.getResponse().getHits();
                         if (hit.getInnerHits() == null) {
-                            hit.setInnerHits(new HashMap<>(innerHitBuilders.size()));
+                            hit.setInnerHits(Maps.newMapWithExpectedSize(innerHitBuilders.size()));
                         }
                         hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
                     }
                 }
-                context.sendSearchResponse(searchResponse, queryResults);
+                onPhaseDone();
             }, context::onFailure));
         } else {
-            context.sendSearchResponse(searchResponse, queryResults);
+            onPhaseDone();
         }
     }
 
-    private SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options, CollapseBuilder innerCollapseBuilder) {
+    private static SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options, CollapseBuilder innerCollapseBuilder) {
         SearchSourceBuilder groupSource = new SearchSourceBuilder();
         groupSource.from(options.getFrom());
         groupSource.size(options.getSize());
@@ -146,5 +145,9 @@ final class ExpandSearchPhase extends SearchPhase {
             groupSource.collapse(innerCollapseBuilder);
         }
         return groupSource;
+    }
+
+    private void onPhaseDone() {
+        context.executeNextPhase(this, nextPhase.get());
     }
 }

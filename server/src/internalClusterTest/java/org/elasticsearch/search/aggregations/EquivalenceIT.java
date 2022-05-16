@@ -8,12 +8,11 @@
 
 package org.elasticsearch.search.aggregations;
 
-import com.carrotsearch.hppc.IntHashSet;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -38,9 +37,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
@@ -139,19 +140,12 @@ public class EquivalenceIT extends ESIntegTestCase {
         final int numRanges = randomIntBetween(1, 20);
         final double[][] ranges = new double[numRanges][];
         for (int i = 0; i < ranges.length; ++i) {
-            switch (randomInt(2)) {
-                case 0:
-                    ranges[i] = new double[] { Double.NEGATIVE_INFINITY, randomInt(100) };
-                    break;
-                case 1:
-                    ranges[i] = new double[] { randomInt(100), Double.POSITIVE_INFINITY };
-                    break;
-                case 2:
-                    ranges[i] = new double[] { randomInt(100), randomInt(100) };
-                    break;
-                default:
-                    throw new AssertionError();
-            }
+            ranges[i] = switch (randomInt(2)) {
+                case 0 -> new double[] { Double.NEGATIVE_INFINITY, randomInt(100) };
+                case 1 -> new double[] { randomInt(100), Double.POSITIVE_INFINITY };
+                case 2 -> new double[] { randomInt(100), randomInt(100) };
+                default -> throw new AssertionError();
+            };
         }
 
         RangeAggregationBuilder query = range("range").field("values");
@@ -182,7 +176,7 @@ public class EquivalenceIT extends ESIntegTestCase {
         Range range = resp.getAggregations().get("range");
         List<? extends Bucket> buckets = range.getBuckets();
 
-        HashMap<String, Bucket> bucketMap = new HashMap<>(buckets.size());
+        Map<String, Bucket> bucketMap = Maps.newMapWithExpectedSize(buckets.size());
         for (Bucket bucket : buckets) {
             bucketMap.put(bucket.getKeyAsString(), bucket);
         }
@@ -213,7 +207,7 @@ public class EquivalenceIT extends ESIntegTestCase {
         final int numDocs = scaledRandomIntBetween(1000, 2000);
         final int maxNumTerms = randomIntBetween(10, 5000);
 
-        final IntHashSet valuesSet = new IntHashSet();
+        final Set<Integer> valuesSet = new HashSet<>();
         cluster().wipeIndices("idx");
         prepareCreate("idx").setMapping(
             jsonBuilder().startObject()
@@ -463,7 +457,7 @@ public class EquivalenceIT extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getDocCount(), equalTo(value < 6 ? 1L : 0L));
         Sum sum = bucket.getAggregations().get("sum");
-        assertEquals(value < 6 ? value : 0, sum.getValue(), 0d);
+        assertEquals(value < 6 ? value : 0, sum.value(), 0d);
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -472,7 +466,7 @@ public class EquivalenceIT extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getDocCount(), equalTo(value >= 6 ? 1L : 0L));
         sum = bucket.getAggregations().get("sum");
-        assertEquals(value >= 6 ? value : 0, sum.getValue(), 0d);
+        assertEquals(value >= 6 ? value : 0, sum.value(), 0d);
     }
 
     private void assertEquals(Terms t1, Terms t2) {

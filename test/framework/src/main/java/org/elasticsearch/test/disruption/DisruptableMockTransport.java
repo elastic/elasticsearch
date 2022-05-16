@@ -148,21 +148,10 @@ public abstract class DisruptableMockTransport extends MockTransport {
                 try {
                     final ConnectionStatus connectionStatus = getConnectionStatus(destinationTransport.getLocalNode());
                     switch (connectionStatus) {
-                        case BLACK_HOLE:
-                        case BLACK_HOLE_REQUESTS_ONLY:
-                            onBlackholedDuringSend(requestId, action, destinationTransport);
-                            break;
-
-                        case DISCONNECTED:
-                            onDisconnectedDuringSend(requestId, action, destinationTransport);
-                            break;
-
-                        case CONNECTED:
-                            onConnectedDuringSend(requestId, action, request, destinationTransport);
-                            break;
-
-                        default:
-                            throw new AssertionError("unexpected status: " + connectionStatus);
+                        case BLACK_HOLE, BLACK_HOLE_REQUESTS_ONLY -> onBlackholedDuringSend(requestId, action, destinationTransport);
+                        case DISCONNECTED -> onDisconnectedDuringSend(requestId, action, destinationTransport);
+                        case CONNECTED -> onConnectedDuringSend(requestId, action, request, destinationTransport);
+                        default -> throw new AssertionError("unexpected status: " + connectionStatus);
                     }
                 } finally {
                     request.decRef();
@@ -277,19 +266,12 @@ public abstract class DisruptableMockTransport extends MockTransport {
                     public void run() {
                         final ConnectionStatus connectionStatus = destinationTransport.getConnectionStatus(getLocalNode());
                         switch (connectionStatus) {
-                            case CONNECTED:
-                            case BLACK_HOLE_REQUESTS_ONLY:
-                                handleResponse(requestId, response);
-                                break;
-
-                            case BLACK_HOLE:
-                            case DISCONNECTED:
+                            case CONNECTED, BLACK_HOLE_REQUESTS_ONLY -> handleResponse(requestId, response);
+                            case BLACK_HOLE, DISCONNECTED -> {
                                 logger.trace("delaying response to {}: channel is {}", requestDescription, connectionStatus);
                                 onBlackholedDuringSend(requestId, action, destinationTransport);
-                                break;
-
-                            default:
-                                throw new AssertionError("unexpected status: " + connectionStatus);
+                            }
+                            default -> throw new AssertionError("unexpected status: " + connectionStatus);
                         }
                     }
 
@@ -308,19 +290,12 @@ public abstract class DisruptableMockTransport extends MockTransport {
                     public void run() {
                         final ConnectionStatus connectionStatus = destinationTransport.getConnectionStatus(getLocalNode());
                         switch (connectionStatus) {
-                            case CONNECTED:
-                            case BLACK_HOLE_REQUESTS_ONLY:
-                                handleRemoteError(requestId, exception);
-                                break;
-
-                            case BLACK_HOLE:
-                            case DISCONNECTED:
+                            case CONNECTED, BLACK_HOLE_REQUESTS_ONLY -> handleRemoteError(requestId, exception);
+                            case BLACK_HOLE, DISCONNECTED -> {
                                 logger.trace("delaying exception response to {}: channel is {}", requestDescription, connectionStatus);
                                 onBlackholedDuringSend(requestId, action, destinationTransport);
-                                break;
-
-                            default:
-                                throw new AssertionError("unexpected status: " + connectionStatus);
+                            }
+                            default -> throw new AssertionError("unexpected status: " + connectionStatus);
                         }
                     }
 

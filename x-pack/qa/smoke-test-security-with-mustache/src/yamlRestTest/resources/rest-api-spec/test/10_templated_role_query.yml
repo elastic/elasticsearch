@@ -1,0 +1,191 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_user:
+        username: "inline_template_user"
+        body:  >
+            {
+              "password": "x-pack-test-password",
+              "roles" : [ "inline_template_role" ]
+            }
+  - do:
+      security.put_user:
+        username: "stored_template_user"
+        body:  >
+            {
+              "password": "x-pack-test-password",
+              "roles" : [ "stored_template_role" ]
+            }
+
+  - do:
+      security.put_user:
+        username: "terms_template_user"
+        body:  >
+            {
+              "password": "x-pack-test-password",
+              "roles" : [ "terms_template_role" ],
+              "metadata": {
+                "groups": [ "inline_template_user"]
+              }
+            }
+
+  - do:
+      security.put_role:
+        name: "inline_template_role"
+        body:  >
+            {
+              "indices": [
+                {
+                  "names": "foobar",
+                  "privileges": ["all"],
+                  "query" : {
+                    "template" : {
+                      "source" : {
+                        "term" : { "username" : "{{_user.username}}" }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+
+  - do:
+      security.put_role:
+        name: "terms_template_role"
+        body:  >
+            {
+              "indices": [
+                {
+                  "names": "foobar",
+                  "privileges": ["all"],
+                  "query" : {
+                    "template" : {
+                      "source" : "{\"terms\" : { \"username\" : {{#toJson}}_user.metadata.groups{{/toJson}} } }"
+                    }
+                  }
+                }
+              ]
+            }
+
+  - do:
+      security.put_role:
+        name: "stored_template_role"
+        body:  >
+            {
+              "indices": [
+                {
+                  "names": "foobar",
+                  "privileges": ["all"],
+                  "query" : {
+                    "template" : {
+                      "id" : "1"
+                    }
+                  }
+                }
+              ]
+            }
+
+  - do:
+      put_script:
+        id: "1"
+        body: >
+            {
+              "script": {
+                "lang": "mustache",
+                "source": {
+                  "term" : {
+                    "username" : "{{_user.username}}"
+                  }
+                }
+              }
+            }
+
+  - do:
+      index:
+        index: foobar
+        id: "1"
+        body:  >
+          {
+            "username": "inline_template_user"
+          }
+  - do:
+      index:
+        index: foobar
+        id: "2"
+        body:  >
+          {
+            "username": "stored_template_user"
+          }
+
+  - do:
+      indices.refresh:
+        index: foobar
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "inline_template_user"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "stored_template_user"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "terms_template_user"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "inline_template_role"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "stored_template_role"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "terms_template_role"
+        ignore: 404
+---
+"Test inline template":
+  - do:
+      headers:
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
+      search:
+        rest_total_hits_as_int: true
+        index: foobar
+        body: { "query" : { "match_all" : {} } }
+  - match: { hits.total: 1}
+  - match: { hits.hits.0._source.username: inline_template_user}
+
+---
+"Test stored template":
+  - do:
+      headers:
+        Authorization: "Basic c3RvcmVkX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
+      search:
+        rest_total_hits_as_int: true
+        index: foobar
+        body: { "query" : { "match_all" : {} } }
+  - match: { hits.total: 1}
+  - match: { hits.hits.0._source.username: stored_template_user}
+
+---
+"Test terms template":
+  - do:
+      headers:
+        Authorization: "Basic dGVybXNfdGVtcGxhdGVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      search:
+        rest_total_hits_as_int: true
+        index: foobar
+        body: { "query" : { "match_all" : {} } }
+  - match: { hits.total: 1}
+  - match: { hits.hits.0._source.username: inline_template_user}

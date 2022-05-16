@@ -202,20 +202,14 @@ public class RecallAtKTests extends ESTestCase {
     }
 
     private static RecallAtK mutate(RecallAtK original) {
-        RecallAtK recallAtK;
-        switch (randomIntBetween(0, 1)) {
-            case 0:
-                recallAtK = new RecallAtK(
-                    randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
-                    original.forcedSearchSize().getAsInt()
-                );
-                break;
-            case 1:
-                recallAtK = new RecallAtK(original.getRelevantRatingThreshold(), original.forcedSearchSize().getAsInt() + 1);
-                break;
-            default:
-                throw new IllegalStateException("The test should only allow two parameters mutated");
-        }
+        RecallAtK recallAtK = switch (randomIntBetween(0, 1)) {
+            case 0 -> new RecallAtK(
+                randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
+                original.forcedSearchSize().getAsInt()
+            );
+            case 1 -> new RecallAtK(original.getRelevantRatingThreshold(), original.forcedSearchSize().getAsInt() + 1);
+            default -> throw new IllegalStateException("The test should only allow two parameters mutated");
+        };
         return recallAtK;
     }
 

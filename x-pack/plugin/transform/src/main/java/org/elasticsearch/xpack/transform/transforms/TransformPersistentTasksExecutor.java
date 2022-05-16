@@ -344,20 +344,14 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         if (previousState == null) {
             return IndexerState.STOPPED;
         }
-        switch (previousState.getIndexerState()) {
+        return switch (previousState.getIndexerState()) {
             // If it is STARTED or INDEXING we want to make sure we revert to started
             // Otherwise, the internal indexer will never get scheduled and execute
-            case STARTED:
-            case INDEXING:
-                return IndexerState.STARTED;
+            case STARTED, INDEXING -> IndexerState.STARTED;
             // If we are STOPPED, STOPPING, or ABORTING and just started executing on this node,
             // then it is safe to say we should be STOPPED
-            case STOPPED:
-            case STOPPING:
-            case ABORTING:
-            default:
-                return IndexerState.STOPPED;
-        }
+            case STOPPED, STOPPING, ABORTING -> IndexerState.STOPPED;
+        };
     }
 
     private void markAsFailed(TransformTask task, String reason) {

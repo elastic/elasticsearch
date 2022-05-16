@@ -82,20 +82,17 @@ public class ResourcePrivilegesMapTests extends ESTestCase {
     }
 
     private static ResourcePrivilegesMap mutateTestItem(ResourcePrivilegesMap original) {
-        switch (randomIntBetween(0, 1)) {
-            case 0:
-                return ResourcePrivilegesMap.builder()
-                    .addResourcePrivilege(randomAlphaOfLength(6), mapBuilder().put("read", true).put("write", true).map())
-                    .build();
-            case 1:
-                return ResourcePrivilegesMap.builder()
-                    .addResourcePrivilege("*", mapBuilder().put("read", false).put("write", false).map())
-                    .build();
-            default:
-                return ResourcePrivilegesMap.builder()
-                    .addResourcePrivilege(randomAlphaOfLength(6), mapBuilder().put("read", true).put("write", true).map())
-                    .build();
-        }
+        return switch (randomIntBetween(0, 1)) {
+            case 0 -> ResourcePrivilegesMap.builder()
+                .addResourcePrivilege(randomAlphaOfLength(6), mapBuilder().put("read", true).put("write", true).map())
+                .build();
+            case 1 -> ResourcePrivilegesMap.builder()
+                .addResourcePrivilege("*", mapBuilder().put("read", false).put("write", false).map())
+                .build();
+            default -> ResourcePrivilegesMap.builder()
+                .addResourcePrivilege(randomAlphaOfLength(6), mapBuilder().put("read", true).put("write", true).map())
+                .build();
+        };
     }
 
     private static MapBuilder<String, Boolean> mapBuilder() {

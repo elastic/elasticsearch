@@ -116,7 +116,7 @@ public class SearchResponseTests extends ESTestCase {
                 numReducePhases
             );
         } else {
-            internalSearchResponse = InternalSearchResponse.empty();
+            internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
         }
 
         return new SearchResponse(
@@ -325,7 +325,7 @@ public class SearchResponseTests extends ESTestCase {
 
     public void testToXContentEmptyClusters() throws IOException {
         SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             null,
             1,
             1,

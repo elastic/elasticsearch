@@ -64,14 +64,9 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         MlMetadata.Builder metadataBuilder = new MlMetadata.Builder();
 
         switch (between(0, 1)) {
-            case 0:
-                metadataBuilder.isUpgradeMode(isUpgrade == false);
-                break;
-            case 1:
-                metadataBuilder.isResetMode(isReset == false);
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> metadataBuilder.isUpgradeMode(isUpgrade == false);
+            case 1 -> metadataBuilder.isResetMode(isReset == false);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return metadataBuilder.build();

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.extras;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -31,6 +32,7 @@ import java.util.Objects;
  * Query to run on a [rank_feature] field.
  */
 public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeatureQueryBuilder> {
+    private static final ScoreFunction DEFAULT_SCORE_FUNCTION = new ScoreFunction.Saturation();
 
     /**
      * Scoring function for a [rank_feature] field.
@@ -290,18 +292,13 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
 
     private static ScoreFunction readScoreFunction(StreamInput in) throws IOException {
         byte b = in.readByte();
-        switch (b) {
-            case 0:
-                return new ScoreFunction.Log(in);
-            case 1:
-                return new ScoreFunction.Saturation(in);
-            case 2:
-                return new ScoreFunction.Sigmoid(in);
-            case 3:
-                return new ScoreFunction.Linear(in);
-            default:
-                throw new IOException("Illegal score function id: " + b);
-        }
+        return switch (b) {
+            case 0 -> new ScoreFunction.Log(in);
+            case 1 -> new ScoreFunction.Saturation(in);
+            case 2 -> new ScoreFunction.Sigmoid(in);
+            case 3 -> new ScoreFunction.Linear(in);
+            default -> throw new IOException("Illegal score function id: " + b);
+        };
     }
 
     public static final ConstructingObjectParser<RankFeatureQueryBuilder, Void> PARSER = new ConstructingObjectParser<>("feature", args -> {
@@ -313,7 +310,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
         if (numNonNulls > 1) {
             throw new IllegalArgumentException("Can only specify one of [log], [saturation], [sigmoid] and [linear]");
         } else if (numNonNulls == 0) {
-            query = new RankFeatureQueryBuilder(field, new ScoreFunction.Saturation());
+            query = new RankFeatureQueryBuilder(field, DEFAULT_SCORE_FUNCTION);
         } else {
             ScoreFunction scoreFunction = (ScoreFunction) Arrays.stream(args, 3, args.length).filter(Objects::nonNull).findAny().get();
             query = new RankFeatureQueryBuilder(field, scoreFunction);
@@ -372,8 +369,10 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         builder.field("field", field);
-        scoreFunction.doXContent(builder);
-        printBoostAndQueryName(builder);
+        if (false == scoreFunction.equals(DEFAULT_SCORE_FUNCTION)) {
+            scoreFunction.doXContent(builder);
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -381,8 +380,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         final MappedFieldType ft = context.getFieldType(field);
 
-        if (ft instanceof RankFeatureFieldType) {
-            final RankFeatureFieldType fft = (RankFeatureFieldType) ft;
+        if (ft instanceof final RankFeatureFieldType fft) {
             return scoreFunction.toQuery(RankFeatureMetaFieldMapper.NAME, field, fft.positiveScoreImpact());
         } else if (ft == null) {
             final int lastDotIndex = field.lastIndexOf('.');
@@ -414,4 +412,8 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
         return Objects.hash(field, scoreFunction);
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

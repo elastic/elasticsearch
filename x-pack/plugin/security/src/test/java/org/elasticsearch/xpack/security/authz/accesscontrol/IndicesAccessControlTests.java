@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -34,15 +35,21 @@ public class IndicesAccessControlTests extends ESTestCase {
         IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
         assertTrue(indicesAccessControl.isGranted());
         assertNull(indicesAccessControl.getIndexPermissions(randomAlphaOfLengthBetween(3, 20)));
+        assertThat(indicesAccessControl.getIndicesWithFieldOrDocumentLevelSecurity(), emptyIterable());
+        assertThat(indicesAccessControl.getIndicesWithFieldLevelSecurity(), emptyIterable());
+        assertThat(indicesAccessControl.getIndicesWithDocumentLevelSecurity(), emptyIterable());
     }
 
-    public void testSLimitedIndicesAccessControl() {
+    public void testLimitedIndicesAccessControl() {
         IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
         IndicesAccessControl limitedByIndicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
         IndicesAccessControl result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
         assertThat(result, is(notNullValue()));
         assertThat(result.isGranted(), is(true));
         assertThat(result.getIndexPermissions("_index"), is(nullValue()));
+        assertThat(result.getIndicesWithFieldOrDocumentLevelSecurity(), emptyIterable());
+        assertThat(result.getIndicesWithFieldLevelSecurity(), emptyIterable());
+        assertThat(result.getIndicesWithDocumentLevelSecurity(), emptyIterable());
 
         indicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
         limitedByIndicesAccessControl = new IndicesAccessControl(false, Collections.emptyMap());
@@ -50,6 +57,9 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(result, is(notNullValue()));
         assertThat(result.isGranted(), is(false));
         assertThat(result.getIndexPermissions("_index"), is(nullValue()));
+        assertThat(result.getIndicesWithFieldOrDocumentLevelSecurity(), emptyIterable());
+        assertThat(result.getIndicesWithFieldLevelSecurity(), emptyIterable());
+        assertThat(result.getIndicesWithDocumentLevelSecurity(), emptyIterable());
 
         indicesAccessControl = new IndicesAccessControl(false, Collections.emptyMap());
         limitedByIndicesAccessControl = new IndicesAccessControl(true, Collections.emptyMap());
@@ -57,6 +67,9 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(result, is(notNullValue()));
         assertThat(result.isGranted(), is(false));
         assertThat(result.getIndexPermissions("_index"), is(nullValue()));
+        assertThat(result.getIndicesWithFieldOrDocumentLevelSecurity(), emptyIterable());
+        assertThat(result.getIndicesWithFieldLevelSecurity(), emptyIterable());
+        assertThat(result.getIndicesWithDocumentLevelSecurity(), emptyIterable());
 
         indicesAccessControl = new IndicesAccessControl(false, Collections.emptyMap());
         limitedByIndicesAccessControl = new IndicesAccessControl(false, Collections.emptyMap());
@@ -64,6 +77,9 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(result, is(notNullValue()));
         assertThat(result.isGranted(), is(false));
         assertThat(result.getIndexPermissions("_index"), is(nullValue()));
+        assertThat(result.getIndicesWithFieldOrDocumentLevelSecurity(), emptyIterable());
+        assertThat(result.getIndicesWithFieldLevelSecurity(), emptyIterable());
+        assertThat(result.getIndicesWithDocumentLevelSecurity(), emptyIterable());
 
         indicesAccessControl = new IndicesAccessControl(
             true,
@@ -73,6 +89,9 @@ public class IndicesAccessControlTests extends ESTestCase {
         result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
         assertThat(result, is(notNullValue()));
         assertThat(result.getIndexPermissions("_index"), is(nullValue()));
+        assertThat(result.getIndicesWithFieldOrDocumentLevelSecurity(), emptyIterable());
+        assertThat(result.getIndicesWithFieldLevelSecurity(), emptyIterable());
+        assertThat(result.getIndicesWithDocumentLevelSecurity(), emptyIterable());
 
         indicesAccessControl = new IndicesAccessControl(
             true,
@@ -88,6 +107,9 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(result.getIndexPermissions("_index").isGranted(), is(true));
         assertThat(result.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity(), is(false));
         assertThat(result.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(false));
+        assertThat(result.getIndicesWithFieldOrDocumentLevelSecurity(), emptyIterable());
+        assertThat(result.getIndicesWithFieldLevelSecurity(), emptyIterable());
+        assertThat(result.getIndicesWithDocumentLevelSecurity(), emptyIterable());
 
         final FieldPermissions fieldPermissions1 = new FieldPermissions(
             new FieldPermissionsDefinition(new String[] { "f1", "f2", "f3*" }, new String[] { "f3" })
@@ -97,11 +119,17 @@ public class IndicesAccessControlTests extends ESTestCase {
         );
         indicesAccessControl = new IndicesAccessControl(
             true,
-            Collections.singletonMap("_index", new IndexAccessControl(true, fieldPermissions1, DocumentPermissions.allowAll()))
+            Map.ofEntries(
+                Map.entry("_index", new IndexAccessControl(true, fieldPermissions1, DocumentPermissions.allowAll())),
+                Map.entry("another-index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll()))
+            )
         );
         limitedByIndicesAccessControl = new IndicesAccessControl(
             true,
-            Collections.singletonMap("_index", new IndexAccessControl(true, fieldPermissions2, DocumentPermissions.allowAll()))
+            Map.ofEntries(
+                Map.entry("_index", new IndexAccessControl(true, fieldPermissions2, DocumentPermissions.allowAll())),
+                Map.entry("another-index", new IndexAccessControl(true, fieldPermissions2, DocumentPermissions.allowAll()))
+            )
         );
         result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
         assertThat(result, is(notNullValue()));
@@ -109,6 +137,10 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(result.getIndexPermissions("_index").isGranted(), is(true));
         assertThat(result.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity(), is(true));
         assertThat(result.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(false));
+        assertThat(result.getIndicesWithFieldOrDocumentLevelSecurity(), containsInAnyOrder("_index", "another-index"));
+        assertThat(result.getIndicesWithFieldLevelSecurity(), containsInAnyOrder("_index", "another-index"));
+        assertThat(result.getIndicesWithDocumentLevelSecurity(), emptyIterable());
+
         FieldPermissions resultFieldPermissions = result.getIndexPermissions("_index").getFieldPermissions();
         assertThat(resultFieldPermissions.grantsAccessTo("f1"), is(true));
         assertThat(resultFieldPermissions.grantsAccessTo("f2"), is(false));
@@ -117,18 +149,28 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(resultFieldPermissions.grantsAccessTo("f4"), is(false));
 
         Set<BytesReference> queries = Collections.singleton(new BytesArray("{\"match_all\" : {}}"));
-        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(queries);
-        assertThat(documentPermissions, is(notNullValue()));
-        assertThat(documentPermissions.hasDocumentLevelPermissions(), is(true));
-        assertThat(documentPermissions.getQueries(), equalTo(queries));
+        final DocumentPermissions documentPermissions1 = DocumentPermissions.filteredBy(queries);
+        assertThat(documentPermissions1, is(notNullValue()));
+        assertThat(documentPermissions1.hasDocumentLevelPermissions(), is(true));
+        assertThat(documentPermissions1.getQueries(), equalTo(queries));
+
+        final DocumentPermissions documentPermissions2 = DocumentPermissions.filteredBy(
+            Set.of(new BytesArray("{\"term\":{ \"public\":true } }"))
+        );
 
         indicesAccessControl = new IndicesAccessControl(
             true,
-            Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll()))
+            Map.ofEntries(
+                Map.entry("_index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())),
+                Map.entry("another-index", new IndexAccessControl(true, new FieldPermissions(), documentPermissions2))
+            )
         );
         limitedByIndicesAccessControl = new IndicesAccessControl(
             true,
-            Collections.singletonMap("_index", new IndexAccessControl(true, new FieldPermissions(), documentPermissions))
+            Map.ofEntries(
+                Map.entry("_index", new IndexAccessControl(true, new FieldPermissions(), documentPermissions1)),
+                Map.entry("another-index", new IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll()))
+            )
         );
         result = indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
         assertThat(result, is(notNullValue()));
@@ -138,6 +180,9 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(result.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
         assertThat(result.getIndexPermissions("_index").getDocumentPermissions().getQueries(), is(nullValue()));
         assertThat(result.getIndexPermissions("_index").getDocumentPermissions().getLimitedByQueries(), equalTo(queries));
+        assertThat(result.getIndicesWithFieldOrDocumentLevelSecurity(), containsInAnyOrder("_index", "another-index"));
+        assertThat(result.getIndicesWithFieldLevelSecurity(), emptyIterable());
+        assertThat(result.getIndicesWithDocumentLevelSecurity(), containsInAnyOrder("_index", "another-index"));
     }
 
     public void testAllowAllIndicesAccessControl() {
@@ -149,6 +194,8 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(allowAll.getDeniedIndices(), emptyIterable());
         assertThat(allowAll.getFieldAndDocumentLevelSecurityUsage(), is(IndicesAccessControl.DlsFlsUsage.NONE));
         assertThat(allowAll.getIndicesWithFieldOrDocumentLevelSecurity(), emptyIterable());
+        assertThat(allowAll.getIndicesWithFieldLevelSecurity(), emptyIterable());
+        assertThat(allowAll.getIndicesWithDocumentLevelSecurity(), emptyIterable());
 
         final IndicesAccessControl indicesAccessControl = new IndicesAccessControl(randomBoolean(), Map.of());
         assertThat(allowAll.limitIndicesAccessControl(indicesAccessControl), is(indicesAccessControl));

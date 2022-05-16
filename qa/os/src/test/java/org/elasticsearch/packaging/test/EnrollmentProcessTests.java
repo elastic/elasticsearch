@@ -19,7 +19,7 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
@@ -31,10 +31,7 @@ import static org.elasticsearch.packaging.util.docker.Docker.verifyContainerInst
 import static org.elasticsearch.packaging.util.docker.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.docker.DockerRun.builder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyOrNullString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
 public class EnrollmentProcessTests extends PackagingTestCase {
@@ -48,15 +45,15 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         setFileSuperuser("test_superuser", "test_superuser_password");
         sh.getEnv().put("ES_JAVA_OPTS", "-Xms1g -Xmx1g");
         Shell.Result startFirstNode = awaitElasticsearchStartupWithResult(
-            Archives.startElasticsearchWithTty(installation, sh, null, List.of(), false)
+            Archives.startElasticsearchWithTty(installation, sh, null, List.of(), null, false)
         );
         assertThat(startFirstNode.isSuccess(), is(true));
         // Verify that the first node was auto-configured for security
         verifySecurityAutoConfigured(installation);
         // Generate a node enrollment token to be subsequently used by the second node
         Shell.Result createTokenResult = installation.executables().createEnrollmentToken.run("-s node");
-        assertThat(Strings.isNullOrEmpty(createTokenResult.stdout), is(false));
-        final String enrollmentToken = createTokenResult.stdout;
+        assertThat(Strings.isNullOrEmpty(createTokenResult.stdout()), is(false));
+        final String enrollmentToken = createTokenResult.stdout();
         // installation now points to the second node
         installation = installArchive(sh, distribution(), getRootTempDir().resolve("elasticsearch-node2"), getCurrentVersion(), true);
 
@@ -66,17 +63,18 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             sh,
             null,
             List.of("--enrollment-token", "some-invalid-token-here"),
+            null,
             false
         );
         assertThat(
-            startSecondNodeWithInvalidToken.stdout,
+            startSecondNodeWithInvalidToken.stdout(),
             containsString("Failed to parse enrollment token : some-invalid-token-here . Error was: Illegal base64 character 2d")
         );
         verifySecurityNotAutoConfigured(installation);
 
         // auto-configure security using the enrollment token
         Shell.Result startSecondNode = awaitElasticsearchStartupWithResult(
-            Archives.startElasticsearchWithTty(installation, sh, null, List.of("--enrollment-token", enrollmentToken), false)
+            Archives.startElasticsearchWithTty(installation, sh, null, List.of("--enrollment-token", enrollmentToken), null, false)
         );
         // ugly hack, wait for the second node to actually start and join the cluster, all of our current tooling expects/assumes
         // a single installation listening on 9200
@@ -96,21 +94,19 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         verifySecurityAutoConfigured(installation);
         waitForElasticsearch(installation);
         final String node1ContainerId = Docker.getContainerId();
-        String createTokenResult = installation.executables().createEnrollmentToken.run("-s node").stdout;
-        assertThat(createTokenResult, not(emptyOrNullString()));
-        final List<String> noWarningOutputLines = createTokenResult.lines()
-            .filter(line -> line.startsWith("WARNING:") == false)
-            .collect(Collectors.toList());
-        assertThat(noWarningOutputLines.size(), equalTo(1));
+
+        Docker.waitForNodeStarted(node1ContainerId);
+
+        String enrollmentToken = getEnrollmentToken();
+
         // installation refers to second node from now on
-        installation = runAdditionalContainer(
-            distribution(),
-            builder().envVar("ENROLLMENT_TOKEN", noWarningOutputLines.get(0)).extraArgs("--publish 9301:9300 --publish 9201:9200")
-        );
+        installation = runAdditionalContainer(distribution(), builder().envVar("ENROLLMENT_TOKEN", enrollmentToken), 9201, 9301);
+
         // TODO Make our packaging test methods aware of multiple installations, see https://github.com/elastic/elasticsearch/issues/79688
         waitForElasticsearch(installation);
         verifyContainerInstallation(installation);
         verifySecurityAutoConfigured(installation);
+
         // Allow some time for the second node to join the cluster, we can probably do this more elegantly in
         // https://github.com/elastic/elasticsearch/issues/79688
         // Then verify that the two nodes formed a cluster
@@ -125,6 +121,34 @@ public class EnrollmentProcessTests extends PackagingTestCase {
 
         // Cleanup the first node that is still running
         removeContainer(node1ContainerId);
+    }
+
+    private String getEnrollmentToken() throws Exception {
+        final AtomicReference<String> enrollmentTokenHolder = new AtomicReference<>();
+
+        assertBusy(() -> {
+            // `assertBusy` only retries on assertion errors, not exceptions, and `Executable#run(String)`
+            // throws a `Shell.ShellException` if the command isn't successful.
+            final Shell.Result result = installation.executables().createEnrollmentToken.run("-s node", null, true);
+
+            if (result.isSuccess() == false) {
+                if (result.stdout().contains("Failed to determine the health of the cluster")) {
+                    throw new AssertionError("Elasticsearch is not ready yet");
+                }
+                throw new Shell.ShellException(
+                    "Command was not successful: [elasticsearch-create-enrollment-token -s node]\n   result: " + result
+                );
+            }
+
+            final String tokenValue = result.stdout()
+                .lines()
+                .filter(line -> line.startsWith("WARNING:") == false)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Failed to find any non-warning output lines"));
+            enrollmentTokenHolder.set(tokenValue);
+        }, 30, TimeUnit.SECONDS);
+
+        return enrollmentTokenHolder.get();
     }
 
     private void waitForSecondNode() {

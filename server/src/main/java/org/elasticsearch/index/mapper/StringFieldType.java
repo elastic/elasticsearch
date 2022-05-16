@@ -43,13 +43,13 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     public StringFieldType(
         String name,
-        boolean isSearchable,
+        boolean isIndexed,
         boolean isStored,
         boolean hasDocValues,
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
+        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     @Override
@@ -157,8 +157,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
 
         Term term;
-        if (getTextSearchInfo().getSearchAnalyzer() != null && shouldNormalize) {
-            value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
+        if (getTextSearchInfo().searchAnalyzer() != null && shouldNormalize) {
+            value = normalizeWildcardPattern(name(), value, getTextSearchInfo().searchAnalyzer());
             term = new Term(name(), value);
         } else {
             term = new Term(name(), indexedValueForSearch(value));

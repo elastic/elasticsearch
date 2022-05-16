@@ -51,8 +51,7 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
             query,
             either(instanceOf(SpanNearQuery.class)).or(instanceOf(SpanTermQuery.class)).or(instanceOf(MatchAllQueryBuilder.class))
         );
-        if (query instanceof SpanNearQuery) {
-            SpanNearQuery spanNearQuery = (SpanNearQuery) query;
+        if (query instanceof SpanNearQuery spanNearQuery) {
             assertThat(spanNearQuery.getSlop(), equalTo(queryBuilder.slop()));
             assertThat(spanNearQuery.isInOrder(), equalTo(queryBuilder.inOrder()));
             assertThat(spanNearQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));

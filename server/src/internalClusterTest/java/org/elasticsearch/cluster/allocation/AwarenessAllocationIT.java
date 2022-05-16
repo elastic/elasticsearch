@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.allocation;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -18,7 +16,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -27,9 +24,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
@@ -91,18 +89,11 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             // check that closed indices are effectively closed
             final List<String> notClosedIndices = indicesToClose.stream()
                 .filter(index -> clusterState.metadata().index(index).getState() != State.CLOSE)
-                .collect(Collectors.toList());
+                .toList();
             assertThat("Some indices not closed", notClosedIndices, empty());
 
             // verify that we have all the primaries on node3
-            ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
-            for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                    for (ShardRouting shardRouting : indexShardRoutingTable) {
-                        counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
-                    }
-                }
-            }
+            Map<String, Integer> counts = computeShardCounts(clusterState);
             assertThat(counts.get(node3), equalTo(totalPrimaries));
         }, 10, TimeUnit.SECONDS);
     }
@@ -151,15 +142,8 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
 
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
+        Map<String, Integer> counts = computeShardCounts(clusterState);
 
-        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
-                }
-            }
-        }
         assertThat(counts.get(A_1), anyOf(equalTo(2), equalTo(3)));
         assertThat(counts.get(B_1), anyOf(equalTo(2), equalTo(3)));
         assertThat(counts.get(A_0), anyOf(equalTo(2), equalTo(3)));
@@ -201,15 +185,8 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             .actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
+        Map<String, Integer> counts = computeShardCounts(clusterState);
 
-        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
-                }
-            }
-        }
         assertThat(counts.get(A_0), equalTo(5));
         assertThat(counts.get(B_0), equalTo(5));
         logger.info("--> starting another node in zone 'b'");
@@ -240,16 +217,8 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
 
         assertThat(health.isTimedOut(), equalTo(false));
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        counts = computeShardCounts(clusterState);
 
-        counts = new ObjectIntHashMap<>();
-
-        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
-                }
-            }
-        }
         assertThat(counts.get(A_0), equalTo(5));
         assertThat(counts.get(B_0), equalTo(3));
         assertThat(counts.get(B_1), equalTo(2));
@@ -280,16 +249,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
 
         assertThat(health.isTimedOut(), equalTo(false));
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-
-        counts = new ObjectIntHashMap<>();
-
-        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
-                }
-            }
-        }
+        counts = computeShardCounts(clusterState);
 
         assertThat(counts.get(A_0), equalTo(5));
         assertThat(counts.get(B_0), equalTo(3));
@@ -315,16 +275,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
 
         assertThat(health.isTimedOut(), equalTo(false));
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-
-        counts = new ObjectIntHashMap<>();
-
-        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
-                }
-            }
-        }
+        counts = computeShardCounts(clusterState);
 
         assertThat(counts.get(A_0), equalTo(3));
         assertThat(counts.get(B_0), equalTo(3));
@@ -370,5 +321,19 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             ).getMessage(),
             containsString("[cluster.routing.allocation.awareness.force.attr.values.junk]")
         );
+    }
+
+    Map<String, Integer> computeShardCounts(ClusterState clusterState) {
+        Map<String, Integer> counts = new HashMap<>();
+
+        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    counts.merge(clusterState.nodes().get(indexShardRoutingTable.shard(copy).currentNodeId()).getName(), 1, Integer::sum);
+                }
+            }
+        }
+        return counts;
     }
 }

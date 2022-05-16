@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.xcontent.ToXContentFragment;
-
 import java.util.Objects;
 
 /**
@@ -15,7 +13,7 @@ import java.util.Objects;
  * <p>
  * Contains information about the client mode that can be used to generate different responses based on the caller type.
  */
-public abstract class AbstractSqlRequest implements ToXContentFragment {
+public abstract class AbstractSqlRequest {
 
     private final RequestInfo requestInfo;
 

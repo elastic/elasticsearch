@@ -184,25 +184,15 @@ public class DataFrameAnalyticsManager {
 
         LOGGER.debug(() -> new ParameterizedMessage("[{}] Starting job from state [{}]", config.getId(), startingState));
         switch (startingState) {
-            case FIRST_TIME:
-                executeStep(task, config, new ReindexingStep(clusterService, client, task, auditor, config));
-                break;
-            case RESUMING_REINDEXING:
-                executeJobInMiddleOfReindexing(task, config);
-                break;
-            case RESUMING_ANALYZING:
-                executeStep(task, config, new AnalysisStep(client, task, auditor, config, processManager));
-                break;
-            case RESUMING_INFERENCE:
-                buildInferenceStep(
-                    task,
-                    config,
-                    ActionListener.wrap(inferenceStep -> executeStep(task, config, inferenceStep), task::setFailed)
-                );
-                break;
-            case FINISHED:
-            default:
-                task.setFailed(ExceptionsHelper.serverError("Unexpected starting state [" + startingState + "]"));
+            case FIRST_TIME -> executeStep(task, config, new ReindexingStep(clusterService, client, task, auditor, config));
+            case RESUMING_REINDEXING -> executeJobInMiddleOfReindexing(task, config);
+            case RESUMING_ANALYZING -> executeStep(task, config, new AnalysisStep(client, task, auditor, config, processManager));
+            case RESUMING_INFERENCE -> buildInferenceStep(
+                task,
+                config,
+                ActionListener.wrap(inferenceStep -> executeStep(task, config, inferenceStep), task::setFailed)
+            );
+            case FINISHED -> task.setFailed(ExceptionsHelper.serverError("Unexpected starting state [" + startingState + "]"));
         }
     }
 
@@ -216,25 +206,18 @@ public class DataFrameAnalyticsManager {
                 return;
             }
             switch (step.name()) {
-                case REINDEXING:
-                    executeStep(task, config, new AnalysisStep(client, task, auditor, config, processManager));
-                    break;
-                case ANALYSIS:
-                    buildInferenceStep(
-                        task,
-                        config,
-                        ActionListener.wrap(inferenceStep -> executeStep(task, config, inferenceStep), task::setFailed)
-                    );
-                    break;
-                case INFERENCE:
-                    executeStep(task, config, new FinalStep(client, task, auditor, config));
-                    break;
-                case FINAL:
+                case REINDEXING -> executeStep(task, config, new AnalysisStep(client, task, auditor, config, processManager));
+                case ANALYSIS -> buildInferenceStep(
+                    task,
+                    config,
+                    ActionListener.wrap(inferenceStep -> executeStep(task, config, inferenceStep), task::setFailed)
+                );
+                case INFERENCE -> executeStep(task, config, new FinalStep(client, task, auditor, config));
+                case FINAL -> {
                     LOGGER.info("[{}] Marking task completed", config.getId());
                     task.markAsCompleted();
-                    break;
-                default:
-                    task.markAsFailed(ExceptionsHelper.serverError("Unknown step [{}]", step));
+                }
+                default -> task.markAsFailed(ExceptionsHelper.serverError("Unknown step [{}]", step));
             }
         }, task::setFailed);
 

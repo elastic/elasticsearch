@@ -286,22 +286,22 @@ public class ClusterHealthIT extends ESIntegTestCase {
         final AtomicBoolean keepSubmittingTasks = new AtomicBoolean(true);
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
         final PlainActionFuture<Void> completionFuture = new PlainActionFuture<>();
-        clusterService.submitStateUpdateTask("looping task", new ClusterStateUpdateTask(Priority.LOW) {
+        clusterService.submitUnbatchedStateUpdateTask("looping task", new ClusterStateUpdateTask(Priority.LOW) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return currentState;
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 completionFuture.onFailure(e);
-                throw new AssertionError(source, e);
+                throw new AssertionError("looping task", e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 if (keepSubmittingTasks.get()) {
-                    clusterService.submitStateUpdateTask("looping task", this);
+                    clusterService.submitUnbatchedStateUpdateTask("looping task", this);
                 } else {
                     completionFuture.onResponse(null);
                 }
@@ -377,22 +377,22 @@ public class ClusterHealthIT extends ESIntegTestCase {
         final AtomicBoolean keepSubmittingTasks = new AtomicBoolean(true);
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
         final PlainActionFuture<Void> completionFuture = new PlainActionFuture<>();
-        clusterService.submitStateUpdateTask("looping task", new ClusterStateUpdateTask(Priority.LOW) {
+        clusterService.submitUnbatchedStateUpdateTask("looping task", new ClusterStateUpdateTask(Priority.LOW) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return currentState;
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 completionFuture.onFailure(e);
-                throw new AssertionError(source, e);
+                throw new AssertionError("looping task", e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 if (keepSubmittingTasks.get()) {
-                    clusterService.submitStateUpdateTask("looping task", this);
+                    clusterService.submitUnbatchedStateUpdateTask("looping task", this);
                 } else {
                     completionFuture.onResponse(null);
                 }

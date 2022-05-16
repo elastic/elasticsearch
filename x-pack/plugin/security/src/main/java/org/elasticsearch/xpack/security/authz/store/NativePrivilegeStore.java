@@ -69,7 +69,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.DOC_TYPE_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.Fields.APPLICATION;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 /**
  * {@code NativePrivilegeStore} is a store that reads/writes {@link ApplicationPrivilegeDescriptor} objects,
@@ -216,7 +216,7 @@ public class NativePrivilegeStore {
         }
     }
 
-    private QueryBuilder getApplicationNameQuery(Collection<String> applications) {
+    private static QueryBuilder getApplicationNameQuery(Collection<String> applications) {
         if (applications.contains("*")) {
             return QueryBuilders.existsQuery(APPLICATION.getPreferredName());
         }
@@ -248,7 +248,7 @@ public class NativePrivilegeStore {
         return boolQuery;
     }
 
-    private ApplicationPrivilegeDescriptor buildPrivilege(String docId, BytesReference source) {
+    private static ApplicationPrivilegeDescriptor buildPrivilege(String docId, BytesReference source) {
         logger.trace("Building privilege from [{}] [{}]", docId, source == null ? "<<null>>" : source.utf8ToString());
         if (source == null) {
             return null;
@@ -270,7 +270,7 @@ public class NativePrivilegeStore {
                 return privilege;
             }
         } catch (IOException | XContentParseException e) {
-            logger.error(new ParameterizedMessage("cannot parse application privilege [{}]", name), e);
+            logger.error(() -> "cannot parse application privilege [" + name + "]", e);
             return null;
         }
     }
@@ -307,7 +307,7 @@ public class NativePrivilegeStore {
     /**
      * Filter to get all privilege descriptors that have any of the given privilege names.
      */
-    private Collection<ApplicationPrivilegeDescriptor> filterDescriptorsForPrivilegeNames(
+    private static Collection<ApplicationPrivilegeDescriptor> filterDescriptorsForPrivilegeNames(
         Collection<ApplicationPrivilegeDescriptor> descriptors,
         Collection<String> privilegeNames
     ) {

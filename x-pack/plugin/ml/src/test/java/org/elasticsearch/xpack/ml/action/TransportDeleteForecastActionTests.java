@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -76,7 +76,7 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
     }
 
     private static SearchHit createForecastStatsHit(ForecastRequestStats.ForecastRequestStatus status) {
-        Map<String, DocumentField> documentFields = new HashMap<>(2);
+        Map<String, DocumentField> documentFields = Maps.newMapWithExpectedSize(2);
         documentFields.put(
             ForecastRequestStats.FORECAST_ID.getPreferredName(),
             new DocumentField(ForecastRequestStats.FORECAST_ID.getPreferredName(), Collections.singletonList(""))

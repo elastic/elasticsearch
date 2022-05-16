@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.ingest.DeletePipelineAction;
@@ -116,7 +115,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             try {
                 client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest(pipeline)).actionGet();
             } catch (Exception ex) {
-                logger.warn(() -> new ParameterizedMessage("error cleaning up pipeline [{}]", pipeline), ex);
+                logger.warn(() -> "error cleaning up pipeline [" + pipeline + "]", ex);
             }
         }
     }
@@ -180,7 +179,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             .get()
             .getTasks()
             .stream()
-            .map(TaskInfo::getAction)
+            .map(TaskInfo::action)
             .collect(Collectors.toList());
         assertThat(tasksNames, is(empty()));
     }
@@ -192,7 +191,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                 TrainedModelConfig.builder()
                     .setModelType(TrainedModelType.PYTORCH)
                     .setInferenceConfig(
-                        new PassThroughConfig(null, new BertTokenization(null, false, null, Tokenization.Truncate.NONE), null)
+                        new PassThroughConfig(null, new BertTokenization(null, false, null, Tokenization.Truncate.NONE, -1), null)
                     )
                     .setModelId(TRAINED_MODEL_ID)
                     .build(),
@@ -213,7 +212,8 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             PutTrainedModelVocabularyAction.INSTANCE,
             new PutTrainedModelVocabularyAction.Request(
                 TRAINED_MODEL_ID,
-                List.of("these", "are", "my", "words", BertTokenizer.PAD_TOKEN, BertTokenizer.UNKNOWN_TOKEN)
+                List.of("these", "are", "my", "words", BertTokenizer.PAD_TOKEN, BertTokenizer.UNKNOWN_TOKEN),
+                List.of()
             )
         ).actionGet();
         client().execute(StartTrainedModelDeploymentAction.INSTANCE, new StartTrainedModelDeploymentAction.Request(TRAINED_MODEL_ID))

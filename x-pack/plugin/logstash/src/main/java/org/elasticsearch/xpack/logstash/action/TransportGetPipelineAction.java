@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.logstash.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
@@ -23,6 +22,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -33,7 +33,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.logstash.Logstash;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -66,7 +65,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                 .setScroll(TimeValue.timeValueMinutes(1L))
                 .execute(ActionListener.wrap(searchResponse -> {
                     final int numHits = Math.toIntExact(searchResponse.getHits().getTotalHits().value);
-                    final Map<String, BytesReference> pipelineSources = new HashMap<>(numHits);
+                    final Map<String, BytesReference> pipelineSources = Maps.newMapWithExpectedSize(numHits);
                     final Consumer<SearchResponse> clearScroll = (response) -> {
                         if (response != null && response.getScrollId() != null) {
                             ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
@@ -75,10 +74,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                                 clearScrollRequest,
                                 ActionListener.wrap(
                                     (r) -> {},
-                                    e -> logger.warn(
-                                        new ParameterizedMessage("clear scroll failed for scroll id [{}]", response.getScrollId()),
-                                        e
-                                    )
+                                    e -> logger.warn(() -> "clear scroll failed for scroll id [" + response.getScrollId() + "]", e)
                                 )
                             );
                         }

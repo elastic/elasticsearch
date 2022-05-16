@@ -129,16 +129,12 @@ public class GeoPoint implements ToXContentFragment {
             return resetFromGeoHash(geohash);
         } else {
             Rectangle rectangle = Geohash.toBoundingBox(geohash);
-            switch (effectivePoint) {
-                case TOP_LEFT:
-                    return reset(rectangle.getMaxY(), rectangle.getMinX());
-                case TOP_RIGHT:
-                    return reset(rectangle.getMaxY(), rectangle.getMaxX());
-                case BOTTOM_RIGHT:
-                    return reset(rectangle.getMinY(), rectangle.getMaxX());
-                default:
-                    throw new IllegalArgumentException("Unsupported effective point " + effectivePoint);
-            }
+            return switch (effectivePoint) {
+                case TOP_LEFT -> reset(rectangle.getMaxY(), rectangle.getMinX());
+                case TOP_RIGHT -> reset(rectangle.getMaxY(), rectangle.getMaxX());
+                case BOTTOM_RIGHT -> reset(rectangle.getMinY(), rectangle.getMaxX());
+                default -> throw new IllegalArgumentException("Unsupported effective point " + effectivePoint);
+            };
         }
     }
 

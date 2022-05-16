@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -28,7 +27,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static org.apache.lucene.util.LuceneTestCase.random;
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 
 public class FakeThreadPoolMasterService extends MasterService {
@@ -64,7 +63,7 @@ public class FakeThreadPoolMasterService extends MasterService {
             1,
             1,
             TimeUnit.SECONDS,
-            EsExecutors.daemonThreadFactory(name),
+            r -> { throw new AssertionError("should not create new threads"); },
             null,
             null,
             PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
@@ -127,10 +126,13 @@ public class FakeThreadPoolMasterService extends MasterService {
     }
 
     @Override
-    protected void publish(ClusterStatePublicationEvent clusterStatePublicationEvent, TaskOutputs taskOutputs) {
+    protected void publish(
+        ClusterStatePublicationEvent clusterStatePublicationEvent,
+        AckListener ackListener,
+        ActionListener<Void> publicationListener
+    ) {
         assert waitForPublish == false;
         waitForPublish = true;
-        final AckListener ackListener = taskOutputs.createAckListener(threadPool, clusterStatePublicationEvent.getNewState());
         final ActionListener<Void> publishListener = new ActionListener<>() {
 
             private boolean listenerCalled = false;
@@ -142,7 +144,7 @@ public class FakeThreadPoolMasterService extends MasterService {
                 assert waitForPublish;
                 waitForPublish = false;
                 try {
-                    onPublicationSuccess(clusterStatePublicationEvent, taskOutputs);
+                    publicationListener.onResponse(null);
                 } finally {
                     taskInProgress = false;
                     scheduleNextTaskIfNecessary();
@@ -156,7 +158,7 @@ public class FakeThreadPoolMasterService extends MasterService {
                 assert waitForPublish;
                 waitForPublish = false;
                 try {
-                    onPublicationFailed(clusterStatePublicationEvent, taskOutputs, e);
+                    publicationListener.onFailure(e);
                 } finally {
                     taskInProgress = false;
                     scheduleNextTaskIfNecessary();

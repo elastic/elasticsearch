@@ -17,7 +17,7 @@ routing:
   - do:
       index:
           index:   test_1
-          id:      1
+          id:      "1"
           routing: "5"
           body:    { foo: bar }
 
@@ -27,9 +27,9 @@ routing:
           stored_fields:  [_routing]
           body:
             docs:
-              - { _id: 1 }
-              - { _id: 1, routing: "4" }
-              - { _id: 1, routing: "5" }
+              - { _id: "1" }
+              - { _id: "1", routing: "4" }
+              - { _id: "1", routing: "5" }
 
   - is_false:  docs.0.found
   - is_false:  docs.1.found
@@ -59,7 +59,7 @@ requires routing:
   - do:
       index:
         index:   test_1
-        id:      1
+        id:      "1"
         routing: "5"
         body:    { foo: bar }
 
@@ -73,9 +73,9 @@ requires routing:
         stored_fields:  [_routing]
         body:
           docs:
-            - { _id: 1, _index: test_1 }
-            - { _id: 1, _index: alias }
-            - { _id: 1, _index: test_1, routing: "5" }
+            - { _id: "1", _index: test_1 }
+            - { _id: "1", _index: alias }
+            - { _id: "1", _index: test_1, routing: "5" }
 
   - is_false:  docs.0.found
   - match:   { docs.0.error.reason: "routing is required for [test_1]/[1]" }

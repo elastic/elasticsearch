@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -50,8 +50,8 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
         allNodes = new ArrayList<>();
         allNodes.addAll(nodes.getBWCNodes());
         allNodes.addAll(nodes.getNewNodes());
-        bwcVersion = nodes.getBWCNodes().get(0).getVersion();
-        newVersion = nodes.getNewNodes().get(0).getVersion();
+        bwcVersion = nodes.getBWCNodes().get(0).version();
+        newVersion = nodes.getNewNodes().get(0).version();
 
         if (client().performRequest(new Request("HEAD", "/" + index)).getStatusLine().getStatusCode() == 404) {
             createIndex(
@@ -71,9 +71,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
     }
 
     public void testMinVersionAsNewVersion() throws Exception {
-        try (
-            RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))
-        ) {
+        try (RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::publishAddress).toArray(HttpHost[]::new))) {
             Request newVersionRequest = new Request(
                 "POST",
                 index + "/_search?min_compatible_shard_node=" + newVersion + "&ccs_minimize_roundtrips=false"
@@ -94,9 +92,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
     }
 
     public void testMinVersionAsOldVersion() throws Exception {
-        try (
-            RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))
-        ) {
+        try (RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::publishAddress).toArray(HttpHost[]::new))) {
             Request oldVersionRequest = new Request(
                 "POST",
                 index + "/_search?min_compatible_shard_node=" + bwcVersion + "&ccs_minimize_roundtrips=false"
@@ -120,9 +116,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
     }
 
     public void testCcsMinimizeRoundtripsIsFalse() throws Exception {
-        try (
-            RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))
-        ) {
+        try (RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::publishAddress).toArray(HttpHost[]::new))) {
             Version version = randomBoolean() ? newVersion : bwcVersion;
 
             Request request = new Request(

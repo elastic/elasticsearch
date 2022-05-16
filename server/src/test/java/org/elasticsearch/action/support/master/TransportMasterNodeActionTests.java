@@ -46,6 +46,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -65,7 +66,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -420,12 +420,12 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
-        assertTrue(capturedRequest.node.isMasterNode());
-        assertThat(capturedRequest.request, equalTo(request));
-        assertThat(capturedRequest.action, equalTo("internal:testAction"));
+        assertTrue(capturedRequest.node().isMasterNode());
+        assertThat(capturedRequest.request(), equalTo(request));
+        assertThat(capturedRequest.action(), equalTo("internal:testAction"));
 
         Response response = new Response();
-        transport.handleResponse(capturedRequest.requestId, response);
+        transport.handleResponse(capturedRequest.requestId(), response);
         assertTrue(listener.isDone());
         assertThat(listener.get(), equalTo(response));
     }
@@ -447,13 +447,13 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
-        assertTrue(capturedRequest.node.isMasterNode());
-        assertThat(capturedRequest.request, equalTo(request));
-        assertThat(capturedRequest.action, equalTo("internal:testAction"));
+        assertTrue(capturedRequest.node().isMasterNode());
+        assertThat(capturedRequest.request(), equalTo(request));
+        assertThat(capturedRequest.action(), equalTo("internal:testAction"));
 
         if (rejoinSameMaster) {
             transport.handleRemoteError(
-                capturedRequest.requestId,
+                capturedRequest.requestId(),
                 randomBoolean() ? new ConnectTransportException(masterNode, "Fake error") : new NodeClosedException(masterNode)
             );
             assertFalse(listener.isDone());
@@ -483,11 +483,11 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             capturedRequests = transport.getCapturedRequestsAndClear();
             assertThat(capturedRequests.length, equalTo(1));
             capturedRequest = capturedRequests[0];
-            assertTrue(capturedRequest.node.isMasterNode());
-            assertThat(capturedRequest.request, equalTo(request));
-            assertThat(capturedRequest.action, equalTo("internal:testAction"));
+            assertTrue(capturedRequest.node().isMasterNode());
+            assertThat(capturedRequest.request(), equalTo(request));
+            assertThat(capturedRequest.action(), equalTo("internal:testAction"));
         } else if (failsWithConnectTransportException) {
-            transport.handleRemoteError(capturedRequest.requestId, new ConnectTransportException(masterNode, "Fake error"));
+            transport.handleRemoteError(capturedRequest.requestId(), new ConnectTransportException(masterNode, "Fake error"));
             assertFalse(listener.isDone());
             setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
             assertTrue(listener.isDone());
@@ -495,7 +495,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         } else {
             ElasticsearchException t = new ElasticsearchException("test");
             t.addHeader("header", "is here");
-            transport.handleRemoteError(capturedRequest.requestId, t);
+            transport.handleRemoteError(capturedRequest.requestId(), t);
             assertTrue(listener.isDone());
             try {
                 listener.get();
@@ -533,11 +533,11 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
-        assertTrue(capturedRequest.node.isMasterNode());
-        assertThat(capturedRequest.request, equalTo(request));
-        assertThat(capturedRequest.action, equalTo("internal:testAction"));
+        assertTrue(capturedRequest.node().isMasterNode());
+        assertThat(capturedRequest.request(), equalTo(request));
+        assertThat(capturedRequest.action(), equalTo("internal:testAction"));
 
-        transport.handleResponse(capturedRequest.requestId, response);
+        transport.handleResponse(capturedRequest.requestId(), response);
         assertTrue(listener.isDone());
         assertThat(listener.get(), equalTo(response));
     }
@@ -594,7 +594,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             }
             setState(clusterService, newStateBuilder.build());
         }
-        expectThrows(CancellationException.class, listener::actionGet);
+        expectThrows(TaskCancelledException.class, listener::actionGet);
     }
 
     public void testTaskCancellationOnceActionItIsDispatchedToMaster() throws Exception {
@@ -621,7 +621,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         releaseBlockedThreads.run();
 
-        expectThrows(CancellationException.class, listener::actionGet);
+        expectThrows(TaskCancelledException.class, listener::actionGet);
     }
 
     public void testGlobalBlocksAreCheckedAfterIndexNotFoundException() throws Exception {

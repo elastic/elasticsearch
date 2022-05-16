@@ -103,7 +103,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    private class DomainInfo {
+    private static class DomainInfo {
         private final String domain;
         private final String registeredDomain;
         private final String eTLD;

@@ -16,6 +16,7 @@ import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
@@ -65,6 +66,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
         .exclude("**/*.zip")
         .exclude("**/*.jks")
         .exclude("**/*.crt")
+        .exclude("**/*.p12")
         .exclude("**/*.keystore")
         .exclude("**/*.png")
         // vim swap file - included here to stop the build falling over if you happen to have a file open :-|
@@ -90,6 +92,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
     }
 
     @InputFiles
+    @IgnoreEmptyDirectories
     @PathSensitive(PathSensitivity.RELATIVE)
     @SkipWhenEmpty
     public FileCollection getFiles() {

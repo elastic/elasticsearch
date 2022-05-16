@@ -20,9 +20,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
+import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -49,8 +48,11 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         String fieldPattern = queryBuilder.fieldName();
         Collection<String> fields = context.getMatchingFieldNames(fieldPattern);
-        if (fields.size() == 0 && Regex.isSimpleMatchPattern(fieldPattern) == false && context.getObjectMapper(fieldPattern) != null) {
-            fields = context.getMatchingFieldNames(fieldPattern + ".*");
+        if (fields.size() == 0 && Regex.isSimpleMatchPattern(fieldPattern) == false) {
+            if (context.getMatchingFieldNames(fieldPattern + ".*").isEmpty() == false) {
+                // we're an object field
+                fields = Collections.singleton(fieldPattern);
+            }
         }
         if (fields.size() == 0) {
             assertThat(fieldPattern, query, instanceOf(MatchNoDocsQuery.class));
@@ -58,14 +60,13 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
             String field = expectedFieldName(fields.iterator().next());
-            if (context.getObjectMapper(field) != null) {
+            if (context.getFieldType(field) == null) {
+                // not a leaf field, so we're doing an object exists query
                 assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
                 BooleanQuery booleanQuery = (BooleanQuery) constantScoreQuery.getQuery();
-                List<String> childFields = new ArrayList<>();
-                context.getObjectMapper(field).forEach(mapper -> childFields.add(mapper.name()));
+                Collection<String> childFields = context.getMatchingFieldNames(field + ".*");
                 assertThat(booleanQuery.clauses().size(), equalTo(childFields.size()));
-                for (int i = 0; i < childFields.size(); i++) {
-                    BooleanClause booleanClause = booleanQuery.clauses().get(i);
+                for (BooleanClause booleanClause : booleanQuery) {
                     assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
                 }
             } else if (context.getFieldType(field).hasDocValues()) {

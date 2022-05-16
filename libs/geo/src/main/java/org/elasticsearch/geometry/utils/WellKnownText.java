@@ -506,17 +506,13 @@ public class WellKnownText {
     }
 
     private static String tokenString(StreamTokenizer stream) {
-        switch (stream.ttype) {
-            case StreamTokenizer.TT_WORD:
-                return stream.sval;
-            case StreamTokenizer.TT_EOF:
-                return EOF;
-            case StreamTokenizer.TT_EOL:
-                return EOL;
-            case StreamTokenizer.TT_NUMBER:
-                return NUMBER;
-        }
-        return "'" + (char) stream.ttype + "'";
+        return switch (stream.ttype) {
+            case StreamTokenizer.TT_WORD -> stream.sval;
+            case StreamTokenizer.TT_EOF -> EOF;
+            case StreamTokenizer.TT_EOL -> EOL;
+            case StreamTokenizer.TT_NUMBER -> NUMBER;
+            default -> "'" + (char) stream.ttype + "'";
+        };
     }
 
     private static boolean isNumberNext(StreamTokenizer stream) throws IOException {

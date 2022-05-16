@@ -438,13 +438,13 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         }
 
         private void cancelReadsCleanUpAndReturnFailure(Exception exception) {
-            transportService.getTaskManager().cancelTaskAndDescendants(task, "task failed", false, ActionListener.wrap(() -> {}));
+            transportService.getTaskManager().cancelTaskAndDescendants(task, "task failed", false, ActionListener.noop());
             cleanUpAndReturnFailure(exception);
         }
 
         private void cleanUpAndReturnFailure(Exception exception) {
             if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("analysis failed [{}] cleaning up", request.getDescription()), exception);
+                logger.trace(() -> "analysis failed [" + request.getDescription() + "] cleaning up", exception);
             }
             try {
                 blobContainer.deleteBlobsIgnoringIfNotExists(Iterators.single(request.blobName));

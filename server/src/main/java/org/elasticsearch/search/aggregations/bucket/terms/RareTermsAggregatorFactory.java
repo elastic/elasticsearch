@@ -248,12 +248,10 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         };
 
         public static ExecutionMode fromString(String value, final DeprecationLogger deprecationLogger) {
-            switch (value) {
-                case "map":
-                    return MAP;
-                default:
-                    throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [map]");
-            }
+            return switch (value) {
+                case "map" -> MAP;
+                default -> throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [map]");
+            };
         }
 
         private final ParseField parseField;

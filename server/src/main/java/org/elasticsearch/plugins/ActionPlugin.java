@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 /**
  * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality. Implement it like this:
@@ -60,7 +59,7 @@ public interface ActionPlugin {
      * {@linkplain ActionPlugin#getActions()}.
      */
     default List<ActionType<? extends ActionResponse>> getClientActions() {
-        return getActions().stream().map(a -> a.action).collect(Collectors.toList());
+        return getActions().stream().<ActionType<? extends ActionResponse>>map(a -> a.action).toList();
     }
 
     /**

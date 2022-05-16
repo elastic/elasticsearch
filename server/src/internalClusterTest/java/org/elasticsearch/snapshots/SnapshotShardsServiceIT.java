@@ -19,7 +19,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -73,7 +72,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
                 .values()
                 .stream()
                 .map(status -> status.asCopy().getStage())
-                .collect(Collectors.toList());
+                .toList();
             assertThat(stages, hasSize(shards));
             assertThat(stages, everyItem(equalTo(IndexShardSnapshotStatus.Stage.DONE)));
         }, 30L, TimeUnit.SECONDS);

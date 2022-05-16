@@ -66,7 +66,6 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * The recovery target handles recoveries of peer shards of the shard+node to recover to.
@@ -228,7 +227,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
-                    if (isSearchableSnapshotStore(indexShard.indexSettings().getSettings())) {
+                    if (indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
                         // for searchable snapshots, peer recovery is treated similarly to recovery from snapshot
                         indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
                         final Store store = indexShard.store();
@@ -300,7 +299,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
             // Make sure that the current translog is consistent with the Lucene index; otherwise, we have to throw away the Lucene index.
             try {
-                final String expectedTranslogUUID = metadataSnapshot.getCommitUserData().get(Translog.TRANSLOG_UUID_KEY);
+                final String expectedTranslogUUID = metadataSnapshot.commitUserData().get(Translog.TRANSLOG_UUID_KEY);
                 final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), expectedTranslogUUID);
                 assert globalCheckpoint + 1 >= startingSeqNo : "invalid startingSeqNo " + startingSeqNo + " >= " + globalCheckpoint;
             } catch (IOException | TranslogCorruptedException e) {
@@ -609,7 +608,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
     }
 
-    private ActionListener<Void> createOrFinishListener(
+    private static ActionListener<Void> createOrFinishListener(
         final RecoveryRef recoveryRef,
         final TransportChannel channel,
         final String action,
@@ -619,7 +618,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     @Nullable
-    private ActionListener<Void> createOrFinishListener(
+    private static ActionListener<Void> createOrFinishListener(
         final RecoveryRef recoveryRef,
         final TransportChannel channel,
         final String action,
@@ -658,17 +657,14 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void onFailure(Exception e) {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
                 if (recoveryRef != null) {
-                    logger.error(() -> new ParameterizedMessage("unexpected error during recovery [{}], failing shard", recoveryId), e);
+                    logger.error(() -> "unexpected error during recovery [" + recoveryId + "], failing shard", e);
                     onGoingRecoveries.failRecovery(
                         recoveryId,
                         new RecoveryFailedException(recoveryRef.target().state(), "unexpected error", e),
                         true // be safe
                     );
                 } else {
-                    logger.debug(
-                        () -> new ParameterizedMessage("unexpected error during recovery, but recovery id [{}] is finished", recoveryId),
-                        e
-                    );
+                    logger.debug(() -> "unexpected error during recovery, but recovery id [" + recoveryId + "] is finished", e);
                 }
             }
         }

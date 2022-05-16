@@ -22,7 +22,6 @@ import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
@@ -58,7 +57,6 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         final CcrRepository repository = new CcrRepository(
             repositoryMetadata,
             mock(Client.class),
-            new CcrLicenseChecker(() -> true, () -> true),
             Settings.EMPTY,
             new CcrSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, settings)),
             mock(ThreadPool.class)
@@ -123,7 +121,6 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         final CcrRepository repository = new CcrRepository(
             repositoryMetadata,
             mock(Client.class),
-            new CcrLicenseChecker(() -> true, () -> true),
             Settings.EMPTY,
             new CcrSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, settings)),
             mock(ThreadPool.class)

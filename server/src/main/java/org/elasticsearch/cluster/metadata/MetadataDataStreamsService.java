@@ -13,9 +13,11 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 
@@ -39,22 +41,24 @@ public class MetadataDataStreamsService {
         if (request.getActions().size() == 0) {
             listener.onResponse(AcknowledgedResponse.TRUE);
         } else {
-            clusterService.submitStateUpdateTask(
-                "update-backing-indices",
-                new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return modifyDataStream(currentState, request.getActions(), indexMetadata -> {
-                            try {
-                                return indicesService.createIndexMapperService(indexMetadata);
-                            } catch (IOException e) {
-                                throw new IllegalStateException(e);
-                            }
-                        });
-                    }
+            submitUnbatchedTask("update-backing-indices", new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return modifyDataStream(currentState, request.getActions(), indexMetadata -> {
+                        try {
+                            return indicesService.createIndexMapperService(indexMetadata);
+                        } catch (IOException e) {
+                            throw new IllegalStateException(e);
+                        }
+                    });
                 }
-            );
+            });
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     /**

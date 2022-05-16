@@ -139,7 +139,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
         });
     }
 
-    static class Metadata implements ToXContentObject {
+    record Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, long lastCheck) implements ToXContentObject {
 
         static final String NAME = GEOIP_DOWNLOADER + "-metadata";
         private static final ParseField LAST_CHECK = new ParseField("last_check");
@@ -176,22 +176,8 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             }
         }
 
-        private final long lastUpdate;
-        private final int firstChunk;
-        private final int lastChunk;
-        private final String md5;
-        private final long lastCheck;
-
-        Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, long lastCheck) {
-            this.lastUpdate = lastUpdate;
-            this.firstChunk = firstChunk;
-            this.lastChunk = lastChunk;
-            this.md5 = Objects.requireNonNull(md5);
-            this.lastCheck = lastCheck;
-        }
-
-        public long getLastUpdate() {
-            return lastUpdate;
+        Metadata {
+            Objects.requireNonNull(md5);
         }
 
         public boolean isCloseToExpiration() {
@@ -201,39 +187,6 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
         public boolean isValid(Settings settings) {
             TimeValue valid = settings.getAsTime("ingest.geoip.database_validity", TimeValue.timeValueDays(30));
             return Instant.ofEpochMilli(lastCheck).isAfter(Instant.now().minus(valid.getMillis(), ChronoUnit.MILLIS));
-        }
-
-        public int getFirstChunk() {
-            return firstChunk;
-        }
-
-        public int getLastChunk() {
-            return lastChunk;
-        }
-
-        public String getMd5() {
-            return md5;
-        }
-
-        public long getLastCheck() {
-            return lastCheck;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Metadata metadata = (Metadata) o;
-            return lastUpdate == metadata.lastUpdate
-                && firstChunk == metadata.firstChunk
-                && lastChunk == metadata.lastChunk
-                && lastCheck == metadata.lastCheck
-                && md5.equals(metadata.md5);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(lastUpdate, firstChunk, lastChunk, md5, lastCheck);
         }
 
         @Override

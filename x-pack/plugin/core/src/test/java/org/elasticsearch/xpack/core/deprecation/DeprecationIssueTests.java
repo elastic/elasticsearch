@@ -18,6 +18,9 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
@@ -82,5 +85,59 @@ public class DeprecationIssueTests extends ESTestCase {
         Map<String, Object> meta = (Map<String, Object>) toXContentMap.get("_meta");
         DeprecationIssue other = new DeprecationIssue(Level.fromString(level), message, url, details, requiresRestart, meta);
         assertThat(issue, equalTo(other));
+    }
+
+    public void testGetIntersectionOfRemovableSettings() {
+        assertNull(DeprecationIssue.getIntersectionOfRemovableSettings(null));
+        assertNull(DeprecationIssue.getIntersectionOfRemovableSettings(Collections.emptyList()));
+        Map<String, Object> randomMeta = randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4)));
+        DeprecationIssue issue1 = createTestDeprecationIssue(getTestMetaMap(randomMeta, "setting.1", "setting.2", "setting.3"));
+        assertEquals(issue1, DeprecationIssue.getIntersectionOfRemovableSettings(Collections.singletonList(issue1)));
+        DeprecationIssue issue2 = createTestDeprecationIssue(issue1, getTestMetaMap(randomMeta, "setting.2"));
+        assertNotEquals(issue1, issue2);
+        assertEquals(issue2, DeprecationIssue.getIntersectionOfRemovableSettings(Arrays.asList(issue1, issue2)));
+        DeprecationIssue issue3 = createTestDeprecationIssue(issue1, getTestMetaMap(randomMeta, "setting.2", "setting.4"));
+        assertEquals(issue2, DeprecationIssue.getIntersectionOfRemovableSettings(Arrays.asList(issue1, issue2, issue3)));
+        DeprecationIssue issue4 = createTestDeprecationIssue(issue1, getTestMetaMap(randomMeta, "setting.5"));
+        DeprecationIssue emptySettingsIssue = createTestDeprecationIssue(issue1, getTestMetaMap(randomMeta));
+        assertEquals(
+            emptySettingsIssue,
+            DeprecationIssue.getIntersectionOfRemovableSettings(Arrays.asList(issue1, issue2, issue3, issue4))
+        );
+        DeprecationIssue issue5 = createTestDeprecationIssue(getTestMetaMap(randomMeta, "setting.1", "setting.2", "setting.3"));
+        assertEquals(issue1, DeprecationIssue.getIntersectionOfRemovableSettings(Arrays.asList(issue1, issue5)));
+    }
+
+    private static Map<String, Object> getTestMetaMap(Map<String, Object> baseMap, String... settings) {
+        Map<String, Object> metaMap = new HashMap<>();
+        Map<String, Object> settingsMetaMap = DeprecationIssue.createMetaMapForRemovableSettings(
+            settings.length == 0 ? null : Arrays.asList(settings)
+        );
+        metaMap.putAll(settingsMetaMap);
+        metaMap.putAll(baseMap);
+        return metaMap;
+    }
+
+    private static DeprecationIssue createTestDeprecationIssue(Map<String, Object> metaMap) {
+        String details = randomBoolean() ? randomAlphaOfLength(10) : null;
+        return new DeprecationIssue(
+            randomFrom(DeprecationIssue.Level.values()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            details,
+            randomBoolean(),
+            metaMap
+        );
+    }
+
+    private static DeprecationIssue createTestDeprecationIssue(DeprecationIssue seedIssue, Map<String, Object> metaMap) {
+        return new DeprecationIssue(
+            seedIssue.getLevel(),
+            seedIssue.getMessage(),
+            seedIssue.getUrl(),
+            seedIssue.getDetails(),
+            seedIssue.isResolveDuringRollingUpgrade(),
+            metaMap
+        );
     }
 }

@@ -1770,7 +1770,7 @@ As per `claim_patterns.principal`, but for the _dn_ property.
 (<<static-cluster-setting,Static>>)
 The maximum allowed clock skew to be taken into consideration when validating
 id tokens with regards to their creation and expiration times.
-Defaults to `60m`.
+Defaults to `60s`.
 // end::oidc-allowed-clock-skew-tag[]
 
 // tag::oidc-populate-user-metadata-tag[]

@@ -1994,6 +1994,104 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(5, actual.longValue());
     }
 
+    public void testPivotWithRanges() throws Exception {
+        String transformId = "range_pivot";
+        String transformIndex = "range_pivot_reviews";
+        boolean keyed = randomBoolean();
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        String config = """
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "frequency": "1s",
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  },
+                  "ranges": {
+                    "range": {
+                      "field": "stars",
+                      "keyed": %s,
+                      "ranges": [ { "to": 2 }, { "from": 2, "to": 3.99 }, { "from": 4 } ]
+                    }
+                  },
+                  "ranges-avg": {
+                    "range": {
+                      "field": "stars",
+                      "keyed": %s,
+                      "ranges": [ { "to": 2 }, { "from": 2, "to": 3.99 }, { "from": 4 } ]
+                    },
+                    "aggs": { "avg_stars": { "avg": { "field": "stars" } } }
+                  }
+                }
+              }
+            }""".formatted(REVIEWS_INDEX_NAME, transformIndex, keyed, keyed);
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex);
+        assertTrue(indexExists(transformIndex));
+
+        // check destination index mappings
+        Map<String, Object> mappingsResult = getAsMap(transformIndex + "/_mapping");
+        assertThat(
+            XContentMapValues.extractValue("range_pivot_reviews.mappings.properties.ranges.properties", mappingsResult),
+            is(equalTo(Map.of("4-*", Map.of("type", "long"), "2-3_99", Map.of("type", "long"), "*-2", Map.of("type", "long"))))
+        );
+        assertThat(
+            XContentMapValues.extractValue("range_pivot_reviews.mappings.properties.ranges-avg.properties", mappingsResult),
+            is(
+                equalTo(
+                    Map.of(
+                        "4-*",
+                        Map.of("properties", Map.of("avg_stars", Map.of("type", "double"))),
+                        "2-3_99",
+                        Map.of("properties", Map.of("avg_stars", Map.of("type", "double"))),
+                        "*-2",
+                        Map.of("properties", Map.of("avg_stars", Map.of("type", "double")))
+                    )
+                )
+            )
+        );
+
+        // get and check some users
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_11");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges.*-2", searchResult)).get(0);
+        assertEquals(5, actual.longValue());
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges.2-3_99", searchResult)).get(0);
+        assertEquals(2, actual.longValue());
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges.4-*", searchResult)).get(0);
+        assertEquals(19, actual.longValue());
+
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges-avg.*-2.avg_stars", searchResult)).get(0);
+        assertEquals(1.0, actual.doubleValue(), 1E-6);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges-avg.2-3_99.avg_stars", searchResult)).get(0);
+        assertEquals(3.0, actual.doubleValue(), 1E-6);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges-avg.4-*.avg_stars", searchResult)).get(0);
+        assertEquals(4.6842105, actual.doubleValue(), 1E-6);
+    }
+
     public void testPivotWithFilter() throws Exception {
         String transformId = "filter_pivot";
         String transformIndex = "filter_pivot_reviews";

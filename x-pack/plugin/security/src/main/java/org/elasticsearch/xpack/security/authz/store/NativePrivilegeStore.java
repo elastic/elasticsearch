@@ -270,7 +270,7 @@ public class NativePrivilegeStore {
                 return privilege;
             }
         } catch (IOException | XContentParseException e) {
-            logger.error(new ParameterizedMessage("cannot parse application privilege [{}]", name), e);
+            logger.error(() -> "cannot parse application privilege [" + name + "]", e);
             return null;
         }
     }

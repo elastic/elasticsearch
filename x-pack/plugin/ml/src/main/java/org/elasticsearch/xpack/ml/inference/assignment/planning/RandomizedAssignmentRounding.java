@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.assignment.planning;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -67,7 +66,7 @@ class RandomizedAssignmentRounding {
         List<Tuple<Model, Node>> softAssignmentQueue = assignmentHolder.createSoftAssignmentQueue();
 
         if (softAssignmentQueue.isEmpty() == false) {
-            logger.debug(() -> new ParameterizedMessage("Random assignment rounding across [{}] rounds", rounds));
+            logger.debug(() -> "Random assignment rounding across [" + rounds + "] rounds");
             for (int i = 0; i < rounds; i++) {
                 AssignmentHolder randomizedAssignments = new AssignmentHolder(assignmentHolder);
                 randomizedAssignments.doRandomizedRounding(softAssignmentQueue);

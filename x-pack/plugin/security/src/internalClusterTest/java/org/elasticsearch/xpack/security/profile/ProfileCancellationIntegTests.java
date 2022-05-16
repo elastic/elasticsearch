@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -96,9 +97,12 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
         assertBusy(() -> {
             final List<Task> tasks = getTasksForXOpaqueId(xOpaqueId);
             final List<String> taskActions = tasks.stream().map(Task::getAction).toList();
-            assertThat(taskActions, hasItems(equalTo(SuggestProfilesAction.NAME), startsWith(SearchAction.NAME)));
+            assertThat(
+                taskActions,
+                hasItems(equalTo(SuggestProfilesAction.NAME), equalTo(SearchAction.NAME), startsWith(SearchAction.NAME))
+            );
             tasks.forEach(t -> taskIds.add(t.getId()));
-        });
+        }, 20, TimeUnit.SECONDS);
 
         // Cancel the suggest request and all tasks should be cancelled
         cancellable.cancel();
@@ -113,7 +117,7 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                 taskIds.remove(cancellableTask.getId());
             });
             assertThat(taskIds, empty());
-        });
+        }, 20, TimeUnit.SECONDS);
 
         disableSearchBlock();
         latch.await();

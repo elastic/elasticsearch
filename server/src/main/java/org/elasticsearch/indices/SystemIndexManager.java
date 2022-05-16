@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -311,7 +310,7 @@ public class SystemIndexManager implements ClusterStateListener {
             }
             return Version.fromString(versionString);
         } catch (ElasticsearchParseException | IllegalArgumentException e) {
-            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
+            logger.error(() -> "Cannot parse the mapping for index [" + indexName + "]", e);
             return Version.V_EMPTY;
         }
     }

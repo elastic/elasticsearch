@@ -19,8 +19,6 @@ public final class Validation {
 
     public static final int MIN_NAME_LENGTH = 1;
 
-    public static final int DEFAULT_MAX_NAME_LENGTH = 507;
-
     public static final Set<Character> VALID_NAME_CHARS = Set.of(
         ' ',
         '!',
@@ -132,9 +130,7 @@ public final class Validation {
         + "It must not begin with an underscore (_).";
 
     private static boolean isValidUserOrRoleName(String name, int maxLength) {
-        if (maxLength < MIN_NAME_LENGTH) {
-            throw new IllegalArgumentException("maxLength cannot be less than " + MIN_NAME_LENGTH);
-        }
+        assert maxLength >= MIN_NAME_LENGTH : "maxLength cannot be less than " + MIN_NAME_LENGTH;
 
         if (name.length() < MIN_NAME_LENGTH || name.length() > maxLength) {
             return false;
@@ -181,7 +177,10 @@ public final class Validation {
          * @param maxLength the maximal allowed length a username can have
          * @return {@code null} if valid
          */
-        public static Error validateUsername(String username, boolean allowReserved, Settings settings, int maxLength) {
+        static Error validateUsername(String username, boolean allowReserved, Settings settings, int maxLength) {
+            if (username == null) {
+                return new Error("username is missing");
+            }
             if (isValidUserOrRoleName(username, maxLength) == false) {
                 return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "User", maxLength));
             }
@@ -189,10 +188,6 @@ public final class Validation {
                 return new Error("Username [" + username + "] is reserved and may not be used.");
             }
             return null;
-        }
-
-        public static Error validateUsername(String username, boolean allowReserved, Settings settings) {
-            return validateUsername(username, allowReserved, settings, DEFAULT_MAX_NAME_LENGTH);
         }
 
         public static Error validatePassword(SecureString password) {
@@ -205,19 +200,10 @@ public final class Validation {
 
     public static final class Roles {
 
-        public static Error validateRoleName(String roleName) {
-            return validateRoleName(roleName, DEFAULT_MAX_NAME_LENGTH);
-        }
-
-        public static Error validateRoleName(String roleName, int maxLength) {
-            return validateRoleName(roleName, false, maxLength);
-        }
-
-        public static Error validateRoleName(String roleName, boolean allowReserved) {
-            return validateRoleName(roleName, allowReserved, DEFAULT_MAX_NAME_LENGTH);
-        }
-
-        public static Error validateRoleName(String roleName, boolean allowReserved, int maxLength) {
+        static Error validateRoleName(String roleName, boolean allowReserved, int maxLength) {
+            if (roleName == null) {
+                return new Error("role name is missing");
+            }
             if (isValidUserOrRoleName(roleName, maxLength) == false) {
                 return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "Role", maxLength));
             }

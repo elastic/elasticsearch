@@ -133,38 +133,40 @@ public class ValidationTests extends ESTestCase {
         '\r'
     );
 
+    private static final int MAX_NAME_LENGTH = NativeRealmValidationUtil.MAX_NAME_LENGTH;
+
     public void testUsernameValid() throws Exception {
-        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.DEFAULT_MAX_NAME_LENGTH);
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, MAX_NAME_LENGTH);
         String name = new String(generateValidName(length));
-        assertThat(Users.validateUsername(name, false, Settings.EMPTY), nullValue());
+        assertThat(Users.validateUsername(name, false, Settings.EMPTY, MAX_NAME_LENGTH), nullValue());
     }
 
     public void testUsernameReserved() {
         final String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
-        final Error error = Users.validateUsername(username, false, Settings.EMPTY);
+        final Error error = Users.validateUsername(username, false, Settings.EMPTY, MAX_NAME_LENGTH);
         assertNotNull(error);
         assertThat(error.toString(), containsString("is reserved"));
     }
 
     public void testUsernameInvalidLength() throws Exception {
-        int length = frequently() ? randomIntBetween(Validation.DEFAULT_MAX_NAME_LENGTH + 1, 2048) : 0;
+        int length = frequently() ? randomIntBetween(MAX_NAME_LENGTH + 1, MAX_NAME_LENGTH * 2) : 0;
         char[] name = new char[length];
         if (length > 0) {
             name = generateValidName(length);
         }
-        assertThat(Users.validateUsername(new String(name), false, Settings.EMPTY), notNullValue());
+        assertThat(Users.validateUsername(new String(name), false, Settings.EMPTY, MAX_NAME_LENGTH), notNullValue());
     }
 
     public void testUsernameInvalidCharacters() throws Exception {
-        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.DEFAULT_MAX_NAME_LENGTH);
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, MAX_NAME_LENGTH);
         String name = new String(generateNameInvalidCharacters(length));
-        assertThat(Users.validateUsername(name, false, Settings.EMPTY), notNullValue());
+        assertThat(Users.validateUsername(name, false, Settings.EMPTY, MAX_NAME_LENGTH), notNullValue());
     }
 
     public void testUsernameInvalidWhitespace() throws Exception {
-        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.DEFAULT_MAX_NAME_LENGTH);
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, MAX_NAME_LENGTH);
         String name = new String(generateNameInvalidWhitespace(length));
-        assertThat(Users.validateUsername(name, false, Settings.EMPTY), notNullValue());
+        assertThat(Users.validateUsername(name, false, Settings.EMPTY, MAX_NAME_LENGTH), notNullValue());
     }
 
     public void testUsersValidatePassword() throws Exception {
@@ -178,40 +180,40 @@ public class ValidationTests extends ESTestCase {
     }
 
     public void testRoleNameValid() throws Exception {
-        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.DEFAULT_MAX_NAME_LENGTH);
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, MAX_NAME_LENGTH);
         String name = new String(generateValidName(length));
-        assertThat(Roles.validateRoleName(name), nullValue());
+        assertThat(Roles.validateRoleName(name, false, MAX_NAME_LENGTH), nullValue());
     }
 
     public void testRoleNameReserved() {
         final String rolename = randomFrom(ReservedRolesStore.names());
-        final Error error = Roles.validateRoleName(rolename);
+        final Error error = Roles.validateRoleName(rolename, false, MAX_NAME_LENGTH);
         assertNotNull(error);
         assertThat(error.toString(), containsString("is reserved"));
 
-        final Error allowed = Roles.validateRoleName(rolename, true);
+        final Error allowed = Roles.validateRoleName(rolename, true, MAX_NAME_LENGTH);
         assertNull(allowed);
     }
 
     public void testRoleNameInvalidLength() throws Exception {
-        int length = frequently() ? randomIntBetween(Validation.DEFAULT_MAX_NAME_LENGTH + 1, 2048) : 0;
+        int length = frequently() ? randomIntBetween(MAX_NAME_LENGTH + 1, MAX_NAME_LENGTH * 2) : 0;
         char[] name = new char[length];
         if (length > 0) {
             name = generateValidName(length);
         }
-        assertThat(Roles.validateRoleName(new String(name), false), notNullValue());
+        assertThat(Roles.validateRoleName(new String(name), false, MAX_NAME_LENGTH), notNullValue());
     }
 
     public void testRoleNameInvalidCharacters() throws Exception {
-        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.DEFAULT_MAX_NAME_LENGTH);
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, MAX_NAME_LENGTH);
         String name = new String(generateNameInvalidCharacters(length));
-        assertThat(Roles.validateRoleName(name, false), notNullValue());
+        assertThat(Roles.validateRoleName(name, false, MAX_NAME_LENGTH), notNullValue());
     }
 
     public void testRoleNameInvalidWhitespace() throws Exception {
-        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.DEFAULT_MAX_NAME_LENGTH);
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, MAX_NAME_LENGTH);
         String name = new String(generateNameInvalidWhitespace(length));
-        assertThat(Roles.validateRoleName(name, false), notNullValue());
+        assertThat(Roles.validateRoleName(name, false, MAX_NAME_LENGTH), notNullValue());
     }
 
     public void testIsValidServiceAccountTokenName() {

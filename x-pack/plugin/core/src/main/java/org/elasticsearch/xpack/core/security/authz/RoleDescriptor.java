@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Privilege
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
@@ -300,7 +301,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat) throws IOException {
         // validate name
-        Validation.Error validationError = Validation.Roles.validateRoleName(name, true);
+        Validation.Error validationError = NativeRealmValidationUtil.validateRoleName(name, true);
         if (validationError != null) {
             ValidationException ve = new ValidationException();
             ve.addValidationError(validationError.toString());

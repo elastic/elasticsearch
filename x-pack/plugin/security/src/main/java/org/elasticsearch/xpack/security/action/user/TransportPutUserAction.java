@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
@@ -84,7 +85,7 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
                 );
             }
         } else {
-            Validation.Error usernameError = Validation.Users.validateUsername(username, true, settings);
+            Validation.Error usernameError = NativeRealmValidationUtil.validateUsername(username, true, settings);
             if (usernameError != null) {
                 validationException = addValidationError(usernameError.toString(), validationException);
             }
@@ -92,7 +93,7 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
 
         if (request.roles() != null) {
             for (String role : request.roles()) {
-                Validation.Error roleNameError = Validation.Roles.validateRoleName(role, true);
+                Validation.Error roleNameError = NativeRealmValidationUtil.validateRoleName(role, true);
                 if (roleNameError != null) {
                     validationException = addValidationError(roleNameError.toString(), validationException);
                 }

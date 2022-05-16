@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivile
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
+import org.elasticsearch.xpack.core.security.support.FileRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
 
@@ -297,7 +298,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 token = parser.nextToken();
                 if (token == XContentParser.Token.FIELD_NAME) {
                     roleName = parser.currentName();
-                    Validation.Error validationError = Validation.Roles.validateRoleName(roleName);
+                    Validation.Error validationError = FileRealmValidationUtil.validateRoleName(roleName, false);
                     if (validationError != null) {
                         logger.error(
                             "invalid role definition [{}] in roles file [{}]. invalid role name - {}. skipping role... ",

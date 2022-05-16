@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -240,8 +241,8 @@ public class TransportPutUserActionTests extends ESTestCase {
 
     private String randomExtraLongUsername() {
         Character[] username = randomArray(
-            Validation.DEFAULT_MAX_NAME_LENGTH + 1,
-            Validation.DEFAULT_MAX_NAME_LENGTH * 2,
+            NativeRealmValidationUtil.MAX_NAME_LENGTH + 1,
+            NativeRealmValidationUtil.MAX_NAME_LENGTH * 2,
             Character[]::new,
             () -> randomFrom(Validation.VALID_NAME_CHARS)
         );
@@ -251,8 +252,8 @@ public class TransportPutUserActionTests extends ESTestCase {
 
     private String randomMaxLengthUsername() {
         Character[] username = randomArray(
-            Validation.DEFAULT_MAX_NAME_LENGTH,
-            Validation.DEFAULT_MAX_NAME_LENGTH,
+            NativeRealmValidationUtil.MAX_NAME_LENGTH,
+            NativeRealmValidationUtil.MAX_NAME_LENGTH,
             Character[]::new,
             () -> randomFrom(Validation.VALID_NAME_CHARS)
         );

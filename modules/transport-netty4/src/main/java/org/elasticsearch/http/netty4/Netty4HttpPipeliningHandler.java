@@ -111,6 +111,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         try {
             final Netty4HttpResponse response = (Netty4HttpResponse) msg;
             if (response.getSequence() != writeSequence) {
+                assert response.getSequence() > writeSequence
+                    : "response sequence [" + response.getSequence() + "] we below write sequence [" + writeSequence + "]";
                 if (outboundHoldingQueue.size() >= maxEventsHeld) {
                     int eventCount = outboundHoldingQueue.size() + 1;
                     throw new IllegalStateException(

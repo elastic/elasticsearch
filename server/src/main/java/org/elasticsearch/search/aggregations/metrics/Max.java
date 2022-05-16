@@ -59,10 +59,16 @@ public class Max extends InternalNumericMetricsAggregation.SingleValue {
     @Override
     public Max reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         double max = Double.NEGATIVE_INFINITY;
+        DocValueFormat mergedFormat = format;
         for (InternalAggregation aggregation : aggregations) {
-            max = Math.max(max, ((Max) aggregation).max);
+            if (((Max) aggregation).max > max) {
+                max = ((Max) aggregation).max;
+                if (format == DocValueFormat.RAW) {
+                    mergedFormat = ((Max) aggregation).format;
+                }
+            }
         }
-        return new Max(name, max, format, getMetadata());
+        return new Max(name, max, mergedFormat, getMetadata());
     }
 
     @Override

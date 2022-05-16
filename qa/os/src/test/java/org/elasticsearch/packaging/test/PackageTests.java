@@ -162,7 +162,7 @@ public class PackageTests extends PackagingTestCase {
     public void test50Remove() throws Exception {
         // add fake bin directory as if a plugin was installed
         Files.createDirectories(installation.bin.resolve("myplugin"));
-        
+
         remove(distribution());
 
         // removing must stop the service

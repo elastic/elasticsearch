@@ -63,10 +63,10 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -1147,7 +1147,7 @@ public class IndicesService extends AbstractLifecycleComponent
             } catch (Exception e) {
                 // we just warn about the exception here because if deleteIndexStoreIfDeletionAllowed
                 // throws an exception, it gets added to the list of pending deletes to be tried again
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to delete index on disk", metadata.getIndex()), e);
+                logger.warn(() -> "[" + metadata.getIndex() + "] failed to delete index on disk", e);
             }
             return metadata;
         }
@@ -1722,13 +1722,6 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public Set<String> getMetadataFields(Version version) {
         return mapperRegistry.getMetadataMapperParsers(version).keySet();
-    }
-
-    /**
-     * Returns the registered metadata field names for all compatible versions.
-     */
-    public Set<String> getAllMetadataFields() {
-        return mapperRegistry.getAllMetadataMapperParsers().keySet();
     }
 
     private void setIdFieldDataEnabled(boolean value) {

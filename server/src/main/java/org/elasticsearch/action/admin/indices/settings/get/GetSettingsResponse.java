@@ -42,8 +42,8 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     public GetSettingsResponse(StreamInput in) throws IOException {
         super(in);
-        indexToSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
-        indexToDefaultSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
+        indexToSettings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
+        indexToDefaultSettings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
     }
 
     /**

@@ -18,7 +18,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -236,7 +235,7 @@ public class DataTier {
         public Settings getAdditionalIndexSettings(
             String indexName,
             String dataStreamName,
-            IndexMode templateIndexMode,
+            boolean timeSeries,
             Metadata metadata,
             Instant resolvedAt,
             Settings allSettings

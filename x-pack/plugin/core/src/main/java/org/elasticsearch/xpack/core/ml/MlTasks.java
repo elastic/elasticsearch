@@ -29,8 +29,8 @@ import java.util.stream.Collectors;
 
 public final class MlTasks {
 
-    public static final String TRAINED_MODEL_ALLOCATION_TASK_TYPE = "trained_model_allocation";
-    public static final String TRAINED_MODEL_ALLOCATION_TASK_ACTION = "xpack/ml/trained_model_allocation[n]";
+    public static final String TRAINED_MODEL_ASSIGNMENT_TASK_TYPE = "trained_model_assignment";
+    public static final String TRAINED_MODEL_ASSIGNMENT_TASK_ACTION = "xpack/ml/trained_model_assignment[n]";
 
     public static final String JOB_TASK_NAME = "xpack/ml/job";
     public static final String DATAFEED_TASK_NAME = "xpack/ml/datafeed";
@@ -99,7 +99,7 @@ public final class MlTasks {
         return taskId.substring(DATA_FRAME_ANALYTICS_TASK_ID_PREFIX.length());
     }
 
-    public static String trainedModelAllocationTaskDescription(String modelId) {
+    public static String trainedModelAssignmentTaskDescription(String modelId) {
         return TrainedModelConfig.MODEL_ID.getPreferredName() + "[" + modelId + "]";
     }
 
@@ -166,7 +166,7 @@ public final class MlTasks {
         }
         JobState jobState = jobTaskState.getState();
         if (jobTaskState.isStatusStale(task)) {
-            // the job is re-locating
+            // the job is relocating
             if (jobState == JobState.CLOSING) {
                 // previous executor node failed while the job was closing - it won't
                 // be reopened on another node, so consider it CLOSED for most purposes

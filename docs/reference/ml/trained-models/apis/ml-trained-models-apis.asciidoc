@@ -12,7 +12,7 @@ You can use the following APIs to perform model management operations:
 * <<delete-trained-models-aliases>>
 * <<get-trained-models>>
 * <<get-trained-models-stats>>
-* <<infer-trained-model-deployment>>
+* <<infer-trained-model>>
 * <<start-trained-model-deployment>>
 * <<stop-trained-model-deployment>>
 

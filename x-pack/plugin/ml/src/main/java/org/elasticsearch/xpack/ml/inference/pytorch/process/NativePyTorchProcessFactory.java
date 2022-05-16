@@ -11,8 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -102,8 +102,8 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
         PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(
             nativeController,
             processPipes,
-            task.getParams().getInferenceThreads(),
-            task.getParams().getModelThreads()
+            task.getParams().getThreadsPerAllocation(),
+            task.getParams().getNumberOfAllocations()
         );
         try {
             pyTorchBuilder.build();

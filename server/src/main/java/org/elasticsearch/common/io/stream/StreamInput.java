@@ -16,7 +16,6 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -409,34 +408,33 @@ public abstract class StreamInput extends InputStream {
     private static final ThreadLocal<byte[]> stringReadBuffer = ThreadLocal.withInitial(() -> new byte[1024]);
 
     // Thread-local buffer for smaller strings
-    private static final ThreadLocal<CharsRef> smallSpare = ThreadLocal.withInitial(() -> new CharsRef(SMALL_STRING_LIMIT));
+    private static final ThreadLocal<char[]> smallSpare = ThreadLocal.withInitial(() -> new char[SMALL_STRING_LIMIT]);
 
     // Larger buffer used for long strings that can't fit into the thread-local buffer
     // We don't use a CharsRefBuilder since we exactly know the size of the character array up front
     // this prevents calling grow for every character since we don't need this
-    private CharsRef largeSpare;
+    private char[] largeSpare;
+
+    private char[] ensureLargeSpare(int charCount) {
+        char[] spare = largeSpare;
+        if (spare == null || spare.length < charCount) {
+            // we don't use ArrayUtils.grow since there is no need to copy the array
+            spare = new char[ArrayUtil.oversize(charCount, Character.BYTES)];
+            largeSpare = spare;
+        }
+        return spare;
+    }
 
     public String readString() throws IOException {
         final int charCount = readArraySize();
-        final CharsRef charsRef;
-        if (charCount > SMALL_STRING_LIMIT) {
-            if (largeSpare == null) {
-                largeSpare = new CharsRef(ArrayUtil.oversize(charCount, Character.BYTES));
-            } else if (largeSpare.chars.length < charCount) {
-                // we don't use ArrayUtils.grow since there is no need to copy the array
-                largeSpare.chars = new char[ArrayUtil.oversize(charCount, Character.BYTES)];
-            }
-            charsRef = largeSpare;
-        } else {
-            charsRef = smallSpare.get();
-        }
-        charsRef.length = charCount;
+
+        final char[] charBuffer = charCount > SMALL_STRING_LIMIT ? ensureLargeSpare(charCount) : smallSpare.get();
+
         int charsOffset = 0;
         int offsetByteArray = 0;
         int sizeByteArray = 0;
         int missingFromPartial = 0;
         final byte[] byteBuffer = stringReadBuffer.get();
-        final char[] charBuffer = charsRef.chars;
         for (; charsOffset < charCount;) {
             final int charsLeft = charCount - charsOffset;
             int bufferFree = byteBuffer.length - sizeByteArray;
@@ -512,7 +510,7 @@ public abstract class StreamInput extends InputStream {
                 }
             }
         }
-        return charsRef.toString();
+        return new String(charBuffer, 0, charCount);
     }
 
     private static void throwOnBrokenChar(int c) throws IOException {
@@ -683,12 +681,34 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Read a {@link Map} using the given key and value readers. The return Map is immutable.
+     *
+     * @param keyReader Method to read a key. Must not return null.
+     * @param valueReader Method to read a value. Must not return null.
+     * @return The immutable map
+     */
+    public <K, V> Map<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
+        final int size = readVInt();
+        if (size == 0) {
+            return Map.of();
+        } else if (size == 1) {
+            return Map.of(keyReader.read(this), valueReader.read(this));
+        }
+        @SuppressWarnings({ "rawtypes", "unchecked" })
+        Map.Entry<K, V> entries[] = new Map.Entry[size];
+        for (int i = 0; i < size; ++i) {
+            entries[i] = Map.entry(keyReader.read(this), valueReader.read(this));
+        }
+        return Map.ofEntries(entries);
+    }
+
+    /**
      * Read {@link ImmutableOpenMap} using given key and value readers.
      *
      * @param keyReader   key reader
      * @param valueReader value reader
      */
-    public <K, V> ImmutableOpenMap<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
+    public <K, V> ImmutableOpenMap<K, V> readImmutableOpenMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
         throws IOException {
         final int size = readVInt();
         if (size == 0) {
@@ -1130,6 +1150,32 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an list of objects. The list is expected to have been written using {@link StreamOutput#writeList(List)}.
+     * The returned list is immutable.
+     *
+     * @return the list of objects
+     * @throws IOException if an I/O exception occurs reading the list
+     */
+    public <T> List<T> readImmutableList(final Writeable.Reader<T> reader) throws IOException {
+        int count = readArraySize();
+        // special cases small arrays, just like in java.util.List.of(...)
+        if (count == 0) {
+            return List.of();
+        } else if (count == 1) {
+            return List.of(reader.read(this));
+        } else if (count == 2) {
+            return List.of(reader.read(this), reader.read(this));
+        }
+        Object[] entries = new Object[count];
+        for (int i = 0; i < count; i++) {
+            entries[i] = reader.read(this);
+        }
+        @SuppressWarnings("unchecked")
+        T[] typedEntries = (T[]) entries;
+        return List.of(typedEntries);
+    }
+
+    /**
      * Reads a list of strings. The list is expected to have been written using {@link StreamOutput#writeStringCollection(Collection)}.
      * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
      *
@@ -1246,10 +1292,10 @@ public abstract class StreamInput extends InputStream {
     protected int readArraySize() throws IOException {
         final int arraySize = readVInt();
         if (arraySize > ArrayUtil.MAX_ARRAY_LENGTH) {
-            throw new IllegalStateException("array length must be <= to " + ArrayUtil.MAX_ARRAY_LENGTH + " but was: " + arraySize);
+            throwExceedsMaxArraySize(arraySize);
         }
         if (arraySize < 0) {
-            throw new NegativeArraySizeException("array size must be positive but was: " + arraySize);
+            throwNegative(arraySize);
         }
         // lets do a sanity check that if we are reading an array size that is bigger that the remaining bytes we can safely
         // throw an exception instead of allocating the array based on the size. A simple corrutpted byte can make a node go OOM
@@ -1258,11 +1304,23 @@ public abstract class StreamInput extends InputStream {
         return arraySize;
     }
 
+    private static void throwNegative(int arraySize) {
+        throw new NegativeArraySizeException("array size must be positive but was: " + arraySize);
+    }
+
+    private static void throwExceedsMaxArraySize(int arraySize) {
+        throw new IllegalStateException("array length must be <= to " + ArrayUtil.MAX_ARRAY_LENGTH + " but was: " + arraySize);
+    }
+
     /**
      * This method throws an {@link EOFException} if the given number of bytes can not be read from the this stream. This method might
      * be a no-op depending on the underlying implementation if the information of the remaining bytes is not present.
      */
     protected abstract void ensureCanReadBytes(int length) throws EOFException;
+
+    protected static void throwEOF(int bytesToRead, int bytesAvailable) throws EOFException {
+        throw new EOFException("tried to read: " + bytesToRead + " bytes but only " + bytesAvailable + " remaining");
+    }
 
     private static final TimeUnit[] TIME_UNITS = TimeUnit.values();
 

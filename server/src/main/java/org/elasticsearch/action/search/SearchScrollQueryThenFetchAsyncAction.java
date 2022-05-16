@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
@@ -25,6 +23,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
+import java.util.List;
 import java.util.function.BiFunction;
 
 final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncAction<ScrollQuerySearchResult> {
@@ -75,7 +74,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                     return;
                 }
 
-                final IntArrayList[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(queryResults.length(), scoreDocs);
+                final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(queryResults.length(), scoreDocs);
                 final ScoreDoc[] lastEmittedDocPerShard = SearchPhaseController.getLastEmittedDocPerShard(
                     reducedQueryPhase,
                     queryResults.length()
@@ -83,7 +82,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                 final CountDown counter = new CountDown(docIdsToLoad.length);
                 for (int i = 0; i < docIdsToLoad.length; i++) {
                     final int index = i;
-                    final IntArrayList docIds = docIdsToLoad[index];
+                    final List<Integer> docIds = docIdsToLoad[index];
                     if (docIds != null) {
                         final QuerySearchResult querySearchResult = queryResults.get(index);
                         ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[index];

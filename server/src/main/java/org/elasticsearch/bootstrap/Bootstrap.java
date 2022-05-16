@@ -8,8 +8,8 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;

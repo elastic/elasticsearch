@@ -16,9 +16,9 @@ import com.sun.jna.Structure;
 import com.sun.jna.WString;
 import com.sun.jna.win32.StdCallLibrary;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.apache.lucene.util.Constants;
 
 import java.util.ArrayList;
 import java.util.Arrays;

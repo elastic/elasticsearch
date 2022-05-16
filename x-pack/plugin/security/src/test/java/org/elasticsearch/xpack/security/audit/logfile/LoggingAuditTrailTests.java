@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.Logger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.logging.Logger;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;

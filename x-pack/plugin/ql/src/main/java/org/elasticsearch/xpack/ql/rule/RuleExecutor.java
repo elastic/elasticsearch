@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.ql.rule;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 

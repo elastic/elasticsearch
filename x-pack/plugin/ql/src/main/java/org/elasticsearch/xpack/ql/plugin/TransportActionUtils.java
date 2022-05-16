@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.ql.plugin;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.VersionMismatchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.function.Consumer;

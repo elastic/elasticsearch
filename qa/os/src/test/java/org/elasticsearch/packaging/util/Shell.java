@@ -8,9 +8,9 @@
 
 package org.elasticsearch.packaging.util;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

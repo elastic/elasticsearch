@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.logging.Level;
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;

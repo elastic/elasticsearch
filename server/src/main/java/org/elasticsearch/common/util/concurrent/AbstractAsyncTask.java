@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.logging.Logger;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;

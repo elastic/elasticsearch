@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.logging.Level;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.core.Filter;
 import org.apache.logging.log4j.core.LogEvent;

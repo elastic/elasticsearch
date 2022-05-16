@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.support;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.Logger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.message.EntryMessage;
 import org.apache.logging.log4j.message.Message;

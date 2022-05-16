@@ -8,9 +8,9 @@
 
 package org.elasticsearch.rest.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.tasks.TaskCancelledException;

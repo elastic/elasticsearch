@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.logging.Logger;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.SegmentInfos;

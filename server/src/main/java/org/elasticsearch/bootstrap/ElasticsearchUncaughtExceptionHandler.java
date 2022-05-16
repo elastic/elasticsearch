@@ -8,9 +8,9 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOError;
 import java.security.AccessController;

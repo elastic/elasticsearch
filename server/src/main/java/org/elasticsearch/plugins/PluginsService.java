@@ -8,8 +8,8 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;

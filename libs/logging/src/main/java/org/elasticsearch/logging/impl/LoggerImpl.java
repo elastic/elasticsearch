@@ -25,8 +25,6 @@ public final class LoggerImpl implements Logger {
         return log4jLogger;
     }
 
-
-
     private static org.apache.logging.log4j.Level log4jLevel(final org.elasticsearch.logging.Level level) {
         return Util.log4jLevel(level);
     }
@@ -35,8 +33,6 @@ public final class LoggerImpl implements Logger {
     public void log(Level level, Object message) {
         log4jLogger.log(log4jLevel(level), message);
     }
-
-
 
     @Override
     public void log(Level level, Supplier<?> msgSupplier, Throwable thrown) {

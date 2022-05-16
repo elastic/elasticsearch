@@ -11,7 +11,7 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.auth.AWSCredentials;
 import com.sun.net.httpserver.HttpServer;
 
-import org.elasticsearch.logging.LogManager;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;

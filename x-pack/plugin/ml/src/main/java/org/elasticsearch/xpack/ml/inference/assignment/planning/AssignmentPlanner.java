@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.ml.inference.assignment.planning;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Model;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.settings.Setting;

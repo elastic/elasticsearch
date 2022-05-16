@@ -8,9 +8,9 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 

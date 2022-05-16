@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.Logger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.io.OutputStream;

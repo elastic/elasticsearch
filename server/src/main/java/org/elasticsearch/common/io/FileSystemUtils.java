@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.io;
 
-import org.elasticsearch.logging.Logger;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.IOUtils;

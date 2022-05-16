@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.io.ansi;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.bootstrap.ConsoleLoader;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.Logger;
 import org.fusesource.jansi.Ansi;
 import org.fusesource.jansi.AnsiConsole;
 import org.fusesource.jansi.AnsiPrintStream;

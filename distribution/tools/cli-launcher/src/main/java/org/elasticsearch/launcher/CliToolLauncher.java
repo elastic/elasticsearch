@@ -8,7 +8,6 @@
 
 package org.elasticsearch.launcher;
 
-import org.elasticsearch.logging.Level;
 import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ProcessInfo;
@@ -16,6 +15,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.Level;
 
 import java.io.Closeable;
 import java.io.IOException;

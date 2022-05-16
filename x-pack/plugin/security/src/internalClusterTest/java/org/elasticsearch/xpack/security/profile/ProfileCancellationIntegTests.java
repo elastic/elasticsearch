@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.profile;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
@@ -18,6 +16,8 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;

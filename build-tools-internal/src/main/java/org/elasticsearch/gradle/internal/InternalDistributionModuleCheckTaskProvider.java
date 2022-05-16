@@ -19,17 +19,24 @@ import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
+import java.net.URI;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toSet;
 
 /**
  * Distribution level checks for Elasticsearch Java modules, i.e. modular jar files.
@@ -55,9 +62,14 @@ public class InternalDistributionModuleCheckTaskProvider {
                         .toPath()
                         .resolve("elasticsearch-" + VersionProperties.getElasticsearch())
                         .resolve("lib");
-                    assertAllESJarsAreModular(libPath);
-                    assertAllModulesPresent(libPath);
-                    assertModuleVersions(libPath, VersionProperties.getElasticsearch());
+                    try {
+                        assertAllESJarsAreModular(libPath);
+                        assertAllModulesPresent(libPath);
+                        assertModuleVersions(libPath, VersionProperties.getElasticsearch());
+                        assertModuleServices(libPath);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
                 }
             });
         });
@@ -74,7 +86,7 @@ public class InternalDistributionModuleCheckTaskProvider {
         .isEmpty();
 
     /** Checks that all expected ES jar files are modular, i.e. contain a module-info.class in their root. */
-    private static void assertAllESJarsAreModular(Path libPath) {
+    private static void assertAllESJarsAreModular(Path libPath) throws IOException {
         try (var s = Files.walk(libPath, 1)) {
             s.filter(Files::isRegularFile).filter(isESJar).filter(isNotExcluded).sorted().forEach(path -> {
                 try (JarFile jf = new JarFile(path.toFile())) {
@@ -86,8 +98,6 @@ public class InternalDistributionModuleCheckTaskProvider {
                     throw new GradleException("Failed when reading jar file " + path, e);
                 }
             });
-        } catch (IOException e) {
-            throw new GradleException("Failed when walking path " + libPath, e);
         }
     }
 
@@ -134,9 +144,48 @@ public class InternalDistributionModuleCheckTaskProvider {
         }
     }
 
-    // ####: eventually assert hashes, services, etc
+    static final Class<?> THIS_CLASS = InternalDistributionModuleCheckTaskProvider.class;
+
+    /** Checks that all modules have, at least, the META-INF services declared. */
+    private static void assertModuleServices(Path libPath) throws IOException {
+        List<ModuleReference> esModules = ModuleFinder.of(libPath)
+            .findAll()
+            .stream()
+            .filter(isESModule) // TODO: how to open this to all, including plugins and modules
+            .sorted(Comparator.comparing(ModuleReference::descriptor))
+            .toList();
+
+        for (ModuleReference mref : esModules) {
+            URI uri = URI.create("jar:" + mref.location().get());
+            Set<String> modServices = mref.descriptor().provides().stream().flatMap(p -> p.providers().stream()).collect(toSet());
+            try (var fileSystem = FileSystems.newFileSystem(uri, Map.of(), THIS_CLASS.getClassLoader())) {
+                Path servicesRoot = fileSystem.getPath("/META-INF/services");
+                if (Files.exists(servicesRoot)) {
+                    System.out.println("HEGO checking services for " + uri);
+                    System.out.println("HEGO   modServices " + modServices);
+                    Set<String> metaInfServices = Files.walk(servicesRoot)
+                        .filter(Files::isRegularFile)
+                        .map(p -> servicesRoot.relativize(p))
+                        .map(Path::toString)
+                        .collect(toSet());
+                    System.out.println("HEGO   metaInfServices= " + metaInfServices);
+                    for (String service : metaInfServices) {
+                        System.out.println(
+                            "HEGO   service " + service + ", modServices.contains(service)=" + modServices.contains(service)
+                        );
+                        if (modServices.contains(service) == false) {
+                            // throw new GradleException("Expected provides %s in module %s with provides %s."
+                            // .formatted(service, mref.descriptor().name(), mref.descriptor().provides()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ####: eventually assert hashes, etc
 
     static String listToString(List<String> list) {
-        return list.stream().sorted().collect(Collectors.joining("\n  ", "[\n  ", "]"));
+        return list.stream().sorted().collect(joining("\n  ", "[\n  ", "]"));
     }
 }

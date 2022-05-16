@@ -18,6 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileRequest;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
@@ -29,6 +31,11 @@ import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesReque
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesResponse;
@@ -38,6 +45,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -49,12 +57,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INTERNAL_SECURITY_PROFILE_INDEX_8;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -136,7 +146,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         assertThat(profile3.user().domainName(), nullValue());
         assertThat(profile3.user().email(), equalTo(RAC_USER_NAME + "@example.com"));
         assertThat(profile3.user().fullName(), nullValue());
-        assertThat(profile3.user().roles(), contains(RAC_ROLE));
+        assertThat(profile3.user().roles(), containsInAnyOrder(RAC_ROLE, NATIVE_RAC_ROLE));
         assertThat(profile3.labels(), anEmptyMap());
         // Get by ID immediately should get the same document and content as the response to activate
         assertThat(getProfile(profile3.uid(), Set.of()), equalTo(profile3));
@@ -594,6 +604,84 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         );
     }
 
+    public void testHasPrivileges() {
+        final PutPrivilegesRequest putPrivilegesRequest1 = new PutPrivilegesRequest();
+        putPrivilegesRequest1.setPrivileges(
+            List.of(
+                new ApplicationPrivilegeDescriptor("app-1", "read", Set.of("get/some/thing", "get/another/thing"), Map.of()),
+                new ApplicationPrivilegeDescriptor("app-1", "write", Set.of("put/some/thing", "put/another/thing"), Map.of())
+            )
+        );
+        client().execute(PutPrivilegesAction.INSTANCE, putPrivilegesRequest1).actionGet();
+
+        final Profile profile = doActivateProfile(RAC_USER_NAME, NATIVE_RAC_USER_PASSWORD);
+
+        // 1st check
+        final PrivilegesToCheck privilegesToCheck1 = new PrivilegesToCheck(
+            new String[] { "monitor" },
+            new RoleDescriptor.IndicesPrivileges[0],
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("app-1")
+                    .resources("foo1")
+                    .privileges("get/some/thing")
+                    .build() }
+        );
+        if (randomBoolean()) {
+            assertThat(checkProfilePrivileges(profile.uid(), privilegesToCheck1).hasPrivilegeUids(), equalTo(Set.of(profile.uid())));
+        } else {
+            final HasPrivilegesResponse hasPrivilegesResponse = checkPrivileges(privilegesToCheck1);
+            assertThat(hasPrivilegesResponse.toString(), hasPrivilegesResponse.isCompleteMatch(), is(true));
+        }
+
+        // 2nd check: result is different so that we are sure cache is not interfering
+        final PrivilegesToCheck privilegesToCheck2 = new PrivilegesToCheck(
+            new String[] { "monitor", "manage_pipeline" },
+            new RoleDescriptor.IndicesPrivileges[0],
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("app-1")
+                    .resources("foo1")
+                    .privileges("get/some/thing", "put/some/thing")
+                    .build() }
+        );
+        if (randomBoolean()) {
+            assertThat(checkProfilePrivileges(profile.uid(), privilegesToCheck2).hasPrivilegeUids(), empty());
+        } else {
+            final HasPrivilegesResponse hasPrivilegesResponse = checkPrivileges(privilegesToCheck2);
+            assertThat(hasPrivilegesResponse.toString(), hasPrivilegesResponse.isCompleteMatch(), is(false));
+        }
+
+        // 3rd check: updating the role works correctly for privileges check (cache is cleared)
+        final PutRoleRequest putRoleRequest = new PutRoleRequest();
+        putRoleRequest.name(NATIVE_RAC_ROLE);
+        putRoleRequest.cluster("manage_pipeline");
+        putRoleRequest.addApplicationPrivileges(
+            RoleDescriptor.ApplicationResourcePrivileges.builder().application("app-1").resources("foo*").privileges("write").build()
+        );
+        client().execute(PutRoleAction.INSTANCE, putRoleRequest).actionGet();
+        if (randomBoolean()) {
+            assertThat(checkProfilePrivileges(profile.uid(), privilegesToCheck2).hasPrivilegeUids(), equalTo(Set.of(profile.uid())));
+        } else {
+            final HasPrivilegesResponse hasPrivilegesResponse = checkPrivileges(privilegesToCheck2);
+            assertThat(hasPrivilegesResponse.toString(), hasPrivilegesResponse.isCompleteMatch(), is(true));
+        }
+
+        // 4th check: updating stored privileges works correctly (cache is cleared)
+        final PutPrivilegesRequest putPrivilegesRequest2 = new PutPrivilegesRequest();
+        // Remove "get/some/thing" from read
+        putPrivilegesRequest2.setPrivileges(
+            List.of(new ApplicationPrivilegeDescriptor("app-1", "read", Set.of("get/another/thing"), Map.of()))
+        );
+        client().execute(PutPrivilegesAction.INSTANCE, putPrivilegesRequest2).actionGet();
+        if (randomBoolean()) {
+            assertThat(checkProfilePrivileges(profile.uid(), privilegesToCheck2).hasPrivilegeUids(), empty());
+        } else {
+            final HasPrivilegesResponse hasPrivilegesResponse = checkPrivileges(privilegesToCheck2);
+            assertThat(hasPrivilegesResponse.toString(), hasPrivilegesResponse.isCompleteMatch(), is(false));
+        }
+    }
+
     private SuggestProfilesResponse.ProfileHit[] doSuggest(String name) {
         return doSuggest(name, Set.of());
     }
@@ -622,5 +710,21 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         final GetIndexRequest getIndexRequest = new GetIndexRequest();
         getIndexRequest.indices(".*");
         return client().execute(GetIndexAction.INSTANCE, getIndexRequest).actionGet();
+    }
+
+    private ProfileHasPrivilegesResponse checkProfilePrivileges(String uid, PrivilegesToCheck privilegesToCheck) {
+        final ProfileHasPrivilegesRequest profileHasPrivilegesRequest = new ProfileHasPrivilegesRequest(List.of(uid), privilegesToCheck);
+        return client().execute(ProfileHasPrivilegesAction.INSTANCE, profileHasPrivilegesRequest).actionGet();
+    }
+
+    private HasPrivilegesResponse checkPrivileges(PrivilegesToCheck privilegesToCheck) {
+        final HasPrivilegesRequest hasPrivilegesRequest = new HasPrivilegesRequest();
+        hasPrivilegesRequest.username(RAC_USER_NAME);
+        hasPrivilegesRequest.clusterPrivileges(privilegesToCheck.cluster());
+        hasPrivilegesRequest.indexPrivileges(privilegesToCheck.index());
+        hasPrivilegesRequest.applicationPrivileges(privilegesToCheck.application());
+        return client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(RAC_USER_NAME, NATIVE_RAC_USER_PASSWORD.clone())))
+            .execute(HasPrivilegesAction.INSTANCE, hasPrivilegesRequest)
+            .actionGet();
     }
 }

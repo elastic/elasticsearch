@@ -69,10 +69,6 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             return rollupRequest.indicesOptions();
         }
 
-        public String getRollupIndex() {
-            return this.getRollupRequest().getRollupIndex();
-        }
-
         public RollupAction.Request getRollupRequest() {
             return rollupRequest;
         }
@@ -197,7 +193,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         }
 
         public String getRollupIndex() {
-            return request.getRollupIndex();
+            return request.getRollupRequest().getRollupIndex();
         }
 
         public RollupActionConfig getRollupConfig() {

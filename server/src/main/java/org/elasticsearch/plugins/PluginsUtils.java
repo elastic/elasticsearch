@@ -92,11 +92,13 @@ public class PluginsUtils {
         JarHell.checkJavaVersion(info.getName(), info.getJavaVersion());
     }
 
+    /**
+     * Check for the existence of a marker file that indicates any plugins are in a garbage state from a failed attempt to remove the
+     * plugin.
+     * @param pluginsDirectory Path to plugins directory
+     * @throws IOException if there is an error reading from the filesystem
+     */
     public static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {
-        /*
-         * Check for the existence of a marker file that indicates any plugins are in a garbage state from a failed attempt to remove the
-         * plugin.
-         */
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory, ".removing-*")) {
             final Iterator<Path> iterator = stream.iterator();
             if (iterator.hasNext()) {
@@ -122,6 +124,17 @@ public class PluginsUtils {
     /** Get bundles for plugins installed in the given plugins directory. */
     static Set<PluginBundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
         return findBundles(pluginsDirectory, "plugin");
+    }
+
+    /**
+     * A convenience method for analyzing plugin dependencies
+     * @param pluginsDirectory Directory of plugins to scan
+     * @return a map of plugin names to a list of names of any plugins that they extend
+     * @throws IOException if there is an error reading the plugins
+     */
+    public static Map<String, List<String>> getDependencyMapView(final Path pluginsDirectory) throws IOException {
+        return getPluginBundles(pluginsDirectory).stream()
+            .collect(Collectors.toMap(b -> b.plugin.getName(), b -> b.plugin.getExtendedPlugins()));
     }
 
     // searches subdirectories under the given directory for plugin directories
@@ -154,24 +167,6 @@ public class PluginsUtils {
             );
         }
         return new PluginBundle(info, plugin);
-    }
-
-    public static Map<String, List<String>> getPluginDependencies(List<String> pluginNames, Path directory) throws IOException {
-        final Map<String, List<String>> usedBy = new HashMap<>();
-        Set<PluginBundle> bundles = getPluginBundles(directory);
-        for (PluginBundle bundle : bundles) {
-            for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
-                for (String name : pluginNames) {
-                    if (extendedPlugin.equals(name)) {
-                        usedBy.computeIfAbsent(bundle.plugin.getName(), (_key -> new ArrayList<>())).add(name);
-                    }
-                }
-            }
-        }
-        if (usedBy.isEmpty()) {
-            return null;
-        }
-        return usedBy;
     }
 
     public static void preInstallJarHellCheck(

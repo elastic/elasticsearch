@@ -20,6 +20,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -86,9 +87,22 @@ public class RemovePluginAction {
 
     private void ensurePluginsNotUsedByOtherPlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
         // First make sure nothing extends this plugin
-        List<String> pluginNames = plugins.stream().map(PluginDescriptor::getId).toList();
-        final Map<String, List<String>> usedBy = PluginsUtils.getPluginDependencies(pluginNames, env.pluginsFile());
-        if (usedBy == null) return;
+        final Map<String, List<String>> usedBy = new HashMap<>();
+
+        Map<String, List<String>> pluginDependencyMap = PluginsUtils.getDependencyMapView(env.pluginsFile());
+        for (Map.Entry<String, List<String>> entry : pluginDependencyMap.entrySet()) {
+            for (String extendedPlugin : entry.getValue()) {
+                for (PluginDescriptor plugin : plugins) {
+                    String pluginId = plugin.getId();
+                    if (extendedPlugin.equals(pluginId)) {
+                        usedBy.computeIfAbsent(entry.getKey(), (_key -> new ArrayList<>())).add(pluginId);
+                    }
+                }
+            }
+        }
+        if (usedBy.isEmpty()) {
+            return;
+        }
 
         final StringJoiner message = new StringJoiner("\n");
         message.add("Cannot remove plugins because the following are extended by other plugins:");

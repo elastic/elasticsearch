@@ -481,6 +481,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     private final FieldType fieldType;
     private final Builder builder;
 
+    private final NamedAnalyzer indexAnalyzer;
+
     protected AnnotatedTextFieldMapper(
         String simpleName,
         FieldType fieldType,
@@ -489,10 +491,16 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, wrapAnalyzer(builder.analyzers.getIndexAnalyzer()), multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         assert fieldType.tokenized();
         this.fieldType = fieldType;
         this.builder = builder;
+        this.indexAnalyzer = wrapAnalyzer(builder.analyzers.getIndexAnalyzer());
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), indexAnalyzer);
     }
 
     @Override

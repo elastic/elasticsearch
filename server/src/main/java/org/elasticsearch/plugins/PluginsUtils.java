@@ -156,7 +156,7 @@ public class PluginsUtils {
 
     // jar-hell check the bundle against the parent classloader and extended plugins
     // the plugin cli does it, but we do it again, in case users mess with jar files manually
-    public static void checkBundleJarHell(Set<URL> classpath, PluginBundle bundle, Map<String, Set<URL>> transitiveUrls) {
+    public static void checkBundleJarHell(Set<URL> systemLoaderURLs, PluginBundle bundle, Map<String, Set<URL>> transitiveUrls) {
         // invariant: any plugins this plugin bundle extends have already been added to transitiveUrls
         List<String> exts = bundle.plugin.getExtendedPlugins();
 
@@ -201,13 +201,13 @@ public class PluginsUtils {
             transitiveUrls.put(bundle.plugin.getName(), extendedPluginUrls);
 
             // check we don't have conflicting codebases with core
-            Set<URL> intersection = new HashSet<>(classpath);
+            Set<URL> intersection = new HashSet<>(systemLoaderURLs);
             intersection.retainAll(bundle.allUrls);
             if (intersection.isEmpty() == false) {
                 throw new IllegalStateException("jar hell! duplicate codebases between plugin and core: " + intersection);
             }
             // check we don't have conflicting classes
-            Set<URL> union = new HashSet<>(classpath);
+            Set<URL> union = new HashSet<>(systemLoaderURLs);
             union.addAll(bundle.allUrls);
             JarHell.checkJarHell(union, logger::debug);
         } catch (final IllegalStateException ise) {

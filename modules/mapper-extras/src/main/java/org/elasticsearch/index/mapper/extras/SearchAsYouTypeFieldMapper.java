@@ -656,6 +656,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     private final ShingleFieldMapper[] shingleFields;
     private final Builder builder;
 
+    private final Map<String, NamedAnalyzer> indexAnalyzers;
+
     public SearchAsYouTypeFieldMapper(
         String simpleName,
         SearchAsYouTypeFieldType mappedFieldType,
@@ -666,11 +668,17 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         MultiFields multiFields,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = builder.maxShingleSize.getValue();
         this.builder = builder;
+        this.indexAnalyzers = Map.copyOf(indexAnalyzers);
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return indexAnalyzers;
     }
 
     @Override

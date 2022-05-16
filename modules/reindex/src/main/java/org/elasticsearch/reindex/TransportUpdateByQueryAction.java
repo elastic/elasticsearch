@@ -134,6 +134,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         }
 
         class UpdateByQueryScriptApplier extends ScriptApplier {
+            // TODO(stu): this should use UpdateByQueryScript
 
             UpdateByQueryScriptApplier(
                 WorkerBulkByScrollTaskState taskWorker,

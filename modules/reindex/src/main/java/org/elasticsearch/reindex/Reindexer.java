@@ -374,6 +374,7 @@ public class Reindexer {
         }
 
         class ReindexScriptApplier extends ScriptApplier {
+            // TODO(stu): this should use ReindexScript
 
             ReindexScriptApplier(
                 WorkerBulkByScrollTaskState taskWorker,

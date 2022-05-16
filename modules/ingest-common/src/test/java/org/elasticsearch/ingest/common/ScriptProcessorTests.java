@@ -32,7 +32,7 @@ public class ScriptProcessorTests extends ESTestCase {
 
     private ScriptService scriptService;
     private Script script;
-    private IngestScript ingestScript;
+    private IngestScript.Factory ingestScriptFactory;
 
     @Before
     public void setupScripting() {
@@ -53,7 +53,7 @@ public class ScriptProcessorTests extends ESTestCase {
             () -> 1L
         );
         script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap());
-        ingestScript = scriptService.compile(script, IngestScript.CONTEXT).newInstance(script.getParams());
+        ingestScriptFactory = scriptService.compile(script, IngestScript.CONTEXT);
     }
 
     public void testScriptingWithoutPrecompiledScriptFactory() throws Exception {
@@ -64,7 +64,7 @@ public class ScriptProcessorTests extends ESTestCase {
     }
 
     public void testScriptingWithPrecompiledIngestScript() {
-        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, ingestScript, scriptService);
+        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, ingestScriptFactory, scriptService);
         IngestDocument ingestDocument = randomDocument();
         processor.execute(ingestDocument);
         assertIngestDocument(ingestDocument);

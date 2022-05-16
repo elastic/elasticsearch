@@ -11,8 +11,14 @@ package org.elasticsearch.script;
 
 import java.util.Map;
 
+
 /**
- * An update script.
+ * An update script.  _update with script or update via _update using upsert.  For inserts
+ * done via _update's upsert, use {@link InsertScript}.
+ *
+ * Metadata
+ *  RO: _index, _id, _routing, _version, _now (timestamp)
+ *  RW: _op {@link org.elasticsearch.script.field.Op}, NOOP ("none"), INDEX, DELETE, CREATE
  */
 public abstract class UpdateScript {
 

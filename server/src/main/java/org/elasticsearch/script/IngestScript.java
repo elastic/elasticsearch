@@ -10,7 +10,13 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.field.Op;
 
+import java.time.ZonedDateTime;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -18,7 +24,7 @@ import java.util.Map;
  */
 public abstract class IngestScript {
 
-    public static final String[] PARAMETERS = { "ctx" };
+    public static final String[] PARAMETERS = { };
 
     /** The context used to compile {@link IngestScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>(
@@ -33,8 +39,15 @@ public abstract class IngestScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    public IngestScript(Map<String, Object> params) {
+    private final Map<String, Object> ctx;
+
+    private final Metadata metadata;
+
+
+    public IngestScript(Map<String, Object> params, Map<String, Object> ctx, ZonedDateTime timestamp) {
         this.params = params;
+        this.ctx = ctx;
+        this.metadata = new Metadata(ctx, timestamp);
     }
 
     /** Return the parameters for this script. */
@@ -42,9 +55,46 @@ public abstract class IngestScript {
         return params;
     }
 
-    public abstract void execute(Map<String, Object> ctx);
+    public Map<String, Object> getCtx() {
+        return ctx;
+    }
+
+    public Metadata meta() {
+        return metadata;
+    }
+
+    public abstract void execute();
 
     public interface Factory {
-        IngestScript newInstance(Map<String, Object> params);
+        IngestScript newInstance(Map<String, Object> params, Map<String, Object> ctx, ZonedDateTime timestamp);
+    }
+
+    public static class Metadata extends org.elasticsearch.script.field.Metadata {
+        private final ZonedDateTime timestamp;
+        public static final String VERSION_TYPE = "_version_type";
+        public Metadata(Map<String, Object> ctx, ZonedDateTime timestamp) {
+            super(ctx);
+            this.timestamp = timestamp;
+        }
+
+        public VersionType getVersionType() {
+            String str = getString(VERSION_TYPE);
+            if (str == null) {
+                return null;
+            }
+            return VersionType.fromString(str.toLowerCase(Locale.ROOT));
+        }
+
+        public void setVersionType(VersionType versionType) {
+            if (versionType == null) {
+                ctx.put(VERSION_TYPE, null);
+            } else {
+                ctx.put(VERSION_TYPE, VersionType.toString(versionType));
+            }
+        }
+
+        public ZonedDateTime getTimestamp() {
+            return timestamp;
+        }
     }
 }

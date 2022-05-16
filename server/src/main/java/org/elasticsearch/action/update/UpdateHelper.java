@@ -88,6 +88,7 @@ public class UpdateHelper {
      * Tuple of operation and updated {@code _source} is returned.
      */
     Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Map<String, Object> upsertDoc, Script script, LongSupplier nowInMillis) {
+        // TODO(stu): this should use InsertScript
         Map<String, Object> ctx = Maps.newMapWithExpectedSize(3);
         // Tell the script that this is a create and not an update
         ctx.put(ContextFields.OP, UpdateOpType.CREATE.toString());

@@ -21,8 +21,6 @@ include::setup.asciidoc[]
 
 include::upgrade.asciidoc[]
 
-include::archive.asciidoc[]
-
 include::index-modules.asciidoc[]
 
 include::mapping.asciidoc[]

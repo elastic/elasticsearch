@@ -45,3 +45,5 @@ the REST API.
 include::{xes-repo-dir}/security/fips-java17.asciidoc[]
 
 include::upgrade/archived-settings.asciidoc[]
+
+include::upgrade/archive-indices.asciidoc[]

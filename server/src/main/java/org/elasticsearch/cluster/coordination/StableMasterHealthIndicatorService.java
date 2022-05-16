@@ -375,10 +375,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             stableMasterStatus = HealthStatus.RED;
             summary = "No master eligible nodes found in the cluster";
             if (explain) {
-                //TODO: this is supposed to include when each was master
                 details.put("recent_masters",
                     localMasterHistory.getNodes().stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList());
-                //TODO "Report discovery problem (configured addresses and results of contacting those addresses)
+                details.put("cluster_coordination", discoveryModule.getCoordinator().getClusterFormationState().getDescription());
             }
         } else {
             PeerFinder peerFinder = discoveryModule.getCoordinator().getPeerFinder();
@@ -392,13 +391,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     details.put("current_master", new DiscoveryNodeXContentObject(currentMaster.get()));
                     // Having the nulls in the recent masters xcontent list is not helpful, so we filter them out:
                     details.put("recent_masters", recentMasters.stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList());
-                    JoinHelper.FailedJoinAttempt failedJoinAttempt =
-                        discoveryModule.getCoordinator().getJoinHelper().getLastFailedJoinAttempt();
-                    if (failedJoinAttempt != null) {
-                        details.put("failed_join_attempt", failedJoinAttempt);
-                    }
-                    List<JoinStatus> inFlightJoinAttempts = discoveryModule.getCoordinator().getJoinHelper().getInFlightJoinStatuses();
-                    details.put("in_flight_join_attempts", inFlightJoinAttempts);
+                    details.put("cluster_coordination", discoveryModule.getCoordinator().getClusterFormationState().getDescription());
                 }
             } else if (clusterService.localNode().isMasterNode() == false) { // none is elected master and we aren't master eligible
                 stableMasterStatus = HealthStatus.RED;

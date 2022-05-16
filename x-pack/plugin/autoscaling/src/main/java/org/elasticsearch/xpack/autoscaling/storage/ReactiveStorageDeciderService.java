@@ -709,6 +709,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public static class ReactiveReason implements AutoscalingDeciderResult.Reason {
 
         static final int MAX_ASSIGNED_SHARD_IDS = 512;
+        private static final Version SHARD_IDS_OUTPUT_VERSION = Version.V_8_3_0;
 
         private final String reason;
         private final long unassigned;
@@ -738,7 +739,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             this.reason = in.readString();
             this.unassigned = in.readLong();
             this.assigned = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (in.getVersion().onOrAfter(SHARD_IDS_OUTPUT_VERSION)) {
                 unassignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readSet(ShardId::new)));
                 assignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readSet(ShardId::new)));
             } else {
@@ -778,7 +779,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             out.writeString(reason);
             out.writeLong(unassigned);
             out.writeLong(assigned);
-            if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (out.getVersion().onOrAfter(SHARD_IDS_OUTPUT_VERSION)) {
                 out.writeCollection(unassignedShardIds);
                 out.writeCollection(assignedShardIds);
             }

@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
@@ -103,10 +104,13 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -1109,6 +1113,67 @@ public class RBACEngineTests extends ESTestCase {
                     .build()
             )
         );
+    }
+
+    public void testCheckPrivilegesWithCache() throws Exception {
+        final List<ApplicationPrivilegeDescriptor> privs = new ArrayList<>();
+        final String appName = randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(3, 10);
+        final String privilegeName = randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(3, 10);
+        final String action1 = randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(2, 5);
+        final ApplicationPrivilege priv1 = defineApplicationPrivilege(privs, appName, privilegeName, "DATA:read/*", "ACTION:" + action1);
+        SimpleRole role = spy(
+            Role.builder(RESTRICTED_INDICES, "test-write").addApplicationPrivilege(priv1, Collections.singleton("user/*/name")).build()
+        );
+        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        // 1st check privileges
+        final PrivilegesToCheck privilegesToCheck1 = new PrivilegesToCheck(
+            new String[0],
+            new IndicesPrivileges[0],
+            new ApplicationResourcePrivileges[] {
+                ApplicationResourcePrivileges.builder()
+                    .application(appName)
+                    .resources("user/hawkeye/name")
+                    .privileges("DATA:read/user/*", "ACTION:" + action1)
+                    .build() }
+        );
+
+        final PlainActionFuture<PrivilegesCheckResult> future1 = new PlainActionFuture<>();
+        engine.checkPrivileges(authzInfo, privilegesToCheck1, privs, future1);
+        final PrivilegesCheckResult privilegesCheckResult1 = future1.actionGet();
+
+        // Result should be cached
+        verify(role).cacheHasPrivileges(any(), eq(privilegesToCheck1), eq(privilegesCheckResult1));
+
+        // Stall the check so that we are sure cache is used
+        final RuntimeException stallCheckException = new RuntimeException("you shall not pass");
+        doThrow(stallCheckException).when(role).checkApplicationResourcePrivileges(anyString(), any(), any(), any());
+        Mockito.clearInvocations(role);
+
+        final PlainActionFuture<PrivilegesCheckResult> future2 = new PlainActionFuture<>();
+        engine.checkPrivileges(authzInfo, privilegesToCheck1, privs, future2);
+        final PrivilegesCheckResult privilegesCheckResult2 = future2.actionGet();
+
+        assertThat(privilegesCheckResult2, is(privilegesCheckResult1));
+        // Cached result won't be cached again
+        verify(role, never()).cacheHasPrivileges(any(), any(), any());
+
+        // Test a new check does not go through cache (and hence will be stalled by the exception)
+        final PrivilegesToCheck privilegesToCheck2 = new PrivilegesToCheck(
+            new String[0],
+            new IndicesPrivileges[0],
+            new ApplicationResourcePrivileges[] {
+                ApplicationResourcePrivileges.builder()
+                    .application(appName)
+                    .resources("user/hawkeye/name")
+                    .privileges("DATA:read/user/*")
+                    .build() }
+        );
+        final RuntimeException e1 = expectThrows(
+            RuntimeException.class,
+            () -> engine.checkPrivileges(authzInfo, privilegesToCheck2, privs, new PlainActionFuture<>())
+        );
+        assertThat(e1, is(stallCheckException));
     }
 
     public void testIsCompleteMatch() throws Exception {

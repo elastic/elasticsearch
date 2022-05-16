@@ -62,15 +62,15 @@ tasks.register("ccs-write", RestIntegTestTask) {
 
   systemProperty 'tests.rest.suite',
     [
-//      'field_caps',
+      'field_caps',
       'indices.resolve_index',
-//      "msearch",
-//      "scroll",
-//      'search',
-//      'search.aggregation',
-//      'search.highlight',
-//      'search.inner_hits',
-//      'suggest',
+      "msearch",
+      "scroll",
+      'search',
+      'search.aggregation',
+      'search.highlight',
+      'search.inner_hits',
+      'suggest',
     ].join(',')
 
   systemProperty 'tests.rest.blacklist',

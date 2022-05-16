@@ -124,9 +124,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                         }
                         params.put(parameterName, String.join(",", expandedIndices));
                     }
-                    ClientYamlTestResponse clientYamlTestResponse = super.callApi(apiName, params, entity, headers, nodeSelector);
-                    logger.info(clientYamlTestResponse.getBodyAsString());
-                    return clientYamlTestResponse;
+                    return super.callApi(apiName, params, entity, headers, nodeSelector);
                 };
             };
 
@@ -155,17 +153,19 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         String lastAPIDoSection = "";
         for (ExecutableSection section : executableSections) {
             ExecutableSection rewrittenSection = section;
-            if (section instanceof MatchAssertion) {
-                MatchAssertion matchSection = (MatchAssertion) section;
-                if (matchSection.getField().endsWith("_index")) {
-                    String modifiedExpectedValue = REMOTE_CLUSTER_NAME + ":" + matchSection.getExpectedValue();
-                    rewrittenSection = new MatchAssertion(matchSection.getLocation(), matchSection.getField(), modifiedExpectedValue);
+            if (section instanceof MatchAssertion matchSection) {
+                Object modifiedExpectedValue = ((MatchAssertion) section).getExpectedValue();
+                if (matchSection.getField().endsWith("_index") || matchSection.getField().contains("fields._index")) {
+                    modifiedExpectedValue = rewriteExpectedIndexValue(matchSection.getExpectedValue());
                 }
                 if (lastAPIDoSection.equals("indices.resolve_index") && matchSection.getField().endsWith("name")) {
                     // modify " indices.resolve_index" expected index names
-                    String modifiedExpectedValue = REMOTE_CLUSTER_NAME + ":" + matchSection.getExpectedValue();
-                    rewrittenSection = new MatchAssertion(matchSection.getLocation(), matchSection.getField(), modifiedExpectedValue);
+                    modifiedExpectedValue = rewriteExpectedIndexValue(matchSection.getExpectedValue());
                 }
+                if (lastAPIDoSection.equals("field_caps") && matchSection.getField().endsWith("indices")) {
+                    modifiedExpectedValue = rewriteExpectedIndexValue(matchSection.getExpectedValue());
+                }
+                rewrittenSection = new MatchAssertion(matchSection.getLocation(), matchSection.getField(), modifiedExpectedValue);
             } else if (section instanceof DoSection) {
                 lastAPIDoSection = ((DoSection) section).getApiCallSection().getApi();
                 if (lastAPIDoSection.equals("msearch")) {
@@ -191,7 +191,22 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 modifiedExecutableSections
             )
         );
-    };
+    }
+
+    /**
+     * add the remote cluster prefix to either a single index name or a list of expected index names
+     */
+    private static Object rewriteExpectedIndexValue(Object expectedValue) {
+        if (expectedValue instanceof String) {
+            return REMOTE_CLUSTER_NAME + ":" + expectedValue;
+        }
+        if (expectedValue instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<String> expectedValues = (List<String>) expectedValue;
+            return expectedValues.stream().map(s -> REMOTE_CLUSTER_NAME + ":" + s).toList();
+        }
+        throw new IllegalArgumentException("Either String or List<String> expected");
+    }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {

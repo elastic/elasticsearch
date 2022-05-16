@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
+import org.elasticsearch.xpack.core.security.support.Validation;
 
 import java.util.Set;
 
@@ -30,8 +32,9 @@ public class RoleDescriptorRequestValidator {
         RoleDescriptor roleDescriptor,
         ActionRequestValidationException validationException
     ) {
-        if (roleDescriptor.getName() == null) {
-            validationException = addValidationError("role name is missing", validationException);
+        Validation.Error validationError = NativeRealmValidationUtil.validateRoleName(roleDescriptor.getName(), true);
+        if (validationError != null) {
+            validationException = addValidationError(validationError.toString(), validationException);
         }
         if (roleDescriptor.getClusterPrivileges() != null) {
             for (String cp : roleDescriptor.getClusterPrivileges()) {

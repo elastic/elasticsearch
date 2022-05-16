@@ -56,6 +56,14 @@ public class PutRoleRequestTests extends ESTestCase {
         assertSuccessfulValidation(request);
     }
 
+    public void testValidationErrorWithInvalidRoleName() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name("invälid-röle");
+        request.cluster("manage_security", "manage", "cluster:admin/xpack/security/*");
+
+        assertValidationError("Basic Latin (ASCII)", request);
+    }
+
     public void testValidationErrorWithUnknownIndexPrivilegeName() {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));

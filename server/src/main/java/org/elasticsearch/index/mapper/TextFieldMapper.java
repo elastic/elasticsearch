@@ -917,6 +917,8 @@ public class TextFieldMapper extends FieldMapper {
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
 
+    private final Map<String, NamedAnalyzer> indexAnalyzerMap;
+
     protected TextFieldMapper(
         String simpleName,
         FieldType fieldType,
@@ -928,7 +930,7 @@ public class TextFieldMapper extends FieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
@@ -952,6 +954,12 @@ public class TextFieldMapper extends FieldMapper {
         this.freqFilter = builder.freqFilter.getValue();
         this.fieldData = builder.fieldData.get();
         this.indexPhrases = builder.indexPhrases.getValue();
+        this.indexAnalyzerMap = Map.copyOf(indexAnalyzers);
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return indexAnalyzerMap;
     }
 
     @Override

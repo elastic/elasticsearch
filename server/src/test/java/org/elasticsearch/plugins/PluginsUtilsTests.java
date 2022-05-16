@@ -9,6 +9,7 @@
 package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.jdk.JarHell;
@@ -34,6 +35,7 @@ import java.util.zip.ZipOutputStream;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
+@LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsUtilsTests extends ESTestCase {
 
     public void testExistingPluginMissingDescriptor() throws Exception {
@@ -410,7 +412,7 @@ public class PluginsUtilsTests extends ESTestCase {
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell! duplicate codebases with extended plugin"));
@@ -443,7 +445,7 @@ public class PluginsUtilsTests extends ESTestCase {
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
@@ -451,7 +453,6 @@ public class PluginsUtilsTests extends ESTestCase {
     }
 
     // Note: testing dup codebase with core is difficult because it requires a symlink, but we have mock filesystems and security manager
-
     public void testJarHellDuplicateClassWithCore() throws Exception {
         // need a jar file of core dep, use log4j here
         Path pluginDir = createTempDir();
@@ -474,7 +475,7 @@ public class PluginsUtilsTests extends ESTestCase {
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, new HashMap<>())
+            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, new HashMap<>())
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
@@ -509,7 +510,7 @@ public class PluginsUtilsTests extends ESTestCase {
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls)
+            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveUrls)
         );
 
         assertEquals("failed to load plugin dummy while checking for jar hell", e.getMessage());
@@ -541,7 +542,7 @@ public class PluginsUtilsTests extends ESTestCase {
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
@@ -578,7 +579,7 @@ public class PluginsUtilsTests extends ESTestCase {
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));
@@ -613,7 +614,7 @@ public class PluginsUtilsTests extends ESTestCase {
             false
         );
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
-        PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
+        PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps);
         Set<URL> deps = transitiveDeps.get("myplugin");
         assertNotNull(deps);
         assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dep1Jar.toUri().toURL(), dep2Jar.toUri().toURL()));
@@ -647,7 +648,7 @@ public class PluginsUtilsTests extends ESTestCase {
             false
         );
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
-        PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
+        PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps);
         Set<URL> transitive = transitiveDeps.get("myplugin");
         assertThat(transitive, containsInAnyOrder(spiJar.toUri().toURL(), depJar.toUri().toURL()));
     }
@@ -682,7 +683,7 @@ public class PluginsUtilsTests extends ESTestCase {
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
+            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
         );
         assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
         assertThat(e.getCause().getMessage(), containsString("jar hell!"));

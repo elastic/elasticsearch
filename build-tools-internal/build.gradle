@@ -119,6 +119,10 @@ gradlePlugin {
       id = 'elasticsearch.jdk-download'
       implementationClass = 'org.elasticsearch.gradle.internal.JdkDownloadPlugin'
     }
+    javaModulePath {
+      id = 'elasticsearch.java-module'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaModulePathPlugin'
+    }
     releaseTools {
       id = 'elasticsearch.release-tools'
       implementationClass = 'org.elasticsearch.gradle.internal.release.ReleaseToolsPlugin'
@@ -214,6 +218,9 @@ configurations {
   integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
 }
 dependencies {
+  constraints {
+      integTestImplementation('org.ow2.asm:asm:9.3')
+  }
   components.all(JacksonAlignmentRule)
   constraints {
     // ensuring brought asm version brought in by spock is up-to-date

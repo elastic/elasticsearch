@@ -216,7 +216,7 @@ public class BootstrapForTesting {
         addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
         addClassCodebase(codebases, "elasticsearch-core", "org.elasticsearch.core.Booleans");
         addClassCodebase(codebases, "elasticsearch-cli", "org.elasticsearch.cli.Command");
-        addClassCodebase(codebases, "elasticsearch-test-framework", "org.elasticsearch.test.ESTestCase");
+        addClassCodebase(codebases, "framework", "org.elasticsearch.test.ESTestCase");
         return codebases;
     }
 

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.snapshotbasedrecoveries.recovery;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;

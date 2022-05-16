@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.indices.recovery;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;

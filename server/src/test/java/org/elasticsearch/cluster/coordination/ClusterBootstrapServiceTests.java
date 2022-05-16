@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.Metadata;

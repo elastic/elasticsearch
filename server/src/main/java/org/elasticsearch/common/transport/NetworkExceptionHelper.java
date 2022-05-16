@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.transport;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 
 import java.net.ConnectException;
 import java.nio.channels.ClosedChannelException;

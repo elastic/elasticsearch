@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.security.authc.service;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.SecureString;

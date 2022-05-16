@@ -11,7 +11,6 @@ package org.elasticsearch.logging.impl;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.Logger;
 
-
 import java.util.function.Supplier;
 
 public final class LoggerImpl implements Logger {
@@ -86,8 +85,6 @@ public final class LoggerImpl implements Logger {
         log4jLogger.fatal(message, thrown);
     }
 
-
-
     @Override
     public void fatal(Supplier<?> msgSupplier) {
         log4jLogger.fatal(msgSupplier);
@@ -157,8 +154,6 @@ public final class LoggerImpl implements Logger {
     public void error(Object message, Throwable thrown) {
         log4jLogger.error(message, thrown);
     }
-
-
 
     @Override
     public void error(Supplier<?> msgSupplier) {
@@ -230,8 +225,6 @@ public final class LoggerImpl implements Logger {
         log4jLogger.warn(message, thrown);
     }
 
-
-
     @Override
     public void warn(Supplier<?> msgSupplier) {
         log4jLogger.warn(msgSupplier);
@@ -301,8 +294,6 @@ public final class LoggerImpl implements Logger {
     public void info(Object message, Throwable thrown) {
         log4jLogger.info(message, thrown);
     }
-
-
 
     @Override
     public void info(Supplier<?> msgSupplier) {
@@ -374,8 +365,6 @@ public final class LoggerImpl implements Logger {
         log4jLogger.debug(message, thrown);
     }
 
-
-
     @Override
     public void debug(Supplier<?> msgSupplier) {
         log4jLogger.debug(msgSupplier);
@@ -445,8 +434,6 @@ public final class LoggerImpl implements Logger {
     public void trace(Object message, Throwable thrown) {
         log4jLogger.trace(message, thrown);
     }
-
-
 
     @Override
     public void trace(Supplier<?> msgSupplier) {

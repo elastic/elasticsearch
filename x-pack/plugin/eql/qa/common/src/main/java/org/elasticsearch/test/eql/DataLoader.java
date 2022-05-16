@@ -7,7 +7,7 @@
 package org.elasticsearch.test.eql;
 
 import org.apache.http.HttpHost;
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;

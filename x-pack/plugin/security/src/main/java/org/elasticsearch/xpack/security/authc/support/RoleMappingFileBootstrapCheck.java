@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;

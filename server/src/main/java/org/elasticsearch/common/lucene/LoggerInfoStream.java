@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.lucene;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.common.logging.Loggers;
 

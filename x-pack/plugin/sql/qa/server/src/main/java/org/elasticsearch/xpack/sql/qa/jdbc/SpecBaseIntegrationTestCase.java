@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;

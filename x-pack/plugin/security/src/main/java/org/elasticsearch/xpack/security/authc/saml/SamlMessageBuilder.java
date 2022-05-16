@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.metadata.Endpoint;

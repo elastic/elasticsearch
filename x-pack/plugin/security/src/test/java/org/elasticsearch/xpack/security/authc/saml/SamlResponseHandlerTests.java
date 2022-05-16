@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.logging.LogManager;
 import org.apache.xml.security.Init;
 import org.apache.xml.security.encryption.XMLCipher;
 import org.elasticsearch.core.TimeValue;

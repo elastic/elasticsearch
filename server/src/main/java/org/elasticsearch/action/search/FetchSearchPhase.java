@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.action.search;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.OriginalIndices;

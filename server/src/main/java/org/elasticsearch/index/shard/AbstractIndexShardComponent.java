@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.shard;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexSettings;
 

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;

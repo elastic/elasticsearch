@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.transform.script;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;

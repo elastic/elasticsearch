@@ -8,8 +8,8 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.AbstractProcessor;

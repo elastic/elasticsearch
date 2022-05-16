@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.action.support.replication;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;

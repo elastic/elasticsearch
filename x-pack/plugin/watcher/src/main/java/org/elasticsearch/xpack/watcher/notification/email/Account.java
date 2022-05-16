@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;

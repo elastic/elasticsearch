@@ -8,8 +8,8 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.apache.http.HttpHost;
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedBiConsumer;

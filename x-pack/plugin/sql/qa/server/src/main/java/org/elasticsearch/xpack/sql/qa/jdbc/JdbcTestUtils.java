@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter;
 

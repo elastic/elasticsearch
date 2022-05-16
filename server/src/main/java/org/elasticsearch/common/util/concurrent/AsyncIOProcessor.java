@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;

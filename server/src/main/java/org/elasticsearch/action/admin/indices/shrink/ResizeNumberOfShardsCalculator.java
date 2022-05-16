@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.admin.indices.shrink;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.unit.ByteSizeValue;

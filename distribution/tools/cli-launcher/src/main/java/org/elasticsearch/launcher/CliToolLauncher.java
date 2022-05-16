@@ -8,7 +8,7 @@
 
 package org.elasticsearch.launcher;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ProcessInfo;

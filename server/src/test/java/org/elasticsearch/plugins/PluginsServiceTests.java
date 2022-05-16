@@ -8,7 +8,7 @@
 
 package org.elasticsearch.plugins;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;

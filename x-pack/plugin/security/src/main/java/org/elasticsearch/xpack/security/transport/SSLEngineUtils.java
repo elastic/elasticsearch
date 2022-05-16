@@ -10,7 +10,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelException;
 import io.netty.handler.ssl.SslHandler;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

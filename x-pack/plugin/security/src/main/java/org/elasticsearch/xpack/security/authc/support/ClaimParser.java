@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authc.support;
 
 import com.nimbusds.jwt.JWTClaimsSet;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;

@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.test;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;

@@ -617,7 +617,7 @@ public class AllocationService {
                     + " but was: "
                     + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
 
-            routingNodes.startShard(logger, startedShard, routingAllocation.changes());
+            routingNodes.startShard(logger, startedShard, routingAllocation.changes(), routingAllocation.metadata());
         }
     }
 

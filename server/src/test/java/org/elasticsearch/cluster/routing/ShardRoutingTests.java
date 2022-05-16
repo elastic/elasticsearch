@@ -301,7 +301,7 @@ public class ShardRoutingTests extends ESTestCase {
                 }
                 if (routing.initializing()) {
                     routing = routing.moveToStarted();
-                    assertEquals(byteSize, routing.getExpectedShardSize());
+                    assertEquals(-1, routing.getExpectedShardSize());
                     assertFalse(routing.toString(), routing.toString().contains("expected_shard_size[" + byteSize + "]"));
                 }
             } else {

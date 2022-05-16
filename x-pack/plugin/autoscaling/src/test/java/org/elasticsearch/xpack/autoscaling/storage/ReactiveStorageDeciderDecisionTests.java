@@ -192,7 +192,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 .stream()
                 .filter(ShardRouting::primary)
                 .filter(s -> warmShards.contains(s.shardId()))
-                .forEach(shard -> allocation.routingNodes().startShard(logger, shard, allocation.changes()))
+                .forEach(shard -> allocation.routingNodes().startShard(logger, shard, allocation.changes(), allocation.metadata()))
         );
 
         do {
@@ -220,7 +220,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                                     allocation.changes()
                                 )
                                 .v2(),
-                            allocation.changes()
+                            allocation.changes(),
+                            allocation.metadata()
                         )
                 )
         );
@@ -253,7 +254,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             allocation -> RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING)
                 .stream()
                 .filter(ShardRouting::primary)
-                .forEach(shard -> allocation.routingNodes().startShard(logger, shard, allocation.changes()))
+                .forEach(shard -> allocation.routingNodes().startShard(logger, shard, allocation.changes(), allocation.metadata()))
         );
 
         verify(ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove, 0, DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
@@ -465,10 +466,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             // replicas before primaries, since replicas can be reinit'ed, resulting in a new ShardRouting instance.
             shards.stream()
                 .filter(Predicate.not(ShardRouting::primary))
-                .forEach(s -> allocation.routingNodes().startShard(logger, s, allocation.changes()));
+                .forEach(s -> allocation.routingNodes().startShard(logger, s, allocation.changes(), allocation.metadata()));
             shards.stream()
                 .filter(ShardRouting::primary)
-                .forEach(s -> allocation.routingNodes().startShard(logger, s, allocation.changes()));
+                .forEach(s -> allocation.routingNodes().startShard(logger, s, allocation.changes(), allocation.metadata()));
             SHARDS_ALLOCATOR.allocate(allocation);
 
             // ensure progress by only relocating a shard if we started more than one shard.

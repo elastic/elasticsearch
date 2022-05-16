@@ -24,6 +24,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A CLI for managing Elasticsearch as a Windows Service.
+ */
 class WindowsServiceCli extends MultiCommand {
 
     private static final Command installCommand = new ProcrunCommand("Install Elasticsearch as a Windows Service", "IS") {

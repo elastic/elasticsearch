@@ -14,12 +14,15 @@ import org.elasticsearch.common.settings.SecureString;
 import java.io.Closeable;
 import java.io.OutputStream;
 
+/**
+ * A terminal that wraps an existing terminal and provides a single secret input, the keystore password.
+ */
 class KeystorePasswordTerminal extends Terminal implements Closeable {
 
     private final Terminal delegate;
     private final SecureString password;
 
-    protected KeystorePasswordTerminal(Terminal delegate, SecureString password) {
+    KeystorePasswordTerminal(Terminal delegate, SecureString password) {
         super(delegate.getReader(), delegate.getWriter(), delegate.getErrorWriter());
         this.delegate = delegate;
         this.password = password;

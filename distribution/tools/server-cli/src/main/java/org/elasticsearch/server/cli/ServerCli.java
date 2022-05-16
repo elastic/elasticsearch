@@ -34,6 +34,9 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
 
+/**
+ * The main CLI for running Elasticsearch.
+ */
 class ServerCli extends EnvironmentAwareCommand {
 
     private static final Logger logger = LogManager.getLogger(ServerCli.class);
@@ -86,10 +89,7 @@ class ServerCli extends EnvironmentAwareCommand {
         this.server = startServer(terminal, processInfo, args, env.pluginsFile());
 
         if (options.has(daemonizeOption)) {
-            logger.info("Subprocess is started and we are daemonized, detaching...");
             server.detach();
-            this.server = null; // clear the handle, we don't want to shut it down now that we are started
-            logger.info("exiting...");
             return;
         }
 

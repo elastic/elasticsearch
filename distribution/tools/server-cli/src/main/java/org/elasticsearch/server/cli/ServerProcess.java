@@ -29,9 +29,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.server.cli.JvmOptionsParser.determineJvmOptions;
 import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptible;
 
+/**
+ * A helper to control a {@link Process} running the main Elasticsearch server.
+ *
+ * <p> The process can be started by calling {@link #start(Terminal, ProcessInfo, ServerArgs, Path)}.
+ * The process is controlled by internally sending arguments and control signals on stdin,
+ * and receiving control signals on stderr. The start method does not return until the
+ * server is ready to process requests and has exited the bootstrap thread.
+ *
+ * <p> The caller starting a {@link ServerProcess} can do one of several things:
+ * <ul>
+ *     <li>Block on the server process exiting, by calling {@link #waitFor()}</li>
+ *     <li>Detach from the server process by calling {@link #detach()}</li>
+ *     <li>Tell the server process to shutdown and wait for it by calling {@link #stop()}</li>
+ * </ul>
+ */
 public class ServerProcess {
     private static final Logger logger = LogManager.getLogger(ServerProcess.class);
 
@@ -58,6 +72,16 @@ public class ServerProcess {
         Process start(ProcessBuilder pb) throws IOException;
     }
 
+    /**
+     * Start a server in a new process.
+     *
+     * @param terminal A terminal to connect the standard inputs and outputs to for the new process.
+     * @param processInfo Info about the current process, for passing through to the subprocess.
+     * @param args Arguments to the server process.
+     * @param pluginsDir The directory in which plugins can be found
+     * @return A running server process that is ready for requests
+     * @throws UserException If the process failed during bootstrap
+     */
     public static ServerProcess start(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir) throws UserException {
         return start(terminal, processInfo, args, pluginsDir, JvmOptionsParser::determineJvmOptions, ProcessBuilder::start);
     }
@@ -102,11 +126,19 @@ public class ServerProcess {
         return new ServerProcess(jvmProcess, errorPump);
     }
 
+    /**
+     * Detaches the server process from the current process, enabling the current process to exit.
+     *
+     * @throws IOException If an I/O error occured while reading stderr or closing any of the standard streams
+     */
     public synchronized void detach() throws IOException {
         errorPump.drain();
         IOUtils.close(jvmProcess.getOutputStream(), jvmProcess.getInputStream(), jvmProcess.getErrorStream());
     }
 
+    /**
+     * Waits for the subprocess to exit.
+     */
     public void waitFor() {
         int exitCode = nonInterruptible(jvmProcess::waitFor);
         if (exitCode != ExitCodes.OK) {

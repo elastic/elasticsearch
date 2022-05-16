@@ -85,6 +85,11 @@ public abstract class Command implements Closeable {
         execute(terminal, options, processInfo);
     }
 
+    /**
+     * Parse command line arguments for this command.
+     * @param args The string arguments passed to the command
+     * @return A set of parsed options
+     */
     public OptionSet parseOptions(String[] args) {
         return parser.parse(args);
     }

@@ -79,7 +79,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         return false;
     }
 
-    public void testHighWatermarkCanBeExceededOnColdOrFrozenNode() throws Exception {
+    public void testHighWatermarkCanBeExceededOnColdNode() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataHotNode = internalCluster().startNode(
             Settings.builder()

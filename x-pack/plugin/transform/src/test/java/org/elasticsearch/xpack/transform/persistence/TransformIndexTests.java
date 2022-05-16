@@ -148,6 +148,7 @@ public class TransformIndexTests extends ESTestCase {
         ArgumentCaptor<CreateIndexRequest> createIndexRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         verify(client, atLeastOnce()).threadPool();
         verify(client).execute(eq(CreateIndexAction.INSTANCE), createIndexRequestCaptor.capture(), any());
+        verify(client, atLeastOnce()).threadPool();
         verifyNoMoreInteractions(client);
 
         CreateIndexRequest createIndexRequest = createIndexRequestCaptor.getValue();

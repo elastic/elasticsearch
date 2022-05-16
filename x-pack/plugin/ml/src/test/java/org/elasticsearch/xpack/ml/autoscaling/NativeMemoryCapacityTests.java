@@ -43,6 +43,21 @@ public class NativeMemoryCapacityTests extends ESTestCase {
         assertThat(capacity.getJvmSize(), nullValue());
     }
 
+    /**
+     * This situation arises while finding current capacity when scaling up from zero.
+     */
+    public void testAutoscalingCapacityFromZero() {
+
+        AutoscalingCapacity autoscalingCapacity = NativeMemoryCapacity.ZERO.autoscalingCapacity(
+            randomIntBetween(5, 90),
+            randomBoolean(),
+            randomLongBetween(100000000L, 10000000000L),
+            randomIntBetween(0, 3)
+        );
+        assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(0L));
+        assertThat(autoscalingCapacity.total().memory().getBytes(), equalTo(0L));
+    }
+
     public void testAutoscalingCapacity() {
 
         final long BYTES_IN_64GB = ByteSizeValue.ofGb(64).getBytes();
@@ -88,11 +103,14 @@ public class NativeMemoryCapacityTests extends ESTestCase {
                 AUTO_ML_MEMORY_FOR_64GB_NODE,
                 1
             );
-            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(2139095040L));
-            // 7507804160 bytes = 7160MB
-            // 7160MB node => 2864MB JVM heap (40% of 7160MB)
-            // 7160MB - 2864MB - 200MB = 4096MB which is what we asked for for the tier
-            assertThat(autoscalingCapacity.total().memory().getBytes(), equalTo(7507804160L));
+            // 2134900736 bytes = 2036MB
+            // 2036MB node => 812MB JVM heap (40% of 2036MB rounded down to a multiple of 4MB)
+            // 2036MB - 812MB - 200MB = 1024MB which is what we need on a single node
+            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(2134900736L));
+            // 7503609856 bytes = 7156MB
+            // 7156MB node => 2860MB JVM heap (40% of 7156MB rounded down to a multiple of 4MB)
+            // 7156MB - 2860MB - 200MB = 4096MB which is what we asked for for the tier
+            assertThat(autoscalingCapacity.total().memory().getBytes(), equalTo(7503609856L));
         }
         // auto is true with unknown jvm size, memory requirement below JVM size knot point, 2 AZs (this is a realistic case for Cloud)
         {
@@ -106,7 +124,10 @@ public class NativeMemoryCapacityTests extends ESTestCase {
                 AUTO_ML_MEMORY_FOR_64GB_NODE,
                 2
             );
-            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(2139095040L));
+            // 2134900736 bytes = 2036MB
+            // 2036MB node => 812MB JVM heap (40% of 2036MB rounded down to a multiple of 4MB)
+            // 2036MB - 812MB - 200MB = 1024MB which is what we need on a single node
+            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(2134900736L));
             // 7851737088 bytes = 7488MB
             // We expect to be given 2 nodes as there are 2 AZs, so each will be 3744MB
             // 3744MB node => 1496MB JVM heap (40% of 3744MB rounded down to a multiple of 4MB)
@@ -126,7 +147,10 @@ public class NativeMemoryCapacityTests extends ESTestCase {
                 AUTO_ML_MEMORY_FOR_64GB_NODE,
                 3
             );
-            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(2139095040L));
+            // 2134900736 bytes = 2036MB
+            // 2036MB node => 812MB JVM heap (40% of 2036MB rounded down to a multiple of 4MB)
+            // 2036MB - 812MB - 200MB = 1024MB which is what we need on a single node
+            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(2134900736L));
             // 8195670018 bytes = 7816MB + 2 bytes
             // We expect to be given 3 nodes as there are 3 AZs, so each will be 2605 1/3MB
             // 2605 1/3MB node => 1040MB JVM heap (40% of 2605 1/3MB rounded down to a multiple of 4MB)
@@ -148,14 +172,14 @@ public class NativeMemoryCapacityTests extends ESTestCase {
                 AUTO_ML_MEMORY_FOR_64GB_NODE,
                 1
             );
-            // 5716836352 bytes = 5452MB
-            // 5452MB node => 2180MB JVM heap (40% of 5452MB rounded down to a multiple of 4MB)
-            // 5452MB - 2180MB - 200MB = 3072MB which is what we need on a single node
-            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(5716836352L));
-            // 7507804160 bytes = 7160MB
-            // 7160MB node => 2864MB JVM heap (40% of 7160MB)
-            // 7160MB - 2864MB - 200MB = 4096MB which is what we asked for for the tier
-            assertThat(autoscalingCapacity.total().memory().getBytes(), equalTo(7507804160L));
+            // 5712642048 bytes = 5448MB
+            // 5448MB node => 2176MB JVM heap (40% of 5448MB rounded down to a multiple of 4MB)
+            // 5448MB - 2176MB - 200MB = 3072MB which is what we need on a single node
+            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(5712642048L));
+            // 7503609856 bytes = 7156MB
+            // 7156MB node => 2860MB JVM heap (40% of 7156MB rounded down to a multiple of 4MB)
+            // 7156MB - 2860MB - 200MB = 4096MB which is what we asked for for the tier
+            assertThat(autoscalingCapacity.total().memory().getBytes(), equalTo(7503609856L));
         }
         // auto is true with unknown jvm size, memory requirement below JVM size knot point, 2 AZs (this is a realistic case for Cloud)
         {
@@ -169,10 +193,10 @@ public class NativeMemoryCapacityTests extends ESTestCase {
                 AUTO_ML_MEMORY_FOR_64GB_NODE,
                 2
             );
-            // 5716836352 bytes = 5452MB
-            // 5452MB node => 2180MB JVM heap (40% of 5452MB rounded down to a multiple of 4MB)
-            // 5452MB - 2180MB - 200MB = 3072MB which is what we need on a single node
-            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(5716836352L));
+            // 5712642048 bytes = 5448MB
+            // 5448MB node => 2176MB JVM heap (40% of 5448MB rounded down to a multiple of 4MB)
+            // 5448MB - 2176MB - 200MB = 3072MB which is what we need on a single node
+            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(5712642048L));
             // 7851737088 bytes = 7488MB
             // We expect to be given 2 nodes as there are 2 AZs, so each will be 3744MB
             // 3744MB node => 1496MB JVM heap (40% of 3744MB rounded down to a multiple of 4MB)
@@ -192,10 +216,10 @@ public class NativeMemoryCapacityTests extends ESTestCase {
                 AUTO_ML_MEMORY_FOR_64GB_NODE,
                 3
             );
-            // 5716836352 bytes = 5452MB
-            // 5452MB node => 2180MB JVM heap (40% of 5452MB rounded down to a multiple of 4MB)
-            // 5452MB - 2180MB - 200MB = 3072MB which is what we need on a single node
-            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(5716836352L));
+            // 5712642048 bytes = 5448MB
+            // 5448MB node => 2176MB JVM heap (40% of 5448MB rounded down to a multiple of 4MB)
+            // 5448MB - 2176MB - 200MB = 3072MB which is what we need on a single node
+            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(5712642048L));
             // 8195670018 bytes = 7816MB + 2 bytes
             // We expect to be given 3 nodes as there are 3 AZs, so each will be 2605 1/3MB
             // 2605 1/3MB node => 1040MB JVM heap (40% of 2605 1/3MB rounded down to a multiple of 4MB)
@@ -401,14 +425,14 @@ public class NativeMemoryCapacityTests extends ESTestCase {
             // 8864MB node => 3544MB JVM heap (40% of 8864MB rounded down to a multiple of 4MB)
             // 8864MB - 3544MB - 200MB = 5120MB which is what we need on a single node
             assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(9294577664L));
-            // 137183100930 bytes = 130828MB + 2 bytes
-            // We expect to be given 3 nodes as there are 3 AZs, so each will be 43609 1/3MB
-            // 43609 1/3MB node => 9276MB JVM heap (40% of 16384MB + 10% of 27225 1/3MB rounded down to a multiple of 4MB)
-            // 43609 1/3MB - 9276MB - 200MB = 34133 1/3MB which is one third of what we asked for for the tier
+            // 137170518018 bytes = 130816MB + 2 bytes
+            // We expect to be given 3 nodes as there are 3 AZs, so each will be 43605 1/3MB
+            // 43605 1/3MB node => 9272MB JVM heap (40% of 16384MB + 10% of 27221 1/3MB rounded down to a multiple of 4MB)
+            // 43605 1/3MB - 9272MB - 200MB = 34133 1/3MB which is one third of what we asked for for the tier
             // So with 3 nodes of this size we'll have the requested amount
             // (The 2 byte discrepancy comes from the fact there are 3 nodes and 3 didn't divide exactly into the amount
             // of memory we needed, so each node gets a fraction of a byte extra to take it up to a whole number size)
-            assertThat(autoscalingCapacity.total().memory().getBytes(), equalTo(137183100930L));
+            assertThat(autoscalingCapacity.total().memory().getBytes(), equalTo(137170518018L));
         }
         // auto is true with unknown jvm size, memory requirement above single node size, 1 AZ (this is a realistic case for Cloud)
         {

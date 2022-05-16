@@ -1653,7 +1653,7 @@ or `client_secret_jwt`. Defaults to `client_secret_basic`.
 // end::rp-client-auth-method-tag[]
 
 // tag::rp-client-auth-jwt-signature-algorithm[]
-`rp.client_auth_signature_algorithm` {ess-icon}::
+`rp.client_auth_jwt_signature_algorithm` {ess-icon}::
 (<<static-cluster-setting, Static>>)
 The signature algorithm that {es} uses to sign the JWT with which it authenticates
 as a client to the OpenID Connect Provider when `client_secret_jwt` is selected for

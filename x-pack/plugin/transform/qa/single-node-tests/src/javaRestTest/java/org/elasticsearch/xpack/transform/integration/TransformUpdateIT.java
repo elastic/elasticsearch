@@ -229,8 +229,12 @@ public class TransformUpdateIT extends TransformRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("count", transforms));
 
         // start using admin 1, but as the header is still admin 2
-        // BUG: this should fail, because the transform can not access the source index any longer
-        startAndWaitForTransform(transformId, transformDest, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
+        try {
+            startAndWaitForTransform(transformId, transformDest, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
+            fail("request should have failed");
+        } catch (ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(500));
+        }
 
         assertBusy(() -> {
             Map<?, ?> transformStatsAsMap = getTransformStateAndStats(transformId);

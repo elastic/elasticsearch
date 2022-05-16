@@ -1399,7 +1399,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 }
             }
         } catch (Exception e) {
-            logger.debug(() -> new ParameterizedMessage("[{}] publishing failed", clusterStatePublicationEvent.getSummary()), e);
+            logger.debug(() -> "[" + clusterStatePublicationEvent.getSummary() + "] publishing failed", e);
             publishListener.onFailure(new FailedToCommitClusterStateException("publishing failed", e));
         }
     }

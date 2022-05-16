@@ -241,7 +241,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", request.name()), e);
+                logger.warn(() -> "failed to create repository [" + request.name() + "]", e);
                 publicationStep.onFailure(e);
                 super.onFailure(e);
             }
@@ -507,7 +507,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         } catch (RepositoryException ex) {
                             // TODO: this catch is bogus, it means the old repo is already closed,
                             // but we have nothing to replace it
-                            logger.warn(() -> new ParameterizedMessage("failed to change repository [{}]", repositoryMetadata.name()), ex);
+                            logger.warn(() -> "failed to change repository [" + repositoryMetadata.name() + "]", ex);
                             repository = new InvalidRepository(repositoryMetadata, ex);
                         }
                     }
@@ -515,7 +515,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     try {
                         repository = createRepository(repositoryMetadata, typesRegistry, RepositoriesService::createUnknownTypeRepository);
                     } catch (RepositoryException ex) {
-                        logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetadata.name()), ex);
+                        logger.warn(() -> "failed to create repository [" + repositoryMetadata.name() + "]", ex);
                         repository = new InvalidRepository(repositoryMetadata, ex);
                     }
                 }

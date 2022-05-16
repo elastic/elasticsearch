@@ -172,14 +172,11 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
 
     public void setFailed(Exception error) {
         if (analyticsManager.isNodeShuttingDown()) {
-            LOGGER.warn(
-                new ParameterizedMessage("[{}] *Not* setting task to failed because the node is being shutdown", taskParams.getId()),
-                error
-            );
+            LOGGER.warn(() -> "[" + taskParams.getId() + "] *Not* setting task to failed because the node is being shutdown", error);
             return;
         }
         persistProgress(client, taskParams.getId(), () -> {
-            LOGGER.error(new ParameterizedMessage("[{}] Setting task to failed", taskParams.getId()), error);
+            LOGGER.error(() -> "[" + taskParams.getId() + "] Setting task to failed", error);
             String reason = ExceptionsHelper.unwrapCause(error).getMessage();
             DataFrameAnalyticsTaskState newTaskState = new DataFrameAnalyticsTaskState(
                 DataFrameAnalyticsState.FAILED,

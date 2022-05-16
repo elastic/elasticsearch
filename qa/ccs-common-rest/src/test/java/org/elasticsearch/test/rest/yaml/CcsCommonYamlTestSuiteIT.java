@@ -51,7 +51,14 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     // the remote cluster is the one we write index operations etc... to
     private static final String REMOTE_CLUSTER_NAME = "remote_cluster";
     // the following are the CCS api calls that we run against the "search" cluster in this test setup
-    private static final Set<String> CCS_APIS = Set.of("search", "field_caps", "msearch", "scroll", "clear_scroll");
+    private static final Set<String> CCS_APIS = Set.of(
+        "search",
+        "field_caps",
+        "msearch",
+        "scroll",
+        "clear_scroll",
+        "indices.resolve_index"
+    );
 
     @Before
     public void initSearchClient() throws IOException {
@@ -100,7 +107,12 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 ) throws IOException {
                     // on request, we need to replace index specifications by prefixing the remote cluster
                     if (apiName.equals("scroll") == false && apiName.equals("clear_scroll") == false) {
-                        String originalIndices = params.get("index");
+                        String parameterName = "index";
+                        if (apiName.equals("indices.resolve_index")) {
+                            // in this api the index parameter is called "name"
+                            parameterName = "name";
+                        }
+                        String originalIndices = params.get(parameterName);
                         String expandedIndices = REMOTE_CLUSTER_NAME + ":*";
                         if (originalIndices != null && (originalIndices.isEmpty() == false)) {
                             String[] indices = originalIndices.split(",");
@@ -110,9 +122,11 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                             }
                             expandedIndices = String.join(",", newIndices);
                         }
-                        params.put("index", String.join(",", expandedIndices));
+                        params.put(parameterName, String.join(",", expandedIndices));
                     }
-                    return super.callApi(apiName, params, entity, headers, nodeSelector);
+                    ClientYamlTestResponse clientYamlTestResponse = super.callApi(apiName, params, entity, headers, nodeSelector);
+                    logger.info(clientYamlTestResponse.getBodyAsString());
+                    return clientYamlTestResponse;
                 };
             };
 
@@ -138,29 +152,35 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         ClientYamlTestSection testSection = clientYamlTestCandidate.getTestSection();
         List<ExecutableSection> executableSections = testSection.getExecutableSections();
         List<ExecutableSection> modifiedExecutableSections = new ArrayList<>();
+        String lastAPIDoSection = "";
         for (ExecutableSection section : executableSections) {
+            ExecutableSection rewrittenSection = section;
             if (section instanceof MatchAssertion) {
                 MatchAssertion matchSection = (MatchAssertion) section;
                 if (matchSection.getField().endsWith("_index")) {
                     String modifiedExpectedValue = REMOTE_CLUSTER_NAME + ":" + matchSection.getExpectedValue();
-                    modifiedExecutableSections.add(
-                        new MatchAssertion(matchSection.getLocation(), matchSection.getField(), modifiedExpectedValue)
-                    );
+                    rewrittenSection = new MatchAssertion(matchSection.getLocation(), matchSection.getField(), modifiedExpectedValue);
                 }
-            } else if (section instanceof DoSection && ((DoSection) section).getApiCallSection().getApi().equals("msearch")) {
-                // modify "msearch" body sections so the "index" part is targeting the remote cluster
-                DoSection doSection = ((DoSection) section);
-                List<Map<String, Object>> bodies = doSection.getApiCallSection().getBodies();
-                for (Map<String, Object> body : bodies) {
-                    if (body.containsKey("index")) {
-                        String modifiedIndex = REMOTE_CLUSTER_NAME + ":" + body.get("index");
-                        body.put("index", modifiedIndex);
+                if (lastAPIDoSection.equals("indices.resolve_index") && matchSection.getField().endsWith("name")) {
+                    // modify " indices.resolve_index" expected index names
+                    String modifiedExpectedValue = REMOTE_CLUSTER_NAME + ":" + matchSection.getExpectedValue();
+                    rewrittenSection = new MatchAssertion(matchSection.getLocation(), matchSection.getField(), modifiedExpectedValue);
+                }
+            } else if (section instanceof DoSection) {
+                lastAPIDoSection = ((DoSection) section).getApiCallSection().getApi();
+                if (lastAPIDoSection.equals("msearch")) {
+                    // modify "msearch" body sections so the "index" part is targeting the remote cluster
+                    DoSection doSection = ((DoSection) section);
+                    List<Map<String, Object>> bodies = doSection.getApiCallSection().getBodies();
+                    for (Map<String, Object> body : bodies) {
+                        if (body.containsKey("index")) {
+                            String modifiedIndex = REMOTE_CLUSTER_NAME + ":" + body.get("index");
+                            body.put("index", modifiedIndex);
+                        }
                     }
                 }
-                modifiedExecutableSections.add(section);
-            } else {
-                modifiedExecutableSections.add(section);
             }
+            modifiedExecutableSections.add(rewrittenSection);
         }
         return new ClientYamlTestCandidate(
             clientYamlTestCandidate.getRestTestSuite(),

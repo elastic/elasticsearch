@@ -35,6 +35,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -659,7 +660,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
     private final Builder builder;
 
     private FlattenedFieldMapper(String simpleName, MappedFieldType mappedFieldType, Builder builder) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         this.builder = builder;
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
@@ -669,6 +670,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
             builder.ignoreAbove.get(),
             builder.nullValue.get()
         );
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

@@ -409,7 +409,7 @@ public class Node implements Closeable {
             resourcesToClose.add(nodeEnvironment);
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
-            final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
+            final List<ExecutorBuilder<?>> executorBuilders = pluginsService.flatMap(p -> p.getExecutorBuilders(settings)).toList();
 
             final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder<?>[0]));
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
@@ -419,10 +419,8 @@ public class Node implements Closeable {
             HeaderWarning.setThreadContext(threadPool.getThreadContext());
             resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));
 
-            final List<Setting<?>> additionalSettings = new ArrayList<>();
             // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private
-            additionalSettings.addAll(pluginsService.getPluginSettings());
-            final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());
+            final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.flatMap(Plugin::getSettings).toList());
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
@@ -439,16 +437,13 @@ public class Node implements Closeable {
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
 
-            final Set<SettingUpgrader<?>> settingsUpgraders = pluginsService.filterPlugins(Plugin.class)
-                .stream()
-                .map(Plugin::getSettingUpgraders)
-                .flatMap(List::stream)
+            final Set<SettingUpgrader<?>> settingsUpgraders = pluginsService.flatMap(Plugin::getSettingUpgraders)
                 .collect(Collectors.toSet());
 
             final SettingsModule settingsModule = new SettingsModule(
                 settings,
                 additionalSettings,
-                additionalSettingsFilter,
+                pluginsService.flatMap(Plugin::getSettingsFilter).toList(),
                 settingsUpgraders
             );
             ScriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
@@ -486,7 +481,7 @@ public class Node implements Closeable {
                 NetworkModule.getNamedWriteables().stream(),
                 IndicesModule.getNamedWriteables().stream(),
                 searchModule.getNamedWriteables().stream(),
-                pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getNamedWriteables().stream()),
+                pluginsService.flatMap(Plugin::getNamedWriteables),
                 ClusterModule.getNamedWriteables().stream(),
                 SystemIndexMigrationExecutor.getNamedWriteables().stream()
             ).flatMap(Function.identity()).toList();
@@ -496,7 +491,7 @@ public class Node implements Closeable {
                     NetworkModule.getNamedXContents().stream(),
                     IndicesModule.getNamedXContents().stream(),
                     searchModule.getNamedXContents().stream(),
-                    pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getNamedXContent().stream()),
+                    pluginsService.flatMap(Plugin::getNamedXContent),
                     ClusterModule.getNamedXWriteables().stream(),
                     SystemIndexMigrationExecutor.getNamedXContentParsers().stream()
                 ).flatMap(Function.identity()).collect(toList())
@@ -636,10 +631,7 @@ public class Node implements Closeable {
 
             final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperService);
             IndexSettingProviders indexSettingProviders = new IndexSettingProviders(
-                pluginsService.filterPlugins(Plugin.class)
-                    .stream()
-                    .flatMap(p -> p.getAdditionalIndexSettingProviders(parameters).stream())
-                    .collect(Collectors.toSet())
+                pluginsService.flatMap(p -> p.getAdditionalIndexSettingProviders(parameters)).collect(Collectors.toSet())
             );
 
             final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
@@ -674,24 +666,21 @@ public class Node implements Closeable {
                 threadPool
             );
 
-            Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class)
-                .stream()
-                .flatMap(
-                    p -> p.createComponents(
-                        client,
-                        clusterService,
-                        threadPool,
-                        resourceWatcherService,
-                        scriptService,
-                        xContentRegistry,
-                        environment,
-                        nodeEnvironment,
-                        namedWriteableRegistry,
-                        clusterModule.getIndexNameExpressionResolver(),
-                        repositoriesServiceReference::get
-                    ).stream()
+            Collection<Object> pluginComponents = pluginsService.flatMap(
+                p -> p.createComponents(
+                    client,
+                    clusterService,
+                    threadPool,
+                    resourceWatcherService,
+                    scriptService,
+                    xContentRegistry,
+                    environment,
+                    nodeEnvironment,
+                    namedWriteableRegistry,
+                    clusterModule.getIndexNameExpressionResolver(),
+                    repositoriesServiceReference::get
                 )
-                .toList();
+            ).toList();
 
             ActionModule actionModule = new ActionModule(
                 settings,
@@ -722,9 +711,9 @@ public class Node implements Closeable {
                 restController,
                 clusterService.getClusterSettings()
             );
-            Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(
-                Plugin.class
-            ).stream().map(Plugin::getIndexTemplateMetadataUpgrader).toList();
+            Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.map(
+                Plugin::getIndexTemplateMetadataUpgrader
+            ).toList();
             final MetadataUpgrader metadataUpgrader = new MetadataUpgrader(indexTemplateMetadataUpgraders);
             final IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
                 settings,
@@ -1211,7 +1200,7 @@ public class Node implements Closeable {
         validateNodeBeforeAcceptingRequests(
             new BootstrapContext(environment, onDiskMetadata),
             transportService.boundAddress(),
-            pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getBootstrapChecks().stream()).toList()
+            pluginsService.flatMap(Plugin::getBootstrapChecks).toList()
         );
 
         clusterService.addStateApplier(transportService.getTaskManager());

@@ -74,7 +74,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     private Set<String> without;
     private long interval;
     private long offset;
-    private Function aggregator;
+    private Aggregator aggregator;
     protected long downsampleRange;
     protected Function downsampleFunction;
     private BucketOrder order;
@@ -101,7 +101,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         List<String> without,
         DateHistogramInterval interval,
         DateHistogramInterval offset,
-        Function aggregator,
+        Aggregator aggregator,
         Downsample downsample,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
         BucketOrder order,

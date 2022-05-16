@@ -16,7 +16,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.Function;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.Aggregator;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimePoint;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.TSIDBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
@@ -37,7 +37,7 @@ public class TSIDInternalAggregation extends InternalAggregation {
     public static final String NAME = "tsid";
 
     private final Map<BytesRef, InternalAggregation> values;
-    private final String aggreagator;
+    private final String aggregator;
     private final DocValueFormat formatter;
 
     public TSIDInternalAggregation(
@@ -50,13 +50,13 @@ public class TSIDInternalAggregation extends InternalAggregation {
         super(name, metadata);
         this.values = values;
         this.formatter = formatter;
-        this.aggreagator = aggregator;
+        this.aggregator = aggregator;
     }
 
     public TSIDInternalAggregation(StreamInput in) throws IOException {
         super(in);
         formatter = in.readNamedWriteable(DocValueFormat.class);
-        aggreagator = in.readString();
+        aggregator = in.readString();
         values = in.readOrderedMap(StreamInput::readBytesRef, stream -> stream.readNamedWriteable(InternalAggregation.class));
     }
 
@@ -68,7 +68,7 @@ public class TSIDInternalAggregation extends InternalAggregation {
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(formatter);
-        out.writeString(aggreagator);
+        out.writeString(aggregator);
         out.writeMap(values, StreamOutput::writeBytesRef, StreamOutput::writeNamedWriteable);
     }
 
@@ -77,7 +77,7 @@ public class TSIDInternalAggregation extends InternalAggregation {
         if (aggregations.size() == 1) {
             TSIDInternalAggregation tsidAgg = (TSIDInternalAggregation) aggregations.get(0);
             if (reduceContext.isFinalReduce()) {
-                Function function = Function.valueOf(aggreagator);
+                Aggregator function = Aggregator.valueOf(aggregator);
                 final AggregatorFunction aggregatorFunction = function.getAggregatorFunction();
                 tsidAgg.values.forEach(
                     (tsid, agg) -> {
@@ -104,7 +104,7 @@ public class TSIDInternalAggregation extends InternalAggregation {
         }
 
         if (reduceContext.isFinalReduce()) {
-            Function function = Function.valueOf(aggreagator);
+            Aggregator function = Aggregator.valueOf(aggregator);
             final AggregatorFunction aggregatorFunction = function.getAggregatorFunction();
             reduced.forEach((tsid, aggs) -> {
                 if (aggs.size() > 0) {
@@ -122,7 +122,7 @@ public class TSIDInternalAggregation extends InternalAggregation {
                     finalReduces.put(tsid, first.reduce(aggs, reduceContext));
                 }
             });
-            return new TSIDInternalAggregation(name, finalReduces, aggreagator, formatter, getMetadata());
+            return new TSIDInternalAggregation(name, finalReduces, aggregator, formatter, getMetadata());
         }
     }
 
@@ -138,7 +138,7 @@ public class TSIDInternalAggregation extends InternalAggregation {
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(CommonFields.VALUE.getPreferredName(), aggreagator);
+        builder.field(CommonFields.VALUE.getPreferredName(), aggregator);
         return builder;
     }
 }

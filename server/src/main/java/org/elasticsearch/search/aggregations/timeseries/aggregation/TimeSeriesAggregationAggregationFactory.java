@@ -34,7 +34,7 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
     private final List<String> without;
     private final DateHistogramInterval interval;
     private final DateHistogramInterval offset;
-    private final Function aggregator;
+    private final org.elasticsearch.search.aggregations.timeseries.aggregation.Aggregator aggregator;
     private final Downsample downsample;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final BucketOrder order;
@@ -48,7 +48,7 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
         List<String> without,
         DateHistogramInterval interval,
         DateHistogramInterval offset,
-        Function aggregator,
+        org.elasticsearch.search.aggregations.timeseries.aggregation.Aggregator aggregator,
         Downsample downsample,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
         BucketOrder order,

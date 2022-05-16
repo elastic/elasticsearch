@@ -72,7 +72,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
     private List<String> without;
     private DateHistogramInterval interval;
     private DateHistogramInterval offset;
-    private String aggregator;
+    private Aggregator aggregator;
     private Downsample downsample;
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(
         DEFAULT_BUCKET_COUNT_THRESHOLDS
@@ -140,7 +140,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         without = in.readOptionalStringList();
         interval = in.readOptionalWriteable(DateHistogramInterval::new);
         offset = in.readOptionalWriteable(DateHistogramInterval::new);
-        aggregator = in.readOptionalString();
+        aggregator = in.readOptionalEnum(Aggregator.class);
         downsample = in.readOptionalWriteable(Downsample::new);
         order = InternalOrder.Streams.readOrder(in);
         bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
@@ -153,7 +153,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         out.writeOptionalStringCollection(without);
         out.writeOptionalWriteable(interval);
         out.writeOptionalWriteable(offset);
-        out.writeOptionalString(aggregator);
+        out.writeOptionalEnum(aggregator);
         out.writeOptionalWriteable(downsample);
         order.writeTo(out);
         bucketCountThresholds.writeTo(out);
@@ -188,7 +188,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
             without,
             interval,
             offset,
-            aggregator != null ? Function.resolve(aggregator) : null,
+            aggregator,
             downsample,
             bucketCountThresholds,
             order,
@@ -325,7 +325,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
     /**
      * Returns the aggregator function
      */
-    public String getAggregator() {
+    public Aggregator getAggregator() {
         return aggregator;
     }
 
@@ -333,7 +333,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
      * Sets the aggregator function, it used to aggregator time series lines to one time serie line
      */
     public TimeSeriesAggregationAggregationBuilder aggregator(String aggregator) {
-        this.aggregator = aggregator;
+        this.aggregator = Aggregator.resolve(aggregator);
         return this;
     }
 

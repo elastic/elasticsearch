@@ -15,10 +15,6 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.Tim
 
 import java.util.Map;
 
-/**
- * @author weizijun.wzj
- * @date 2022/5/12
- */
 public class IRateFunction implements AggregatorFunction<TimePoint, Double> {
 
     private final boolean isRate;

@@ -8,13 +8,6 @@
 
 package org.elasticsearch.search.aggregations.timeseries.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.AggregatorBucketFunction;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.AvgBucketFunction;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.MaxBucketFunction;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.MinBucketFunction;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.SumBucketFunction;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.ValueCountBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AvgFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.IRateFunction;
@@ -26,84 +19,34 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.function.Sum
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.ValueCountFunction;
 
 public enum Function {
-    count {
+    count_over_time {
         @Override
         public AggregatorFunction<?, ?> getFunction(TimeSeriesAggregationAggregator aggregator) {
             return new ValueCountFunction();
         }
-
-        @Override
-        public AggregatorFunction<?, ?> getAggregatorFunction() {
-            return new ValueCountFunction();
-        }
-
-        @Override
-        public AggregatorBucketFunction<?> getAggregatorBucketFunction(BigArrays bigArrays) {
-            return new ValueCountBucketFunction(bigArrays);
-        }
     },
-    sum {
+    sum_over_time {
         @Override
         public AggregatorFunction<?, ?> getFunction(TimeSeriesAggregationAggregator aggregator) {
             return new SumFunction();
         }
-
-        @Override
-        public AggregatorFunction<?, ?> getAggregatorFunction() {
-            return new SumFunction();
-        }
-
-        @Override
-        public AggregatorBucketFunction<?> getAggregatorBucketFunction(BigArrays bigArrays) {
-            return new SumBucketFunction(bigArrays);
-        }
     },
-    min {
+    min_over_time {
         @Override
         public AggregatorFunction<?, ?> getFunction(TimeSeriesAggregationAggregator aggregator) {
             return new MinFunction();
         }
-
-        @Override
-        public AggregatorFunction<?, ?> getAggregatorFunction() {
-            return new MinFunction();
-        }
-
-        @Override
-        public AggregatorBucketFunction<?> getAggregatorBucketFunction(BigArrays bigArrays) {
-            return new MinBucketFunction(bigArrays);
-        }
     },
-    max {
+    max_over_time {
         @Override
         public AggregatorFunction<?, ?> getFunction(TimeSeriesAggregationAggregator aggregator) {
             return new MaxFunction();
         }
-
-        @Override
-        public AggregatorFunction<?, ?> getAggregatorFunction() {
-            return new MaxFunction();
-        }
-
-        @Override
-        public AggregatorBucketFunction<?> getAggregatorBucketFunction(BigArrays bigArrays) {
-            return new MaxBucketFunction(bigArrays);
-        }
     },
-    avg {
+    avg_over_time {
         @Override
         public AggregatorFunction<?, ?> getFunction(TimeSeriesAggregationAggregator aggregator) {
             return new AvgFunction();
-        }
-
-        @Override
-        public AggregatorFunction<?, ?> getAggregatorFunction() {
-            return new AvgFunction();
-        }
-
-        @Override
-        public AggregatorBucketFunction<?> getAggregatorBucketFunction(BigArrays bigArrays) {
-            return new AvgBucketFunction(bigArrays);
         }
     },
     last {
@@ -144,25 +87,15 @@ public enum Function {
     };
 
     public static Function resolve(String name) {
-        return Function.valueOf(name);
+        try {
+            return Function.valueOf(name);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("function [" + name + "] not support");
+        }
     }
 
     /**
      * get the function
      */
     public abstract AggregatorFunction<?, ?> getFunction(TimeSeriesAggregationAggregator aggregator);
-
-    /**
-     * get the aggregator function
-     */
-    public AggregatorFunction<?, ?> getAggregatorFunction() {
-        throw new UnsupportedOperationException(name() + " aggregator function not support");
-    };
-
-    /**
-     * get the aggregator bucket function
-     */
-    public AggregatorBucketFunction<?> getAggregatorBucketFunction(BigArrays bigArrays) {
-        throw new UnsupportedOperationException(name() + " aggregator bucket function not support");
-    };
 }

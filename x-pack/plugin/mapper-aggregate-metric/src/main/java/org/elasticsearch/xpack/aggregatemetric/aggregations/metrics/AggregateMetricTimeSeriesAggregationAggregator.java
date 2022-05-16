@@ -46,7 +46,7 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
         List<String> without,
         DateHistogramInterval interval,
         DateHistogramInterval offset,
-        Function aggregator,
+        org.elasticsearch.search.aggregations.timeseries.aggregation.Aggregator aggregator,
         Downsample downsample,
         BucketCountThresholds bucketCountThresholds,
         BucketOrder order,
@@ -79,7 +79,7 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
             : null;
         this.format = valuesSourceConfig.format();
         if (this.downsampleFunction == null) {
-            this.downsampleFunction = Function.avg;
+            this.downsampleFunction = Function.avg_over_time;
         }
     }
 
@@ -175,13 +175,13 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
 
     private Metric getAggregateMetric() {
         switch (downsampleFunction) {
-            case max:
+            case max_over_time:
                 return Metric.max;
-            case min:
+            case min_over_time:
                 return Metric.min;
-            case sum:
+            case sum_over_time:
                 return Metric.sum;
-            case count:
+            case count_over_time:
                 return Metric.value_count;
         }
         return null;

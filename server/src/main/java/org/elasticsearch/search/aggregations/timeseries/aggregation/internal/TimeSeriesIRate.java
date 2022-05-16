@@ -25,10 +25,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-/**
- * @author weizijun.wzj
- * @date 2022/5/12
- */
 public class TimeSeriesIRate extends InternalNumericMetricsAggregation.SingleValue implements Comparable<TimeSeriesIRate> {
     public static final String NAME = "time_series_irate";
 

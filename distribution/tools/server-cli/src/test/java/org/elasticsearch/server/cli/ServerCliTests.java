@@ -290,10 +290,14 @@ public class ServerCliTests extends CommandTestCase {
         }
     }
 
-    private class MockServerProcess implements ServerProcess {
+    private class MockServerProcess extends ServerProcess {
         boolean detachCalled = false;
         boolean waitForCalled = false;
         boolean stopCalled = false;
+
+        MockServerProcess() {
+            super(null, null);
+        }
 
         @Override
         public void detach() {

@@ -18,17 +18,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class BootstrapTests extends ESTestCase {
     Environment env;
@@ -62,39 +57,4 @@ public class BootstrapTests extends ESTestCase {
             assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));
         }
     }
-
-    // TODO: these tests aren't needed anymore, password reading is done in ServerCli
-    public void testReadCharsFromStdin() throws Exception {
-        assertPassphraseRead("hello", "hello");
-        assertPassphraseRead("hello\n", "hello");
-        assertPassphraseRead("hello\r\n", "hello");
-
-        assertPassphraseRead("hellohello", "hellohello");
-        assertPassphraseRead("hellohello\n", "hellohello");
-        assertPassphraseRead("hellohello\r\n", "hellohello");
-
-        assertPassphraseRead("hello\nhi\n", "hello");
-        assertPassphraseRead("hello\r\nhi\r\n", "hello");
-    }
-
-    public void testNoPassPhraseProvided() throws Exception {
-        byte[] source = "\r\n".getBytes(StandardCharsets.UTF_8);
-        try (InputStream stream = new ByteArrayInputStream(source)) {
-            expectThrows(
-                RuntimeException.class,
-                "Keystore passphrase required but none provided.",
-                () -> BootstrapUtil.readPassphrase(stream)
-            );
-        }
-    }
-
-    private void assertPassphraseRead(String source, String expected) {
-        try (InputStream stream = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8))) {
-            SecureString result = BootstrapUtil.readPassphrase(stream);
-            assertThat(result, equalTo(expected));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
 }

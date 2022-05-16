@@ -31,10 +31,8 @@ import io.netty.util.AttributeKey;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -149,7 +147,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         ClusterSettings clusterSettings,
         SharedGroupFactory sharedGroupFactory
     ) {
-        super(settings, networkService, createRecycler(settings), threadPool, xContentRegistry, dispatcher, clusterSettings);
+        super(settings, networkService, Netty4Utils.createRecycler(settings), threadPool, xContentRegistry, dispatcher, clusterSettings);
         Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
@@ -174,13 +172,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             maxCompositeBufferComponents,
             pipeliningMaxEvents
         );
-    }
-
-    private static Recycler<BytesRef> createRecycler(Settings settings) {
-        // If this method is called by super ctor the processors will not be set. Accessing NettyAllocator initializes netty's internals
-        // setting the processors. We must do it ourselves first just in case.
-        Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
-        return NettyAllocator.getRecycler();
     }
 
     public Settings settings() {

@@ -10,19 +10,19 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Map;
 import java.util.Objects;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
-
     public abstract static class Builder {
 
         protected final String name;
 
         protected Builder(String name) {
-            this.name = name;
+            this.name = internFieldName(name);
         }
 
         public String name() {
@@ -48,7 +48,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     public Mapper(String simpleName) {
         Objects.requireNonNull(simpleName);
-        this.simpleName = simpleName;
+        this.simpleName = internFieldName(simpleName);
     }
 
     /** Returns the simple name, which identifies this mapper against other mappers at the same level in the mappers hierarchy
@@ -75,8 +75,31 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public abstract void validate(MappingLookup mappers);
 
+    /**
+     * Create a {@link SourceLoader.SyntheticFieldLoader} to populate synthetic source.
+     *
+     * @throws IllegalArgumentException if the field is configured in a way that doesn't
+     *         support synthetic source. This translates nicely into a 400 error when
+     *         users configure synthetic source in the mapping without configuring all
+     *         fields properly.
+     */
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        throw new IllegalArgumentException("field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source");
+    }
+
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    private static final StringLiteralDeduplicator fieldNameStringDeduplicator = new StringLiteralDeduplicator();
+
+    /**
+     * Interns the given field name string through a {@link StringLiteralDeduplicator}.
+     * @param fieldName field name to intern
+     * @return interned field name string
+     */
+    public static String internFieldName(String fieldName) {
+        return fieldNameStringDeduplicator.deduplicate(fieldName);
     }
 }

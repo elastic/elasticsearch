@@ -337,7 +337,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     updateRequest.settings(settings);
                 }
                 if (aliasName != null) {
-                    updateRequest.aliases(Set.of(new Alias(aliasName).isHidden(true)));
+                    Alias systemAlias = new Alias(aliasName).isHidden(true);
+                    if (concreteIndexName.equals(descriptor.getPrimaryIndex())) {
+                        systemAlias.writeIndex(true);
+                    }
+                    updateRequest.aliases(Set.of(systemAlias));
                 }
 
                 if (logger.isDebugEnabled()) {

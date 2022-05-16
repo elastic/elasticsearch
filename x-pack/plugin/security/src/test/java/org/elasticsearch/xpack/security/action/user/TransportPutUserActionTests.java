@@ -23,13 +23,10 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealmTests;
@@ -95,49 +92,6 @@ public class TransportPutUserActionTests extends ESTestCase {
         verifyNoMoreInteractions(usersStore);
     }
 
-    public void testSystemUser() {
-        NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportService transportService = new TransportService(
-            Settings.EMPTY,
-            mock(Transport.class),
-            mock(ThreadPool.class),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> null,
-            null,
-            Collections.emptySet()
-        );
-        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ActionFilters.class), usersStore, transportService);
-
-        PutUserRequest request = new PutUserRequest();
-        request.username(
-            randomFrom(
-                SystemUser.INSTANCE.principal(),
-                XPackUser.INSTANCE.principal(),
-                XPackSecurityUser.INSTANCE.principal(),
-                AsyncSearchUser.INSTANCE.principal()
-            )
-        );
-
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<PutUserResponse>() {
-            @Override
-            public void onResponse(PutUserResponse response) {
-                responseRef.set(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throwableRef.set(e);
-            }
-        });
-
-        assertThat(responseRef.get(), is(nullValue()));
-        assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
-        assertThat(throwableRef.get().getMessage(), containsString("is internal"));
-        verifyNoMoreInteractions(usersStore);
-    }
-
     public void testReservedUser() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
@@ -188,7 +142,14 @@ public class TransportPutUserActionTests extends ESTestCase {
     }
 
     public void testValidUser() {
-        final User user = new User("joe");
+        testValidUser(new User("joe"));
+    }
+
+    public void testValidUserWithInternalUsername() {
+        testValidUser(new User(AuthenticationTestHelper.randomInternalUsername()));
+    }
+
+    private void testValidUser(User user) {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -220,7 +181,7 @@ public class TransportPutUserActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<PutUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
             public void onResponse(PutUserResponse response) {
                 responseRef.set(response);

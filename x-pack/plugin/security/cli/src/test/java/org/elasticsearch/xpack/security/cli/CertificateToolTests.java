@@ -28,6 +28,7 @@ import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
@@ -139,7 +140,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testOutputDirectory() throws Exception {
         Path outputDir = createTempDir();
         Path outputFile = outputDir.resolve("certs.zip");
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
 
         // test with a user provided file
         Path resolvedOutputFile = CertificateCommand.resolveOutputPath(terminal, outputFile.toString(), "something");
@@ -183,7 +184,7 @@ public class CertificateToolTests extends ESTestCase {
         }
 
         int count = 0;
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         for (Entry<String, Map<String, String>> entry : instanceInput.entrySet()) {
             terminal.addTextInput(entry.getKey());
             terminal.addTextInput("");
@@ -251,7 +252,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testParsingFileWithInvalidDetails() throws Exception {
         Path tempDir = initTempDir();
         Path instanceFile = writeInvalidInstanceInformation(tempDir.resolve("instances-invalid.yml"));
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         final UserException exception = expectThrows(
             UserException.class,
             () -> CertificateTool.parseAndValidateFile(terminal, instanceFile)
@@ -385,6 +386,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testErrorMessageOnInvalidKeepCaOption() {
         final CertificateTool certificateTool = new CertificateTool();
         final OptionSet optionSet = mock(OptionSet.class);
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
         when(optionSet.valuesOf(any(OptionSpec.class))).thenAnswer(invocation -> {
             if (invocation.getArguments()[0] instanceof NonOptionArgumentSpec) {
                 return List.of("cert", "--keep-ca-key");
@@ -392,14 +394,17 @@ public class CertificateToolTests extends ESTestCase {
                 return List.of();
             }
         });
-        final UserException e = expectThrows(UserException.class, () -> certificateTool.execute(new MockTerminal(), optionSet));
+        final UserException e = expectThrows(
+            UserException.class,
+            () -> certificateTool.execute(MockTerminal.create(), optionSet, processInfo)
+        );
         assertThat(e.getMessage(), containsString("Generating certificates without providing a CA is no longer supported"));
     }
 
     public void testHandleLongPasswords() throws Exception {
         final Path tempDir = initTempDir();
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path caFile = tempDir.resolve("ca.p12");
@@ -411,12 +416,13 @@ public class CertificateToolTests extends ESTestCase {
         final CertificateAuthorityCommand caCommand = new PathAwareCertificateAuthorityCommand(caFile);
         final OptionSet gen1Options = caCommand.getParser()
             .parse("-ca-dn", "CN=Test-Ca", (expectPrompt ? "-pass" : "-pass=" + longPassword), "-out", caFile.toString());
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
 
         if (expectPrompt) {
             terminal.addSecretInput(longPassword);
             terminal.addTextInput("y"); // Yes, really use it
         }
-        caCommand.execute(terminal, gen1Options, env);
+        caCommand.execute(terminal, gen1Options, env, processInfo);
         assertThat(terminal.getOutput(), containsString("50 characters"));
         assertThat(terminal.getOutput(), containsString("OpenSSL"));
         assertThat(terminal.getOutput(), containsString("1.1.0"));
@@ -443,7 +449,7 @@ public class CertificateToolTests extends ESTestCase {
             terminal.addSecretInput(longPassword);
             terminal.addTextInput("y"); // This time, yes we will use it
         }
-        genCommand.execute(terminal, gen2Options, env);
+        genCommand.execute(terminal, gen2Options, env, processInfo);
         assertThat(terminal.getOutput(), containsString("50 characters"));
         assertThat(terminal.getOutput(), containsString("OpenSSL"));
         assertThat(terminal.getOutput(), containsString("1.1.0"));
@@ -475,7 +481,7 @@ public class CertificateToolTests extends ESTestCase {
         Path testNodeCertPath = getDataPath("/org/elasticsearch/xpack/security/cli/testnode.crt");
         Path testNodeKeyPath = getDataPath("/org/elasticsearch/xpack/security/cli/testnode.pem");
         final boolean passwordPrompt = randomBoolean();
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         if (passwordPrompt) {
             terminal.addSecretInput("testnode");
         }
@@ -617,7 +623,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testCreateCaAndMultipleInstances() throws Exception {
         final Path tempDir = initTempDir();
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path caFile = tempDir.resolve("ca.p12");
@@ -663,7 +669,8 @@ public class CertificateToolTests extends ESTestCase {
                 "-name",
                 "node01"
             );
-        gen1Command.execute(terminal, gen1Options, env);
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
+        gen1Command.execute(terminal, gen1Options, env, processInfo);
 
         assertThat(node1File, pathExists());
 
@@ -689,7 +696,7 @@ public class CertificateToolTests extends ESTestCase {
                 "-name",
                 "node02"
             );
-        gen2Command.execute(terminal, gen2Options, env);
+        gen2Command.execute(terminal, gen2Options, env, processInfo);
 
         assertThat(node2File, pathExists());
 
@@ -711,7 +718,7 @@ public class CertificateToolTests extends ESTestCase {
         gen3Args.add("-self-signed");
         final GenerateCertificateCommand gen3Command = new PathAwareGenerateCertificateCommand(null, node3File);
         final OptionSet gen3Options = gen3Command.getParser().parse(Strings.toStringArray(gen3Args));
-        gen3Command.execute(terminal, gen3Options, env);
+        gen3Command.execute(terminal, gen3Options, env, processInfo);
 
         assertThat(node3File, pathExists());
 
@@ -762,7 +769,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testTrustBetweenPEMandPKCS12() throws Exception {
         final Path tempDir = initTempDir();
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path caFile = tempDir.resolve("ca.p12");
@@ -794,9 +801,10 @@ public class CertificateToolTests extends ESTestCase {
                 "-name",
                 "node01"
             );
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
 
         terminal.addSecretInput(node1Password);
-        gen1Command.execute(terminal, gen1Options, env);
+        gen1Command.execute(terminal, gen1Options, env, processInfo);
 
         assertThat(node1Pkcs12, pathExists());
 
@@ -819,7 +827,7 @@ public class CertificateToolTests extends ESTestCase {
             );
 
         terminal.addSecretInput(caPassword);
-        gen2Command.execute(terminal, gen2Options, env);
+        gen2Command.execute(terminal, gen2Options, env, processInfo);
 
         assertThat(pemZip, pathExists());
 
@@ -847,7 +855,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testZipOutputFromCommandLineOptions() throws Exception {
         final Path tempDir = initTempDir();
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path zip = tempDir.resolve("pem.zip");
@@ -878,7 +886,8 @@ public class CertificateToolTests extends ESTestCase {
 
         final String optionThatTriggersZip = randomFrom("-pem", "-multiple", "-in=input.yml");
         final OptionSet genOptions = genCommand.getParser().parse("--self-signed", "-out", "<zip>", optionThatTriggersZip);
-        genCommand.execute(terminal, genOptions, env);
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
+        genCommand.execute(terminal, genOptions, env, processInfo);
 
         assertThat("For command line option " + optionThatTriggersZip, isZip.get(), equalTo(true));
     }
@@ -1044,7 +1053,8 @@ public class CertificateToolTests extends ESTestCase {
                 "-days",
                 String.valueOf(days)
             );
-        caCommand.execute(terminal, caOptions, env);
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
+        caCommand.execute(terminal, caOptions, env, processInfo);
 
         // Check output for OpenSSL compatibility version
         if (caPassword.length() > 50) {

@@ -8,18 +8,17 @@
 
 package org.elasticsearch.logging;
 
-import org.elasticsearch.logging.message.Message;
 
 /**
  * Main interface for logging. Most operations are done through this interface (except for deprecations)
  */
 public interface Logger {
 
-    void log(Level level, Message message);
+
 
     void log(Level level, Object message);
 
-    void log(Level level, Message message, Throwable thrown);
+
 
     void log(Level level, java.util.function.Supplier<?> msgSupplier, Throwable thrown);
 
@@ -44,9 +43,9 @@ public interface Logger {
 
     void fatal(Object message, Throwable thrown);
 
-    void fatal(Message message);
 
-    void fatal(Message message, Throwable thrown);
+
+
 
     void fatal(java.util.function.Supplier<?> msgSupplier);
 
@@ -77,9 +76,9 @@ public interface Logger {
 
     void error(Object message, Throwable thrown);
 
-    void error(Message message);
 
-    void error(Message message, Throwable thrown);
+
+
 
     void error(java.util.function.Supplier<?> msgSupplier);
 
@@ -110,9 +109,9 @@ public interface Logger {
 
     void warn(Object message, Throwable thrown);
 
-    void warn(Message message);
 
-    void warn(Message message, Throwable thrown);
+
+
 
     void warn(java.util.function.Supplier<?> msgSupplier);
 
@@ -143,9 +142,9 @@ public interface Logger {
 
     void info(Object message, Throwable thrown);
 
-    void info(Message message);
 
-    void info(Message message, Throwable thrown);
+
+
 
     void info(java.util.function.Supplier<?> msgSupplier);
 
@@ -176,9 +175,9 @@ public interface Logger {
 
     void debug(Object message, Throwable thrown);
 
-    void debug(Message message);
 
-    void debug(Message message, Throwable thrown);
+
+
 
     void debug(java.util.function.Supplier<?> msgSupplier);
 
@@ -209,9 +208,9 @@ public interface Logger {
 
     void trace(Object message, Throwable thrown);
 
-    void trace(Message message);
 
-    void trace(Message message, Throwable thrown);
+
+
 
     void trace(java.util.function.Supplier<?> msgSupplier);
 

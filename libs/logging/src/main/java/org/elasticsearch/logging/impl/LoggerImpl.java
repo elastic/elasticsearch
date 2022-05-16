@@ -8,11 +8,9 @@
 
 package org.elasticsearch.logging.impl;
 
-import org.apache.logging.log4j.message.ObjectMessage;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.message.ESMapMessage;
-import org.elasticsearch.logging.message.Message;
+
 
 import java.util.function.Supplier;
 
@@ -28,17 +26,7 @@ public final class LoggerImpl implements Logger {
         return log4jLogger;
     }
 
-    private org.apache.logging.log4j.message.Message mapMessage(Message message) {
-        if (message instanceof MessageImpl messageImpl) {
-            return messageImpl.log4jMessage;
 
-        }// TODO ESMapMessageImpl will extend log4j's MapMessage
-        else if (message instanceof ESMapMessage log4jMessage) {
-            return (org.apache.logging.log4j.message.Message) log4jMessage;
-        }
-        return new ObjectMessage(message);
-        // TODO PG what about custom user messages?? Maybe we coudl seal Message to only ESMapMessage and MessageImpl?
-    }
 
     private static org.apache.logging.log4j.Level log4jLevel(final org.elasticsearch.logging.Level level) {
         return Util.log4jLevel(level);
@@ -49,15 +37,7 @@ public final class LoggerImpl implements Logger {
         log4jLogger.log(log4jLevel(level), message);
     }
 
-    @Override
-    public void log(Level level, Message message) {
-        log4jLogger.log(log4jLevel(level), mapMessage(message));
-    }
 
-    @Override
-    public void log(Level level, Message message, Throwable thrown) {
-        log4jLogger.log(log4jLevel(level), mapMessage(message), thrown);
-    }
 
     @Override
     public void log(Level level, Supplier<?> msgSupplier, Throwable thrown) {
@@ -106,15 +86,7 @@ public final class LoggerImpl implements Logger {
         log4jLogger.fatal(message, thrown);
     }
 
-    @Override
-    public void fatal(Message message) {
-        log4jLogger.fatal(mapMessage(message));
-    }
 
-    @Override
-    public void fatal(Message message, Throwable thrown) {
-        log4jLogger.fatal(mapMessage(message), thrown);
-    }
 
     @Override
     public void fatal(Supplier<?> msgSupplier) {
@@ -186,15 +158,7 @@ public final class LoggerImpl implements Logger {
         log4jLogger.error(message, thrown);
     }
 
-    @Override
-    public void error(Message message) {
-        log4jLogger.error(mapMessage(message));
-    }
 
-    @Override
-    public void error(Message message, Throwable thrown) {
-        log4jLogger.error(mapMessage(message), thrown);
-    }
 
     @Override
     public void error(Supplier<?> msgSupplier) {
@@ -266,15 +230,7 @@ public final class LoggerImpl implements Logger {
         log4jLogger.warn(message, thrown);
     }
 
-    @Override
-    public void warn(Message message) {
-        log4jLogger.warn(mapMessage(message));
-    }
 
-    @Override
-    public void warn(Message message, Throwable thrown) {
-        log4jLogger.warn(mapMessage(message), thrown);
-    }
 
     @Override
     public void warn(Supplier<?> msgSupplier) {
@@ -346,15 +302,7 @@ public final class LoggerImpl implements Logger {
         log4jLogger.info(message, thrown);
     }
 
-    @Override
-    public void info(Message message) {
-        log4jLogger.info(mapMessage(message));
-    }
 
-    @Override
-    public void info(Message message, Throwable thrown) {
-        log4jLogger.info(mapMessage(message), thrown);
-    }
 
     @Override
     public void info(Supplier<?> msgSupplier) {
@@ -426,15 +374,7 @@ public final class LoggerImpl implements Logger {
         log4jLogger.debug(message, thrown);
     }
 
-    @Override
-    public void debug(Message message) {
-        log4jLogger.debug(mapMessage(message));
-    }
 
-    @Override
-    public void debug(Message message, Throwable thrown) {
-        log4jLogger.debug(mapMessage(message), thrown);
-    }
 
     @Override
     public void debug(Supplier<?> msgSupplier) {
@@ -506,15 +446,7 @@ public final class LoggerImpl implements Logger {
         log4jLogger.trace(message, thrown);
     }
 
-    @Override
-    public void trace(Message message) {
-        log4jLogger.trace(mapMessage(message));
-    }
 
-    @Override
-    public void trace(Message message, Throwable thrown) {
-        log4jLogger.trace(mapMessage(message), thrown);
-    }
 
     @Override
     public void trace(Supplier<?> msgSupplier) {

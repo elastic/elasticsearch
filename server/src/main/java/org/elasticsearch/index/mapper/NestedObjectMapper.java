@@ -67,6 +67,9 @@ public class NestedObjectMapper extends ObjectMapper {
                     iterator.remove();
                 }
             }
+            if (builder.subobjects.explicit()) {
+                throw new MapperParsingException("Nested type [" + name + "] does not support [subobjects] parameter");
+            }
             return builder;
         }
 

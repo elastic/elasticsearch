@@ -188,7 +188,6 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
               }
             }
             '''
-
     }
 
     static class ProjectConfigurer {

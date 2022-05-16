@@ -72,7 +72,7 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
             {"event":{"category":"process"},"@timestamp":"2020-01-01T12:34:56Z"}
             """.formatted(defaultValidationIndexName));
         assertBadRequest("""
-            {"query": "sample [any where true] [any where true]",
+            {"query": "sample by event.category [any where true] [any where true]",
              "fetch_size": 1001}
             """, "Fetch size cannot be greater than [1000]", 500);
 

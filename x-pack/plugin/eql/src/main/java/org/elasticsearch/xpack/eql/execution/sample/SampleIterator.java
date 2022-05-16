@@ -48,7 +48,7 @@ public class SampleIterator implements Executable {
     private final QueryClient client;
     private final List<SampleCriterion> criteria;
     private final Stack<Page> stack = new Stack<>();
-    private final int maxStages;
+    private final int maxCriteria;
     private final List<Sample> samples;
     private final int fetchSize;
 
@@ -57,7 +57,7 @@ public class SampleIterator implements Executable {
     public SampleIterator(QueryClient client, List<SampleCriterion> criteria, int fetchSize) {
         this.client = client;
         this.criteria = criteria;
-        this.maxStages = criteria.size();
+        this.maxCriteria = criteria.size();
         this.fetchSize = fetchSize;
         this.samples = new ArrayList<>();
     }
@@ -77,54 +77,58 @@ public class SampleIterator implements Executable {
      * Starting point of the iterator, which also goes through all the criterions and gathers initial results pages.
      */
     private void advance(ActionListener<Payload> listener) {
-        int currentStage = stack.size();
-        if (currentStage < maxStages) {
+        int currentCriterion = stack.size();
+        if (currentCriterion < maxCriteria) {
             // excessive logging for testing purposes
-            log.trace("Advancing from stage [{}]", currentStage);
-            SampleCriterion criterion = criteria.get(currentStage);
-            SampleQueryRequest request;
+            log.trace("Advancing from step [{}]", currentCriterion);
+            SampleCriterion criterion = criteria.get(currentCriterion);
+            final SampleQueryRequest request;
 
-            // incorporate the previous stage composite keys in the current stage query
-            if (currentStage > 0) {
+            // incorporate the previous step composite keys in the current step query
+            if (currentCriterion > 0) {
                 request = criterion.midQuery();
                 Page previousResults = stack.peek();
-                SampleCriterion previousCriterion = criteria.get(currentStage - 1);
+                SampleCriterion previousCriterion = criteria.get(currentCriterion - 1);
                 request.multipleKeyPairs(previousCriterion.keys(previousResults.hits), previousResults.keys);
             } else {
                 request = criterion.firstQuery();
             }
 
-            final SampleQueryRequest rr = request;
-            log.trace("Querying stage [{}] {}", currentStage, request);
-            client.query(request, wrap(r -> {
-                Aggregation a = r.getAggregations().get(COMPOSITE_AGG_NAME);
-                if (a instanceof InternalComposite == false) {
-                    throw new EqlIllegalArgumentException("Unexpected aggregation result type returned [{}]", a.getClass());
-                }
-
-                InternalComposite composite = (InternalComposite) a;
-                log.trace("Advancing.... found [{}] hits", composite.getBuckets().size());
-                Page nextPage = new Page(composite, rr);
-                if (nextPage != null && nextPage.size() > 0) {
-                    stack.push(nextPage);
-                    advance(listener);
-                } else {
-                    if (stack.size() > 0) {
-                        nextPage(listener, stack.pop());
-                    } else {
-                        payload(listener);
-                    }
-                }
-            }, listener::onFailure));
-        } else if (currentStage > maxStages) {
-            throw new EqlIllegalArgumentException("Unexpected stage [{}], max stages in this sample [{}]", currentStage, maxStages);
+            // final SampleQueryRequest rr = request;
+            log.trace("Querying step [{}] {}", currentCriterion, request);
+            queryForCompositeAggPage(listener, request);
+        } else if (currentCriterion > maxCriteria) {
+            throw new EqlIllegalArgumentException("Unexpected step [{}], max steps in this sample [{}]", currentCriterion, maxCriteria);
         } else {
-            finalStage(listener);
+            finalStep(listener);
         }
     }
 
+    private void queryForCompositeAggPage(ActionListener<Payload> listener, final SampleQueryRequest request) {
+        client.query(request, wrap(r -> {
+            Aggregation a = r.getAggregations().get(COMPOSITE_AGG_NAME);
+            if (a instanceof InternalComposite == false) {
+                throw new EqlIllegalArgumentException("Unexpected aggregation result type returned [{}]", a.getClass());
+            }
+
+            InternalComposite composite = (InternalComposite) a;
+            log.trace("Found [{}] composite buckets", composite.getBuckets().size());
+            Page nextPage = new Page(composite, request);
+            if (nextPage.size() > 0) {
+                stack.push(nextPage);
+                advance(listener);
+            } else {
+                if (stack.size() > 0) {
+                    nextPage(listener, stack.pop());
+                } else {
+                    payload(listener);
+                }
+            }
+        }, listener::onFailure));
+    }
+
     /*
-     * Creates a _msearch request containing maxStages (number of filters in the query) * number_of_join_keys queries.
+     * Creates a _msearch request containing maxCriteria (number of filters in the query) * number_of_join_keys queries.
      * For a query with three filters
      *          sample by host [any where uptime > 0] by os [any where port > 5] by op_sys [any where bool == true] by os
      * and one pair of join keys values (host = H1, os = win10) the msearch will look like
@@ -132,23 +136,23 @@ public class SampleIterator implements Executable {
      * ...{"bool":{"must":[{"term":{"host":"H1"}},{"term":{"op_sys":"win10"}},{"range":{"port":{"gt":5}}}]}},"terminate_after": 3,"size":3}
      * ...{"bool":{"must":[{"term":{"host":"H1"}},{"term":{"os":"win10"}},{"term":{"bool":true}}]}},"terminate_after": 3,"size":3}
      */
-    private void finalStage(ActionListener<Payload> listener) {
-        log.trace("Final stage...");
+    private void finalStep(ActionListener<Payload> listener) {
+        log.trace("Final step...");
         // query everything and build sequences
         // then remove the previous step from the stack, since we are done with it
         Page page = stack.pop();
         // for each criteria and for each matching pair of join keys, create one query
-        List<SearchRequest> searches = new ArrayList<>(maxStages * page.hits.size());
+        List<SearchRequest> searches = new ArrayList<>(maxCriteria * page.hits.size());
 
         // should this one be a Set instead? Meaning, unique SequenceKeys? The algorithm should already be generating unique keys...
         List<SequenceKey> sampleKeys = new ArrayList<>();
         // get all composite key values as a list of list
-        List<List<Object>> allCompositeKeyValues = criteria.get(maxStages - 1).keyValues(page.hits);
+        List<List<Object>> allCompositeKeyValues = criteria.get(maxCriteria - 1).keyValues(page.hits);
         for (List<Object> compositeKeyValues : allCompositeKeyValues) {
             // take each filter query and add to it a filter by join keys with the corresponding values
             for (SampleCriterion criterion : criteria) {
                 SampleQueryRequest r = criterion.finalQuery();
-                r.singleKeyPair(compositeKeyValues, maxStages);
+                r.singleKeyPair(compositeKeyValues, maxCriteria);
                 searches.add(prepareRequest(r.searchSource(), false, EMPTY_ARRAY));
             }
             sampleKeys.add(new SequenceKey(compositeKeyValues.toArray()));
@@ -157,37 +161,34 @@ public class SampleIterator implements Executable {
         int initialSize = samples.size();
         client.multiQuery(searches, ActionListener.wrap(r -> {
             List<List<SearchHit>> finalSamples = new ArrayList<>();
-            List<List<SearchHit>> sample = new ArrayList<>(maxStages);
+            List<List<SearchHit>> sample = new ArrayList<>(maxCriteria);
             MultiSearchResponse.Item[] response = r.getResponses();
-
-            int responseIndex = 0;
             int docGroupsCounter = 1;
 
-            while (responseIndex < response.length) {
+            for (int responseIndex = 0; responseIndex < response.length; responseIndex++) {
                 MultiSearchResponse.Item item = response[responseIndex];
                 final var hits = RuntimeUtils.searchHits(item.getResponse());
                 if (hits.size() > 0) {
                     sample.add(hits);
                 }
-                if (docGroupsCounter == maxStages) {
-                    List<SearchHit> match = matchSample(sample, maxStages);
+                if (docGroupsCounter == maxCriteria) {
+                    List<SearchHit> match = matchSample(sample, maxCriteria);
                     if (match != null) {
                         finalSamples.add(match);
-                        samples.add(new Sample(sampleKeys.get(responseIndex / maxStages), match));
+                        samples.add(new Sample(sampleKeys.get(responseIndex / maxCriteria), match));
                     }
                     docGroupsCounter = 1;
-                    sample = new ArrayList<>(maxStages);
+                    sample = new ArrayList<>(maxCriteria);
                 } else {
                     docGroupsCounter++;
                 }
-                responseIndex++;
             }
 
-            log.trace("Final stage... found [{}] new Samples", samples.size() - initialSize);
+            log.trace("Final step... found [{}] new Samples", samples.size() - initialSize);
             // if this final page is max_page_size in size it means: either it's the last page and it happens to have max_page_size elements
             // or it's just not the last page and we should advance
             var next = page.size() == fetchSize ? page : stack.pop();
-            log.trace("Final stage... getting next page of the " + (next == page ? "current" : "previous") + " page");
+            log.trace("Final step... getting next page of the " + (next == page ? "current" : "previous") + " page");
             nextPage(listener, next);
         }, listener::onFailure));
     }
@@ -199,29 +200,7 @@ public class SampleIterator implements Executable {
     private void nextPage(ActionListener<Payload> listener, Page page) {
         page.request().nextAfter(page.afterKey());
         log.trace("Getting next page for page [{}] with afterkey [{}]", page, page.afterKey());
-
-        client.query(page.request(), wrap(r -> {
-            InternalComposite composite;
-            Aggregation a = r.getAggregations().get(COMPOSITE_AGG_NAME);
-            if (a instanceof InternalComposite agg) {
-                composite = agg;
-            } else {
-                throw new EqlIllegalArgumentException("Unexpected aggregation result type returned [{}]", a.getClass());
-            }
-            log.trace("Next page.... found [{}] hits", composite.getBuckets().size());
-            Page nextPage = new Page(composite, page.request());
-
-            if (nextPage != null && nextPage.size() > 0) {
-                stack.push(nextPage);
-                advance(listener);
-            } else {
-                if (stack.size() > 0) {
-                    nextPage(listener, stack.pop());
-                } else {
-                    payload(listener);
-                }
-            }
-        }, listener::onFailure));
+        queryForCompositeAggPage(listener, page.request());
     }
 
     /*
@@ -236,10 +215,10 @@ public class SampleIterator implements Executable {
         }
 
         // get results through search (to keep using PIT)
-        client.fetchHits(hits(samples), ActionListeners.map(listener, listOfHits -> {
-            SamplePayload payload = new SamplePayload(samples, listOfHits, false, timeTook());
-            return payload;
-        }));
+        client.fetchHits(
+            hits(samples),
+            ActionListeners.map(listener, listOfHits -> new SamplePayload(samples, listOfHits, false, timeTook()))
+        );
     }
 
     Iterable<List<HitReference>> hits(List<Sample> samples) {
@@ -290,14 +269,14 @@ public class SampleIterator implements Executable {
         return null;
     }
 
-    private static boolean match(int currentStage, List<List<SearchHit>> hits, List<SearchHit> result, int hitsCount) {
-        for (SearchHit o : hits.get(currentStage)) {
+    private static boolean match(int currentCriterion, List<List<SearchHit>> hits, List<SearchHit> result, int hitsCount) {
+        for (SearchHit o : hits.get(currentCriterion)) {
             if (result.contains(o) == false) {
                 result.add(o);
-                if (currentStage == hitsCount - 1) {
+                if (currentCriterion == hitsCount - 1) {
                     return true;
                 } else {
-                    if (match(currentStage + 1, hits, result, hitsCount)) {
+                    if (match(currentCriterion + 1, hits, result, hitsCount)) {
                         return true;
                     }
                 }

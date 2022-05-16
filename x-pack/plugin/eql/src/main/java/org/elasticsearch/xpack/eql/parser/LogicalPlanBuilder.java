@@ -97,6 +97,12 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public Object visitStatement(StatementContext ctx) {
         LogicalPlan plan = plan(ctx.query());
 
+        if (plan instanceof Sample) {
+            if (ctx.pipe().size() > 0) {
+                throw new ParsingException(source(ctx.pipe().get(0)), "Samples do not support pipes yet");
+            }
+            return plan;
+        }
         //
         // Add implicit blocks
         //
@@ -114,38 +120,36 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         if (Expressions.isPresent(tiebreaker)) {
             orders.add(new Order(defaultOrderSource, tiebreaker, resultPosition(), position));
         }
-        // sequences and event queries support ordering vs. sample which do not
-        if (plan instanceof Join || plan instanceof Filter) {
-            plan = new OrderBy(defaultOrderSource, plan, orders);
 
-            // add the default limit only if specified
-            Literal defaultSize = new Literal(synthetic("<default-size>"), params.size(), DataTypes.INTEGER);
-            Source defaultLimitSource = synthetic("<default-limit>");
+        plan = new OrderBy(defaultOrderSource, plan, orders);
 
-            LogicalPlan previous = plan;
-            boolean missingLimit = true;
+        // add the default limit only if specified
+        Literal defaultSize = new Literal(synthetic("<default-size>"), params.size(), DataTypes.INTEGER);
+        Source defaultLimitSource = synthetic("<default-limit>");
 
-            for (PipeContext pipeCtx : ctx.pipe()) {
-                plan = pipe(pipeCtx, previous);
-                if (missingLimit && plan instanceof LimitWithOffset) {
-                    missingLimit = false;
-                    if (plan instanceof Head) {
-                        previous = new Head(defaultLimitSource, defaultSize, previous);
-                    } else {
-                        previous = new Tail(defaultLimitSource, defaultSize, previous);
-                    }
-                    plan = plan.replaceChildrenSameSize(singletonList(previous));
-                }
-                previous = plan;
-            }
+        LogicalPlan previous = plan;
+        boolean missingLimit = true;
 
-            // add limit based on the default order if no tail/head was specified
-            if (missingLimit) {
-                if (asc) {
-                    plan = new Head(defaultLimitSource, defaultSize, plan);
+        for (PipeContext pipeCtx : ctx.pipe()) {
+            plan = pipe(pipeCtx, previous);
+            if (missingLimit && plan instanceof LimitWithOffset) {
+                missingLimit = false;
+                if (plan instanceof Head) {
+                    previous = new Head(defaultLimitSource, defaultSize, previous);
                 } else {
-                    plan = new Tail(defaultLimitSource, defaultSize, plan);
+                    previous = new Tail(defaultLimitSource, defaultSize, previous);
                 }
+                plan = plan.replaceChildrenSameSize(singletonList(previous));
+            }
+            previous = plan;
+        }
+
+        // add limit based on the default order if no tail/head was specified
+        if (missingLimit) {
+            if (asc) {
+                plan = new Head(defaultLimitSource, defaultSize, plan);
+            } else {
+                plan = new Tail(defaultLimitSource, defaultSize, plan);
             }
         }
 
@@ -382,6 +386,8 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         List<Attribute> parentJoinKeys = visitJoinKeys(ctx.by);
         int numberOfKeys = -1;
         List<KeyedFilter> queries = new ArrayList<>(ctx.joinTerm().size());
+        boolean hasMissingJoinKeys = false;
+        Source missingJoinKeysSource = null;
 
         for (JoinTermContext joinTermCtx : ctx.joinTerm()) {
             KeyedFilter joinTerm = visitJoinTerm(joinTermCtx, parentJoinKeys);
@@ -400,6 +406,11 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                         found
                     );
                 }
+            }
+
+            if (keySize == 0 && hasMissingJoinKeys == false) {
+                hasMissingJoinKeys = true;
+                missingJoinKeysSource = source(joinTermCtx);
             }
 
             queries.add(joinTerm);
@@ -430,6 +441,10 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         if (queries.size() < 2) {
             throw new ParsingException(source, "A sample requires a minimum of 2 queries, found [{}]", queries.size());
+        }
+
+        if (hasMissingJoinKeys) {
+            throw new ParsingException(missingJoinKeysSource, "A sample must have at least one join key, found none");
         }
 
         return new Sample(source, queries);

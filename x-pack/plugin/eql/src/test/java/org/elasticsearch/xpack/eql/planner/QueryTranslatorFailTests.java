@@ -278,6 +278,17 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
         assertEquals("1:94: A sample cannot contain more than 5 queries, found [6]", s);
     }
 
+    public void testSampleWithNoJoinKeys() throws Exception {
+        String s = errorParsing("sample [any where true] [any where true]");
+        assertEquals("1:9: A sample must have at least one join key, found none", s);
+    }
+
+    public void testSampleWithPipes() throws Exception {
+        String pipe = randomFrom(" | head 1", " | tail 1", " | head 1 | tail 1");
+        String s = errorParsing("sample by host [any where true] [any where true]" + pipe);
+        assertEquals("1:51: Samples do not support pipes yet", s);
+    }
+
     public void testSamplesWithIncorrectOptions() {
         assertThat(
             errorParsing("sample by pid with maxspan=1h [any where true] [any where true]"),

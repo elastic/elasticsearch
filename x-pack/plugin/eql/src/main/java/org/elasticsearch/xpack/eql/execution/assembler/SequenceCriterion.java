@@ -25,7 +25,6 @@ public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
     private final HitExtractor implicitTiebreaker;
 
     private final boolean descending;
-    private final int keySize;
 
     public SequenceCriterion(
         int stage,
@@ -36,6 +35,7 @@ public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
         HitExtractor implicitTiebreaker,
         boolean descending
     ) {
+        super(keys.size());
         this.stage = stage;
         this.queryRequest = queryRequest;
         this.keys = keys;
@@ -44,12 +44,6 @@ public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
         this.implicitTiebreaker = implicitTiebreaker;
 
         this.descending = descending;
-
-        this.keySize = keys.size();
-    }
-
-    public int keySize() {
-        return keySize;
     }
 
     public int stage() {
@@ -66,9 +60,9 @@ public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
 
     public Object[] key(SearchHit hit) {
         Object[] key = null;
-        if (keySize > 0) {
-            Object[] docKeys = new Object[keySize];
-            for (int i = 0; i < keySize; i++) {
+        if (keySize() > 0) {
+            Object[] docKeys = new Object[keySize()];
+            for (int i = 0; i < keySize(); i++) {
                 docKeys[i] = keys.get(i).extract(hit);
             }
             key = docKeys;

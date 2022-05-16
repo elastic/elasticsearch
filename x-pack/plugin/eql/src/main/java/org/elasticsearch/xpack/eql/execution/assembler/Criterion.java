@@ -10,4 +10,13 @@ import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 
 public class Criterion<Q extends QueryRequest> {
 
+    private final int keySize;
+
+    public Criterion(int keySize) {
+        this.keySize = keySize;
+    }
+
+    public int keySize() {
+        return keySize;
+    }
 }

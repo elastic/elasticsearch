@@ -29,8 +29,6 @@ public class SampleCriterion extends Criterion<SampleQueryRequest> {
     // final stage query (sample filter + a single set of keys values filter)
     private final SampleQueryRequest finalQuery;
 
-    private final int keySize;
-
     public SampleCriterion(
         SampleQueryRequest firstQuery,
         SampleQueryRequest midQuery,
@@ -38,12 +36,12 @@ public class SampleCriterion extends Criterion<SampleQueryRequest> {
         List<String> keyFields,
         List<BucketExtractor> keys
     ) {
+        super(keys.size());
         this.firstQuery = firstQuery;
         this.midQuery = midQuery;
         this.finalQuery = finalQuery;
         this.keys = keys;
         this.keyFields = keyFields;
-        this.keySize = keys.size();
     }
 
     public SampleQueryRequest firstQuery() {
@@ -70,7 +68,7 @@ public class SampleCriterion extends Criterion<SampleQueryRequest> {
         List<Map<String, Object>> keys = keys(buckets);
         final List<List<Object>> compositeKeyValues = new ArrayList<>(buckets.size());
         for (Map<String, Object> key : keys) {
-            final List<Object> values = new ArrayList<>(keySize);
+            final List<Object> values = new ArrayList<>(keySize());
             for (String keyField : keyFields) {
                 values.add(key.get(keyField));
             }
@@ -80,8 +78,8 @@ public class SampleCriterion extends Criterion<SampleQueryRequest> {
     }
 
     private Map<String, Object> key(Bucket bucket) {
-        Map<String, Object> key = new HashMap<>(mapSize(keySize));
-        for (int i = 0; i < keySize; i++) {
+        Map<String, Object> key = new HashMap<>(mapSize(keySize()));
+        for (int i = 0; i < keySize(); i++) {
             key.put(keyFields.get(i), keys.get(i).extract(bucket));
         }
         return key;

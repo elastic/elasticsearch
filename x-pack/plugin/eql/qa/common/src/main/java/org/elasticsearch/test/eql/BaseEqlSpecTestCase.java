@@ -11,6 +11,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
@@ -29,6 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.function.Function;
 
 public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestCase {
 
@@ -46,22 +48,26 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
 
     @Before
     public void setup() throws Exception {
-        boolean shouldLoadData = true;
         RestClient provisioningClient = provisioningClient();
-        String[] splitNames = index.split(",");
-        int i = 0;
-
-        while (shouldLoadData && i < splitNames.length) {
-            String indexName = splitNames[i++];
-            if (provisioningClient.performRequest(new Request("HEAD", "/" + unqualifiedIndexName(indexName)))
-                .getStatusLine()
-                .getStatusCode() == 200) {
-                shouldLoadData = false;
-            }
-        }
+        boolean shouldLoadData = false == Arrays.stream(index.split(","))
+            .anyMatch(
+                indexName -> doWithRequest(
+                    new Request("HEAD", "/" + unqualifiedIndexName(indexName)),
+                    provisioningClient,
+                    response -> response.getStatusLine().getStatusCode() == 200
+                )
+            );
 
         if (shouldLoadData) {
             DataLoader.loadDatasetIntoEs(highLevelClient(provisioningClient), this::createParser);
+        }
+    }
+
+    private boolean doWithRequest(Request request, RestClient client, Function<Response, Boolean> consumer) {
+        try {
+            return consumer.apply(client.performRequest(request));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -192,11 +198,10 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     private long[] extractIds(List<Map<String, Object>> events) {
         final int len = events.size();
         final long[] ids = new long[len];
-        String idField = tiebreaker() == null ? idField() : tiebreaker();
         for (int i = 0; i < len; i++) {
             Map<String, Object> event = events.get(i);
             Map<String, Object> source = (Map<String, Object>) event.get("_source");
-            Object field = source.get(idField);
+            Object field = source.get(idField());
             ids[i] = ((Number) field).longValue();
         }
         return ids;
@@ -277,7 +282,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     }
 
     protected String idField() {
-        return null;
+        return tiebreaker();
     }
 
     protected abstract String tiebreaker();

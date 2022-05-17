@@ -2,4 +2,5 @@ pr: 86741
 summary: Ensure authentication is wire compatible when setting user
 area: Authentication
 type: bug
-issues: []
+issues:
+ - 86716

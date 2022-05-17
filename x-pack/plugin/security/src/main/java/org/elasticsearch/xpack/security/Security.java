@@ -1421,12 +1421,14 @@ public class Security extends Plugin
         }
         Settings cacheHashAlgoSettings = settings.filter(k -> k.endsWith("cache.hash_algo"));
         cacheHashAlgoSettings.keySet().forEach((key) -> {
-            String hashAlgoName = cacheHashAlgoSettings.get(key).toLowerCase(Locale.ROOT);
-            if (hashAlgoName.startsWith("pbkdf2") == false
-                && hashAlgoName.equals("sha1") == false
-                && hashAlgoName.equals("ssha256") == false) {
+            String setting = cacheHashAlgoSettings.get(key);
+            assert setting != null;
+            String hashAlgoName = setting.toLowerCase(Locale.ROOT);
+            if (hashAlgoName.equals("sha1") == false
+                && hashAlgoName.equals("ssha256") == false
+                && hashAlgoName.startsWith("pbkdf2") == false) {
                 logger.warn(
-                    "Only PBKDF2, SHA1, or SSHA256 are secure hash functions allowed in a FIPS 140 JVM. "
+                    "Only SHA1, SSHA256, or PBKDF2 are allowed for securing hashing in a FIPS 140 JVM. "
                         + "Please change the [{}] setting from [{}] to an appropriate value.",
                     key,
                     hashAlgoName

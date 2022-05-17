@@ -684,14 +684,14 @@ public class SecurityTests extends ESTestCase {
             "hash algo not fips compliant",
             Security.class.getName(),
             Level.WARN,
-            "Only PBKDF2, SHA1, or SSHA256 are secure hash functions allowed in a FIPS 140 JVM. "
+            "Only SHA1, SSHA256, or PBKDF2 are allowed for securing hashing in a FIPS 140 JVM. "
                 + "Please change the ["
                 + settingKey
                 + "] setting from [*] to an appropriate value."
         );
     }
 
-    private void expectLogs(Class<?> clazz, List<MockLogAppender.AbstractEventExpectation> expected, Runnable block)
+    private void expectLogs(Class<?> clazz, List<MockLogAppender.AbstractEventExpectation> expected, Runnable runnable)
         throws IllegalAccessException {
         final MockLogAppender mockAppender = new MockLogAppender();
         final Logger logger = LogManager.getLogger(clazz);
@@ -699,7 +699,7 @@ public class SecurityTests extends ESTestCase {
         try {
             Loggers.addAppender(logger, mockAppender);
             expected.forEach(mockAppender::addExpectation);
-            block.run();
+            runnable.run();
             mockAppender.assertAllExpectationsMatched();
         } finally {
             Loggers.removeAppender(logger, mockAppender);

@@ -39,8 +39,8 @@ public class ReactiveReasonTests extends ESTestCase {
         var reactiveReason = new ReactiveStorageDeciderService.ReactiveReason(
             reason,
             unassigned,
-            assigned,
             unassignedShardIds,
+            assigned,
             assignedShardIds
         );
 

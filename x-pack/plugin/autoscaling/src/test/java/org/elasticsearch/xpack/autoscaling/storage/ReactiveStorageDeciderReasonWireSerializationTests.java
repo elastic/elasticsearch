@@ -29,48 +29,48 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                 return new ReactiveStorageDeciderService.ReactiveReason(
                     randomValueOtherThan(instance.summary(), () -> randomAlphaOfLength(10)),
                     instance.unassigned(),
-                    instance.assigned(),
                     instance.unassignedShardIds(),
+                    instance.assigned(),
                     instance.assignedShardIds()
                 );
             case 1:
                 return new ReactiveStorageDeciderService.ReactiveReason(
                     instance.summary(),
                     randomValueOtherThan(instance.unassigned(), ESTestCase::randomNonNegativeLong),
-                    instance.assigned(),
                     instance.unassignedShardIds(),
+                    instance.assigned(),
                     instance.assignedShardIds()
                 );
             case 2:
                 return new ReactiveStorageDeciderService.ReactiveReason(
                     instance.summary(),
                     instance.unassigned(),
-                    randomValueOtherThan(instance.assigned(), ESTestCase::randomNonNegativeLong),
                     instance.unassignedShardIds(),
+                    randomValueOtherThan(instance.assigned(), ESTestCase::randomNonNegativeLong),
                     instance.assignedShardIds()
                 );
             case 3:
                 return new ReactiveStorageDeciderService.ReactiveReason(
                     instance.summary(),
                     instance.unassigned(),
-                    instance.assigned(),
                     new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8)),
+                    instance.assigned(),
                     instance.assignedShardIds()
                 );
             case 4:
                 return new ReactiveStorageDeciderService.ReactiveReason(
                     instance.summary(),
                     instance.unassigned(),
-                    instance.assigned(),
                     instance.unassignedShardIds(),
+                    instance.assigned(),
                     new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8))
                 );
             case 5:
                 return new ReactiveStorageDeciderService.ReactiveReason(
                     instance.summary(),
                     instance.unassigned(),
-                    instance.assigned(),
                     new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8)),
+                    instance.assigned(),
                     new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8))
                 );
             default:
@@ -84,8 +84,8 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
         return new ReactiveStorageDeciderService.ReactiveReason(
             randomAlphaOfLength(10),
             randomNonNegativeLong(),
-            randomNonNegativeLong(),
             new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8)),
+            randomNonNegativeLong(),
             new TreeSet<>(randomUnique(() -> new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5)), 8))
         );
     }

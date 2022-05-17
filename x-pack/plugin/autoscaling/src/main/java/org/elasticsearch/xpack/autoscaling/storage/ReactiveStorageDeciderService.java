@@ -129,8 +129,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             new ReactiveReason(
                 message,
                 unassignedBytes,
-                assignedBytes,
                 unassignedBytesUnassignedShards.shardIds(),
+                assignedBytes,
                 assignedBytesUnmovableShards.shardIds()
             )
         );
@@ -716,14 +716,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         private final SortedSet<ShardId> assignedShardIds;
 
         public ReactiveReason(String reason, long unassigned, long assigned) {
-            this(reason, unassigned, assigned, Collections.emptySortedSet(), Collections.emptySortedSet());
+            this(reason, unassigned, Collections.emptySortedSet(), assigned, Collections.emptySortedSet());
         }
 
         ReactiveReason(
             String reason,
             long unassigned,
-            long assigned,
             SortedSet<ShardId> unassignedShardIds,
+            long assigned,
             SortedSet<ShardId> assignedShardIds
         ) {
             this.reason = reason;
@@ -788,8 +788,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             builder.startObject();
             builder.field("reason", reason);
             builder.field("unassigned", unassigned);
-            builder.field("assigned", assigned);
             builder.field("unassigned_shard_ids", unassignedShardIds);
+            builder.field("assigned", assigned);
             builder.field("assigned_shard_ids", assignedShardIds.stream().limit(MAX_ASSIGNED_SHARD_IDS).collect(Collectors.toList()));
             builder.field("amount_of_assigned_shards", assignedShardIds.size());
             builder.endObject();

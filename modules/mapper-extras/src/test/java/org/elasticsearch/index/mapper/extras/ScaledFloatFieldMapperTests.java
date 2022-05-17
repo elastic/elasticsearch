@@ -443,7 +443,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * Tests numbers that can be encoded and decoded without overflow.
+     * Tests numbers that can be encoded and decoded without saturating a {@code long}.
      */
     public void testEncodeDecodeNoSaturation() {
         double scalingFactor = randomValue();
@@ -451,28 +451,48 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         assertThat(encodeDecode(unsaturated, scalingFactor), equalTo(Math.round(unsaturated * scalingFactor) / scalingFactor));
     }
 
+    /**
+     * Tests that numbers whose encoded value is {@code Long.MIN_VALUE} can be round
+     * tripped through synthetic source.
+     */
     public void testEncodeDecodeSaturatedLow() {
         double scalingFactor = randomValueOtherThanMany(d -> Double.isInfinite(Long.MIN_VALUE / d), ESTestCase::randomDouble);
-        double saturated = randomDoubleBetween(-Double.MAX_VALUE, Long.MIN_VALUE / scalingFactor, true);
-        assertThat(ScaledFloatFieldMapper.encode(saturated, scalingFactor), equalTo(Long.MIN_VALUE));
         double min = Long.MIN_VALUE / scalingFactor;
         if (min * scalingFactor != Long.MIN_VALUE) {
             min -= Math.ulp(min);
         }
+        assertThat(ScaledFloatFieldMapper.encode(min, scalingFactor), equalTo(Long.MIN_VALUE));
+        assertThat(encodeDecode(min, scalingFactor), equalTo(min));
+
+        double saturated = randomDoubleBetween(-Double.MAX_VALUE, min, true);
+        assertThat(ScaledFloatFieldMapper.encode(saturated, scalingFactor), equalTo(Long.MIN_VALUE));
         assertThat(encodeDecode(saturated, scalingFactor), equalTo(min));
     }
 
+    /**
+     * Tests that numbers whose encoded value is {@code Long.MIN_VALUE} can be round
+     * tripped through synthetic source.
+     */
     public void testEncodeDecodeSaturatedHigh() {
         double scalingFactor = randomValueOtherThanMany(d -> Double.isInfinite(Long.MAX_VALUE / d), ESTestCase::randomDouble);
-        double saturated = randomDoubleBetween(Long.MAX_VALUE / scalingFactor, Double.MAX_VALUE, true);
-        assertThat(ScaledFloatFieldMapper.encode(saturated, scalingFactor), equalTo(Long.MAX_VALUE));
         double max = Long.MAX_VALUE / scalingFactor;
         if (max * scalingFactor != Long.MAX_VALUE) {
             max += Math.ulp(max);
         }
+        assertThat(ScaledFloatFieldMapper.encode(max, scalingFactor), equalTo(Long.MAX_VALUE));
+        assertThat(encodeDecode(max, scalingFactor), equalTo(max));
+
+        double saturated = randomDoubleBetween(max, Double.MAX_VALUE, true);
+        assertThat(ScaledFloatFieldMapper.encode(saturated, scalingFactor), equalTo(Long.MAX_VALUE));
         assertThat(encodeDecode(saturated, scalingFactor), equalTo(max));
     }
 
+    /**
+     * Tests that any encoded value with that can that fits in the mantissa of
+     * a double precision floating point can be round tripped through synthetic
+     * source. Values that do not fit in the mantissa will get floating point
+     * rounding errors.
+     */
     public void testDecodeEncode() {
         double scalingFactor = randomValueOtherThanMany(d -> Double.isInfinite(Long.MAX_VALUE / d), ESTestCase::randomDouble);
         long encoded = randomLongBetween(-2 << 53, 2 << 53);

@@ -24,19 +24,23 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.secure_sm.SecureSM;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.mockito.SecureMockMaker;
 import org.junit.Assert;
 
+import java.io.Closeable;
 import java.io.InputStream;
 import java.lang.invoke.MethodHandles;
 import java.net.SocketPermission;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
 import java.security.Permission;
 import java.security.Permissions;
 import java.security.Policy;
+import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -212,6 +216,7 @@ public class BootstrapForTesting {
         addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
         addClassCodebase(codebases, "elasticsearch-core", "org.elasticsearch.core.Booleans");
         addClassCodebase(codebases, "elasticsearch-cli", "org.elasticsearch.cli.Command");
+        addClassCodebase(codebases, "framework", "org.elasticsearch.test.ESTestCase");
         return codebases;
     }
 
@@ -337,4 +342,28 @@ public class BootstrapForTesting {
 
     // does nothing, just easy way to make sure the class is loaded.
     public static void ensureInitialized() {}
+
+    /**
+     * Temporarily dsiables security manager for a test.
+     *
+     * <p> This method is only callable by {@link org.elasticsearch.test.ESTestCase}.
+     *
+     * @return A closeable object which restores the test security manager
+     */
+    @SuppressWarnings("removal")
+    public static Closeable disableTestSecurityManager() {
+        var caller = Thread.currentThread().getStackTrace()[2];
+        if (ESTestCase.class.getName().equals(caller.getClassName()) == false) {
+            throw new SecurityException("Cannot disable test SecurityManager directly. Use @NoSecurityManager to disable on a test suite");
+        }
+        final var sm = System.getSecurityManager();
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            Security.setSecurityManager(null);
+            return null;
+        });
+        return () -> AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            Security.setSecurityManager(sm);
+            return null;
+        });
+    }
 }

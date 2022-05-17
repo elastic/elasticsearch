@@ -27,10 +27,15 @@ Previews a {transform}.
 
 Requires the following privileges:
 
-* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this
   privilege)
 * source indices: `read`, `view_index_metadata`.
-
++
+--
+NOTE:  If you provide
+<<http-clients-secondary-authorization,secondary authorization headers>>, those
+credentials are used.
+--
 [[preview-transform-desc]]
 == {api-description-title}
 

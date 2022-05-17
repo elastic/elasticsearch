@@ -271,10 +271,11 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         TrainedModelDeploymentTask task,
         InferenceConfig config,
         Map<String, Object> doc,
+        boolean skipQueue,
         TimeValue timeout,
         ActionListener<InferenceResults> listener
     ) {
-        deploymentManager.infer(task, config, doc, timeout, listener);
+        deploymentManager.infer(task, config, doc, skipQueue, timeout, listener);
     }
 
     public Optional<ModelStats> modelStats(TrainedModelDeploymentTask task) {

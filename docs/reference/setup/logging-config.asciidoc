@@ -214,7 +214,7 @@ to `OFF` in `log4j2.properties` :
 ----
 logger.deprecation.level = OFF
 ----
-or change logging level dynamically
+Alternatively, you can change the logging level dynamically: 
 
 [source,console]
 ----
@@ -226,7 +226,7 @@ PUT /_cluster/settings
 }
 ----
 
-see: <<configuring-logging-levels,Configuring logging levels>>
+Refer to <<configuring-logging-levels,Configuring logging levels>>.
 
 
 You can identify what is triggering deprecated functionality if `X-Opaque-Id` was used as an HTTP header.

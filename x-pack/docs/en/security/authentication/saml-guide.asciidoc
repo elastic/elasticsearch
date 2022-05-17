@@ -342,7 +342,7 @@ matches only on the `elasticsearch-admins` group:
 ----
 
 These regular expressions are based on Lucene’s
-{ref}/regexp-syntax.html[regexp automaton syntax], and can match more complex 
+{ref}/regexp-syntax.html[regular expression syntax], and can match more complex 
 patterns. All regular expressions must start and end with a forward slash.
 ====
 

@@ -394,21 +394,19 @@ be able to cope with `max_failures` node failures at once at most, then the
 right number of replicas for you is
 `max(max_failures, ceil(num_nodes / num_primaries) - 1)`.
 
-=== Tune your queries with the Profile API
+=== Tune your queries with the Search Profiler
 
-You can also analyse how expensive each component of your queries and
-aggregations are using the {ref}/search-profile.html[Profile API]. This might
-allow you to tune your queries to be less expensive, resulting in a positive
-performance result and reduced load. Also note that Profile API payloads can be
-easily visualised for better readability in the
-{kibana-ref}/xpack-profiler.html[Search Profiler], which is a Kibana dev tools
-UI available in all X-Pack licenses, including the free X-Pack Basic license.
+The {ref}/search-profile.html[Profile API] provides detailed information about 
+how each component of your queries and aggregations impacts the time it takes
+to process the request. 
 
-Some caveats to the Profile API are that:
+The {kibana-ref}/xpack-profiler.html[Search Profiler] in {kib}
+makes it easy to navigate and analyze the profile results and 
+give you insight into how to tune your queries to improve performance and reduce load. 
 
- - the Profile API as a debugging tool adds significant overhead to search execution and can also have a very verbose output
- - given the added overhead, the resulting took times are not reliable indicators of actual took time, but can be used comparatively between clauses for relative timing differences
- - the Profile API is best for exploring possible reasons behind the most costly clauses of a query but isn't intended for accurately measuring absolute timings of each clause
+Because the Profile API itself adds significant overhead to the query, 
+this information is best used to understand the relative cost of the various
+query components. It does not provide a reliable measure of actual processing time.
 
 [[faster-phrase-queries]]
 === Faster phrase queries with `index_phrases`

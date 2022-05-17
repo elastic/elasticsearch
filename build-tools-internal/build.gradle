@@ -135,10 +135,6 @@ gradlePlugin {
       id = 'elasticsearch.rest-resources'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin'
     }
-    restTest {
-      id = 'elasticsearch.rest-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.RestTestPlugin'
-    }
     standaloneRestTest {
       id = 'elasticsearch.standalone-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.StandaloneRestTestPlugin'

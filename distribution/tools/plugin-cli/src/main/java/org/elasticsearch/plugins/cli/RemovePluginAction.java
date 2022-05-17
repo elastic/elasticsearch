@@ -13,7 +13,6 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.plugins.PluginsUtils;
 
 import java.io.IOException;
@@ -25,7 +24,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.StringJoiner;
 import java.util.stream.Stream;
 
@@ -90,13 +88,17 @@ public class RemovePluginAction {
     private void ensurePluginsNotUsedByOtherPlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
         // First make sure nothing extends this plugin
         final Map<String, List<String>> usedBy = new HashMap<>();
-        Set<PluginBundle> bundles = PluginsUtils.getPluginBundles(env.pluginsFile());
-        for (PluginBundle bundle : bundles) {
-            for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
+
+        // We build a new map where the keys are plugins that extend plugins
+        // we want to remove and the values are the plugins we can't remove
+        // because of this dependency
+        Map<String, List<String>> pluginDependencyMap = PluginsUtils.getDependencyMapView(env.pluginsFile());
+        for (Map.Entry<String, List<String>> entry : pluginDependencyMap.entrySet()) {
+            for (String extendedPlugin : entry.getValue()) {
                 for (PluginDescriptor plugin : plugins) {
                     String pluginId = plugin.getId();
                     if (extendedPlugin.equals(pluginId)) {
-                        usedBy.computeIfAbsent(bundle.plugin.getName(), (_key -> new ArrayList<>())).add(pluginId);
+                        usedBy.computeIfAbsent(entry.getKey(), (_key -> new ArrayList<>())).add(pluginId);
                     }
                 }
             }

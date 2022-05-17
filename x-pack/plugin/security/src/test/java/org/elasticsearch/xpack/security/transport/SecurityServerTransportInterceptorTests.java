@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -55,7 +54,6 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -340,8 +338,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final Map<String, User> originToUserMap = Map.of(
             SECURITY_ORIGIN,
             XPackSecurityUser.INSTANCE,
-            SECURITY_PROFILE_ORIGIN,
-            SecurityProfileUser.INSTANCE,
             TRANSFORM_ORIGIN,
             XPackUser.INSTANCE,
             ASYNC_SEARCH_ORIGIN,

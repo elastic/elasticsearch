@@ -11,11 +11,13 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,7 +33,7 @@ import java.util.function.Supplier;
  * A {@link ShardsAllocator} which asynchronously refreshes the desired balance held by the {@link DesiredBalanceService} and then takes
  * steps towards the desired balance using the {@link DesiredBalanceReconciler}.
  */
-public class DesiredBalanceShardsAllocator implements ShardsAllocator {
+public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterStateListener {
 
     private final Logger logger = LogManager.getLogger(DesiredBalanceShardsAllocator.class);
 
@@ -54,14 +56,26 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     };
 
     private final ShardsAllocator delegateAllocator;
+    private final ThreadPool threadPool;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
     private final DesiredBalanceService desiredBalanceService;
-    private volatile boolean pendingReroute;
 
     private record DesiredBalancesListener(long index, ActionListener<Void> listener) {}
 
     private final AtomicLong indexGenerator = new AtomicLong(0);
     private final Queue<DesiredBalancesListener> pendingListeners = new LinkedList<>();
+    private long lastConvergedIndex = -1;
+
+    public static DesiredBalanceShardsAllocator create(
+        ShardsAllocator delegateAllocator,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        Supplier<RerouteService> rerouteServiceSupplier
+    ) {
+        var allocator = new DesiredBalanceShardsAllocator(delegateAllocator, threadPool, rerouteServiceSupplier);
+        clusterService.addListener(allocator);
+        return allocator;
+    }
 
     public DesiredBalanceShardsAllocator(
         ShardsAllocator delegateAllocator,
@@ -69,63 +83,20 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         Supplier<RerouteService> rerouteServiceSupplier
     ) {
         this.delegateAllocator = delegateAllocator;
+        this.threadPool = threadPool;
         this.desiredBalanceService = new DesiredBalanceService(delegateAllocator);
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
-            volatile long appliedRoutingTableVersion = -1;
-
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
-                boolean shouldReroute = desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh);
-                boolean isFreshInput = isFresh(desiredBalanceInput);
-                long routingTableVersion = desiredBalanceInput.routingAllocation().routingTable().version();
 
-                logger.info(
-                    "Processing [{}], shouldReroute={}, isFreshInput={}, version={}",
-                    desiredBalanceInput.index(),
-                    shouldReroute,
-                    isFreshInput,
-                    routingTableVersion
-                );
+                var lastConvergedIndexBeforeUpdate = getCurrentDesiredBalance().lastConvergedIndex();
+                var shouldReroute = desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh);
+                var lastConvergedIndexAfterUpdate = getCurrentDesiredBalance().lastConvergedIndex();
 
-                if (isFreshInput) {
-                    pendingReroute = true;
-                    if (appliedRoutingTableVersion < routingTableVersion) {
-                        logger.info("Performing reroute for [{}]", desiredBalanceInput.index());
-                        rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, new ActionListener<>() {
-                            @Override
-                            public void onResponse(ClusterState clusterState) {
-                                // TODO assert in a system context
-                                var listeners = pollListeners(desiredBalanceInput.index());
-                                logger.info("Executing {} listeners for [{}] after reroute", listeners.size(), desiredBalanceInput.index());
-                                ActionListener.onResponse(listeners, null);
-                                appliedRoutingTableVersion = routingTableVersion;
-                                pendingReroute = false;
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                // TODO assert in a system context
-                                ActionListener.onFailure(pollListeners(desiredBalanceInput.index()), e);
-                            }
-                        });
-                    } else {
-                        var listeners = pollListeners(desiredBalanceInput.index());
-                        logger.info("Executing {} listeners for [{}] after no changes", listeners.size(), desiredBalanceInput.index());
-                        ActionListener.onResponse(listeners, null);
-                    }
+                if (/*lastConvergedIndexBeforeUpdate != lastConvergedIndexAfterUpdate*/ shouldReroute) {
+                    rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
                 }
-            }
-
-            private Collection<ActionListener<Void>> pollListeners(long maxIndex) {
-                var listeners = new ArrayList<ActionListener<Void>>();
-                DesiredBalancesListener listener;
-                synchronized (pendingListeners) {
-                    while ((listener = pendingListeners.peek()) != null && listener.index <= maxIndex) {
-                        listeners.add(pendingListeners.poll().listener);
-                    }
-                }
-                return listeners;
             }
 
             @Override
@@ -161,7 +132,47 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         // TODO possibly add a bounded wait for the computation to complete?
         // Otherwise we will have to do a second cluster state update straight away.
 
-        new DesiredBalanceReconciler(getCurrentDesiredBalance(), allocation).run();
+        DesiredBalance currentDesiredBalance = getCurrentDesiredBalance();
+        new DesiredBalanceReconciler(currentDesiredBalance, allocation).run();
+
+        logger.info(
+            "Computation [{}] hasChanges={}, lastConvergedIndex={}",
+            index,
+            allocation.routingNodesChanged(),
+            currentDesiredBalance.lastConvergedIndex()
+        );
+
+        if (allocation.routingNodesChanged()) {
+            // Execute listeners after cluster state is applied
+            lastConvergedIndex = currentDesiredBalance.lastConvergedIndex();
+        } else {
+            logger.info("Execute listeners for input [{}] after no predicted cluster change", index);
+            executeListeners(currentDesiredBalance.lastConvergedIndex());
+        }
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        logger.info("Execute listeners for input [{}] after cluster change event", lastConvergedIndex);
+        executeListeners(lastConvergedIndex);
+    }
+
+    private void executeListeners(long convergedIndex) {
+        var listeners = pollListeners(convergedIndex);
+        if (listeners.isEmpty() == false) {
+            threadPool.generic().execute(() -> ActionListener.onResponse(listeners, null));
+        }
+    }
+
+    private Collection<ActionListener<Void>> pollListeners(long maxIndex) {
+        var listeners = new ArrayList<ActionListener<Void>>();
+        DesiredBalancesListener listener;
+        synchronized (pendingListeners) {
+            while ((listener = pendingListeners.peek()) != null && listener.index <= maxIndex) {
+                listeners.add(pendingListeners.poll().listener);
+            }
+        }
+        return listeners;
     }
 
     @Override
@@ -174,6 +185,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     public boolean isIdle() {
-        return desiredBalanceComputation.isActive() == false && pendingReroute == false;
+        return desiredBalanceComputation.isActive() == false;
     }
 }

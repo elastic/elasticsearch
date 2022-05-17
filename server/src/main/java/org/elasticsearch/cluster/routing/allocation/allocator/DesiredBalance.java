@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -19,8 +20,12 @@ import java.util.Set;
  * @param desiredAssignments a set of the (persistent) node IDs to which each {@link ShardId} should be allocated
  * @param unassigned a map of {@link  ShardId} that could not be assigned at the moment
  */
-public record DesiredBalance(Map<ShardId, Set<String>> desiredAssignments, Map<ShardId, Integer> unassigned) {
+public record DesiredBalance(long lastConvergedIndex, Map<ShardId, Set<String>> desiredAssignments, Map<ShardId, Integer> unassigned) {
     public Set<String> getDesiredNodeIds(ShardId shardId) {
         return desiredAssignments.getOrDefault(shardId, Set.of());
+    }
+
+    public static boolean areSame(DesiredBalance a, DesiredBalance b) {
+        return Objects.equals(a.desiredAssignments, b.desiredAssignments) && Objects.equals(a.unassigned, b.unassigned);
     }
 }

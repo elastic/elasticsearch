@@ -127,7 +127,8 @@ public class ClusterModule extends AbstractModule {
             clusterService.getClusterSettings(),
             threadPool,
             clusterPlugins,
-            rerouteServiceSupplier
+            rerouteServiceSupplier,
+            clusterService
         );
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices);
@@ -329,15 +330,17 @@ public class ClusterModule extends AbstractModule {
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
         List<ClusterPlugin> clusterPlugins,
-        Supplier<RerouteService> rerouteServiceSupplier
+        Supplier<RerouteService> rerouteServiceSupplier,
+        ClusterService clusterService
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(settings, clusterSettings));
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
-            () -> new DesiredBalanceShardsAllocator(
+            () -> DesiredBalanceShardsAllocator.create(
                 new BalancedShardsAllocator(settings, clusterSettings),
                 threadPool,
+                clusterService,
                 rerouteServiceSupplier
             )
         );

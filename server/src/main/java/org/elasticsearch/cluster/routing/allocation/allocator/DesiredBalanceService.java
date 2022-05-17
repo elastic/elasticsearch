@@ -38,7 +38,7 @@ public class DesiredBalanceService {
 
     private final ShardsAllocator delegateAllocator;
 
-    private volatile DesiredBalance currentDesiredBalance = new DesiredBalance(Map.of(), Map.of());
+    private volatile DesiredBalance currentDesiredBalance = new DesiredBalance(0, Map.of(), Map.of());
 
     public DesiredBalanceService(ShardsAllocator delegateAllocator) {
         this.delegateAllocator = delegateAllocator;
@@ -65,7 +65,7 @@ public class DesiredBalanceService {
         if (routingNodes.size() == 0) {
             final var clearDesiredBalance = currentDesiredBalance.desiredAssignments().size() != 0;
             if (clearDesiredBalance) {
-                currentDesiredBalance = new DesiredBalance(Map.of(), Map.of());
+                currentDesiredBalance = new DesiredBalance(desiredBalanceInput.index(), Map.of(), Map.of());
             }
             return clearDesiredBalance;
             // TODO test for this case
@@ -217,7 +217,7 @@ public class DesiredBalanceService {
                     if (shardRouting.initializing()) {
                         hasChanges = true;
                         routingNodes.startShard(logger, shardRouting, changes);
-                        logger.trace("starting shard {}", shardRouting);
+                        logger.info("starting shard {}", shardRouting);
                         // TODO adjust disk usage info to reflect the assumed shard movement
                     }
                 }
@@ -253,9 +253,12 @@ public class DesiredBalanceService {
                 : "desired balance computation converged"
         );
 
-        final DesiredBalance newDesiredBalance = new DesiredBalance(desiredAssignments, unassigned);
+        long lastConvergedIndex = hasChanges ? desiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
+        logger.info("hasChanges={}, lastConvergedIndex={}", hasChanges, lastConvergedIndex);
+        final DesiredBalance newDesiredBalance = new DesiredBalance(lastConvergedIndex, desiredAssignments, unassigned);
         assert desiredBalance == currentDesiredBalance;
         if (newDesiredBalance.equals(desiredBalance) == false) {
+            // if (DesiredBalance.areSame(newDesiredBalance, desiredBalance) == false) {
             if (logger.isTraceEnabled()) {
                 for (Map.Entry<ShardId, Set<String>> desiredAssignment : newDesiredBalance.desiredAssignments().entrySet()) {
                     final var shardId = desiredAssignment.getKey();
@@ -270,9 +273,11 @@ public class DesiredBalanceService {
                 logger.trace("desired balance updated");
             }
             currentDesiredBalance = newDesiredBalance;
-            return true;
+            var same = DesiredBalance.areSame(newDesiredBalance, desiredBalance);
+            logger.info("desired balance changed (same={}): {}/{}", same, newDesiredBalance, desiredBalance);
+            return same == false;
         } else {
-            logger.trace("desired balance unchanged: {}", desiredBalance);
+            logger.info("desired balance unchanged: {}", desiredBalance);
             return false;
         }
     }

@@ -81,7 +81,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -876,7 +875,8 @@ public class InstallPluginAction implements Closeable {
      * check a candidate plugin for jar hell before installing it
      */
     void jarHellCheck(PluginInfo candidateInfo, Path candidateDir, Path pluginsDir, Path modulesDir) throws Exception {
-        final Set<URL> classpath = JarHell.parseClassPath().stream().filter((Predicate<? super URL>) url -> {
+        // create list of current jars in classpath
+        final Set<URL> classpath = JarHell.parseClassPath().stream().filter(url -> {
             try {
                 return url.toURI().getPath().matches(LIB_TOOLS_PLUGIN_CLI_CLASSPATH_JAR) == false;
             } catch (final URISyntaxException e) {

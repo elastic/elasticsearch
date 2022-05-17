@@ -511,7 +511,8 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
                             .application("test-app")
                             .resources("some/resource")
                             .privileges("write")
-                            .build() }
+                            .build() },
+                    false
                 )
             )
         ).actionGet();
@@ -574,7 +575,8 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
                 new PrivilegesToCheck(
                     new String[] { "cluster:monitor/state" },
                     new RoleDescriptor.IndicesPrivileges[0],
-                    new RoleDescriptor.ApplicationResourcePrivileges[0]
+                    new RoleDescriptor.ApplicationResourcePrivileges[0],
+                    false
                 )
             )
         ).actionGet();
@@ -625,7 +627,8 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
                     .application("app-1")
                     .resources("foo1")
                     .privileges("get/some/thing")
-                    .build() }
+                    .build() },
+            false
         );
         if (randomBoolean()) {
             assertThat(checkProfilePrivileges(profile.uid(), privilegesToCheck1).hasPrivilegeUids(), equalTo(Set.of(profile.uid())));
@@ -643,7 +646,8 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
                     .application("app-1")
                     .resources("foo1")
                     .privileges("get/some/thing", "put/some/thing")
-                    .build() }
+                    .build() },
+            false
         );
         if (randomBoolean()) {
             assertThat(checkProfilePrivileges(profile.uid(), privilegesToCheck2).hasPrivilegeUids(), empty());

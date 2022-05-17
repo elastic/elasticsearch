@@ -236,8 +236,8 @@ public class MetadataIndexTemplateService {
         );
     }
 
-    // Package visible for testing
-    ClusterState addComponentTemplate(
+    // Public visible for testing
+    public ClusterState addComponentTemplate(
         final ClusterState currentState,
         final boolean create,
         final String name,

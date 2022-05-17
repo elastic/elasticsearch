@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -468,8 +469,14 @@ public class GeoIpDownloaderTests extends ESTestCase {
             )
             .build();
         when(clusterService.state()).thenReturn(state);
-        var e = expectThrows(RuntimeException.class, () -> geoIpDownloader.updateDatabases());
-        assertThat(e.getMessage(), equalTo(""));
+        var e = expectThrows(ClusterBlockException.class, () -> geoIpDownloader.updateDatabases());
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "index [.geoip_databases] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, "
+                    + "index has read-only-allow-delete block];"
+            )
+        );
         verifyNoInteractions(httpClient);
     }
 

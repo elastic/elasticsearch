@@ -148,18 +148,18 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
             verify(
                 ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation,
-                new ReactiveStorageDeciderService.BytesShardIds(numPrevents, allocatableShards()),
+                new ReactiveStorageDeciderService.ShardsSize(numPrevents, allocatableShards()),
                 mockCanAllocateDiskDecider
             );
             verify(
                 ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation,
-                new ReactiveStorageDeciderService.BytesShardIds(0, Collections.emptySortedSet()),
+                new ReactiveStorageDeciderService.ShardsSize(0, Collections.emptySortedSet()),
                 mockCanAllocateDiskDecider,
                 CAN_ALLOCATE_NO_DECIDER
             );
             verify(
                 ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation,
-                new ReactiveStorageDeciderService.BytesShardIds(0, Collections.emptySortedSet())
+                new ReactiveStorageDeciderService.ShardsSize(0, Collections.emptySortedSet())
             );
             // verify empty tier (no cold nodes) are always assumed a storage reason.
             SortedSet<ShardId> unassignedShardIds = StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
@@ -168,12 +168,12 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             verify(
                 moveToCold(allIndices()),
                 ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation,
-                new ReactiveStorageDeciderService.BytesShardIds(state.getRoutingNodes().unassigned().size(), unassignedShardIds),
+                new ReactiveStorageDeciderService.ShardsSize(state.getRoutingNodes().unassigned().size(), unassignedShardIds),
                 DiscoveryNodeRole.DATA_COLD_NODE_ROLE
             );
             verify(
                 ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation,
-                new ReactiveStorageDeciderService.BytesShardIds(0, Collections.emptySortedSet()),
+                new ReactiveStorageDeciderService.ShardsSize(0, Collections.emptySortedSet()),
                 DiscoveryNodeRole.DATA_COLD_NODE_ROLE
             );
             if (numPrevents > 0) {
@@ -243,7 +243,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         verify(
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
-            new ReactiveStorageDeciderService.BytesShardIds(
+            new ReactiveStorageDeciderService.ShardsSize(
                 subjectShards.size(),
                 RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)
                     .stream()
@@ -255,13 +255,13 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         );
         verify(
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
-            new ReactiveStorageDeciderService.BytesShardIds(0, Collections.emptySortedSet()),
+            new ReactiveStorageDeciderService.ShardsSize(0, Collections.emptySortedSet()),
             mockCanAllocateDiskDecider,
             CAN_ALLOCATE_NO_DECIDER
         );
         verify(
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
-            new ReactiveStorageDeciderService.BytesShardIds(0, Collections.emptySortedSet())
+            new ReactiveStorageDeciderService.ShardsSize(0, Collections.emptySortedSet())
         );
 
         verifyScale(subjectShards.size(), "not enough storage available, needs " + subjectShards.size() + "b", mockCanAllocateDiskDecider);
@@ -284,7 +284,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         verify(
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
-            new ReactiveStorageDeciderService.BytesShardIds(0, Collections.emptySortedSet()),
+            new ReactiveStorageDeciderService.ShardsSize(0, Collections.emptySortedSet()),
             DiscoveryNodeRole.DATA_COLD_NODE_ROLE
         );
 
@@ -299,7 +299,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         verify(
             moveToCold(candidates),
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
-            new ReactiveStorageDeciderService.BytesShardIds(allocatedCandidateShards, allocatedShardIds),
+            new ReactiveStorageDeciderService.ShardsSize(allocatedCandidateShards, allocatedShardIds),
             DiscoveryNodeRole.DATA_COLD_NODE_ROLE
         );
     }
@@ -356,26 +356,26 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         verify(
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
-            new ReactiveStorageDeciderService.BytesShardIds(nodes, shardIds),
+            new ReactiveStorageDeciderService.ShardsSize(nodes, shardIds),
             mockCanRemainDiskDecider,
             CAN_ALLOCATE_NO_DECIDER
         );
         verify(
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
-            new ReactiveStorageDeciderService.BytesShardIds(0, Collections.emptySortedSet()),
+            new ReactiveStorageDeciderService.ShardsSize(0, Collections.emptySortedSet()),
             mockCanRemainDiskDecider,
             CAN_REMAIN_NO_DECIDER,
             CAN_ALLOCATE_NO_DECIDER
         );
         verify(
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
-            new ReactiveStorageDeciderService.BytesShardIds(0, Collections.emptySortedSet())
+            new ReactiveStorageDeciderService.ShardsSize(0, Collections.emptySortedSet())
         );
 
         // only consider it once (move case) if both cannot remain and cannot allocate.
         verify(
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
-            new ReactiveStorageDeciderService.BytesShardIds(nodes, shardIds),
+            new ReactiveStorageDeciderService.ShardsSize(nodes, shardIds),
             mockCanAllocateDiskDecider,
             mockCanRemainDiskDecider
         );
@@ -386,12 +386,12 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private interface VerificationSubject {
-        ReactiveStorageDeciderService.BytesShardIds invoke(ReactiveStorageDeciderService.AllocationState state);
+        ReactiveStorageDeciderService.ShardsSize invoke(ReactiveStorageDeciderService.AllocationState state);
     }
 
     private void verify(
         VerificationSubject subject,
-        ReactiveStorageDeciderService.BytesShardIds expected,
+        ReactiveStorageDeciderService.ShardsSize expected,
         AllocationDecider... allocationDeciders
     ) {
         verify(subject, expected, DATA_HOT_NODE_ROLE, allocationDeciders);
@@ -399,7 +399,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     private void verify(
         VerificationSubject subject,
-        ReactiveStorageDeciderService.BytesShardIds expected,
+        ReactiveStorageDeciderService.ShardsSize expected,
         DiscoveryNodeRole role,
         AllocationDecider... allocationDeciders
     ) {
@@ -409,7 +409,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     private static void verify(
         ClusterState state,
         VerificationSubject subject,
-        ReactiveStorageDeciderService.BytesShardIds expected,
+        ReactiveStorageDeciderService.ShardsSize expected,
         DiscoveryNodeRole role,
         AllocationDecider... allocationDeciders
     ) {

@@ -23,11 +23,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
-import org.elasticsearch.threadpool.ExecutorBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -54,6 +52,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -98,14 +97,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         Function.identity(),
         Property.NodeScope
     );
-
-    public List<Setting<?>> getPluginSettings() {
-        return plugins.stream().flatMap(p -> p.instance().getSettings().stream()).toList();
-    }
-
-    public List<String> getPluginSettingsFilter() {
-        return plugins.stream().flatMap(p -> p.instance().getSettingsFilter().stream()).toList();
-    }
 
     /**
      * Constructs a new PluginService
@@ -230,6 +221,34 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
+    /**
+     * Map a function over all plugins
+     * @param function a function that takes a plugin and returns a result
+     * @return A stream of results
+     * @param <T> The generic type of the result
+     */
+    public <T> Stream<T> map(Function<Plugin, T> function) {
+        return plugins.stream().map(LoadedPlugin::instance).map(function);
+    }
+
+    /**
+     * FlatMap a function over all plugins
+     * @param function a function that takes a plugin and returns a collection
+     * @return A stream of results
+     * @param <T> The generic type of the collection
+     */
+    public <T> Stream<T> flatMap(Function<Plugin, Collection<T>> function) {
+        return plugins.stream().map(LoadedPlugin::instance).flatMap(p -> function.apply(p).stream());
+    }
+
+    /**
+     * Apply a consumer action to each plugin
+     * @param consumer An action that consumes a plugin
+     */
+    public void forEach(Consumer<Plugin> consumer) {
+        plugins.stream().map(LoadedPlugin::instance).forEach(consumer);
+    }
+
     public Settings updatedSettings() {
         Map<String, String> foundSettings = new HashMap<>();
         final Settings.Builder builder = Settings.builder();
@@ -253,20 +272,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             builder.put(settings);
         }
         return builder.put(this.settings).build();
-    }
-
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        final ArrayList<ExecutorBuilder<?>> builders = new ArrayList<>();
-        for (final LoadedPlugin plugin : plugins) {
-            builders.addAll(plugin.instance().getExecutorBuilders(settings));
-        }
-        return builders;
-    }
-
-    public void onIndexModule(IndexModule indexModule) {
-        for (LoadedPlugin plugin : plugins) {
-            plugin.instance().onIndexModule(indexModule);
-        }
     }
 
     /**

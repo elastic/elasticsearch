@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.vectortile.feature;
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 
 import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
@@ -39,7 +40,10 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.lessThan;
 
 public class FeatureFactoryTests extends ESTestCase {
 
@@ -248,5 +252,61 @@ public class FeatureFactoryTests extends ESTestCase {
         final Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, reader.readLine());
         final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096);
         assertThat(builder.getFeatures(geometry), iterableWithSize(1));
+    }
+
+    public void testPolygonOrientation() throws IOException {
+        Polygon polygon = new Polygon(
+            new LinearRing(new double[] { -10, 10, 10, -10, -10 }, new double[] { -10, -10, 10, 10, -10 }),
+            org.elasticsearch.core.List.of(new LinearRing(new double[] { -5, -5, 5, 5, -5 }, new double[] { -5, 5, 5, -5, -5 }))
+        );
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096);
+        List<byte[]> bytes = builder.getFeatures(polygon);
+        assertThat(bytes.size(), equalTo(1));
+        final VectorTile.Tile.Feature feature = VectorTile.Tile.Feature.parseFrom(bytes.get(0));
+        assertThat(feature.getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POLYGON));
+        assertThat(feature.getGeometryCount(), equalTo(22));
+        {
+            // outer ring
+            double[] xs = new double[5];
+            xs[0] = BitUtil.zigZagDecode(feature.getGeometry(1));
+            xs[1] = xs[0] + BitUtil.zigZagDecode(feature.getGeometry(4));
+            xs[2] = xs[1] + BitUtil.zigZagDecode(feature.getGeometry(6));
+            xs[3] = xs[2] + BitUtil.zigZagDecode(feature.getGeometry(8));
+            xs[4] = xs[0];
+            double[] ys = new double[5];
+            ys[0] = BitUtil.zigZagDecode(feature.getGeometry(2));
+            ys[1] = ys[0] + BitUtil.zigZagDecode(feature.getGeometry(5));
+            ys[2] = ys[1] + BitUtil.zigZagDecode(feature.getGeometry(7));
+            ys[3] = ys[2] + BitUtil.zigZagDecode(feature.getGeometry(9));
+            ys[4] = ys[0];
+            assertThat(signedArea(xs, ys), greaterThan(0.0));
+        }
+        {
+            // inner ring
+            double[] xs = new double[5];
+            xs[0] = BitUtil.zigZagDecode(feature.getGeometry(12));
+            xs[1] = xs[0] + BitUtil.zigZagDecode(feature.getGeometry(15));
+            xs[2] = xs[1] + BitUtil.zigZagDecode(feature.getGeometry(17));
+            xs[3] = xs[2] + BitUtil.zigZagDecode(feature.getGeometry(19));
+            xs[4] = xs[0];
+            double[] ys = new double[5];
+            ys[0] = BitUtil.zigZagDecode(feature.getGeometry(13));
+            ys[1] = ys[0] + BitUtil.zigZagDecode(feature.getGeometry(16));
+            ys[2] = ys[1] + BitUtil.zigZagDecode(feature.getGeometry(18));
+            ys[3] = ys[2] + BitUtil.zigZagDecode(feature.getGeometry(20));
+            ys[4] = ys[0];
+            assertThat(signedArea(xs, ys), lessThan(0.0));
+        }
+
+    }
+
+    private double signedArea(double[] xs, double[] ys) {
+        double windingSum = 0d;
+        final int numPts = xs.length - 1;
+        for (int i = 1, j = 0; i < numPts; j = i++) {
+            // compute signed area
+            windingSum += (xs[j] - xs[numPts]) * (ys[i] - ys[numPts]) - (ys[j] - ys[numPts]) * (xs[i] - xs[numPts]);
+        }
+        return windingSum;
     }
 }

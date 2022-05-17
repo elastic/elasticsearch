@@ -5,6 +5,7 @@
     description: "Testing of the Elasticsearch %BRANCH% branch packaging test upgrade support matrix.\n"
     project-type: matrix
     node: master
+    child-workspace: "/dev/shm/elastic+elasticsearch+%BRANCH%+multijob+packaging-tests-upgrade"
     scm:
       - git:
           wipe-workspace: false

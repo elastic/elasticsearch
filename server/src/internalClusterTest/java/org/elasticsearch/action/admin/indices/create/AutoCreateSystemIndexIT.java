@@ -8,12 +8,14 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -26,6 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SystemIndicesSnapshotIT;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
 import java.util.Collection;
@@ -68,6 +71,12 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices(PRIMARY_INDEX_NAME).get();
         assertThat(response.indices().length, is(1));
+        assertThat(response.aliases().size(), is(1));
+        assertThat(response.aliases().get(PRIMARY_INDEX_NAME).size(), is(1));
+        assertThat(
+            response.aliases().get(PRIMARY_INDEX_NAME).get(0),
+            equalTo(AliasMetadata.builder(INDEX_NAME).isHidden(true).writeIndex(true).build())
+        );
     }
 
     public void testAutoCreatePrimaryIndexFromAlias() throws Exception {
@@ -76,6 +85,12 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices(PRIMARY_INDEX_NAME).get();
         assertThat(response.indices().length, is(1));
+        assertThat(response.aliases().size(), is(1));
+        assertThat(response.aliases().get(PRIMARY_INDEX_NAME).size(), is(1));
+        assertThat(
+            response.aliases().get(PRIMARY_INDEX_NAME).get(0),
+            equalTo(AliasMetadata.builder(INDEX_NAME).isHidden(true).writeIndex(true).build())
+        );
     }
 
     public void testAutoCreateNonPrimaryIndex() throws Exception {
@@ -84,6 +99,43 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices(INDEX_NAME + "-2").get();
         assertThat(response.indices().length, is(1));
+        assertThat(response.aliases().size(), is(1));
+        assertThat(response.aliases().get(INDEX_NAME + "-2").size(), is(1));
+        assertThat(response.aliases().get(INDEX_NAME + "-2").get(0), equalTo(AliasMetadata.builder(INDEX_NAME).isHidden(true).build()));
+    }
+
+    public void testWriteToAliasPrimaryAutoCreatedFirst() throws Exception {
+        {
+            CreateIndexRequest request = new CreateIndexRequest(PRIMARY_INDEX_NAME);
+            client().execute(AutoCreateAction.INSTANCE, request).get();
+        }
+
+        {
+            CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME + "-2");
+            client().execute(AutoCreateAction.INSTANCE, request).get();
+        }
+
+        IndexResponse response = client().prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
+        assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+    }
+
+    /**
+     * Like {@link #testWriteToAliasPrimaryAutoCreatedFirst()}, but with indices created in the opposite order
+     * @throws Exception
+     */
+    public void testWriteToAliasSecondaryAutoCreatedFirst() throws Exception {
+        {
+            CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME + "-2");
+            client().execute(AutoCreateAction.INSTANCE, request).get();
+        }
+
+        {
+            CreateIndexRequest request = new CreateIndexRequest(PRIMARY_INDEX_NAME);
+            client().execute(AutoCreateAction.INSTANCE, request).get();
+        }
+
+        IndexResponse response = client().prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
+        assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
     }
 
     public void testSystemIndicesAutoCreatedAsHidden() throws Exception {

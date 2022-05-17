@@ -341,6 +341,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateFieldType ft = new DateFieldType(
                 context.buildFullName(name()),
                 index.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
+                index.getValue(),
                 store.getValue(),
                 docValues.getValue(),
                 buildFormatter(),
@@ -387,10 +388,12 @@ public final class DateFieldMapper extends FieldMapper {
         protected final Resolution resolution;
         protected final String nullValue;
         protected final FieldValues<Long> scriptValues;
+        private final boolean pointsMetadataAvailable;
 
         public DateFieldType(
             String name,
             boolean isIndexed,
+            boolean pointsMetadataAvailable,
             boolean isStored,
             boolean hasDocValues,
             DateFormatter dateTimeFormatter,
@@ -405,26 +408,52 @@ public final class DateFieldMapper extends FieldMapper {
             this.resolution = resolution;
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
+            this.pointsMetadataAvailable = pointsMetadataAvailable;
+        }
+
+        public DateFieldType(
+            String name,
+            boolean isIndexed,
+            boolean isStored,
+            boolean hasDocValues,
+            DateFormatter dateTimeFormatter,
+            Resolution resolution,
+            String nullValue,
+            FieldValues<Long> scriptValues,
+            Map<String, String> meta
+        ) {
+            this(name, isIndexed, isIndexed, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, scriptValues, meta);
         }
 
         public DateFieldType(String name) {
-            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
+            this(name, true, true, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, boolean isIndexed) {
-            this(name, isIndexed, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
+            this(
+                name,
+                isIndexed,
+                isIndexed,
+                false,
+                true,
+                DEFAULT_DATE_TIME_FORMATTER,
+                Resolution.MILLISECONDS,
+                null,
+                null,
+                Collections.emptyMap()
+            );
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
-            this(name, true, false, true, dateFormatter, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
+            this(name, true, true, false, true, dateFormatter, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution) {
-            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
+            this(name, true, true, false, true, DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution, DateFormatter dateFormatter) {
-            this(name, true, false, true, dateFormatter, resolution, null, null, Collections.emptyMap());
+            this(name, true, true, false, true, dateFormatter, resolution, null, null, Collections.emptyMap());
         }
 
         @Override
@@ -646,7 +675,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateMathParser dateParser,
             QueryRewriteContext context
         ) throws IOException {
-            if (isIndexed() == false && hasDocValues()) {
+            if (isIndexed() == false && pointsMetadataAvailable == false && hasDocValues()) {
                 // we don't have a quick way to run this check on doc values, so fall back to default assuming we are within bounds
                 return Relation.INTERSECTS;
             }

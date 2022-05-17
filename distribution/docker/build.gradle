@@ -346,6 +346,10 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       noCache = BuildParams.isCi
       tags = generateTags(base)
 
+      // We don't build the Iron Bank image when we release Elasticsearch, as there's
+      // separate process for submitting new releases. However, for testing we do a
+      // "test build" so that we can check that the Docker build at least works and
+      // is functional.
       if (base == DockerBase.IRON_BANK) {
         Map<String, String> buildArgsMap = [
           'BASE_REGISTRY': 'docker.elastic.co',

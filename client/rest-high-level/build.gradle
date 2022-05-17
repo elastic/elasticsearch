@@ -143,3 +143,7 @@ tasks.named('splitPackagesAudit').configure {
   // the client package should be owned by the client, but server has some classes there too
   ignoreClasses 'org.elasticsearch.client.*'
 }
+
+tasks.named('checkstyleJavaRestTest').configure {
+  enabled = false
+}

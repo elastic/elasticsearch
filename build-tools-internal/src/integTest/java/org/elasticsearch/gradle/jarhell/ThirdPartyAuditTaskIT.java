@@ -52,7 +52,8 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
             "-PcompileOnlyGroup=other.gradle:broken-log4j",
             "-PcompileOnlyVersion=0.0.1",
             "-PcompileGroup=other.gradle:dummy-io",
-            "-PcompileVersion=0.0.1"
+            "-PcompileVersion=0.0.1",
+                "-i"
         ).buildAndFail();
 
         assertTaskFailed(result, ":absurd");

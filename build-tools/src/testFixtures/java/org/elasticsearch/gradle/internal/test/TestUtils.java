@@ -20,6 +20,7 @@ public class TestUtils {
             String normalizedPathPrefix = projectRootDir.getAbsolutePath().replace("\\", "/");
             return input.lines()
                 .map(it -> it.replace("\\", "/"))
+                .map(it -> it.replaceAll("\\d+\\.\\d\\ds", "0.00s"))
                 .map(it -> it.replaceAll(cannonicalNormalizedPathPrefix, "."))
                 .map(it -> it.replaceAll(normalizedPathPrefix, "."))
                 .map(it -> it.replaceAll("Gradle Test Executor \\d", "Gradle Test Executor 1"))

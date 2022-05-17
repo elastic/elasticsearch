@@ -49,6 +49,21 @@ public class TestClasspathUtils {
         }
     }
 
+    private static void genenerateJar(File projectRoot, Implementation mainImplementation) {
+        DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
+                .name("org.elasticsearch.jdk.JdkJarHellCheck")
+                .defineMethod("main", void.class, Visibility.PUBLIC, Ownership.STATIC)
+                .withParameters(String[].class)
+                .intercept(mainImplementation)
+                .make();
+        try {
+            dynamicType.toJar(targetFile(projectRoot));
+        } catch (IOException e) {
+            e.printStackTrace();
+            fail("Cannot setup jdk jar hell classpath");
+        }
+    }
+
     private static File targetFile(File projectRoot) {
         File targetFile = new File(
             projectRoot,

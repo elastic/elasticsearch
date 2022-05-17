@@ -1,0 +1,6 @@
+pr: 86862
+summary: Do not hold the lock during flush in `BulkProcessor`
+area: Java High Level REST Client
+type: bug
+issues:
+ - 68468

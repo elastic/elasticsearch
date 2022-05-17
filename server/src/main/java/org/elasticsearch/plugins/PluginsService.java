@@ -16,7 +16,6 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -96,8 +95,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         List<LoadedPlugin> pluginsLoaded = new ArrayList<>();
         List<PluginInfo> pluginsList = new ArrayList<>();
-        // we need to build a List of plugins for checking mandatory plugins
-        final List<String> pluginsNames = new ArrayList<>();
 
         // first we load plugins that are on the classpath. this is for tests
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
@@ -121,35 +118,29 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
             pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, null));
             pluginsList.add(pluginInfo);
-            pluginsNames.add(pluginInfo.getName());
         }
 
-        Set<PluginBundle> seenBundles = new LinkedHashSet<>();
-        List<PluginInfo> modulesList = new ArrayList<>();
+        final Set<PluginBundle> seenBundles = new LinkedHashSet<>();
+        final List<PluginInfo> modulesList = new ArrayList<>();
         // load modules
         if (modulesDirectory != null) {
             try {
-                Set<PluginBundle> modules = PluginsUtils.getModuleBundles(modulesDirectory);
-                for (PluginBundle bundle : modules) {
-                    modulesList.add(bundle.plugin);
-                }
+                final Set<PluginBundle> modules = PluginsUtils.getModuleBundles(modulesDirectory);
+                modules.forEach(m -> modulesList.add(m.plugin));
                 seenBundles.addAll(modules);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
             }
         }
 
-        // now, find all the ones that are in plugins/
+        // now, find all the ones that are in plugins
         if (pluginsDirectory != null) {
             try {
                 // TODO: remove this leniency, but tests bogusly rely on it
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
-                    Set<PluginBundle> plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
-                    for (final PluginBundle bundle : plugins) {
-                        pluginsList.add(bundle.plugin);
-                        pluginsNames.add(bundle.plugin.getName());
-                    }
+                    final Set<PluginBundle> plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
+                    plugins.forEach(p -> pluginsList.add(p.plugin));
                     seenBundles.addAll(plugins);
                 }
             } catch (IOException ex) {
@@ -157,13 +148,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
         }
 
-        Collection<LoadedPlugin> loaded = loadBundles(seenBundles);
-        pluginsLoaded.addAll(loaded);
+        pluginsLoaded.addAll(loadBundles(seenBundles));
 
         this.info = new PluginsAndModules(pluginsList, modulesList);
         this.plugins = Collections.unmodifiableList(pluginsLoaded);
 
         // Checking expected plugins
+        final List<String> pluginsNames = pluginsList.stream().map(PluginInfo::getName).toList();
         List<String> mandatoryPlugins = MANDATORY_SETTING.get(settings);
         if (mandatoryPlugins.isEmpty() == false) {
             Set<String> missingPlugins = new HashSet<>();
@@ -173,12 +164,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 }
             }
             if (missingPlugins.isEmpty() == false) {
-                final String message = String.format(
-                    Locale.ROOT,
-                    "missing mandatory plugins [%s], found plugins [%s]",
-                    Strings.collectionToDelimitedString(missingPlugins, ", "),
-                    Strings.collectionToDelimitedString(pluginsNames, ", ")
-                );
+                final String message = "missing mandatory plugins ["
+                    + String.join(", ", missingPlugins)
+                    + "], found plugins ["
+                    + String.join(", ", pluginsNames)
+                    + "]";
                 throw new IllegalStateException(message);
             }
         }

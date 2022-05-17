@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.vectortile.feature;
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 
 import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
@@ -39,7 +40,10 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.lessThan;
 
 public class FeatureFactoryTests extends ESTestCase {
 
@@ -253,9 +257,9 @@ public class FeatureFactoryTests extends ESTestCase {
     public void testPolygonOrientation() throws IOException {
         Polygon polygon = new Polygon(
             new LinearRing(new double[] { -10, 10, 10, -10, -10 }, new double[] { -10, -10, 10, 10, -10 }),
-            List.of(new LinearRing(new double[] { -5, -5, 5, 5, -5 }, new double[] { -5, 5, 5, -5, -5 }))
+            org.elasticsearch.core.List.of(new LinearRing(new double[] { -5, -5, 5, 5, -5 }, new double[] { -5, 5, 5, -5, -5 }))
         );
-        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096);
         List<byte[]> bytes = builder.getFeatures(polygon);
         assertThat(bytes.size(), equalTo(1));
         final VectorTile.Tile.Feature feature = VectorTile.Tile.Feature.parseFrom(bytes.get(0));

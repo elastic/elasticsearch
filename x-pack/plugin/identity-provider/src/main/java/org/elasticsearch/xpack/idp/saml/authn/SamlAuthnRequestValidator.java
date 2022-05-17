@@ -97,7 +97,7 @@ public class SamlAuthnRequestValidator {
             // verify if we know of this SP and get its credentials for signature verification
             final Element root = parseSamlMessage(inflate(decodeBase64(parsedQueryString.samlRequest)));
             if (samlFactory.elementNameMatches(root, "urn:oasis:names:tc:SAML:2.0:protocol", "AuthnRequest") == false) {
-                logAndRespond(new ParameterizedMessage("SAML message [{}] is not an AuthnRequest", samlFactory.text(root, 128)), listener);
+                logAndRespond("SAML message [" + samlFactory.text(root, 128) + "] is not an AuthnRequest", listener);
                 return;
             }
             final AuthnRequest authnRequest = samlFactory.buildXmlObject(root, AuthnRequest.class);

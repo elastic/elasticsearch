@@ -1,10 +1,7 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.authenticated-testclusters'
 
 dependencies {
@@ -17,7 +14,7 @@ restResources {
   }
 }
 
-tasks.named("integTest").configure {
+tasks.named("yamlRestTest").configure {
     systemProperty 'tests.rest.blacklist',
       [
         'index/10_with_id/Index with ID',
@@ -25,7 +22,7 @@ tasks.named("integTest").configure {
       ].join(',')
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'

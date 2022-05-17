@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
@@ -178,6 +179,16 @@ public class AuthenticationTestHelper {
      */
     public static List<String> randomInternalUsernames() {
         return ESTestCase.randomNonEmptySubsetOf(INTERNAL_USERS.stream().map(User::principal).toList());
+    }
+
+    public static String randomInternalRoleName() {
+        return ESTestCase.randomFrom(
+            UsernamesField.SYSTEM_ROLE,
+            UsernamesField.XPACK_ROLE,
+            UsernamesField.ASYNC_SEARCH_ROLE,
+            UsernamesField.XPACK_SECURITY_ROLE,
+            UsernamesField.SECURITY_PROFILE_ROLE
+        );
     }
 
     public static class AuthenticationTestBuilder {

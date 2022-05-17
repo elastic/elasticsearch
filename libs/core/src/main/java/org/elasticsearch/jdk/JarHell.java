@@ -13,7 +13,11 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.lang.Runtime.Version;
+import java.lang.module.Configuration;
+import java.lang.module.ModuleReference;
+import java.lang.module.ResolvedModule;
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -30,11 +34,15 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
+import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 /**
  * Simple check for duplicate class files across the classpath.
@@ -93,6 +101,9 @@ public class JarHell {
      */
     @SuppressForbidden(reason = "resolves against CWD because that is how classpaths work")
     static Set<URL> parseClassPath(String classPath) {
+        if (classPath.isEmpty()) {
+            return Set.of();
+        }
         String pathSeparator = System.getProperty("path.separator");
         String fileSeparator = System.getProperty("file.separator");
         String elements[] = classPath.split(pathSeparator);
@@ -152,8 +163,37 @@ public class JarHell {
     }
 
     /**
+     * Returns a set of URLs that contain artifacts from both the non-JDK boot
+     * modules and class path. These URLs constitute the loadable application
+     * artifacts in the system class loader.
+     */
+    public static Set<URL> parseModulesAndClassPath() {
+        return Stream.concat(parseClassPath().stream(), JarHell.nonJDKBootModuleURLs()).collect(toUnmodifiableSet());
+    }
+
+    /**
+     * Returns a stream containing the URLs of all non-JDK modules in the boot layer.
+     * The stream may be empty, if, say, running with ES on the class path.
+     */
+    static Stream<URL> nonJDKBootModuleURLs() {
+        return nonJDKModuleURLs(ModuleLayer.boot().configuration());
+    }
+
+    static Stream<URL> nonJDKModuleURLs(Configuration configuration) {
+        return Stream.concat(Stream.of(configuration), configuration.parents().stream())
+            .map(Configuration::modules)
+            .flatMap(Set::stream)
+            .map(ResolvedModule::reference)
+            .map(ModuleReference::location)
+            .flatMap(Optional::stream)
+            .map(JarHell::toURL)
+            // assumption, only JDK modules are built into the image
+            .filter(url -> url.getProtocol().equals("jrt") == false);
+    }
+
+    /**
      * Checks the set of URLs for duplicate classes
-     * @param urls A set of URLs from the classpath to be checked for conflicting jars
+     * @param urls A set of URLs from the system class loader to be checked for conflicting jars
      * @param output A {@link String} {@link Consumer} to which debug output will be sent
      * @throws IllegalStateException if jar hell was found
      */
@@ -277,6 +317,14 @@ public class JarHell {
                         + jarpath
                 );
             }
+        }
+    }
+
+    private static URL toURL(URI uri) {
+        try {
+            return uri.toURL();
+        } catch (MalformedURLException e) {
+            throw new AssertionError(e);
         }
     }
 }

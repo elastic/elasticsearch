@@ -584,17 +584,16 @@ public class FileRolesStoreTests extends ESTestCase {
             xContentRegistry()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(1));
+        assertThat(roles.size(), is(2));
 
         assertThat(roles, hasKey("admin"));
+        assertThat(roles, hasKey("_system"));
 
         assertThat(events, notNullValue());
-        assertThat(events, hasSize(4));
-        // the system role will always be checked first
-        assertThat(events.get(0), containsString("Role [_system] is reserved"));
-        assertThat(events.get(1), containsString("Role [superuser] is reserved"));
-        assertThat(events.get(2), containsString("Role [kibana_system] is reserved"));
-        assertThat(events.get(3), containsString("Role [transport_client] is reserved"));
+        assertThat(events, hasSize(3));
+        assertThat(events.get(0), containsString("Role [superuser] is reserved"));
+        assertThat(events.get(1), containsString("Role [kibana_system] is reserved"));
+        assertThat(events.get(2), containsString("Role [transport_client] is reserved"));
     }
 
     public void testUsageStats() throws Exception {

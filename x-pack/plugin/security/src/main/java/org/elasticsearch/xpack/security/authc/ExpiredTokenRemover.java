@@ -91,7 +91,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
                     QueryBuilders.rangeQuery("creation_time").lte(now.minus(MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS).toEpochMilli())
                 )
         );
-        logger.trace(() -> new ParameterizedMessage("Removing old tokens: [{}]", Strings.toString(expiredDbq)));
+        logger.trace(() -> "Removing old tokens: [" + Strings.toString(expiredDbq) + "]");
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteByQueryAction.INSTANCE, expiredDbq, ActionListener.wrap(bulkResponse -> {
             debugDbqResponse(bulkResponse);
             // tokens can still linger on the main index for their maximum lifetime after the tokens index has been created, because

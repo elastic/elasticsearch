@@ -106,7 +106,7 @@ public class MetadataMigrateToDataStreamService {
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     ClusterState clusterState = migrateToDataStream(currentState, indexMetadata -> {
                         try {
-                            return indexServices.createIndexMapperService(indexMetadata);
+                            return indexServices.createIndexMapperServiceForValidation(indexMetadata);
                         } catch (IOException e) {
                             throw new IllegalStateException(e);
                         }

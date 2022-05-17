@@ -371,7 +371,9 @@ polygon selected from the <<geoshape-indexing-approach,sorted triangle-tree>>.
 from the <<geoshape-indexing-approach,triangle-tree>>.
 * The aggregation results will provide one central point for each aggregation bucket.
 
-All label features added to the results will be distinguishable using the tag `_mvt_label_position`.
++
+All attributes from the original features will also be copied to the new label features.
+In addition, the new features will be distinguishable using the tag `_mvt_label_position`.
 // end::with_labels[]
 
 [role="child_attributes"]

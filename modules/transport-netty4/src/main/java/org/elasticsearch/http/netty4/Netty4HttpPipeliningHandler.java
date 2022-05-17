@@ -109,11 +109,32 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         assert msg instanceof Netty4HttpResponse : "Invalid message type: " + msg.getClass();
         boolean success = false;
         try {
-            List<Tuple<Netty4HttpResponse, ChannelPromise>> readyResponses = write((Netty4HttpResponse) msg, promise);
-            for (Tuple<Netty4HttpResponse, ChannelPromise> readyResponse : readyResponses) {
-                doWrite(ctx, readyResponse.v1(), readyResponse.v2());
+            final Netty4HttpResponse response = (Netty4HttpResponse) msg;
+            if (response.getSequence() != writeSequence) {
+                assert response.getSequence() > writeSequence
+                    : "response sequence [" + response.getSequence() + "] we below write sequence [" + writeSequence + "]";
+                if (outboundHoldingQueue.size() >= maxEventsHeld) {
+                    int eventCount = outboundHoldingQueue.size() + 1;
+                    throw new IllegalStateException(
+                        "Too many pipelined events [" + eventCount + "]. Max events allowed [" + maxEventsHeld + "]."
+                    );
+                }
+                // response is not at the current sequence number so we add it to the outbound queue and return
+                outboundHoldingQueue.add(new Tuple<>(response, promise));
+                success = true;
+                return;
             }
+
+            // response is at the current sequence number and does not need to wait for any other response to be written so we write
+            // it out directly
+            doWrite(ctx, response, promise);
             success = true;
+            // see if we have any queued up responses that became writeable due to the above write
+            while (outboundHoldingQueue.isEmpty() == false && outboundHoldingQueue.peek().v1().getSequence() == writeSequence) {
+                final Tuple<Netty4HttpResponse, ChannelPromise> top = outboundHoldingQueue.poll();
+                assert top != null : "we know the outbound holding queue to not be empty at this point";
+                doWrite(ctx, top.v1(), top.v2());
+            }
         } catch (IllegalStateException e) {
             ctx.channel().close();
         } finally {
@@ -143,6 +164,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         } else {
             splitAndWrite(ctx, readyResponse, promise);
         }
+        writeSequence++;
     }
 
     private void splitAndWrite(ChannelHandlerContext ctx, Netty4HttpResponse msg, ChannelPromise promise) {
@@ -184,32 +206,6 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             serverTransport.onException(channel, new Exception(cause));
         } else {
             serverTransport.onException(channel, (Exception) cause);
-        }
-    }
-
-    private List<Tuple<Netty4HttpResponse, ChannelPromise>> write(final Netty4HttpResponse response, ChannelPromise promise) {
-        if (outboundHoldingQueue.size() < maxEventsHeld) {
-            ArrayList<Tuple<Netty4HttpResponse, ChannelPromise>> readyResponses = new ArrayList<>();
-            outboundHoldingQueue.add(new Tuple<>(response, promise));
-            while (outboundHoldingQueue.isEmpty() == false) {
-                /*
-                 * Since the response with the lowest sequence number is the top of the priority queue, we know if its sequence
-                 * number does not match the current write sequence number then we have not processed all preceding responses yet.
-                 */
-                final Tuple<Netty4HttpResponse, ChannelPromise> top = outboundHoldingQueue.peek();
-
-                if (top.v1().getSequence() != writeSequence) {
-                    break;
-                }
-                outboundHoldingQueue.poll();
-                readyResponses.add(top);
-                writeSequence++;
-            }
-
-            return readyResponses;
-        } else {
-            int eventCount = outboundHoldingQueue.size() + 1;
-            throw new IllegalStateException("Too many pipelined events [" + eventCount + "]. Max events allowed [" + maxEventsHeld + "].");
         }
     }
 

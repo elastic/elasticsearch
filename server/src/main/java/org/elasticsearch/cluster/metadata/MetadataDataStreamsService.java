@@ -46,7 +46,7 @@ public class MetadataDataStreamsService {
                 public ClusterState execute(ClusterState currentState) {
                     return modifyDataStream(currentState, request.getActions(), indexMetadata -> {
                         try {
-                            return indicesService.createIndexMapperService(indexMetadata);
+                            return indicesService.createIndexMapperServiceForValidation(indexMetadata);
                         } catch (IOException e) {
                             throw new IllegalStateException(e);
                         }

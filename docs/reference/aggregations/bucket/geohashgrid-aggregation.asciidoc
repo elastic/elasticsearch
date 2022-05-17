@@ -218,7 +218,7 @@ POST /museums/_search?size=0
         "field": "location",
         "precision": 8,
         "bounds": {
-          "top_left": "POINT (4.21875" 53.4375),
+          "top_left": "POINT (4.21875 53.4375)",
           "bottom_right": "POINT (5.625 52.03125)"
         }
       }

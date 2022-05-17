@@ -89,6 +89,9 @@ public class RemovePluginAction {
         // First make sure nothing extends this plugin
         final Map<String, List<String>> usedBy = new HashMap<>();
 
+        // We build a new map where the keys are plugins that extend plugins
+        // we want to remove and the values are the plugins we can't remove
+        // because of this dependency
         Map<String, List<String>> pluginDependencyMap = PluginsUtils.getDependencyMapView(env.pluginsFile());
         for (Map.Entry<String, List<String>> entry : pluginDependencyMap.entrySet()) {
             for (String extendedPlugin : entry.getValue()) {

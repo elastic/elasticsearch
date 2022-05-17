@@ -31,6 +31,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -169,21 +170,26 @@ public class PluginsUtils {
         return new PluginBundle(info, plugin);
     }
 
+    /**
+     * Given a plugin that we would like to install, perform a series of "jar hell
+     * checks to make sure that we don't have any classname conflicts. Some of these
+     * checks are unique to the "pre-installation" scenario, but we also call the
+     * {@link #checkBundleJarHell(Set, PluginBundle, Map)}.
+     * @param candidateInfo Candidate for installation
+     * @param candidateDir Directory containing the candidate plugin files
+     * @param pluginsDir Directory containing already-installed plugins
+     * @param modulesDir Directory containing Elasticsearch modules
+     * @param classpath Set of URLs to use for a classpath
+     * @throws IOException on failed plugin reads
+     */
     public static void preInstallJarHellCheck(
         PluginInfo candidateInfo,
         Path candidateDir,
         Path pluginsDir,
         Path modulesDir,
-        String jarFilter
-    ) throws Exception {
+        Set<URL> classpath
+    ) throws IOException {
         // create list of current jars in classpath
-        final Set<URL> classpath = JarHell.parseClassPath().stream().filter(url -> {
-            try {
-                return url.toURI().getPath().matches(jarFilter) == false;
-            } catch (final URISyntaxException e) {
-                throw new AssertionError(e);
-            }
-        }).collect(Collectors.toSet());
 
         // read existing bundles. this does some checks on the installation too.
         Set<PluginBundle> bundles = new HashSet<>(getPluginBundles(pluginsDir));

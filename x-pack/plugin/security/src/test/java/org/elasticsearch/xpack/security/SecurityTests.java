@@ -847,7 +847,7 @@ public class SecurityTests extends ESTestCase {
         );
     }
 
-    private void expectLogs(Class<?> clazz, List<MockLogAppender.AbstractEventExpectation> expected, Runnable runnable)
+    private void expectLogs(Class<?> clazz, List<MockLogAppender.LoggingExpectation> expected, Runnable runnable)
         throws IllegalAccessException {
         final MockLogAppender mockAppender = new MockLogAppender();
         final Logger logger = LogManager.getLogger(clazz);

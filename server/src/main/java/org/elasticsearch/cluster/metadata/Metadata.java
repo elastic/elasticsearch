@@ -1310,7 +1310,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return this;
         }
 
-        static boolean unsetPreviousIndicesLookup(IndexMetadata previous, IndexMetadata current) {
+        private static boolean unsetPreviousIndicesLookup(IndexMetadata previous, IndexMetadata current) {
             if (previous == null) {
                 return true;
             }
@@ -1752,15 +1752,16 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
                 validateAlias(entry.getKey(), aliasIndices);
             }
-            final DataStreamMetadata dataStreamMetadata = dataStreamMetadata();
-            ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, allIndices, dataStreamMetadata);
-            assert assertDataStreams(indicesMap, dataStreamMetadata);
-
             SortedMap<String, IndexAbstraction> indicesLookup = null;
             if (previousIndicesLookup != null) {
-                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata, indicesMap));
+                // no changes to the names of indices, datastreams, and their aliases so we can reuse the previous lookup
+                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata(), indicesMap));
                 indicesLookup = previousIndicesLookup;
+            } else {
+                // we have changes to the the entity names so we ensure we have no naming collisions
+                ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, allIndices, dataStreamMetadata());
             }
+            assert assertDataStreams(indicesMap, dataStreamMetadata());
 
             purgeUnusedEntries(indicesMap);
 

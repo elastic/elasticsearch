@@ -109,11 +109,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final var service = getMetadataIndexTemplateService();
         {
             // Missing routing path should fail validation
-            var componentTemplate = new ComponentTemplate(
-                new Template(null, new CompressedXContent("{}"), null),
-                null,
-                null
-            );
+            var componentTemplate = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
             var state = service.addComponentTemplate(ClusterState.EMPTY_STATE, true, "1", componentTemplate);
             var indexTemplate = new ComposableIndexTemplate(
                 Collections.singletonList("logs-*-*"),

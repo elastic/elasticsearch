@@ -15,7 +15,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.RestHighLevelClientBuilder;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -70,8 +69,10 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     // min version in upgraded 7.series is 7.11.0
     private static final Version CPP_COMPATIBILTIY_VERSION = Version.V_7_11_0;
 
-    private static RestHighLevelClient HLRC(RestClient restClient) {
-        return new RestHighLevelClientBuilder(restClient).setApiCompatibilityMode(false).build();
+    private static class HLRC extends RestHighLevelClient {
+        HLRC(RestClient restClient) {
+            super(restClient, RestClient::close, new ArrayList<>());
+        }
     }
 
     private MachineLearningClient hlrc;
@@ -97,7 +98,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
     public void testSnapshotUpgrader() throws Exception {
-        hlrc = HLRC(client()).machineLearning();
+        hlrc = new HLRC(client()).machineLearning();
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity("{\"persistent\": {" + "\"logger.org.elasticsearch.xpack.ml\": \"trace\"" + "}}");
         client().performRequest(adjustLoggingLevels);

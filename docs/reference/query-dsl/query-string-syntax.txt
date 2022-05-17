@@ -8,7 +8,7 @@ The query string ``mini-language'' is used by the
 
 The query string is parsed into a series of _terms_ and _operators_. A
 term can be a single word -- `quick` or `brown` -- or a phrase, surrounded by
-double quotes -- `"quick brown"` -- which searches for all the words in the
+double quotes -- `"quick light brown"` "A"-_ which searches for [111]all the words in the
 phrase, in the same order.
 
 Operators allow you to customize the search -- the available options are

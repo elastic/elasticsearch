@@ -132,10 +132,10 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
                 throw new RuntimeException("not all primary shards of [" + DATABASES_INDEX + "] index are active");
             }
-        }
-        var blockException = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
-        if (blockException != null) {
-            throw blockException;
+            var blockException = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
+            if (blockException != null) {
+                throw blockException;
+            }
         }
 
         logger.debug("updating geoip databases");

@@ -352,7 +352,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         return MessageDigests.toHexString(md.digest());
     }
 
-    private static ClusterState createClusterState(PersistentTasksCustomMetadata tasksCustomMetadata) {
+    static ClusterState createClusterState(PersistentTasksCustomMetadata tasksCustomMetadata) {
         boolean aliasGeoipDatabase = randomBoolean();
         String indexName = aliasGeoipDatabase
             ? GeoIpDownloader.DATABASES_INDEX + "-" + randomAlphaOfLength(5)

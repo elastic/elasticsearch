@@ -1419,11 +1419,11 @@ public class Security extends Plugin
                     + " ] setting."
             );
         }
-        Settings cacheHashAlgoSettings = settings.filter(k -> k.endsWith("cache.hash_algo"));
+        final var cacheHashAlgoSettings = settings.filter(k -> k.endsWith("cache.hash_algo"));
         cacheHashAlgoSettings.keySet().forEach((key) -> {
-            String setting = cacheHashAlgoSettings.get(key);
+            final var setting = cacheHashAlgoSettings.get(key);
             assert setting != null;
-            String hashAlgoName = setting.toLowerCase(Locale.ROOT);
+            final var hashAlgoName = setting.toLowerCase(Locale.ROOT);
             if (hashAlgoName.equals("ssha256") == false
                 && hashAlgoName.equals("sha1") == false
                 && hashAlgoName.startsWith("pbkdf2") == false) {

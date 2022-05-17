@@ -22,7 +22,6 @@ public class SecurityActionMapper {
 
     static final String CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME = "cluster:admin/indices/scroll/clear_all";
     static final String CLUSTER_PERMISSION_ANALYZE = "cluster:admin/analyze";
-    static final String INDICES_PERMISSION_PAINLESS_EXECUTE = "indices:data/read/scripts/painless/execute";
     static final String CLUSTER_PERMISSION_PAINLESS_EXECUTE = "cluster:admin/scripts/painless/execute";
 
     /**
@@ -44,11 +43,11 @@ public class SecurityActionMapper {
                     return CLUSTER_PERMISSION_ANALYZE;
                 }
             }
-            case CLUSTER_PERMISSION_PAINLESS_EXECUTE -> {
+            case CLUSTER_PERMISSION_PAINLESS_EXECUTE, CLUSTER_PERMISSION_PAINLESS_EXECUTE + "[s]" -> {
                 assert request instanceof SingleShardRequest;
                 String index = ((SingleShardRequest<?>) request).index();
                 if (index != null) {
-                    return INDICES_PERMISSION_PAINLESS_EXECUTE;
+                    return action.replace("cluster:admin", "indices:data/read");
                 }
             }
         }

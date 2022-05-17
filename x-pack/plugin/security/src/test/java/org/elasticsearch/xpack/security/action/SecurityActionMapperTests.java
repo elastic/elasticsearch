@@ -95,10 +95,14 @@ public class SecurityActionMapperTests extends ESTestCase {
     }
 
     public void testPainlessExecuteWithIndex() {
-        MockPainlessExecuteRequest withoutIndex = new MockPainlessExecuteRequest("index");
+        MockPainlessExecuteRequest withIndex = new MockPainlessExecuteRequest("index");
         assertThat(
-            SecurityActionMapper.action(SecurityActionMapper.CLUSTER_PERMISSION_PAINLESS_EXECUTE, withoutIndex),
-            equalTo(SecurityActionMapper.INDICES_PERMISSION_PAINLESS_EXECUTE)
+            SecurityActionMapper.action(SecurityActionMapper.CLUSTER_PERMISSION_PAINLESS_EXECUTE, withIndex),
+            equalTo("indices:data/read/scripts/painless/execute")
+        );
+        assertThat(
+            SecurityActionMapper.action(SecurityActionMapper.CLUSTER_PERMISSION_PAINLESS_EXECUTE + "[s]", withIndex),
+            equalTo("indices:data/read/scripts/painless/execute[s]")
         );
     }
 

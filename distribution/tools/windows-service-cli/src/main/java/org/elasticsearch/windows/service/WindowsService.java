@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.server.cli;
+package org.elasticsearch.windows.service;
 
 import joptsimple.OptionSet;
 
@@ -16,17 +16,19 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.server.cli.ServerProcess;
 
 /**
- * Starts an Elasticsearch server process, but does not wait for it.
+ * Starts an Elasticsearch process, but does not wait for it to exit.
  *
- * Closing this cli will stop the server process.
+ * This class is expected to be run via Apache Procrun in a long lived JVM that will call close
+ * when the server should shutdown.
  */
-class WindowsServiceServer extends EnvironmentAwareCommand {
+class WindowsService extends EnvironmentAwareCommand {
 
     private volatile ServerProcess server;
 
-    WindowsServiceServer() {
+    WindowsService() {
         super("Starts and stops the Elasticsearch server process for a Windows Service");
     }
 

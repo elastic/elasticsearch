@@ -6,19 +6,19 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.server.cli;
+package org.elasticsearch.windows.service;
 
 import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
 
-public class WindowsServiceServerProvider implements CliToolProvider {
+public class WindowsServiceProvider implements CliToolProvider {
     @Override
     public String name() {
-        return "windows-service-server";
+        return "windows-service";
     }
 
     @Override
     public Command create() {
-        return new WindowsServiceServer();
+        return new WindowsService();
     }
 }

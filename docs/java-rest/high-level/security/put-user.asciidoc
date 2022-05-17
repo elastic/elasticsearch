@@ -53,6 +53,6 @@ serves as an indication if a user was created or if an existing entry was update
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[put-user-response]
+include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[put-user-response]
 --------------------------------------------------
 <1> `created` is a boolean indicating whether the user was created or updated

@@ -9,7 +9,7 @@ retrieved using the `usage()` method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-usage-execute]
+include-tagged::{doc-tests-it}/MiscellaneousDocumentationIT.java[x-pack-usage-execute]
 --------------------------------------------------
 
 [[java-rest-high-x-pack-usage-response]]
@@ -23,7 +23,7 @@ are specific to each feature.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-usage-response]
+include-tagged::{doc-tests-it}/MiscellaneousDocumentationIT.java[x-pack-usage-response]
 --------------------------------------------------
 
 [[java-rest-high-x-pack-usage-async]]
@@ -33,7 +33,7 @@ This request can be executed asynchronously:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-usage-execute-async]
+include-tagged::{doc-tests-it}/MiscellaneousDocumentationIT.java[x-pack-usage-execute-async]
 --------------------------------------------------
 <1> The call to execute the usage api and the `ActionListener` to use when
 the execution completes
@@ -47,7 +47,7 @@ A typical listener for `XPackUsageResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-usage-execute-listener]
+include-tagged::{doc-tests-it}/MiscellaneousDocumentationIT.java[x-pack-usage-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

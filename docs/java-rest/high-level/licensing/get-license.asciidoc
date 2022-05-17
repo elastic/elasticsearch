@@ -8,7 +8,7 @@ The license can be added or updated using the `getLicense()` method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/LicensingDocumentationIT.java[get-license-execute]
+include-tagged::{doc-tests-it}/LicensingDocumentationIT.java[get-license-execute]
 --------------------------------------------------
 
 [[java-rest-high-get-license-response]]
@@ -18,7 +18,7 @@ The returned `GetLicenseResponse` contains the license in the JSON format.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/LicensingDocumentationIT.java[get-license-response]
+include-tagged::{doc-tests-it}/LicensingDocumentationIT.java[get-license-response]
 --------------------------------------------------
 <1> The text of the license.
 
@@ -29,7 +29,7 @@ This request can be executed asynchronously:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/LicensingDocumentationIT.java[get-license-execute-async]
+include-tagged::{doc-tests-it}/LicensingDocumentationIT.java[get-license-execute-async]
 --------------------------------------------------
 <1> The `GetLicenseRequest` to execute and the `ActionListener` to use when
 the execution completes
@@ -43,7 +43,7 @@ A typical listener for `GetLicenseResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/LicensingDocumentationIT.java[get-license-execute-listener]
+include-tagged::{doc-tests-it}/LicensingDocumentationIT.java[get-license-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

@@ -9,7 +9,7 @@ method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[delete-role-mapping-execute]
+include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[delete-role-mapping-execute]
 --------------------------------------------------
 
 [[java-rest-high-security-delete-role-mapping-response]]
@@ -19,7 +19,7 @@ is successfully found and deleted, found is set to true. Otherwise, found is set
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[delete-role-mapping-response]
+include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[delete-role-mapping-response]
 --------------------------------------------------
 <1> `found` is a boolean indicating whether the role mapping was found and deleted
 
@@ -31,7 +31,7 @@ method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[delete-role-mapping-execute-async]
+include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[delete-role-mapping-execute-async]
 --------------------------------------------------
 <1> The `DeleteRoleMappingRequest` to execute and the `ActionListener` to use when
 the execution completes
@@ -45,7 +45,7 @@ A typical listener for a `DeleteRoleMappingResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[delete-role-mapping-execute-listener]
+include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[delete-role-mapping-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

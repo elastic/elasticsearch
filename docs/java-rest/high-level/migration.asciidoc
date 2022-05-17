@@ -67,7 +67,7 @@ as a constructor argument:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-init]
+include-tagged::{doc-tests-it}/MiscellaneousDocumentationIT.java[rest-high-level-client-init]
 --------------------------------------------------
 
 NOTE: The `RestClient` uses Elasticsearch's HTTP service which is
@@ -94,7 +94,7 @@ must be replaced with:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-close]
+include-tagged::{doc-tests-it}/MiscellaneousDocumentationIT.java[rest-high-level-client-close]
 --------------------------------------------------
 
 // This ID is bad but it is the one we've had forever.
@@ -127,7 +127,7 @@ When request constructors are used, like in the following example:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-request-ctor]
+include-tagged::{doc-tests-it}/MigrationDocumentationIT.java[migration-request-ctor]
 --------------------------------------------------
 <1> Create an `IndexRequest` using its constructor and id() setter.
 
@@ -142,7 +142,7 @@ Can be easily replaced to use the `RestHighLevelClient`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-request-ctor-execution]
+include-tagged::{doc-tests-it}/MigrationDocumentationIT.java[migration-request-ctor-execution]
 --------------------------------------------------
 
 [[java-rest-high-level-migration-request-builder]]
@@ -195,7 +195,7 @@ The same request synchronously executed using the high-level client is:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-request-sync-execution]
+include-tagged::{doc-tests-it}/MigrationDocumentationIT.java[migration-request-sync-execution]
 --------------------------------------------------
 <1> Execute the `DeleteRequest`. The `delete()` method blocks until a
 response is returned by the cluster.
@@ -232,7 +232,7 @@ The same request asynchronously executed using the high-level client is:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-request-async-execution]
+include-tagged::{doc-tests-it}/MigrationDocumentationIT.java[migration-request-async-execution]
 --------------------------------------------------
 <1> Create the `DeleteRequest` using its constructor
 <2> Execute the `DeleteRequest` by passing the request and an
@@ -266,7 +266,7 @@ With the low-level client, the code can be changed to:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-cluster-health]
+include-tagged::{doc-tests-it}/MigrationDocumentationIT.java[migration-cluster-health]
 --------------------------------------------------
 <1> Set up the request to wait for the cluster's health to become green if it isn't already.
 <2> Make the request and the get back a `Response` object.

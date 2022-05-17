@@ -12,27 +12,27 @@ and a query represented by `QueryBuilder` to run against it (the way of <<java-r
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-request]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[explain-request]
 --------------------------------------------------
 
 ===== Optional arguments
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-request-routing]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[explain-request-routing]
 --------------------------------------------------
 <1> Set a routing parameter
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-request-preference]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[explain-request-preference]
 --------------------------------------------------
 <1> Use the preference parameter e.g. to execute the search to prefer local
 shards. The default is to randomize across shards.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-request-source]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[explain-request-source]
 --------------------------------------------------
 <1> Set to true to retrieve the _source of the document explained. You can also
 retrieve part of the document by using _source_include & _source_exclude
@@ -40,7 +40,7 @@ retrieve part of the document by using _source_include & _source_exclude
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-request-stored-field]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[explain-request-stored-field]
 --------------------------------------------------
 <1> Allows to control which stored fields to return as part of the document explained
 (requires the field to be stored separately in the mappings).
@@ -52,7 +52,7 @@ The `explain` method executes the request synchronously:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-execute]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[explain-execute]
 --------------------------------------------------
 
 [[java-rest-high-explain-async]]
@@ -63,7 +63,7 @@ calling the provided `ActionListener` when the response is ready:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-execute-async]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[explain-execute-async]
 --------------------------------------------------
 <1> The `ExplainRequest` to execute and the `ActionListener` to use when
 the execution completes.
@@ -77,7 +77,7 @@ A typical listener for `ExplainResponse` is constructed as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-execute-listener]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[explain-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed.
 <2> Called when the whole `ExplainRequest` fails.
@@ -89,7 +89,7 @@ The `ExplainResponse` contains the following information:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-response]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[explain-response]
 --------------------------------------------------
 <1> The index name of the explained document.
 <2> The id of the explained document.
@@ -106,7 +106,7 @@ You can use the following methods to get them:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[get-result]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[get-result]
 --------------------------------------------------
 <1> Retrieve the `_source` as a map.
 <2> Retrieve the specified stored fields as a map.

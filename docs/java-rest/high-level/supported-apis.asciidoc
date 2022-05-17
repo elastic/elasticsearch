@@ -3,7 +3,7 @@
 == Document APIs
 
 :upid: {mainid}-document
-:doc-tests-file: {doc-tests}/CRUDDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/CRUDDocumentationIT.java
 
 The Java High Level REST Client supports the following Document APIs:
 
@@ -46,7 +46,7 @@ include::document/multi-term-vectors.asciidoc[]
 == Search APIs
 
 :upid: {mainid}
-:doc-tests-file: {doc-tests}/SearchDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/SearchDocumentationIT.java
 
 The Java High Level REST Client supports the following Search APIs:
 
@@ -77,7 +77,7 @@ include::search/point-in-time.asciidoc[]
 == Async Search APIs
 
 :upid: {mainid}-asyncsearch
-:doc-tests-file: {doc-tests}/AsyncSearchDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/AsyncSearchDocumentationIT.java
 
 The Java High Level REST Client supports the following Async Search APIs:
 
@@ -106,7 +106,7 @@ include::miscellaneous/x-pack-usage.asciidoc[]
 == Index APIs
 
 :upid: {mainid}
-:doc-tests-file: {doc-tests}/IndicesClientDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/IndicesClientDocumentationIT.java
 
 The Java High Level REST Client supports the following Index APIs:
 
@@ -195,7 +195,7 @@ The Java High Level REST Client supports the following Cluster APIs:
 * <<java-rest-high-cluster-remote-info>>
 
 :upid: {mainid}-cluster
-:doc-tests-file: {doc-tests}/ClusterClientDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/ClusterClientDocumentationIT.java
 include::cluster/put_settings.asciidoc[]
 include::cluster/get_settings.asciidoc[]
 include::cluster/health.asciidoc[]
@@ -288,7 +288,7 @@ include::licensing/get-basic-status.asciidoc[]
 [role="xpack"]
 == Machine Learning APIs
 :upid: {mainid}-x-pack-ml
-:doc-tests-file: {doc-tests}/MlClientDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/MlClientDocumentationIT.java
 
 The Java High Level REST Client supports the following {ml} APIs:
 
@@ -437,7 +437,7 @@ include::ml/upgrade-job-model-snapshot.asciidoc[]
 == Migration APIs
 
 :upid: {mainid}-migration
-:doc-tests-file: {doc-tests}/MigrationClientDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/MigrationClientDocumentationIT.java
 
 The Java High Level REST Client supports the following Migration APIs:
 
@@ -449,7 +449,7 @@ include::migration/get-deprecation-info.asciidoc[]
 == Rollup APIs
 
 :upid: {mainid}-rollup
-:doc-tests-file: {doc-tests}/RollupDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/RollupDocumentationIT.java
 
 The Java High Level REST Client supports the following Rollup APIs:
 
@@ -475,7 +475,7 @@ include::rollup/get_rollup_index_caps.asciidoc[]
 == Security APIs
 
 :upid: {mainid}-security
-:doc-tests-file: {doc-tests}/SecurityDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/SecurityDocumentationIT.java
 
 The Java High Level REST Client supports the following Security APIs:
 
@@ -554,7 +554,7 @@ include::security/get-service-account-credentials.asciidoc[]
 [role="xpack"]
 == Text Structure APIs
 :upid: {mainid}-text-structure
-:doc-tests-file: {doc-tests}/TextStructureClientDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/TextStructureClientDocumentationIT.java
 
 The Java High Level REST Client supports the following Text Structure APIs:
 
@@ -566,7 +566,7 @@ include::textstructure/find-structure.asciidoc[]
 == Watcher APIs
 
 :upid: {mainid}-watcher
-:doc-tests-file: {doc-tests}/WatcherDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/WatcherDocumentationIT.java
 
 The Java High Level REST Client supports the following Watcher APIs:
 
@@ -617,7 +617,7 @@ don't leak into the rest of the documentation.
 == CCR APIs
 
 :upid: {mainid}-ccr
-:doc-tests-file: {doc-tests}/CCRDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/CCRDocumentationIT.java
 
 The Java High Level REST Client supports the following CCR APIs:
 
@@ -653,7 +653,7 @@ include::ccr/get_follow_info.asciidoc[]
 == Index Lifecycle Management APIs
 
 :upid: {mainid}-ilm
-:doc-tests-file: {doc-tests}/ILMDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/ILMDocumentationIT.java
 
 The Java High Level REST Client supports the following Index Lifecycle
 Management APIs:
@@ -683,7 +683,7 @@ include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
 == Snapshot Lifecycle Management APIs
 
 :upid: {mainid}-ilm
-:doc-tests-file: {doc-tests}/ILMDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/ILMDocumentationIT.java
 
 The Java High Level REST Client supports the following Snapshot Lifecycle
 Management APIs:
@@ -711,7 +711,7 @@ include::ilm/execute_snapshot_lifecycle_retention.asciidoc[]
 == Searchable Snapshots APIs
 
 :upid: {mainid}-searchable-snapshots
-:doc-tests-file: {doc-tests}/SearchableSnapshotsDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/SearchableSnapshotsDocumentationIT.java
 
 The Java High Level REST Client supports the following Searchable Snapshots APIs:
 
@@ -727,7 +727,7 @@ include::searchable_snapshots/caches_stats.asciidoc[]
 == {transform-cap} APIs
 
 :upid: {mainid}
-:doc-tests-file: {doc-tests}/TransformDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/TransformDocumentationIT.java
 
 The Java High Level REST Client supports the following {transform}
 APIs:
@@ -753,7 +753,7 @@ include::transform/stop_transform.asciidoc[]
 == Enrich APIs
 
 :upid: {mainid}-enrich
-:doc-tests-file: {doc-tests}/EnrichDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/EnrichDocumentationIT.java
 
 The Java High Level REST Client supports the following Enrich APIs:
 
@@ -773,7 +773,7 @@ include::enrich/execute_policy.asciidoc[]
 == EQL APIs
 
 :upid: {mainid}-eql
-:doc-tests-file: {doc-tests}/EqlDocumentationIT.java
+:doc-tests-file: {doc-tests-it}/EqlDocumentationIT.java
 
 The Java High Level REST Client supports the following EQL APIs:
 

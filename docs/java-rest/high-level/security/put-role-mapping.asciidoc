@@ -10,7 +10,7 @@ method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[put-role-mapping-execute]
+include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[put-role-mapping-execute]
 --------------------------------------------------
 
 [[java-rest-high-security-put-role-mapping-response]]
@@ -21,7 +21,7 @@ serves as an indication if a role mapping was created or if an existing entry wa
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[put-role-mapping-response]
+include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[put-role-mapping-response]
 --------------------------------------------------
 <1> `created` is a boolean indicating whether the role mapping was created or updated
 
@@ -33,7 +33,7 @@ method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[put-role-mapping-execute-async]
+include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[put-role-mapping-execute-async]
 --------------------------------------------------
 <1> The `PutRoleMappingRequest` to execute and the `ActionListener` to use when
 the execution completes
@@ -47,7 +47,7 @@ A typical listener for a `PutRoleMappingResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[put-role-mapping-execute-listener]
+include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[put-role-mapping-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

@@ -8,7 +8,7 @@ A `GetPipelineRequest` requires one or more `pipelineIds` to fetch.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IngestClientDocumentationIT.java[get-pipeline-request]
+include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[get-pipeline-request]
 --------------------------------------------------
 <1> The pipeline id to fetch
 
@@ -17,7 +17,7 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IngestClientDocumentationIT.java[get-pipeline-request-masterTimeout]
+include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[get-pipeline-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
@@ -27,7 +27,7 @@ include-tagged::{doc-tests}/IngestClientDocumentationIT.java[get-pipeline-reques
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IngestClientDocumentationIT.java[get-pipeline-execute]
+include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[get-pipeline-execute]
 --------------------------------------------------
 <1> Execute the request and get back the response in a GetPipelineResponse object.
 
@@ -40,7 +40,7 @@ method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IngestClientDocumentationIT.java[get-pipeline-execute-async]
+include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[get-pipeline-execute-async]
 --------------------------------------------------
 <1> The `GetPipelineRequest` to execute and the `ActionListener` to use when
 the execution completes
@@ -54,7 +54,7 @@ A typical listener for `GetPipelineResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IngestClientDocumentationIT.java[get-pipeline-execute-listener]
+include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[get-pipeline-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument
@@ -68,7 +68,7 @@ The returned `GetPipelineResponse` allows to retrieve information about the exec
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IngestClientDocumentationIT.java[get-pipeline-response]
+include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[get-pipeline-response]
 --------------------------------------------------
 <1> Check if a matching pipeline id was found or not.
 <2> Get the list of pipelines found as a list of `PipelineConfig` objects.

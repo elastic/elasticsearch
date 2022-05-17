@@ -9,7 +9,7 @@ using the `xPackInfo()` method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-info-execute]
+include-tagged::{doc-tests-it}/MiscellaneousDocumentationIT.java[x-pack-info-execute]
 --------------------------------------------------
 <1> Enable verbose mode. The default is `false` but `true` will return
 more information.
@@ -25,7 +25,7 @@ and `FeatureSetsInfo` depending on the categories requested.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-info-response]
+include-tagged::{doc-tests-it}/MiscellaneousDocumentationIT.java[x-pack-info-response]
 --------------------------------------------------
 <1> `BuildInfo` contains the commit hash from which Elasticsearch was
 built and the timestamp that the x-pack module was created.
@@ -43,7 +43,7 @@ This request can be executed asynchronously:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-info-execute-async]
+include-tagged::{doc-tests-it}/MiscellaneousDocumentationIT.java[x-pack-info-execute-async]
 --------------------------------------------------
 <1> The `XPackInfoRequest` to execute and the `ActionListener` to use when
 the execution completes
@@ -57,7 +57,7 @@ A typical listener for `XPackInfoResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-info-execute-listener]
+include-tagged::{doc-tests-it}/MiscellaneousDocumentationIT.java[x-pack-info-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

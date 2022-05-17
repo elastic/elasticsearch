@@ -8,7 +8,7 @@ A `DeletePipelineRequest` requires a pipeline `id` to delete.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IngestClientDocumentationIT.java[delete-pipeline-request]
+include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[delete-pipeline-request]
 --------------------------------------------------
 <1> The pipeline id to delete
 
@@ -17,14 +17,14 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IngestClientDocumentationIT.java[delete-pipeline-request-timeout]
+include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[delete-pipeline-request-timeout]
 --------------------------------------------------
 <1> Timeout to wait for the all the nodes to acknowledge the pipeline deletion as a `TimeValue`
 <2> Timeout to wait for the all the nodes to acknowledge the pipeline deletion as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IngestClientDocumentationIT.java[delete-pipeline-request-masterTimeout]
+include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[delete-pipeline-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
@@ -34,7 +34,7 @@ include-tagged::{doc-tests}/IngestClientDocumentationIT.java[delete-pipeline-req
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IngestClientDocumentationIT.java[delete-pipeline-execute]
+include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[delete-pipeline-execute]
 --------------------------------------------------
 <1> Execute the request and get back the response in a `WritePipelineResponse` object.
 
@@ -47,7 +47,7 @@ method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IngestClientDocumentationIT.java[delete-pipeline-execute-async]
+include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[delete-pipeline-execute-async]
 --------------------------------------------------
 <1> The `DeletePipelineRequest` to execute and the `ActionListener` to use when
 the execution completes
@@ -61,7 +61,7 @@ A typical listener for `WritePipelineResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IngestClientDocumentationIT.java[delete-pipeline-execute-listener]
+include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[delete-pipeline-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument
@@ -75,6 +75,6 @@ The returned `WritePipelineResponse` allows to retrieve information about the ex
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IngestClientDocumentationIT.java[delete-pipeline-response]
+include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[delete-pipeline-response]
 --------------------------------------------------
 <1> Indicates whether all of the nodes have acknowledged the request

@@ -18,7 +18,7 @@ corresponding time interval.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-init]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[search-scroll-init]
 --------------------------------------------------
 <1> Create the `SearchRequest` and its corresponding `SearchSourceBuilder`.
 Also optionally set the `size` to control how many results to retrieve at
@@ -41,7 +41,7 @@ documents have been retrieved.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll2]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[search-scroll2]
 --------------------------------------------------
 <1> Create the `SearchScrollRequest` by setting the required scroll id and
 the scroll interval
@@ -64,7 +64,7 @@ the `SearchScrollRequest`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[scroll-request-arguments]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[scroll-request-arguments]
 --------------------------------------------------
 <1> Scroll interval as a `TimeValue`
 <2> Scroll interval as a `String`
@@ -78,7 +78,7 @@ initial search request).
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-execute-sync]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[search-scroll-execute-sync]
 --------------------------------------------------
 
 [[java-rest-high-search-scroll-async]]
@@ -90,7 +90,7 @@ method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-execute-async]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[search-scroll-execute-async]
 --------------------------------------------------
 <1> The `SearchScrollRequest` to execute and the `ActionListener` to use when
 the execution completes
@@ -104,7 +104,7 @@ A typical listener for `SearchResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-execute-listener]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[search-scroll-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument
@@ -123,7 +123,7 @@ The following is a complete example of a scrolled search.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-example]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[search-scroll-example]
 --------------------------------------------------
 <1> Initialize the search context by sending the initial `SearchRequest`
 <2> Retrieve all the search hits by calling the Search Scroll api in a loop
@@ -147,7 +147,7 @@ A `ClearScrollRequest` can be created as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-request]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[clear-scroll-request]
 --------------------------------------------------
 <1> Create a new `ClearScrollRequest`
 <2> Adds a scroll id to the list of scroll identifiers to clear
@@ -159,14 +159,14 @@ The scroll identifiers can be added to the request one by one:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-add-scroll-id]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[clear-scroll-add-scroll-id]
 --------------------------------------------------
 
 Or all together using:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-add-scroll-ids]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[clear-scroll-add-scroll-ids]
 --------------------------------------------------
 
 [[java-rest-high-clear-scroll-sync]]
@@ -174,7 +174,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-add-scroll-i
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-execute]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[clear-scroll-execute]
 --------------------------------------------------
 
 [[java-rest-high-clear-scroll-async]]
@@ -186,7 +186,7 @@ method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-execute-async]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[clear-scroll-execute-async]
 --------------------------------------------------
 <1> The `ClearScrollRequest` to execute and the `ActionListener` to use when
 the execution completes
@@ -200,7 +200,7 @@ A typical listener for `ClearScrollResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-execute-listener]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[clear-scroll-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument
@@ -214,7 +214,7 @@ The returned `ClearScrollResponse` allows to retrieve information about the rele
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-response]
+include-tagged::{doc-tests-it}/SearchDocumentationIT.java[clear-scroll-response]
 --------------------------------------------------
 <1> Return true if the request succeeded
 <2> Return the number of released search contexts

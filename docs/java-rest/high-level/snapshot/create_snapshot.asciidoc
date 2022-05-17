@@ -10,7 +10,7 @@ A `CreateSnapshotRequest`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request]
+include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-snapshot-request]
 --------------------------------------------------
 
 ==== Required Arguments
@@ -18,13 +18,13 @@ The following arguments are mandatory:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-repositoryName]
+include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-snapshot-request-repositoryName]
 --------------------------------------------------
 <1> The name of the repository.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-snapshotName]
+include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-snapshot-request-snapshotName]
 --------------------------------------------------
 <1> The name of the snapshot.
 
@@ -33,40 +33,40 @@ The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-indices]
+include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-snapshot-request-indices]
 --------------------------------------------------
 <1> A list of indices the snapshot is applied to.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-indicesOptions]
+include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-snapshot-request-indicesOptions]
 --------------------------------------------------
 <1> Options applied to the indices.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-partial]
+include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-snapshot-request-partial]
 --------------------------------------------------
 <1> Set `partial` to `true` to allow a successful snapshot without the
 availability of all the indices primary shards. Defaults to `false`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-includeGlobalState]
+include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-snapshot-request-includeGlobalState]
 --------------------------------------------------
 <1> Set `includeGlobalState` to `false` to prevent writing the cluster's global
 state as part of the snapshot. Defaults to `true`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-masterTimeout]
+include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-snapshot-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`.
 <2> Timeout to connect to the master node as a `String`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-request-waitForCompletion]
+include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-snapshot-request-waitForCompletion]
 --------------------------------------------------
 <1> Waits for the snapshot to be completed before a response is returned.
 
@@ -77,7 +77,7 @@ Execute a `CreateSnapshotRequest` synchronously to receive a `CreateSnapshotResp
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-execute]
+include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-snapshot-execute]
 --------------------------------------------------
 
 Retrieve the `SnapshotInfo` from a `CreateSnapshotResponse` when the snapshot is fully created.
@@ -85,7 +85,7 @@ Retrieve the `SnapshotInfo` from a `CreateSnapshotResponse` when the snapshot is
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-response-snapshot-info]
+include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-snapshot-response-snapshot-info]
 --------------------------------------------------
 <1> The `SnapshotInfo` object.
 
@@ -98,7 +98,7 @@ passed as arguments to the asynchronous method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-execute-async]
+include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-snapshot-execute-async]
 --------------------------------------------------
 <1> The `CreateSnapshotRequest` to execute and the `ActionListener` to use when
 the execution completes.
@@ -112,7 +112,7 @@ A typical listener for `CreateSnapshotResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-execute-listener]
+include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-snapshot-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument.
@@ -127,6 +127,6 @@ request:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-response]
+include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-snapshot-response]
 --------------------------------------------------
 <1> Indicates the node has started the request.

@@ -10,7 +10,7 @@ using the `watcher()` method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-put-watch-execute]
+include-tagged::{doc-tests-it}/WatcherDocumentationIT.java[x-pack-put-watch-execute]
 --------------------------------------------------
 <1> Allows to store the watch, but to not trigger it. Defaults to `true`
 
@@ -22,7 +22,7 @@ and `version` information.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-put-watch-response]
+include-tagged::{doc-tests-it}/WatcherDocumentationIT.java[x-pack-put-watch-response]
 --------------------------------------------------
 <1> `_id` contains id of the watch
 <2> `created` is a boolean indicating whether the watch was created for the first time
@@ -35,7 +35,7 @@ This request can be executed asynchronously:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-put-watch-execute-async]
+include-tagged::{doc-tests-it}/WatcherDocumentationIT.java[x-pack-put-watch-execute-async]
 --------------------------------------------------
 <1> The `PutWatchRequest` to execute and the `ActionListener` to use when
 the execution completes
@@ -49,7 +49,7 @@ A typical listener for `PutWatchResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-put-watch-execute-listener]
+include-tagged::{doc-tests-it}/WatcherDocumentationIT.java[x-pack-put-watch-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

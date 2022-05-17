@@ -37,7 +37,7 @@ realm {@code PkiRealmSettings#USERNAME_PATTERN_SETTING}.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[delegate-pki-request]
+include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[delegate-pki-request]
 --------------------------------------------------
 
 include::../execution.asciidoc[]
@@ -57,7 +57,7 @@ The returned +{response}+ contains the following properties:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[delegate-pki-response]
+include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[delegate-pki-response]
 --------------------------------------------------
 <1> The `accessToken` can be used to authentication to Elasticsearch.
 

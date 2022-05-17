@@ -38,10 +38,27 @@ public class SourceLoaderTests extends MapperServiceTestCase {
 
     public void testDotsInFieldName() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
-            syntheticSourceMapping(b -> { b.startObject("foo.bar.baz").field("type", "keyword").endObject(); })
+            syntheticSourceMapping(b -> b.startObject("foo.bar.baz").field("type", "keyword").endObject())
         );
         assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
             {"foo":{"bar":{"baz":"aaa"}}}"""));
+    }
+
+    public void testNoSubobjects() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("foo");
+            {
+                b.field("type", "object").field("subobjects", false);
+                b.startObject("properties");
+                {
+                    b.startObject("bar.baz").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
+            {"foo":{"bar.baz":"aaa"}}"""));
     }
 
     public void testSorted() throws IOException {

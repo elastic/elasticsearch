@@ -192,9 +192,9 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 // In case the blob cache system index is unavailable, we indicate it's not ready and move on. We do not fail the request:
                 // a failure here is not fatal since the data exists in the blob store, so we can simply indicate the cache is not ready.
                 if (isExpectedCacheGetException(e)) {
-                    logger.debug(() -> new ParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
+                    logger.debug(() -> "failed to retrieve cached blob from system index [" + index + "]", e);
                 } else {
-                    logger.warn(() -> new ParameterizedMessage("failed to retrieve cached blob from system index [{}]", index), e);
+                    logger.warn(() -> "failed to retrieve cached blob from system index [" + index + "]", e);
                     assert false : e;
                 }
                 listener.onResponse(CachedBlob.CACHE_NOT_READY);
@@ -281,7 +281,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.debug(new ParameterizedMessage("failure in cache fill: [{}]", request.id()), e);
+                        logger.debug(() -> "failure in cache fill: [" + request.id() + "]", e);
                         wrappedListener.onFailure(e);
                     }
                 });
@@ -292,7 +292,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 }
             }
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("cache fill failure: [{}]", id), e);
+            logger.warn(() -> "cache fill failure: [" + id + "]", e);
             listener.onFailure(e);
         }
     }

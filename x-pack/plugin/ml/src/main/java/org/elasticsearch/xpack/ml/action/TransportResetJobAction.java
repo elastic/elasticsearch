@@ -168,14 +168,12 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
             Job job = jobResponse.build();
             if (job.getBlocked().getReason() == Blocked.Reason.NONE) {
                 // This means the previous reset task finished successfully as it managed to unset the blocked reason.
-                logger.debug(() -> new ParameterizedMessage("[{}] Existing reset task finished successfully", request.getJobId()));
+                logger.debug(() -> "[" + request.getJobId() + "] Existing reset task finished successfully");
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else if (job.getBlocked().getReason() == Blocked.Reason.RESET) {
                 // Seems like the task was removed abruptly as it hasn't unset the block on reset.
                 // Let us try reset again.
-                logger.debug(
-                    () -> new ParameterizedMessage("[{}] Existing reset task was interrupted; retrying reset", request.getJobId())
-                );
+                logger.debug(() -> "[" + request.getJobId() + "] Existing reset task was interrupted; retrying reset");
                 ParentTaskAssigningClient taskClient = new ParentTaskAssigningClient(
                     client,
                     new TaskId(clusterService.localNode().getId(), task.getId())

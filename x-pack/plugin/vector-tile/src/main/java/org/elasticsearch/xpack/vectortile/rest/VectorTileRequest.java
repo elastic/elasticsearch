@@ -58,6 +58,7 @@ class VectorTileRequest {
     protected static final ParseField EXTENT_FIELD = new ParseField("extent");
     protected static final ParseField BUFFER_FIELD = new ParseField("buffer");
     protected static final ParseField EXACT_BOUNDS_FIELD = new ParseField("exact_bounds");
+    protected static final ParseField WITH_LABELS_FIELD = new ParseField("with_labels");
 
     protected static class Defaults {
         public static final int SIZE = 10000;
@@ -71,6 +72,7 @@ class VectorTileRequest {
         public static final int EXTENT = SimpleVectorTileFormatter.DEFAULT_EXTENT;
         public static final int BUFFER = SimpleVectorTileFormatter.DEFAULT_BUFFER_PIXELS;
         public static final boolean EXACT_BOUNDS = false;
+        public static final boolean WITH_LABELS = false;
         public static final int TRACK_TOTAL_HITS_UP_TO = DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     }
 
@@ -117,6 +119,7 @@ class VectorTileRequest {
         PARSER.declareInt(VectorTileRequest::setExtent, EXTENT_FIELD);
         PARSER.declareInt(VectorTileRequest::setBuffer, BUFFER_FIELD);
         PARSER.declareBoolean(VectorTileRequest::setExactBounds, EXACT_BOUNDS_FIELD);
+        PARSER.declareBoolean(VectorTileRequest::setWithLabels, WITH_LABELS_FIELD);
         PARSER.declareField(VectorTileRequest::setTrackTotalHitsUpTo, (p) -> {
             XContentParser.Token token = p.currentToken();
             if (token == XContentParser.Token.VALUE_BOOLEAN
@@ -164,6 +167,9 @@ class VectorTileRequest {
         if (restRequest.hasParam(EXACT_BOUNDS_FIELD.getPreferredName())) {
             request.setExactBounds(restRequest.paramAsBoolean(EXACT_BOUNDS_FIELD.getPreferredName(), Defaults.EXACT_BOUNDS));
         }
+        if (restRequest.hasParam(WITH_LABELS_FIELD.getPreferredName())) {
+            request.setWithLabels(restRequest.paramAsBoolean(WITH_LABELS_FIELD.getPreferredName(), Defaults.WITH_LABELS));
+        }
         if (restRequest.hasParam(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName())) {
             if (Booleans.isBoolean(restRequest.param(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName()))) {
                 if (restRequest.paramAsBoolean(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName(), true)) {
@@ -206,6 +212,7 @@ class VectorTileRequest {
     private List<FieldAndFormat> fields = Defaults.FETCH;
     private List<SortBuilder<?>> sortBuilders;
     private boolean exact_bounds = Defaults.EXACT_BOUNDS;
+    private boolean with_labels = Defaults.WITH_LABELS;
     private int trackTotalHitsUpTo = Defaults.TRACK_TOTAL_HITS_UP_TO;
 
     private VectorTileRequest(String[] indexes, String field, int z, int x, int y) {
@@ -270,6 +277,14 @@ class VectorTileRequest {
 
     private void setExactBounds(boolean exact_bounds) {
         this.exact_bounds = exact_bounds;
+    }
+
+    public boolean getWithLabels() {
+        return with_labels;
+    }
+
+    private void setWithLabels(boolean with_labels) {
+        this.with_labels = with_labels;
     }
 
     public List<FieldAndFormat> getFieldAndFormats() {

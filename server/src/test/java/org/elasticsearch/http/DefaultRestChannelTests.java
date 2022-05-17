@@ -8,12 +8,14 @@
 
 package org.elasticsearch.http;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
@@ -30,6 +32,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
@@ -59,14 +62,14 @@ import static org.mockito.Mockito.verify;
 public class DefaultRestChannelTests extends ESTestCase {
 
     private ThreadPool threadPool;
-    private MockBigArrays bigArrays;
+    private Recycler<BytesRef> bigArrays;
     private HttpChannel httpChannel;
 
     @Before
     public void setup() {
         httpChannel = mock(HttpChannel.class);
         threadPool = new TestThreadPool("test");
-        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        bigArrays = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
     }
 
     @After
@@ -221,8 +224,8 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         // ensure we have reserved bytes
         if (randomBoolean()) {
-            BytesStreamOutput out = channel.bytesOutput();
-            assertThat(out, instanceOf(ReleasableBytesStreamOutput.class));
+            BytesStream out = channel.bytesOutput();
+            assertThat(out, instanceOf(RecyclerBytesStreamOutput.class));
         } else {
             try (XContentBuilder builder = channel.newBuilder()) {
                 // do something builder

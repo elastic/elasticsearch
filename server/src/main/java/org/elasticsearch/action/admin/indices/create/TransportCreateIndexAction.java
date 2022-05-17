@@ -182,7 +182,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         if (descriptor.getAliasName() == null) {
             aliases = Set.of();
         } else {
-            aliases = Set.of(new Alias(descriptor.getAliasName()).isHidden(true));
+            aliases = Set.of(new Alias(descriptor.getAliasName()).isHidden(true).writeIndex(true));
         }
 
         // Throw an error if we are trying to directly create a system index other than the primary system index (or the alias)

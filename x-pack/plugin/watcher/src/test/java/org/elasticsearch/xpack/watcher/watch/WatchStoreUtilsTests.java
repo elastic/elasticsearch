@@ -21,7 +21,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,8 +48,11 @@ public class WatchStoreUtilsTests extends ESTestCase {
                 indexNames.stream().map(indexName -> new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE)).collect(Collectors.toList())
             )
         );
-        Map<String, DataStreamAlias> dataStreamAliases = Collections.emptyMap();
-        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(dataStreams, dataStreamAliases);
+        ImmutableOpenMap<String, DataStreamAlias> dataStreamAliases = ImmutableOpenMap.of();
+        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(
+            ImmutableOpenMap.<String, DataStream>builder().putAllFromMap(dataStreams).build(),
+            dataStreamAliases
+        );
         customsBuilder.put(DataStreamMetadata.TYPE, dataStreamMetadata);
         metadataBuilder.customs(customsBuilder.build());
         IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(dataStreamName, metadataBuilder.build());

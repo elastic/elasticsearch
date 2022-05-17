@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.xcontent.XContentBuilder;
+
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -44,7 +46,7 @@ public class SourceLoaderTests extends MapperServiceTestCase {
             {"foo":{"bar":{"baz":"aaa"}}}"""));
     }
 
-    public void testNoSubobjects() throws IOException {
+    public void testNoSubobjectsIntermediateObject() throws IOException {
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("foo");
             {
@@ -59,6 +61,19 @@ public class SourceLoaderTests extends MapperServiceTestCase {
         }));
         assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
             {"foo":{"bar.baz":"aaa"}}"""));
+    }
+
+    public void testNoSubobjectsRootObject() throws IOException {
+        XContentBuilder mappings = topMapping(b -> {
+            b.startObject("_source").field("synthetic", true).endObject();
+            b.field("subobjects", false);
+            b.startObject("properties");
+            b.startObject("foo.bar.baz").field("type", "keyword").endObject();
+            b.endObject();
+        });
+        DocumentMapper mapper = createDocumentMapper(mappings);
+        assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
+            {"foo.bar.baz":"aaa"}"""));
     }
 
     public void testSorted() throws IOException {

@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -380,10 +381,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 return Tuple.tuple(d, round(d));
             }
 
-            private double randomValue() {
-                return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
-            }
-
             private double round(double d) {
                 long encoded = Math.round(d * scalingFactor);
                 if (encoded == Long.MAX_VALUE) {
@@ -438,5 +435,58 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    public void testEncodeDecodeExactScalingFactor() {
+        double v = randomValue();
+        assertThat(encodeDecode(1 / v, v), equalTo(1 / v));
+    }
+
+    /**
+     * Tests numbers that can be encoded and decoded without overflow.
+     */
+    public void testEncodeDecodeNoSaturation() {
+        double scalingFactor = randomValue();
+        double unsaturated = randomDoubleBetween(Long.MIN_VALUE / scalingFactor, Long.MAX_VALUE / scalingFactor, true);
+        assertThat(encodeDecode(unsaturated, scalingFactor), equalTo(Math.round(unsaturated * scalingFactor) / scalingFactor));
+    }
+
+    public void testEncodeDecodeSaturatedLow() {
+        double scalingFactor = randomValueOtherThanMany(d -> Double.isInfinite(Long.MIN_VALUE / d), ESTestCase::randomDouble);
+        double saturated = randomDoubleBetween(-Double.MAX_VALUE, Long.MIN_VALUE / scalingFactor, true);
+        assertThat(ScaledFloatFieldMapper.encode(saturated, scalingFactor), equalTo(Long.MIN_VALUE));
+        double min = Long.MIN_VALUE / scalingFactor;
+        if (min * scalingFactor != Long.MIN_VALUE) {
+            min -= Math.ulp(min);
+        }
+        assertThat(encodeDecode(saturated, scalingFactor), equalTo(min));
+    }
+
+    public void testEncodeDecodeSaturatedHigh() {
+        double scalingFactor = randomValueOtherThanMany(d -> Double.isInfinite(Long.MAX_VALUE / d), ESTestCase::randomDouble);
+        double saturated = randomDoubleBetween(Long.MAX_VALUE / scalingFactor, Double.MAX_VALUE, true);
+        assertThat(ScaledFloatFieldMapper.encode(saturated, scalingFactor), equalTo(Long.MAX_VALUE));
+        double max = Long.MAX_VALUE / scalingFactor;
+        if (max * scalingFactor != Long.MAX_VALUE) {
+            max += Math.ulp(max);
+        }
+        assertThat(encodeDecode(saturated, scalingFactor), equalTo(max));
+    }
+
+    public void testDecodeEncode() {
+        double scalingFactor = randomValueOtherThanMany(d -> Double.isInfinite(Long.MAX_VALUE / d), ESTestCase::randomDouble);
+        long encoded = randomLongBetween(-2 << 53, 2 << 53);
+        assertThat(
+            ScaledFloatFieldMapper.encode(ScaledFloatFieldMapper.decodeForSyntheticSource(encoded, scalingFactor), scalingFactor),
+            equalTo(encoded)
+        );
+    }
+
+    private double encodeDecode(double value, double scalingFactor) {
+        return ScaledFloatFieldMapper.decodeForSyntheticSource(ScaledFloatFieldMapper.encode(value, scalingFactor), scalingFactor);
+    }
+
+    private double randomValue() {
+        return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
     }
 }

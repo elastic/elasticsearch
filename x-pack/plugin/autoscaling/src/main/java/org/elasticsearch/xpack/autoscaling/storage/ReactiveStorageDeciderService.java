@@ -185,8 +185,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
     }
 
-    record ShardsSize(long sizeInBytes, SortedSet<ShardId> shardIds) {}
-
     // todo: move this to top level class.
     public static class AllocationState {
         private final ClusterState state;

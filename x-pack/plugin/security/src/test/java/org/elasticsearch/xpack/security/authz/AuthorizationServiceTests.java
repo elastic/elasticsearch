@@ -219,7 +219,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -2788,11 +2787,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             SOME_CHECKS_FAILURE_NO_DETAILS
         );
         doAnswer(i -> {
-            assertThat(i.getArguments().length, equalTo(5));
+            assertThat(i.getArguments().length, equalTo(4));
             final Object arg1 = i.getArguments()[0];
             assertThat(arg1, instanceOf(AuthorizationInfo.class));
             AuthorizationInfo authorizationInfoArg = (AuthorizationInfo) arg1;
-            final Object arg5 = i.getArguments()[4];
+            final Object arg5 = i.getArguments()[3];
             assertThat(arg5, instanceOf(ActionListener.class));
             ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener = (ActionListener<
                 AuthorizationEngine.PrivilegesCheckResult>) arg5;
@@ -2806,7 +2805,6 @@ public class AuthorizationServiceTests extends ESTestCase {
             .checkPrivileges(
                 any(AuthorizationInfo.class),
                 any(AuthorizationEngine.PrivilegesToCheck.class),
-                anyBoolean(),
                 anyCollection(),
                 anyActionListener()
             );
@@ -2817,9 +2815,9 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationEngine.PrivilegesToCheck(
                 new String[0],
                 new IndicesPrivileges[0],
-                new RoleDescriptor.ApplicationResourcePrivileges[0]
+                new RoleDescriptor.ApplicationResourcePrivileges[0],
+                randomBoolean()
             ),
-            randomBoolean(),
             List.of(),
             future
         );
@@ -2891,7 +2889,6 @@ public class AuthorizationServiceTests extends ESTestCase {
             public void checkPrivileges(
                 AuthorizationInfo authorizationInfo,
                 PrivilegesToCheck privilegesToCheck,
-                boolean runDetailedCheck,
                 Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
                 ActionListener<PrivilegesCheckResult> listener
             ) {

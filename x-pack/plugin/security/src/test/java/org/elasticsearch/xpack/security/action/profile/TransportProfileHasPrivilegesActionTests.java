@@ -46,7 +46,6 @@ import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Pr
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -123,7 +122,7 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
         doAnswer(invocation -> {
             Subject subject = (Subject) invocation.getArguments()[0];
             ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener = (ActionListener<
-                AuthorizationEngine.PrivilegesCheckResult>) invocation.getArguments()[4];
+                AuthorizationEngine.PrivilegesCheckResult>) invocation.getArguments()[3];
             // run this asynchronously to test concurrency
             threadPool.generic().submit(() -> {
                 if (errorProfileUids.contains(subject.getUser().principal().substring("user_for_profile_".length()))) {
@@ -136,7 +135,7 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
             });
             return null;
         }).when(authorizationService)
-            .checkPrivileges(any(Subject.class), eq(request.privilegesToCheck()), anyBoolean(), eq(List.of()), anyActionListener());
+            .checkPrivileges(any(Subject.class), eq(request.privilegesToCheck()), eq(List.of()), anyActionListener());
 
         final PlainActionFuture<ProfileHasPrivilegesResponse> listener = new PlainActionFuture<>();
         transportProfileHasPrivilegesAction.doExecute(mock(Task.class), request, listener);
@@ -178,7 +177,7 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
                 AuthorizationEngine.PrivilegesCheckResult>) invocation.getArguments()[4];
             listener.onFailure(new ElasticsearchException("Privileges should not be checked when there are no subjects found"));
             return null;
-        }).when(authorizationService).checkPrivileges(any(), any(), anyBoolean(), any(), any());
+        }).when(authorizationService).checkPrivileges(any(), any(), any(), any());
 
         final PlainActionFuture<ProfileHasPrivilegesResponse> listener = new PlainActionFuture<>();
         transportProfileHasPrivilegesAction.doExecute(mock(Task.class), request, listener);

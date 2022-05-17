@@ -381,7 +381,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
     }
 
-    public static PrivilegesToCheck parsePrivilegesToCheck(String description, XContentParser parser) throws IOException {
+    public static PrivilegesToCheck parsePrivilegesToCheck(String description, boolean runDetailedCheck, XContentParser parser)
+        throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException(
                 "failed to parse privileges check [{}]. expected an object but found [{}] instead",
@@ -435,12 +436,17 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return new PrivilegesToCheck(
             clusterPrivileges != null ? clusterPrivileges : Strings.EMPTY_ARRAY,
             indexPrivileges != null ? indexPrivileges : IndicesPrivileges.NONE,
-            applicationPrivileges != null ? applicationPrivileges : ApplicationResourcePrivileges.NONE
+            applicationPrivileges != null ? applicationPrivileges : ApplicationResourcePrivileges.NONE,
+            runDetailedCheck
         );
     }
 
-    public static PrivilegesToCheck parsePrivilegesToCheck(String description, BytesReference source, XContentType xContentType)
-        throws IOException {
+    public static PrivilegesToCheck parsePrivilegesToCheck(
+        String description,
+        boolean runDetailedCheck,
+        BytesReference source,
+        XContentType xContentType
+    ) throws IOException {
         try (
             InputStream stream = source.streamInput();
             XContentParser parser = xContentType.xContent()
@@ -455,7 +461,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     token
                 );
             }
-            return parsePrivilegesToCheck(description, parser);
+            return parsePrivilegesToCheck(description, runDetailedCheck, parser);
         }
     }
 

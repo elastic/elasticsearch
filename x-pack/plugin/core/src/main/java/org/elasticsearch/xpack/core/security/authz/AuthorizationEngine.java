@@ -105,7 +105,7 @@ public interface AuthorizationEngine {
      * See also {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}, for which this method is the more general
      * sibling. This returns the {@code AuthorizationInfo} that is used for access checks outside the context of
      * authorizing a specific request, i.e.
-     * {@link #checkPrivileges(AuthorizationInfo, PrivilegesToCheck, boolean, Collection, ActionListener)}
+     * {@link #checkPrivileges(AuthorizationInfo, PrivilegesToCheck, Collection, ActionListener)}
      *
      * @param subject object representing the effective user
      * @param listener the listener to be notified of success using {@link ActionListener#onResponse(Object)}
@@ -212,15 +212,12 @@ public interface AuthorizationEngine {
      * @param authorizationInfo information used for authorization, for a specific Subject, that was previously retrieved
      *                          using {@link #resolveAuthorizationInfo(Subject, ActionListener)}
      * @param privilegesToCheck the object that contains the privileges to check for the Subject
-     * @param runDetailedCheck whether to return the details on which privileges are granted and which are not.
-     *                         {@code PrivilegesCheckResult#details} must be {@code null} only if this parameter is {@code false}.
      * @param applicationPrivilegeDescriptors a collection of application privilege descriptors
      * @param listener the listener to be notified of the check privileges response
      */
     void checkPrivileges(
         AuthorizationInfo authorizationInfo,
         PrivilegesToCheck privilegesToCheck,
-        boolean runDetailedCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
         ActionListener<PrivilegesCheckResult> listener
     );
@@ -257,16 +254,22 @@ public interface AuthorizationEngine {
         }
     }
 
+    // TODO java doc
     record PrivilegesToCheck(
         String[] cluster,
         RoleDescriptor.IndicesPrivileges[] index,
-        RoleDescriptor.ApplicationResourcePrivileges[] application
+        RoleDescriptor.ApplicationResourcePrivileges[] application,
+        boolean runDetailedCheck
     ) {
         public static PrivilegesToCheck readFrom(StreamInput in) throws IOException {
             return new PrivilegesToCheck(
                 in.readOptionalStringArray(),
                 in.readOptionalArray(RoleDescriptor.IndicesPrivileges::new, RoleDescriptor.IndicesPrivileges[]::new),
-                in.readOptionalArray(RoleDescriptor.ApplicationResourcePrivileges::new, RoleDescriptor.ApplicationResourcePrivileges[]::new)
+                in.readOptionalArray(
+                    RoleDescriptor.ApplicationResourcePrivileges::new,
+                    RoleDescriptor.ApplicationResourcePrivileges[]::new
+                ),
+                in.readBoolean()
             );
         }
 
@@ -274,6 +277,7 @@ public interface AuthorizationEngine {
             out.writeOptionalStringArray(cluster);
             out.writeOptionalArray(RoleDescriptor.IndicesPrivileges::write, index);
             out.writeOptionalArray(RoleDescriptor.ApplicationResourcePrivileges::write, application);
+            out.writeBoolean(runDetailedCheck);
         }
 
         public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
@@ -310,12 +314,16 @@ public interface AuthorizationEngine {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             PrivilegesToCheck that = (PrivilegesToCheck) o;
-            return Arrays.equals(cluster, that.cluster) && Arrays.equals(index, that.index) && Arrays.equals(application, that.application);
+            return runDetailedCheck == that.runDetailedCheck
+                && Arrays.equals(cluster, that.cluster)
+                && Arrays.equals(index, that.index)
+                && Arrays.equals(application, that.application);
         }
 
         @Override
         public int hashCode() {
-            int result = Arrays.hashCode(cluster);
+            int result = Objects.hash(runDetailedCheck);
+            result = 31 * result + Arrays.hashCode(cluster);
             result = 31 * result + Arrays.hashCode(index);
             result = 31 * result + Arrays.hashCode(application);
             return result;
@@ -333,10 +341,14 @@ public interface AuthorizationEngine {
                 + ","
                 + "application="
                 + Arrays.toString(application)
+                + ","
+                + "detailed="
+                + runDetailedCheck
                 + "}";
         }
     }
 
+    // TODO javadoc
     final class PrivilegesCheckResult {
 
         public static final PrivilegesCheckResult ALL_CHECKS_SUCCESS_NO_DETAILS = new PrivilegesCheckResult(true, null);

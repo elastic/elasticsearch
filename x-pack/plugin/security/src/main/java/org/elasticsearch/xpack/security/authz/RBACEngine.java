@@ -90,6 +90,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -515,7 +516,6 @@ public class RBACEngine implements AuthorizationEngine {
     public void checkPrivileges(
         AuthorizationInfo authorizationInfo,
         PrivilegesToCheck privilegesToCheck,
-        boolean runDetailedCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
         ActionListener<PrivilegesCheckResult> listener
     ) {
@@ -528,14 +528,13 @@ public class RBACEngine implements AuthorizationEngine {
         final Role userRole = ((RBACAuthorizationInfo) authorizationInfo).getRole();
         logger.trace(
             () -> new ParameterizedMessage(
-                "Check whether role [{}] has privileges cluster=[{}] index=[{}] application=[{}]",
+                "Check whether role [{}] has privileges [{}]",
                 Strings.arrayToCommaDelimitedString(userRole.names()),
-                Arrays.toString(privilegesToCheck.cluster()),
-                Arrays.toString(privilegesToCheck.index()),
-                Arrays.toString(privilegesToCheck.application())
+                privilegesToCheck
             )
         );
 
+        final ActionListener<PrivilegesCheckResult> maybeCachingListener;
         if (userRole instanceof SimpleRole simpleRole) {
             final PrivilegesCheckResult result = simpleRole.checkPrivilegesWithCache(privilegesToCheck);
             if (result != null) {
@@ -549,6 +548,19 @@ public class RBACEngine implements AuthorizationEngine {
                 listener.onResponse(result);
                 return;
             }
+            maybeCachingListener = listener.delegateFailure((delegateListener, privilegesCheckResult) -> {
+                try {
+                    simpleRole.cacheHasPrivileges(settings, privilegesToCheck, privilegesCheckResult);
+                } catch (ExecutionException e) {
+                    logger.error("Failed to cache check result for [{}]", privilegesToCheck);
+                    delegateListener.onFailure(e);
+                    return;
+                }
+                delegateListener.onResponse(privilegesCheckResult);
+            });
+        } else {
+            // caching of check result unsupported
+            maybeCachingListener = listener;
         }
 
         boolean allMatch = true;
@@ -557,15 +569,17 @@ public class RBACEngine implements AuthorizationEngine {
         for (String checkAction : privilegesToCheck.cluster()) {
             boolean privilegeGranted = userRole.grants(ClusterPrivilegeResolver.resolve(checkAction));
             allMatch = allMatch && privilegeGranted;
-            if (runDetailedCheck) {
+            if (privilegesToCheck.runDetailedCheck()) {
                 clusterPrivilegesCheckResults.put(checkAction, privilegeGranted);
             } else if (false == privilegeGranted) {
-                listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
+                maybeCachingListener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
                 return;
             }
         }
 
-        final ResourcePrivilegesMap.Builder combineIndicesResourcePrivileges = runDetailedCheck ? ResourcePrivilegesMap.builder() : null;
+        final ResourcePrivilegesMap.Builder combineIndicesResourcePrivileges = privilegesToCheck.runDetailedCheck()
+            ? ResourcePrivilegesMap.builder()
+            : null;
         for (RoleDescriptor.IndicesPrivileges check : privilegesToCheck.index()) {
             boolean privilegesGranted = userRole.checkIndicesPrivileges(
                 Sets.newHashSet(check.getIndices()),
@@ -574,8 +588,8 @@ public class RBACEngine implements AuthorizationEngine {
                 combineIndicesResourcePrivileges
             );
             allMatch = allMatch && privilegesGranted;
-            if (false == runDetailedCheck && false == privilegesGranted) {
-                listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
+            if (false == privilegesToCheck.runDetailedCheck() && false == privilegesGranted) {
+                maybeCachingListener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
                 return;
             }
         }
@@ -587,7 +601,9 @@ public class RBACEngine implements AuthorizationEngine {
             .collect(Collectors.toSet());
         for (String applicationName : applicationNames) {
             logger.debug(() -> new ParameterizedMessage("Checking privileges for application {}", applicationName));
-            final ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder = runDetailedCheck ? ResourcePrivilegesMap.builder() : null;
+            final ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder = privilegesToCheck.runDetailedCheck()
+                ? ResourcePrivilegesMap.builder()
+                : null;
             for (RoleDescriptor.ApplicationResourcePrivileges p : privilegesToCheck.application()) {
                 if (applicationName.equals(p.getApplication())) {
                     boolean privilegesGranted = userRole.checkApplicationResourcePrivileges(
@@ -598,8 +614,8 @@ public class RBACEngine implements AuthorizationEngine {
                         resourcePrivilegesMapBuilder
                     );
                     allMatch = allMatch && privilegesGranted;
-                    if (false == runDetailedCheck && false == privilegesGranted) {
-                        listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
+                    if (false == privilegesToCheck.runDetailedCheck() && false == privilegesGranted) {
+                        maybeCachingListener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
                         return;
                     }
                 }
@@ -612,9 +628,8 @@ public class RBACEngine implements AuthorizationEngine {
             }
         }
 
-        final PrivilegesCheckResult privilegesCheckResult;
-        if (runDetailedCheck) {
-          privilegesCheckResult =
+        if (privilegesToCheck.runDetailedCheck()) {
+            maybeCachingListener.onResponse(
                 new PrivilegesCheckResult(
                     allMatch,
                     new PrivilegesCheckResult.Details(
@@ -622,15 +637,11 @@ public class RBACEngine implements AuthorizationEngine {
                         combineIndicesResourcePrivileges.build().getResourceToResourcePrivileges(),
                         privilegesByApplication
                     )
+                )
             );
         } else {
-          privilegesCheckResult = PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS;
+            maybeCachingListener.onResponse(PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS);
         }
-        ActionListener.runBefore(listener, () -> {
-            if (userRole instanceof SimpleRole simpleRole) {
-                simpleRole.cacheHasPrivileges(settings, privilegesToCheck, privilegesCheckResult);
-            }
-        }).onResponse(privilegesCheckResult);
     }
 
     @Override

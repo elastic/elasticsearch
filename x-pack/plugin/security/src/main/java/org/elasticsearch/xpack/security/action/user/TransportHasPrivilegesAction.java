@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -86,12 +85,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             ActionListener.wrap(
                 applicationPrivilegeDescriptors -> authorizationService.checkPrivileges(
                     subject,
-                    new AuthorizationEngine.PrivilegesToCheck(
-                        request.clusterPrivileges(),
-                        request.indexPrivileges(),
-                        request.applicationPrivileges()
-                    ),
-                    true,
+                    request.getPrivilegesToCheck(),
                     applicationPrivilegeDescriptors,
                     listener.map(privilegesCheckResult -> {
                         if (privilegesCheckResult.getDetails() == null) {

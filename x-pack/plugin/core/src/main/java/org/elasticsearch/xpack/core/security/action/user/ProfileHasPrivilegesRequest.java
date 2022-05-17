@@ -36,7 +36,7 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
         PARSER.declareStringArray(constructorArg(), Fields.UIDS);
         PARSER.declareField(
             constructorArg(),
-            parser -> RoleDescriptor.parsePrivilegesToCheck("profile_has_privileges_request", parser),
+            parser -> RoleDescriptor.parsePrivilegesToCheck("profile_has_privileges_request", false, parser),
             Fields.PRIVILEGES,
             ObjectParser.ValueType.OBJECT
         );

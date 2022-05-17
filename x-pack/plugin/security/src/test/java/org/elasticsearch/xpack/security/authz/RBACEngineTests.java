@@ -337,11 +337,12 @@ public class RBACEngineTests extends ESTestCase {
             new String[] { ClusterHealthAction.NAME },
             new IndicesPrivileges[] {
                 IndicesPrivileges.builder().indices("academy").privileges(DeleteAction.NAME, IndexAction.NAME).build() },
-            new ApplicationResourcePrivileges[0]
+            new ApplicationResourcePrivileges[0],
+            true
         );
 
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck, true, Collections.emptyList(), future);
+        engine.checkPrivileges(authzInfo, privilegesToCheck, Collections.emptyList(), future);
 
         final PrivilegesCheckResult result = future.get();
         assertThat(result, notNullValue());
@@ -374,10 +375,11 @@ public class RBACEngineTests extends ESTestCase {
             new String[] { "monitor", "manage" },
             new IndicesPrivileges[] {
                 IndicesPrivileges.builder().indices("academy", "initiative", "school").privileges("delete", "index", "manage").build() },
-            new ApplicationResourcePrivileges[0]
+            new ApplicationResourcePrivileges[0],
+            true
         );
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck, true, Collections.emptyList(), future);
+        engine.checkPrivileges(authzInfo, privilegesToCheck, Collections.emptyList(), future);
 
         final PrivilegesCheckResult response = future.get();
         assertThat(response, notNullValue());
@@ -515,11 +517,12 @@ public class RBACEngineTests extends ESTestCase {
                     .resources("space/engineering/project-*", "space/*") // project-* = Yes, space/* = Not
                     .application("kibana")
                     .privileges("space:view/dashboard")
-                    .build() }
+                    .build() },
+            true
         );
 
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck, true, privs, future);
+        engine.checkPrivileges(authzInfo, privilegesToCheck, privs, future);
 
         final PrivilegesCheckResult response = future.get();
         assertThat(response, notNullValue());
@@ -1135,7 +1138,8 @@ public class RBACEngineTests extends ESTestCase {
                     .application(appName)
                     .resources("user/hawkeye/name")
                     .privileges("DATA:read/user/*", "ACTION:" + action1)
-                    .build() }
+                    .build() },
+            randomBoolean()
         );
 
         final PlainActionFuture<PrivilegesCheckResult> future1 = new PlainActionFuture<>();
@@ -1147,7 +1151,7 @@ public class RBACEngineTests extends ESTestCase {
 
         // Stall the check so that we are sure cache is used
         final RuntimeException stallCheckException = new RuntimeException("you shall not pass");
-        doThrow(stallCheckException).when(role).checkApplicationResourcePrivileges(anyString(), any(), any(), any());
+        doThrow(stallCheckException).when(role).checkApplicationResourcePrivileges(anyString(), any(), any(), any(), any());
         Mockito.clearInvocations(role);
 
         final PlainActionFuture<PrivilegesCheckResult> future2 = new PlainActionFuture<>();
@@ -1167,7 +1171,8 @@ public class RBACEngineTests extends ESTestCase {
                     .application(appName)
                     .resources("user/hawkeye/name")
                     .privileges("DATA:read/user/*")
-                    .build() }
+                    .build() },
+            randomBoolean()
         );
         final RuntimeException e1 = expectThrows(
             RuntimeException.class,
@@ -1458,8 +1463,8 @@ public class RBACEngineTests extends ESTestCase {
         String... clusterPrivileges
     ) throws Exception {
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(clusterPrivileges, indicesPrivileges, appPrivileges);
-        engine.checkPrivileges(authorizationInfo, privilegesToCheck, true, applicationPrivilegeDescriptors, future);
+        PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(clusterPrivileges, indicesPrivileges, appPrivileges, true);
+        engine.checkPrivileges(authorizationInfo, privilegesToCheck, applicationPrivilegeDescriptors, future);
         final PrivilegesCheckResult response = future.get();
         assertThat(response, notNullValue());
         return response;

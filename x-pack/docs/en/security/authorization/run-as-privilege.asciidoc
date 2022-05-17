@@ -32,13 +32,6 @@ POST /_security/role/my_director?refresh=true
       "privileges": [ "manage" ]
     }
   ],
-  "applications": [
-    {
-      "application": "myapp",
-      "privileges": [ "admin", "read" ],
-      "resources": [ "*" ]
-    }
-  ],
   "run_as": [ "jacknich", "rdeniro" ],
   "metadata" : {
     "version" : 1
@@ -49,9 +42,9 @@ POST /_security/role/my_director?refresh=true
 To submit a request as another user, you specify the user in the
 `es-security-runas-user` request header. For example:
 
-[source,shell]
+[source,sh]
 ----
-curl -H "es-security-runas-user: jacknich"  -u <username> -X GET 'http://localhost:9200/'
+curl -H "es-security-runas-user: jacknich"  -u es-admin -X GET http://localhost:9200/
 ----
 // NOTCONSOLE
 

@@ -191,6 +191,27 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("field1", "field3"));
     }
 
+    public void testGetAdditionalIndexSettingsNoMappings() {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
+
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
+        Settings settings = Settings.EMPTY;
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            true,
+            metadata,
+            now,
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(2));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
+    }
+
     public void testGetAdditionalIndexSettingsLookAheadTime() throws Exception {
         Metadata metadata = Metadata.EMPTY_METADATA;
         String dataStreamName = "logs-app1";

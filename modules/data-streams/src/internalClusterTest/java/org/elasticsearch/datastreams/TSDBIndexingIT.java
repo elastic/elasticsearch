@@ -10,8 +10,10 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -82,20 +84,44 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         if (randomBoolean()) {
             templateSettings.put("index.routing_path", "metricset");
         }
-        var request = new PutComposableIndexTemplateAction.Request("id");
-        request.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of("k8s*"),
-                new Template(templateSettings.build(), new CompressedXContent(mappingTemplate), null),
-                null,
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                null
-            )
-        );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+
+        if (randomBoolean()) {
+            var request = new PutComposableIndexTemplateAction.Request("id");
+            request.indexTemplate(
+                new ComposableIndexTemplate(
+                    List.of("k8s*"),
+                    new Template(templateSettings.build(), new CompressedXContent(mappingTemplate), null),
+                    null,
+                    null,
+                    null,
+                    null,
+                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                    null
+                )
+            );
+            client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        } else {
+            var putComponentTemplateRequest = new PutComponentTemplateAction.Request("1");
+            putComponentTemplateRequest.componentTemplate(
+                new ComponentTemplate(new Template(null, new CompressedXContent(mappingTemplate), null), null, null)
+            );
+            client().execute(PutComponentTemplateAction.INSTANCE, putComponentTemplateRequest).actionGet();
+
+            var putTemplateRequest = new PutComposableIndexTemplateAction.Request("id");
+            putTemplateRequest.indexTemplate(
+                new ComposableIndexTemplate(
+                    List.of("k8s*"),
+                    new Template(templateSettings.build(), null, null),
+                    List.of("1"),
+                    null,
+                    null,
+                    null,
+                    new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                    null
+                )
+            );
+            client().execute(PutComposableIndexTemplateAction.INSTANCE, putTemplateRequest).actionGet();
+        }
 
         // index doc
         Instant time = Instant.now();

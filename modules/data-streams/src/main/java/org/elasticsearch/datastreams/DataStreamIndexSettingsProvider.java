@@ -109,7 +109,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
                     builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
 
-                    if (allSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false) {
+                    if (allSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
+                        && combinedTemplateMappings.isEmpty() == false) {
                         List<String> routingPaths = findRoutingPaths(indexName, allSettings, combinedTemplateMappings);
                         if (routingPaths != null) {
                             builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);

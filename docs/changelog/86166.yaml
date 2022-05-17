@@ -24,7 +24,7 @@ highlight:
 
     A new object mapping parameter called `subobjects`, which defaults to `true`,
     has been introduced to preserve dots in field names. An object with `subobjects`
-    set to `false` supports only hold leaf sub-fields and no further objects. The
+    set to `false` can only ever hold leaf sub-fields and no further objects. The
     following example shows how it can be configured in the mappings for the
     `metrics` object:
 

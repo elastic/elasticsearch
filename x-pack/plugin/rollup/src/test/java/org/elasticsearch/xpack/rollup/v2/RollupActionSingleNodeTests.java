@@ -422,6 +422,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
         GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndexClone, rollupIndex).get();
         // Assert rollup metadata are set in index settings
+        assertEquals("success", indexSettingsResp.getSetting(rollupIndex, "index.rollup.status"));
         assertEquals(
             indexSettingsResp.getSetting(sourceIndexClone, "index.resize.source.uuid"),
             indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.uuid")

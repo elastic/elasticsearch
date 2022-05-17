@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -57,6 +59,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +75,24 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     private final Client client;
     private final ClusterService clusterService;
     private final MetadataCreateIndexService metadataCreateIndexService;
+    private final MetadataDeleteIndexService metadataDeleteIndexService;
+
+    /**
+     * This is the cluster state task executor for cluster state update actions.
+     */
+    private static final ClusterStateTaskExecutor<ClusterStateUpdateTask> STATE_UPDATE_TASK_EXECUTOR = (currentState, taskContexts) -> {
+        ClusterState state = currentState;
+        for (final var taskContext : taskContexts) {
+            try {
+                final var task = taskContext.getTask();
+                final var newState = task.execute(state);
+                // taskContext.success(task);
+            } catch (Exception e) {
+                taskContext.onFailure(e);
+            }
+        }
+        return state;
+    };
 
     @Inject
     public TransportRollupAction(
@@ -80,6 +101,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         TransportService transportService,
         ThreadPool threadPool,
         MetadataCreateIndexService metadataCreateIndexService,
+        MetadataDeleteIndexService metadataDeleteIndexService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
@@ -96,6 +118,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
         this.clusterService = clusterService;
         this.metadataCreateIndexService = metadataCreateIndexService;
+        this.metadataDeleteIndexService = metadataDeleteIndexService;
     }
 
     @Override
@@ -143,14 +166,15 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             return;
         }
 
+        // Rollup will perform the following tasks:
         // 1. Extract rollup config from source index field caps
         // 2. Create the rollup index
         // 3. Run rollup indexer
         // 4. Make rollup index read-only and set replicas
-        // 5. Add rollup index to data stream
+        // 5. Add rollup index to the data stream
+        // 6. Mark rollup index as "completed successfully"
         // 7. Delete the source index
-        // 8. Mark rollup index as "completed successfully"
-        // 9. Refresh rollup index
+        // 8. Refresh rollup index
         // At any point if there is an issue, delete the rollup index
 
         // 1. Extract rollup config from source index field caps
@@ -240,7 +264,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                             client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
                                 if (updateSettingsResponse.isAcknowledged()) {
                                     // 5. Add rollup index to data stream and publish rollup metadata
-                                    manageDataStream(sourceIndexName, rollupIndexName, listener);
+                                    updateRollupMetadata(sourceIndexName, rollupIndexName, listener);
                                 } else {
                                     deleteRollupIndex(
                                         sourceIndexName,
@@ -398,30 +422,46 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             .endArray();
     }
 
-    private void manageDataStream(String sourceIndexName, String rollupIndexName, ActionListener<AcknowledgedResponse> listener) {
-        // Update cluster state for the data stream to add the rollup index and remove the source index
+    private void updateRollupMetadata(String sourceIndexName, String rollupIndexName, ActionListener<AcknowledgedResponse> listener) {
+        // Update cluster state for the rollup metadata. If source index belongs to a data stream,
+        // add the rollup index and remove the source index
         submitUnbatchedTask("update-rollup-metadata", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 Metadata metadata = currentState.metadata();
                 Metadata.Builder metadataBuilder = Metadata.builder(metadata);
                 IndexAbstraction sourceIndexAbstraction = metadata.getIndicesLookup().get(sourceIndexName);
+                Index sourceIndex = metadata.index(sourceIndexName).getIndex();
+                Index rollupIndex = metadata.index(rollupIndexName).getIndex();
+                IndexMetadata rollupIndexMetadata = metadata.index(rollupIndex);
+
+                // 5. Add rollup index to the data stream
                 // If rolling up a backing index of a data stream, replace the source index with
                 // the rolled up index to the data stream
                 if (sourceIndexAbstraction.getParentDataStream() != null) {
                     DataStream originalDataStream = sourceIndexAbstraction.getParentDataStream().getDataStream();
-                    Index rollupIndex = metadata.index(rollupIndexName).getIndex();
-                    Index sourceIndex = metadata.index(sourceIndexName).getIndex();
                     DataStream updatedDataStream = originalDataStream.replaceBackingIndex(sourceIndex, rollupIndex);
                     metadataBuilder.put(updatedDataStream);
                 }
-                return ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();
+
+                // 6. Mark rollup index as "completed successfully" ("index.rollup.status": "success")
+                metadataBuilder.updateSettings(
+                    Settings.builder()
+                        .put(rollupIndexMetadata.getSettings())
+                        .put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.SUCCESS)
+                        .build(),
+                    rollupIndexName
+                );
+                currentState = ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();
+
+                // 7. Delete the source index
+                return metadataDeleteIndexService.deleteIndices(currentState, Collections.singleton(sourceIndex));
             }
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                // 7. Delete the source index
-                deleteSourceIndex(sourceIndexName, rollupIndexName, listener);
+                // 8. Refresh the rollup index
+                refreshIndex(rollupIndexName, listener);
             }
 
             @Override
@@ -436,37 +476,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         });
     }
 
-    private void finalizeRollupIndex(final String rollupIndex, ActionListener<AcknowledgedResponse> listener) {
-        submitUnbatchedTask("finalize-rollup-index", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                Metadata metadata = currentState.metadata();
-                IndexMetadata rollupIndexMetadata = metadata.index(rollupIndex);
-                Metadata.Builder newMetadata = Metadata.builder(metadata)
-                    .updateSettings(
-                        Settings.builder()
-                            .put(rollupIndexMetadata.getSettings())
-                            .put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.SUCCESS)
-                            .build(),
-                        rollupIndex
-                    );
-
-                return ClusterState.builder(currentState).metadata(newMetadata.build()).build();
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                // 9. Refresh rollup index
-                refreshIndex(rollupIndex, listener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(new ElasticsearchException("Failed to finalize the rollup state for index [" + rollupIndex + "]", e));
-            }
-        });
-    }
-
     private void refreshIndex(String index, ActionListener<AcknowledgedResponse> listener) {
         client.admin()
             .indices()
@@ -477,31 +486,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     e -> listener.onFailure(new ElasticsearchException("Failed to refresh index [" + index + "]", e))
                 )
             );
-    }
-
-    private void deleteSourceIndex(final String sourceIndex, final String rollupIndex, ActionListener<AcknowledgedResponse> listener) {
-        client.admin().indices().delete(new DeleteIndexRequest(sourceIndex), new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                if (acknowledgedResponse.isAcknowledged()) {
-                    // Source index was deleted successfully.
-                    // 8. Finalize the rollup index by setting its state to SUCCESS
-                    finalizeRollupIndex(rollupIndex, listener);
-                } else {
-                    onFailure(new ElasticsearchException("Failed to delete source index [" + sourceIndex + "]"));
-                }
-            }
-
-            @Override
-            public void onFailure(Exception deleteException) {
-                deleteRollupIndex(
-                    sourceIndex,
-                    rollupIndex,
-                    listener,
-                    new ElasticsearchException("Failed to delete source index [" + sourceIndex + "].", deleteException)
-                );
-            }
-        });
     }
 
     private void deleteRollupIndex(String sourceIndex, String rollupIndex, ActionListener<AcknowledgedResponse> listener, Exception e) {
@@ -525,5 +509,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
+        // clusterService.submitStateUpdateTask(
+        // source,
+        // task,
+        // ClusterStateTaskConfig.build(task.priority(), task.timeout()),
+        // STATE_UPDATE_TASK_EXECUTOR
+        // );
     }
 }

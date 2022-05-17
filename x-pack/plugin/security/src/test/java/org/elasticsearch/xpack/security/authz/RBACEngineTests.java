@@ -102,6 +102,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -1463,11 +1464,43 @@ public class RBACEngineTests extends ESTestCase {
         String... clusterPrivileges
     ) throws Exception {
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(clusterPrivileges, indicesPrivileges, appPrivileges, true);
+        final PlainActionFuture<PrivilegesCheckResult> future2 = new PlainActionFuture<>();
+        final PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(
+            clusterPrivileges,
+            indicesPrivileges,
+            appPrivileges,
+            randomBoolean()
+        );
         engine.checkPrivileges(authorizationInfo, privilegesToCheck, applicationPrivilegeDescriptors, future);
-        final PrivilegesCheckResult response = future.get();
-        assertThat(response, notNullValue());
-        return response;
+        // flip the "runDetailedCheck" flag
+        engine.checkPrivileges(
+            authorizationInfo,
+            new PrivilegesToCheck(
+                privilegesToCheck.cluster(),
+                privilegesToCheck.index(),
+                privilegesToCheck.application(),
+                false == privilegesToCheck.runDetailedCheck()
+            ),
+            applicationPrivilegeDescriptors,
+            future2
+        );
+
+        final PrivilegesCheckResult privilegesCheckResult = future.get();
+        assertThat(privilegesCheckResult, notNullValue());
+        final PrivilegesCheckResult privilegesCheckResult2 = future2.get();
+        assertThat(privilegesCheckResult2, notNullValue());
+
+        assertThat(privilegesCheckResult.allChecksSuccess(), is(privilegesCheckResult2.allChecksSuccess()));
+
+        if (privilegesToCheck.runDetailedCheck()) {
+            assertThat(privilegesCheckResult.getDetails(), notNullValue());
+            assertThat(privilegesCheckResult2.getDetails(), nullValue());
+            return privilegesCheckResult;
+        } else {
+            assertThat(privilegesCheckResult.getDetails(), nullValue());
+            assertThat(privilegesCheckResult2.getDetails(), notNullValue());
+            return privilegesCheckResult2;
+        }
     }
 
     private static MapBuilder<String, Boolean> mapBuilder() {

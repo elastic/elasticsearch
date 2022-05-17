@@ -36,7 +36,7 @@ public interface IndexSettingProvider {
      * @param resolvedAt               The time the request to create this new index was accepted.
      * @param allSettings              All the setting resolved from the template that matches and any setting defined on the create index
      *                                 request
-     * @param combinedTemplateMappings
+     * @param combinedTemplateMappings All the mappings resolved from the template that matches
      */
     Settings getAdditionalIndexSettings(
         String indexName,
@@ -51,12 +51,7 @@ public interface IndexSettingProvider {
     /**
      * Infrastructure class that holds services that can be used by {@link IndexSettingProvider} instances.
      */
-    class Parameters {
+    record Parameters(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
 
-        public final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
-
-        public Parameters(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
-            this.mapperServiceFactory = mapperServiceFactory;
-        }
     }
 }

@@ -34,13 +34,18 @@ import java.util.Locale;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
+/**
+ * An {@link IndexSettingProvider} implementation that adds the index.time_series.start_time,
+ * index.time_series.end_time and index.routing_path index settings to backing indices of
+ * data streams in time series index mode.
+ */
 public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
 
     static final DateFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
 
-    public DataStreamIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
+    DataStreamIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
         this.mapperServiceFactory = mapperServiceFactory;
     }
 
@@ -118,13 +123,15 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         return Settings.EMPTY;
     }
 
-    // Find fields in mapping that are of type keyword and time_series_dimension enabled.
-    // Using MapperService here has an overhead, but allows the mappings from template to
-    // be merged correctly and fetching the fields without manually parsing the mappings.
-    //
-    // Alternatively this method can instead parse mappings into map of maps and merge that and
-    // iterate over all values to find the field that can serve as routing value. But this requires
-    // mapping specific logic to exist here.
+    /**
+     * Find fields in mapping that are of type keyword and time_series_dimension enabled.
+     * Using MapperService here has an overhead, but allows the mappings from template to
+     * be merged correctly and fetching the fields without manually parsing the mappings.
+     *
+     * Alternatively this method can instead parse mappings into map of maps and merge that and
+     * iterate over all values to find the field that can serve as routing value. But this requires
+     * mapping specific logic to exist here.
+     */
     private List<String> findRoutingPaths(String indexName, Settings allSettings, List<CompressedXContent> combinedTemplateMappings) {
         var tmpIndexMetadata = IndexMetadata.builder(indexName);
 

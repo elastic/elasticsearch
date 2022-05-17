@@ -60,7 +60,7 @@ sudo mkdir -p /elasticsearch/qa/ && sudo chown jenkins /elasticsearch/qa/ && ln 
 
 # Ensure since we're running as root that we can do git operations in this directory
 # See: https://git-scm.com/docs/git-config/2.35.2#Documentation/git-config.txt-safedirectory
-sudo git config --global --add safe.directory $WORKSPACE
+git config --global --add safe.directory $WORKSPACE
 
 # sudo sets it's own PATH thus we use env to override that and call sudo annother time so we keep the secure root PATH
 # run with --continue to run both bats and java tests even if one fails

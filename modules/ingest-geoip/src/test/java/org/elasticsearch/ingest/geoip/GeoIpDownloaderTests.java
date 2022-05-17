@@ -461,19 +461,20 @@ public class GeoIpDownloaderTests extends ESTestCase {
         assertFalse(it.hasNext());
     }
 
-    public void testUpdateDatabasesWriteBlock() throws IOException {
+    public void testUpdateDatabasesWriteBlock() {
         ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
+        var geoIpIndex = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
         state = ClusterState.builder(state)
-            .blocks(
-                new ClusterBlocks.Builder().addIndexBlock(GeoIpDownloader.DATABASES_INDEX, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
-            )
+            .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .build();
         when(clusterService.state()).thenReturn(state);
         var e = expectThrows(ClusterBlockException.class, () -> geoIpDownloader.updateDatabases());
         assertThat(
             e.getMessage(),
             equalTo(
-                "index [.geoip_databases] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, "
+                "index ["
+                    + geoIpIndex
+                    + "] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, "
                     + "index has read-only-allow-delete block];"
             )
         );

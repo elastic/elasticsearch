@@ -12,9 +12,6 @@ package org.elasticsearch.search.aggregations.matrix.stats;
  * helpers for some aggs in the MatrixStats package
  */
 public class MatrixAggregationInspectionHelper {
-
-    private MatrixAggregationInspectionHelper() {}
-
     public static boolean hasValue(InternalMatrixStats agg) {
         return agg.getResults() != null;
     }

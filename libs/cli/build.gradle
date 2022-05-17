@@ -22,6 +22,5 @@ tasks.named('forbiddenApisMain').configure {
 }
 
 tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-requires-automatic,-requires-transitive-automatic")
-  options.compilerArgs.add("-Xlint:-exports") // requires transitive core
+  options.compilerArgs.add("-Xlint:-exports,-requires-automatic,-requires-transitive-automatic")
 }

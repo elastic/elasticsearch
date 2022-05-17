@@ -67,7 +67,7 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-exports") // requires transitive core
+  options.compilerArgs.add("-Xlint:-exports")
 }
 
 File generatedResourcesDir = new File(buildDir, 'generated-resources')

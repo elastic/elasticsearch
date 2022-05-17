@@ -45,8 +45,7 @@ dependencies {
 }
 
 tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-exports,-missing-explicit-ctor,-requires-automatic")
-  options.compilerArgs.add("-Xlint:-module") // module name ends with a digit
+  options.compilerArgs.add("-Xlint:-module,-exports,-missing-explicit-ctor,-requires-automatic")
 }
 
 restResources {

@@ -55,7 +55,7 @@ restResources {
 }
 
 tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-requires-automatic,-exports,-missing-explicit-ctor")
+  options.compilerArgs.add("-Xlint:-exports,-requires-automatic,-missing-explicit-ctor")
 }
 
 tasks.named("test").configure {

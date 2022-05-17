@@ -20,5 +20,5 @@ restResources {
 }
 
 tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-exports") // requires transitive
+  options.compilerArgs.add("-Xlint:-exports,-missing-explicit-ctor")
 }

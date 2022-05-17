@@ -33,7 +33,5 @@ tasks.named("thirdPartyAudit").configure {
 }
 
 tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-requires-automatic,-requires-transitive-automatic")
-  options.compilerArgs.add("-Xlint:-exports")
-  options.compilerArgs.add("-Xlint:-module") // module name, lz4, has terminal digits
+  options.compilerArgs.add("-Xlint:-module,-exports,-requires-automatic,-requires-transitive-automatic")
 }

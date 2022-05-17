@@ -23,9 +23,9 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.support.FileRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
+import org.elasticsearch.xpack.core.security.support.Validation.Users;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.FileReloadListener;
 import org.elasticsearch.xpack.security.support.SecurityFiles;
@@ -158,7 +158,7 @@ public class FileUserPasswdStore {
                 continue;
             }
             String username = line.substring(0, i);
-            Validation.Error validationError = FileRealmValidationUtil.validateUsername(username, allowReserved, settings);
+            Validation.Error validationError = Users.validateUsername(username, allowReserved, settings);
             if (validationError != null) {
                 logger.error(
                     "invalid username [{}] in users file [{}], skipping... ({})",

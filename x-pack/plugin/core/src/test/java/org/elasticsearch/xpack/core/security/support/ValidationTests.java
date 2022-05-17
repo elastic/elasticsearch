@@ -133,7 +133,7 @@ public class ValidationTests extends ESTestCase {
         '\r'
     );
 
-    private static final int MAX_NAME_LENGTH = NativeRealmValidationUtil.MAX_NAME_LENGTH;
+    private static final int MAX_NAME_LENGTH = Validation.MAX_NAME_LENGTH;
 
     public void testUsernameValid() throws Exception {
         int length = randomIntBetween(Validation.MIN_NAME_LENGTH, MAX_NAME_LENGTH);

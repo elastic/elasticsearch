@@ -20,7 +20,6 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.support.FileRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.security.support.SecurityFiles;
@@ -142,7 +141,7 @@ public class FileUserRolesStore {
                 continue;
             }
             String role = line.substring(0, i).trim();
-            Validation.Error validationError = FileRealmValidationUtil.validateRoleName(role, true);
+            Validation.Error validationError = Validation.Roles.validateRoleName(role, true);
             if (validationError != null) {
                 logger.error(
                     "invalid role entry in users_roles file [{}], line [{}] - {}. skipping...",

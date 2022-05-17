@@ -17,7 +17,8 @@ import java.util.regex.Pattern;
 
 public final class Validation {
 
-    public static final int MIN_NAME_LENGTH = 1;
+    static final int MIN_NAME_LENGTH = 1;
+    static final int MAX_NAME_LENGTH = 1024;
 
     public static final Set<Character> VALID_NAME_CHARS = Set.of(
         ' ',
@@ -174,9 +175,12 @@ public final class Validation {
          * @param username the username to validate
          * @param allowReserved whether or not to allow reserved user names
          * @param settings the settings which may contain information about reserved users
-         * @param maxLength the maximal allowed length a username can have
          * @return {@code null} if valid
          */
+        public static Error validateUsername(String username, boolean allowReserved, Settings settings) {
+            return validateUsername(username, allowReserved, settings, MAX_NAME_LENGTH);
+        }
+
         static Error validateUsername(String username, boolean allowReserved, Settings settings, int maxLength) {
             if (username == null) {
                 return new Error("username is missing");
@@ -199,6 +203,10 @@ public final class Validation {
     }
 
     public static final class Roles {
+
+        public static Error validateRoleName(String roleName, boolean allowReserved) {
+            return validateRoleName(roleName, allowReserved, MAX_NAME_LENGTH);
+        }
 
         static Error validateRoleName(String roleName, boolean allowReserved, int maxLength) {
             if (roleName == null) {

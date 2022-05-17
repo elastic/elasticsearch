@@ -135,9 +135,10 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
         // Create the system index
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createIndex(nonPrimarySystemIndex));
-        assertThat(e.getMessage(),
-            equalTo("Cannot create system index with name " + nonPrimarySystemIndex+ "; descriptor primary index is " +
-                PRIMARY_INDEX_NAME));
+        assertThat(
+            e.getMessage(),
+            equalTo("Cannot create system index with name " + nonPrimarySystemIndex + "; descriptor primary index is " + PRIMARY_INDEX_NAME)
+        );
     }
 
     /**

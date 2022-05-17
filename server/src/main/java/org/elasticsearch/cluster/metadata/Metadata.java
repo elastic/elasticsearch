@@ -1321,6 +1321,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         private void maybeSetMappingPurgeFlag(@Nullable IndexMetadata previous, IndexMetadata updated) {
+            if (checkForUnusedMappings) {
+                return;
+            }
             if (previous == null) {
                 return;
             }

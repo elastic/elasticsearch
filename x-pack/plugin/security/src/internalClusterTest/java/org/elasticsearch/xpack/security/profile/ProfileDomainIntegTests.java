@@ -82,7 +82,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         assertThat(profile2.user().domainName(), equalTo("my_domain"));
         assertThat(profile2.user().email(), equalTo(RAC_USER_NAME + "@example.com"));
         assertThat(profile2.user().fullName(), nullValue());
-        assertThat(profile2.user().roles(), containsInAnyOrder(RAC_ROLE));
+        assertThat(profile2.user().roles(), containsInAnyOrder(RAC_ROLE, NATIVE_RAC_ROLE));
 
         // Activate 3rd time with the file realm user again and it should get the same profile
         // User fields are updated to the file user's info again

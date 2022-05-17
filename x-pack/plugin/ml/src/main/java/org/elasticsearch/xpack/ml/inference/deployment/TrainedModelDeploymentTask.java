@@ -114,7 +114,13 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         );
     }
 
-    public void infer(Map<String, Object> doc, InferenceConfigUpdate update, TimeValue timeout, ActionListener<InferenceResults> listener) {
+    public void infer(
+        Map<String, Object> doc,
+        InferenceConfigUpdate update,
+        boolean skipQueue,
+        TimeValue timeout,
+        ActionListener<InferenceResults> listener
+    ) {
         if (inferenceConfigHolder.get() == null) {
             listener.onFailure(ExceptionsHelper.conflictStatusException("Trained model [{}] is not initialized", params.getModelId()));
             return;
@@ -131,7 +137,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             );
             return;
         }
-        trainedModelAssignmentNodeService.infer(this, update.apply(inferenceConfigHolder.get()), doc, timeout, listener);
+        trainedModelAssignmentNodeService.infer(this, update.apply(inferenceConfigHolder.get()), doc, skipQueue, timeout, listener);
     }
 
     public Optional<ModelStats> modelStats() {

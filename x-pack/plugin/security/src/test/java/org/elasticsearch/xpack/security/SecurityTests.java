@@ -628,7 +628,7 @@ public class SecurityTests extends ESTestCase {
                 )
             )
             .build();
-        expectLogEvents(() -> Security.validateForFips(settings), Collections.emptyList());
+        expectLogs(Security.class, Collections.emptyList(), () -> Security.validateForFips(settings));
     }
 
     public void testValidateForFipsNonFipsCompliantHashAlgoWarningLog() throws IllegalAccessException {
@@ -637,7 +637,7 @@ public class SecurityTests extends ESTestCase {
             .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
             .put(key, randomNonFipsCompliantHashAlgo())
             .build();
-        expectLogEvents(() -> Security.validateForFips(settings), List.of(logEventForNonCompliantHash(key)));
+        expectLogs(Security.class, List.of(logEventForNonCompliantHash(key)), () -> Security.validateForFips(settings));
     }
 
     public void testValidateForMultipleNonFipsCompliantHashAlgoWarningLogs() throws IllegalAccessException {
@@ -648,9 +648,10 @@ public class SecurityTests extends ESTestCase {
             .put(firstKey, randomNonFipsCompliantHashAlgo())
             .put(secondKey, randomNonFipsCompliantHashAlgo())
             .build();
-        expectLogEvents(
-            () -> Security.validateForFips(settings),
-            List.of(logEventForNonCompliantHash(firstKey), logEventForNonCompliantHash(secondKey))
+        expectLogs(
+            Security.class,
+            List.of(logEventForNonCompliantHash(firstKey), logEventForNonCompliantHash(secondKey)),
+            () -> Security.validateForFips(settings)
         );
     }
 
@@ -663,10 +664,10 @@ public class SecurityTests extends ESTestCase {
             .put(secondKey, randomNonFipsCompliantHashAlgo())
             .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")
             .build();
-        expectLogEvents(() -> {
+        expectLogs(Security.class, List.of(logEventForNonCompliantHash(firstKey), logEventForNonCompliantHash(secondKey)), () -> {
             final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
             assertThat(iae.getMessage(), containsString("JKS Keystores cannot be used in a FIPS 140 compliant JVM"));
-        }, List.of(logEventForNonCompliantHash(firstKey), logEventForNonCompliantHash(secondKey)));
+        });
     }
 
     private String randomNonFipsCompliantHashAlgo() {
@@ -690,14 +691,14 @@ public class SecurityTests extends ESTestCase {
         );
     }
 
-    private void expectLogEvents(Runnable block, List<MockLogAppender.SeenEventExpectation> loggingExpectations)
+    private void expectLogs(Class<?> clazz, List<MockLogAppender.AbstractEventExpectation> expected, Runnable block)
         throws IllegalAccessException {
         final MockLogAppender mockAppender = new MockLogAppender();
-        final Logger logger = LogManager.getLogger(Security.class);
+        final Logger logger = LogManager.getLogger(clazz);
         mockAppender.start();
         try {
             Loggers.addAppender(logger, mockAppender);
-            loggingExpectations.forEach(mockAppender::addExpectation);
+            expected.forEach(mockAppender::addExpectation);
             block.run();
             mockAppender.assertAllExpectationsMatched();
         } finally {
@@ -708,7 +709,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testValidateForFipsNoErrorsForDefaultSettings() throws IllegalAccessException {
         final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true).build();
-        expectLogEvents(() -> Security.validateForFips(settings), Collections.emptyList());
+        expectLogs(Security.class, Collections.emptyList(), () -> Security.validateForFips(settings));
     }
 
     public void testLicenseUpdateFailureHandlerUpdate() throws Exception {

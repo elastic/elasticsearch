@@ -37,6 +37,11 @@ if [ -f "/etc/os-release" ] ; then
     if [[ "$ID" == "debian" || "$ID_LIKE" == "debian" ]] ; then
         # FIXME: The base image should not have rpm installed
         sudo rm -Rf /usr/bin/rpm
+        # Work around incorrect lintian version
+        #  https://github.com/elastic/elasticsearch/issues/48573
+        if [ $VERSION_ID == 10 ] ; then
+            sudo apt-get install -y --allow-downgrades lintian=2.15.0
+        fi
     fi
 else
     cat /etc/issue || true

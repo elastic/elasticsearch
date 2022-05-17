@@ -10,6 +10,10 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -26,6 +30,11 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.UserAction;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -66,6 +75,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private final ClusterService clusterService;
     private final DiscoveryModule discoveryModule;
     private final MasterHistoryService masterHistoryService;
+    private final TransportService transportService;
+
     /**
      * This is the amount of time we use to make the initial decision -- have we seen a master node in the very recent past?
      */
@@ -129,10 +140,19 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         Setting.Property.NodeScope
     );
 
-    public StableMasterHealthIndicatorService(ClusterService clusterService, DiscoveryModule discoveryModule, MasterHistoryService masterHistoryService) {
+    private List<Scheduler.Cancellable> clusterFormationInfoTasks = List.of();
+    private final Map<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap = new HashMap<>();
+
+    public StableMasterHealthIndicatorService(
+        ClusterService clusterService,
+        DiscoveryModule discoveryModule,
+        MasterHistoryService masterHistoryService,
+        TransportService transportService
+    ) {
         this.clusterService = clusterService;
         this.discoveryModule = discoveryModule;
         this.masterHistoryService = masterHistoryService;
+        this.transportService = transportService;
         this.veryRecentPast = VERY_RECENT_PAST_SETTING.get(clusterService.getSettings());
         this.acceptableNullTransitions = ACCEPTABLE_NULL_TRANSITIONS_SETTING.get(clusterService.getSettings());
         this.acceptableIdentityChanges = ACCEPTABLE_IDENTITY_CHANGES_SETTING.get(clusterService.getSettings());
@@ -370,13 +390,16 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         HealthStatus stableMasterStatus;
         String summary;
         Map<String, Object> details = new HashMap<>();
-
+        Collection<HealthIndicatorImpact> impacts = getUnstableMasterImpacts();
+        List<UserAction> userActions = getContactSupportUserActions(explain);
         if (masterEligibleNodes.isEmpty()) {
             stableMasterStatus = HealthStatus.RED;
             summary = "No master eligible nodes found in the cluster";
             if (explain) {
-                details.put("recent_masters",
-                    localMasterHistory.getNodes().stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList());
+                details.put(
+                    "recent_masters",
+                    localMasterHistory.getNodes().stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList()
+                );
                 details.put("cluster_coordination", discoveryModule.getCoordinator().getClusterFormationState().getDescription());
             }
         } else {
@@ -384,20 +407,73 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             Optional<DiscoveryNode> currentMaster = peerFinder.getLeader();
             if (currentMaster.isPresent()) {
                 stableMasterStatus = HealthStatus.RED;
-                summary = String.format(Locale.ROOT, "%s has been elected master, but the node being queried, %s, is unable to join it",
-                    currentMaster.get(), clusterService.localNode());
+                summary = String.format(
+                    Locale.ROOT,
+                    "%s has been elected master, but the node being queried, %s, is unable to join it",
+                    currentMaster.get(),
+                    clusterService.localNode()
+                );
                 if (explain) {
                     List<DiscoveryNode> recentMasters = localMasterHistory.getNodes();
                     details.put("current_master", new DiscoveryNodeXContentObject(currentMaster.get()));
                     // Having the nulls in the recent masters xcontent list is not helpful, so we filter them out:
-                    details.put("recent_masters", recentMasters.stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList());
+                    details.put(
+                        "recent_masters",
+                        recentMasters.stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList()
+                    );
                     details.put("cluster_coordination", discoveryModule.getCoordinator().getClusterFormationState().getDescription());
                 }
             } else if (clusterService.localNode().isMasterNode() == false) { // none is elected master and we aren't master eligible
                 stableMasterStatus = HealthStatus.RED;
                 summary = "Something is very wrong";
             } else { // none is elected master and we are master eligible
-                // TODO: reach out to all master-eligible nodes to see if they have discovered each other, and if there's a quorum
+                for (Map.Entry<DiscoveryNode, ClusterFormationStateOrException> entry : nodeToClusterFormationStateMap.entrySet()) {
+                    if (entry.getValue().exception() != null) {
+                        return createIndicator(
+                            HealthStatus.RED,
+                            String.format(Locale.ROOT, "Exception reaching out to %s: %s", entry.getKey(), entry.getValue().exception()),
+                            explain ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
+                            impacts,
+                            userActions
+                        );
+                    }
+                }
+                Map<DiscoveryNode, List<DiscoveryNode>> nodesNotDiscoveredMap = new HashMap<>();
+                for (Map.Entry<DiscoveryNode, ClusterFormationStateOrException> entry : nodeToClusterFormationStateMap.entrySet()) {
+                    ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = entry.getValue().clusterFormationState();
+                    List<DiscoveryNode> foundPeersOnNode = clusterFormationState.getFoundPeers();
+                    if (foundPeersOnNode.containsAll(masterEligibleNodes) == false) {
+                        List<DiscoveryNode> nodesNotDiscovered = masterEligibleNodes.stream()
+                            .filter(node -> foundPeersOnNode.contains(node) == false)
+                            .toList();
+                        nodesNotDiscoveredMap.put(entry.getKey(), nodesNotDiscovered);
+                    }
+                }
+                if (nodesNotDiscoveredMap.isEmpty() == false) {
+                    return createIndicator(
+                        HealthStatus.RED,
+                        String.format(Locale.ROOT, "Some master eligible nodes have not discovered other master eligible nodes"),
+                        explain ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
+                        impacts,
+                        userActions
+                    );
+                }
+                List<String> quorumProblems = new ArrayList<>();
+                for (Map.Entry<DiscoveryNode, ClusterFormationStateOrException> entry : nodeToClusterFormationStateMap.entrySet()) {
+                    ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = entry.getValue().clusterFormationState();
+                    if (clusterFormationState.hasDiscoveredQuorum() == false) {
+                        quorumProblems.add(clusterFormationState.getDescription());
+                    }
+                }
+                if (quorumProblems.isEmpty() == false) {
+                    return createIndicator(
+                        HealthStatus.RED,
+                        String.format(Locale.ROOT, "Master eligible nodes cannot form a quorum"),
+                        explain ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
+                        impacts,
+                        userActions
+                    );
+                }
                 stableMasterStatus = HealthStatus.RED;
                 summary = "Something is very wrong";
             }
@@ -406,8 +482,6 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             // Else if none is elected master and we are master eligible
         }
 
-        Collection<HealthIndicatorImpact> impacts = getUnstableMasterImpacts();
-        List<UserAction> userActions = getContactSupportUserActions(explain);
         return createIndicator(
             stableMasterStatus,
             summary,
@@ -436,6 +510,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 masterEligibleNodes.add(node);
             }
         });
+        if (clusterService.localNode().isMasterNode()) {
+            masterEligibleNodes.add(clusterService.localNode());
+        }
         return masterEligibleNodes;
     }
 
@@ -462,6 +539,86 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 }
             }
         }
+        if (currentMaster == null && clusterService.localNode().isMasterNode()) {
+            beginPollingClusterFormationInfo();
+        } else { // if already polling, stop polling
+            cancelPollingClusterFormationInfo();
+        }
+    }
+
+    private void cancelPollingClusterFormationInfo() {
+        clusterFormationInfoTasks.forEach(Scheduler.Cancellable::cancel);
+    }
+
+    private void beginPollingClusterFormationInfo() {
+        cancelPollingClusterFormationInfo();
+        clusterFormationInfoTasks = getMasterEligibleNodes().stream()
+            .map(this::beginPollingClusterFormationInfo)
+            .collect(Collectors.toList());
+    }
+
+    private Scheduler.Cancellable beginPollingClusterFormationInfo(DiscoveryNode node) {
+        return Scheduler.wrapAsCancellable(transportService.getThreadPool().scheduler().scheduleAtFixedRate(() -> {
+            long startTime = System.nanoTime();
+            transportService.openConnection(
+                // Note: This connection must be explicitly closed below
+                node,
+                ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Transport.Connection connection) {
+                        Version minSupportedVersion = Version.V_8_3_0;
+                        if (connection.getVersion().onOrAfter(minSupportedVersion)) { // This was introduced in 8.3.0
+                            logger.trace("Opened connection to {}, making master history request", node);
+                            // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
+                            final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
+                            transportService.sendRequest(
+                                node,
+                                ClusterFormationInfoAction.NAME,
+                                new ClusterFormationInfoAction.Request(),
+                                TransportRequestOptions.timeout(transportTimeout),
+                                new ActionListenerResponseHandler<>(ActionListener.runBefore(new ActionListener<>() {
+
+                                    @Override
+                                    public void onResponse(ClusterFormationInfoAction.Response response) {
+                                        long endTime = System.nanoTime();
+                                        logger.trace(
+                                            "Received cluster coordination info from {} in {}",
+                                            node,
+                                            TimeValue.timeValueNanos(endTime - startTime)
+                                        );
+                                        nodeToClusterFormationStateMap.put(
+                                            node,
+                                            new ClusterFormationStateOrException(response.getClusterFormationState())
+                                        );
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        logger.warn("Exception in master history request to master node", e);
+                                        nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
+                                    }
+                                }, connection::close), ClusterFormationInfoAction.Response::new)
+                            );
+                        } else {
+                            connection.close();
+                            logger.trace(
+                                "Cannot get master history for {} because it is at version {} and {} is required",
+                                node,
+                                connection.getVersion(),
+                                minSupportedVersion
+                            );
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("Exception connecting to master node", e);
+                        nodeToClusterFormationStateMap.put(node, new ClusterFormationStateOrException(e));
+                    }
+                }
+            );
+        }, 0, 10, TimeUnit.SECONDS));
     }
 
     /**
@@ -481,6 +638,27 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 builder.endObject();
             }
             return builder;
+        }
+    }
+
+    record ClusterFormationStateOrException(
+        ClusterFormationFailureHelper.ClusterFormationState clusterFormationState,
+        Exception exception
+    ) { // non-private
+        // for testing
+
+        public ClusterFormationStateOrException {
+            if (clusterFormationState != null && exception != null) {
+                throw new IllegalArgumentException("Cluster formation state and exception cannot both be non-null");
+            }
+        }
+
+        ClusterFormationStateOrException(ClusterFormationFailureHelper.ClusterFormationState clusterFormationState) {
+            this(clusterFormationState, null);
+        }
+
+        ClusterFormationStateOrException(Exception exception) {
+            this(null, exception);
         }
     }
 }

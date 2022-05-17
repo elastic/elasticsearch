@@ -1569,7 +1569,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         return this.joinHelper;
     }
 
-
     /**
      * If there is any current committed publication, this method cancels it.
      * This method is used exclusively by tests.

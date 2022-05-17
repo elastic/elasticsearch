@@ -24,6 +24,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -359,6 +360,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
         DiscoveryModule discoveryModule = mock(DiscoveryModule.class);
-        return new StableMasterHealthIndicatorService(clusterService, discoveryModule, masterHistoryService);
+        TransportService transportService = mock(TransportService.class);
+        return new StableMasterHealthIndicatorService(clusterService, discoveryModule, masterHistoryService, transportService);
     }
 }

@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -109,11 +111,11 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testSwitchAndExecuteXpackSecurityUser() throws Exception {
-        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_ORIGIN, XPackSecurityUser.INSTANCE);
+        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_ORIGIN, XPackSecurityUser.INSTANCE, randomVersion());
     }
 
     public void testSwitchAndExecuteSecurityProfileUser() throws Exception {
-        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_PROFILE_ORIGIN, SecurityProfileUser.INSTANCE);
+        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_PROFILE_ORIGIN, SecurityProfileUser.INSTANCE, randomVersion());
     }
 
     public void testSwitchAndExecuteXpackUser() throws Exception {
@@ -125,20 +127,20 @@ public class AuthorizationUtilsTests extends ESTestCase {
             PersistentTasksService.PERSISTENT_TASK_ORIGIN,
             ClientHelper.INDEX_LIFECYCLE_ORIGIN
         )) {
-            assertSwitchBasedOnOriginAndExecute(origin, XPackUser.INSTANCE);
+            assertSwitchBasedOnOriginAndExecute(origin, XPackUser.INSTANCE, randomVersion());
         }
     }
 
     public void testSwitchAndExecuteAsyncSearchUser() throws Exception {
         String origin = ClientHelper.ASYNC_SEARCH_ORIGIN;
-        assertSwitchBasedOnOriginAndExecute(origin, AsyncSearchUser.INSTANCE);
+        assertSwitchBasedOnOriginAndExecute(origin, AsyncSearchUser.INSTANCE, randomVersion());
     }
 
     public void testSwitchWithTaskOrigin() throws Exception {
-        assertSwitchBasedOnOriginAndExecute(TASKS_ORIGIN, XPackUser.INSTANCE);
+        assertSwitchBasedOnOriginAndExecute(TASKS_ORIGIN, XPackUser.INSTANCE, randomVersion());
     }
 
-    private void assertSwitchBasedOnOriginAndExecute(String origin, User user) throws Exception {
+    private void assertSwitchBasedOnOriginAndExecute(String origin, User user, Version version) throws Exception {
         SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         final String headerName = randomAlphaOfLengthBetween(4, 16);
         final String headerValue = randomAlphaOfLengthBetween(4, 16);
@@ -147,23 +149,30 @@ public class AuthorizationUtilsTests extends ESTestCase {
         final ActionListener<Void> listener = ActionListener.wrap(v -> {
             assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getHeader(headerName));
-            assertEquals(user, securityContext.getAuthentication().getUser());
+            final Authentication authentication = securityContext.getAuthentication();
+            assertEquals(user, authentication.getUser());
+            assertEquals(version, authentication.getVersion());
             latch.countDown();
         }, e -> fail(e.getMessage()));
 
         final Consumer<ThreadContext.StoredContext> consumer = original -> {
             assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getHeader(headerName));
-            assertEquals(user, securityContext.getAuthentication().getUser());
+            final Authentication authentication = securityContext.getAuthentication();
+            assertEquals(user, authentication.getUser());
+            assertEquals(version, authentication.getVersion());
             latch.countDown();
             listener.onResponse(null);
         };
 
         threadContext.putHeader(headerName, headerValue);
         try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(origin)) {
-            AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, consumer);
+            AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, version, consumer);
             latch.await();
         }
     }
 
+    private Version randomVersion() {
+        return VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+    }
 }

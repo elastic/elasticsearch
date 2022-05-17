@@ -39,7 +39,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -121,8 +120,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(eagerGlobalOrdinals, relations, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { eagerGlobalOrdinals, relations, meta };
         }
 
         @Override

@@ -149,8 +149,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 fixed,
                 fixed2,
                 variable,
@@ -161,8 +161,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 searchAnalyzer,
                 required,
                 enumField,
-                restrictedEnumField
-            );
+                restrictedEnumField };
         }
 
         @Override

@@ -38,8 +38,8 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(enabled);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { enabled };
         }
 
         @Override

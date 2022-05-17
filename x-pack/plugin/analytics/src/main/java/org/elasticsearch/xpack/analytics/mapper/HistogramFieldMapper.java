@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -91,8 +90,8 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(ignoreMalformed, meta, metric);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { ignoreMalformed, meta, metric };
         }
 
         @Override

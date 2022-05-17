@@ -178,8 +178,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(ignoreMalformed, metrics, defaultMetric, meta, timeSeriesMetric);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { ignoreMalformed, metrics, defaultMetric, meta, timeSeriesMetric };
         }
 
         public Builder metric(MetricType metric) {

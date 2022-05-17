@@ -84,11 +84,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
+        protected Parameter<?>[] getParameters() {
             if (IndexSettings.isTimeSeriesModeEnabled()) {
-                return List.of(enabled, synthetic, includes, excludes);
+                return new Parameter<?>[] { enabled, synthetic, includes, excludes };
             }
-            return List.of(enabled, includes, excludes);
+            return new Parameter<?>[] { enabled, includes, excludes };
         }
 
         @Override

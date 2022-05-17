@@ -47,7 +47,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -99,8 +98,17 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(hasDocValues, indexed, stored, ignoreMalformed, ignoreZValue, nullValue, script, onScriptError, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
+                hasDocValues,
+                indexed,
+                stored,
+                ignoreMalformed,
+                ignoreZValue,
+                nullValue,
+                script,
+                onScriptError,
+                meta };
         }
 
         public Builder docValues(boolean hasDocValues) {

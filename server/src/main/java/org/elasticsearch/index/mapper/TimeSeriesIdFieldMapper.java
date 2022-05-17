@@ -33,7 +33,6 @@ import java.net.InetAddress;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.SortedMap;
@@ -75,13 +74,14 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     }
 
     public static class Builder extends MetadataFieldMapper.Builder {
+
         protected Builder() {
             super(NAME);
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of();
+        protected Parameter<?>[] getParameters() {
+            return EMPTY_PARAMETERS;
         }
 
         @Override

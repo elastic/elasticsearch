@@ -91,10 +91,12 @@ public class ReproduceInfoPrinter extends RunListener {
         GradleMessageBuilder gradleMessageBuilder = new GradleMessageBuilder(b);
         gradleMessageBuilder.appendAllOpts(failure.getDescription());
 
-        if(isRestApiCompatibilityTest(task)) {
+        if (isRestApiCompatibilityTest(task)) {
             b.append(System.lineSeparator());
-            b.append("This is a Rest Api Compatibility Test. " +
-                "See the developers guide for details how to troubleshoot - REST_API_COMPATIBILITY.md");
+            b.append(
+                "This is a Rest Api Compatibility Test. "
+                    + "See the developers guide for details how to troubleshoot - REST_API_COMPATIBILITY.md"
+            );
         }
         printToErr(b.toString());
     }

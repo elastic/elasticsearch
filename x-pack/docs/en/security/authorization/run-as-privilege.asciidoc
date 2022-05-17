@@ -2,7 +2,7 @@
 [[run-as-privilege]]
 = Submitting requests on behalf of other users
 
-The {es} {security-features} support a permission that enables an authenticated
+The {es} {security-features} support a privilege that enables an authenticated
 user to submit requests on behalf of other users. If your application already 
 authenticates users, you can use the _run as_ mechanism to restrict data access
 according to {es} permissions without having to re-authenticate each user.
@@ -17,13 +17,32 @@ to <<ref-ad-settings,configure a `bind_dn` and `secure_bind_password`>>.
 The Kerberos, OpenID Connect, PKI, and SAML realms do not support _run as_.
 
 To submit requests on behalf of other users, you need to have the `run_as`
-permission. For example, the following role grants permission to submit request
-on behalf of `jacknich` or `redeniro`:
+privilege in your <<defining-roles,roles>>. For example, the following request
+creates a `my_director` role that grants permission to submit request on behalf
+of `jacknich` or `redeniro`:
 
-[source,js]
+[source,console]
 ----
+POST /_security/role/my_director?refresh=true
 {
-  "run_as" : [ "jacknich", "rdeniro" ]
+  "cluster": ["manage"],
+  "indices": [
+    {
+      "names": [ "index1", "index2" ],
+      "privileges": [ "manage" ]
+    }
+  ],
+  "applications": [
+    {
+      "application": "myapp",
+      "privileges": [ "admin", "read" ],
+      "resources": [ "*" ]
+    }
+  ],
+  "run_as": [ "jacknich", "rdeniro" ],
+  "metadata" : {
+    "version" : 1
+  }
 }
 ----
 
@@ -32,8 +51,9 @@ To submit a request as another user, you specify the user in the
 
 [source,shell]
 ----
-curl -H "es-security-runas-user: jacknich"  -u es_admin -XGET 'http://localhost:9200/'
+curl -H "es-security-runas-user: jacknich"  -u <username> -X GET 'http://localhost:9200/'
 ----
+// NOTCONSOLE
 
 [[run-as-privilege-apply]]
 == Apply the `run_as` privilege to roles
@@ -139,4 +159,31 @@ POST /_security/user/analyst_user?refresh=true
   "full_name": "Monday Jaffe",
   "metadata": { "innovation" : 8}
 }
+----
+
+Let's say you have a bearer token that you created using the 
+<<security-api-get-token,get token API>>. These tokens are created by the
+{es} Token Service, but you can get a bearer token from another realm such as
+the JWT realm. You include the bearer token in the `Authorization` header when
+making requests to {es}. If you make a request to {es} and also include the
+`es-security-runas-user` request header, you can specify the `run_as` user that
+you want to submit requests on behalf of. 
+
+The following request authenticates to {es} with a bearer token and submits the
+request as the `analyst_user`
+
+[source,sh]
+----
+curl -s -X GET -H "Authorization: Bearer g8HpAxZVcUY1X2taaVFhMkdMbzRnUGd0TjdnAAAAAAAAAAAA" -H "es-security-runas-user: analyst_user" https://localhost:9200/_security/_authenticate
+----
+// NOTCONSOLE
+
+The response indicates that the `analyst_user` submitted this request:
+
+[source,sh]
+----
+{"username":"analyst_user","roles":["my_analyst_role"],"full_name":"Monday Jaffe",
+"email":null,"metadata":{"innovation":8},"enabled":true,"authentication_realm":
+{"name":"native","type":"native"},"lookup_realm":{"name":"native","type":"native"},
+"authentication_type":"token"}%   
 ----

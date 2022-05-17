@@ -1424,11 +1424,11 @@ public class Security extends Plugin
             String setting = cacheHashAlgoSettings.get(key);
             assert setting != null;
             String hashAlgoName = setting.toLowerCase(Locale.ROOT);
-            if (hashAlgoName.equals("sha1") == false
-                && hashAlgoName.equals("ssha256") == false
+            if (hashAlgoName.equals("ssha256") == false
+                && hashAlgoName.equals("sha1") == false
                 && hashAlgoName.startsWith("pbkdf2") == false) {
                 logger.warn(
-                    "Only SHA1, SSHA256, or PBKDF2 are allowed for securing hashing in a FIPS 140 JVM. "
+                    "Only SSHA256, SHA1, or PBKDF2 are allowed for secure hashing in a FIPS 140 JVM. "
                         + "Please change the [{}] setting from [{}] to an appropriate value.",
                     key,
                     hashAlgoName

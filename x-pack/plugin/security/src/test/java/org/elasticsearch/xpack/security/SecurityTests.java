@@ -684,7 +684,7 @@ public class SecurityTests extends ESTestCase {
             "hash algo not fips compliant",
             Security.class.getName(),
             Level.WARN,
-            "Only SHA1, SSHA256, or PBKDF2 are allowed for securing hashing in a FIPS 140 JVM. "
+            "Only SSHA256, SHA1, or PBKDF2 are allowed for secure hashing in a FIPS 140 JVM. "
                 + "Please change the ["
                 + settingKey
                 + "] setting from [*] to an appropriate value."

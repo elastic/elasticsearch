@@ -396,6 +396,7 @@ public class BulkProcessor implements Closeable {
      */
     public boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
         lock.lock();
+        Tuple<BulkRequest, Long> bulkRequestToExecute;
         try {
             if (closed) {
                 return true;
@@ -404,16 +405,19 @@ public class BulkProcessor implements Closeable {
 
             this.cancellableFlushTask.cancel();
 
-            if (bulkRequest.numberOfActions() > 0) {
-                execute();
-            }
-            try {
-                return this.bulkRequestHandler.awaitClose(timeout, unit);
-            } finally {
-                onClose.run();
-            }
+            bulkRequestToExecute = maybeGetBulkRequestForFlush();
         } finally {
             lock.unlock();
+        }
+
+        if (bulkRequestToExecute != null) {
+            execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
+        }
+
+        try {
+            return this.bulkRequestHandler.awaitClose(timeout, unit);
+        } finally {
+            onClose.run();
         }
     }
 
@@ -512,6 +516,7 @@ public class BulkProcessor implements Closeable {
 
     // needs to be executed under a lock
     private Tuple<BulkRequest, Long> newBulkRequestIfNeeded() {
+        assert lock.isHeldByCurrentThread();
         ensureOpen();
         if (isOverTheLimit() == false) {
             return null;
@@ -526,19 +531,20 @@ public class BulkProcessor implements Closeable {
         this.bulkRequestHandler.execute(bulkRequest, executionId);
     }
 
-    // needs to be executed under a lock
-    private void execute() {
-        if (flushSupplier.get()) {
-            final BulkRequest bulkRequest = this.bulkRequest;
-            final long executionId = executionIdGen.incrementAndGet();
-
-            this.bulkRequest = bulkRequestSupplier.get();
-            execute(bulkRequest, executionId);
+    @Nullable
+    private Tuple<BulkRequest, Long> maybeGetBulkRequestForFlush() {
+        assert lock.isHeldByCurrentThread();
+        if (flushSupplier.get() == false || bulkRequest.numberOfActions() == 0) {
+            return null;
         }
+        final BulkRequest bulkRequest = this.bulkRequest;
+        this.bulkRequest = bulkRequestSupplier.get();
+        return new Tuple<>(bulkRequest, executionIdGen.incrementAndGet());
     }
 
-    // needs to be executed under a lock
     private boolean isOverTheLimit() {
+        assert lock.isHeldByCurrentThread();
+
         if (bulkActions != -1 && bulkRequest.numberOfActions() >= bulkActions) {
             return true;
         }
@@ -553,13 +559,17 @@ public class BulkProcessor implements Closeable {
      */
     public void flush() {
         lock.lock();
+
+        final Tuple<BulkRequest, Long> bulkRequestToExecute;
         try {
             ensureOpen();
-            if (bulkRequest.numberOfActions() > 0) {
-                execute();
-            }
+            bulkRequestToExecute = maybeGetBulkRequestForFlush();
         } finally {
             lock.unlock();
+        }
+
+        if (bulkRequestToExecute != null) {
+            execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
         }
     }
 
@@ -567,16 +577,18 @@ public class BulkProcessor implements Closeable {
         @Override
         public void run() {
             lock.lock();
+            final Tuple<BulkRequest, Long> bulkRequestToExecute;
             try {
                 if (closed) {
                     return;
                 }
-                if (bulkRequest.numberOfActions() == 0) {
-                    return;
-                }
-                execute();
+                bulkRequestToExecute = maybeGetBulkRequestForFlush();
             } finally {
                 lock.unlock();
+            }
+
+            if (bulkRequestToExecute != null) {
+                execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
             }
         }
     }

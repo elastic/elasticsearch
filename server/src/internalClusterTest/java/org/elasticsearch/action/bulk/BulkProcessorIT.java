@@ -20,10 +20,17 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -43,6 +50,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BulkProcessorIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(MockTransportService.TestPlugin.class);
+    }
 
     public void testThatBulkProcessorCountIsCorrect() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
@@ -303,6 +315,109 @@ public class BulkProcessorIT extends ESIntegTestCase {
         }
 
         assertMultiGetResponse(multiGetRequestBuilder.get(), testDocs);
+    }
+
+    public void testSaturatingGenericThreadPoolDoNotProduceADeadlock() throws Exception {
+        final var dataNode = internalCluster().startDataOnlyNode();
+
+        final var client = internalCluster().client(internalCluster().getMasterName());
+        final var threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
+        final var maxGenericPoolSize = ((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.GENERIC)).getMaximumPoolSize();
+
+        final var index = "my-index";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setMapping("field", "type=text,analyzer=keyword")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.routing.allocation.require._name", dataNode)
+                        .build()
+                )
+        );
+
+        final var masterTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            internalCluster().getMasterName()
+        );
+        final var dataNodeTransportService = internalCluster().getInstance(TransportService.class, dataNode);
+        final var inFlightBulkRequest = new CountDownLatch(1);
+        final var firstBulkRequestSent = new AtomicBoolean();
+        masterTransportService.addSendBehavior(dataNodeTransportService, (connection, requestId, action, request, options) -> {
+            if (action.equals("indices:data/write/bulk[s]")) {
+                if (firstBulkRequestSent.compareAndSet(false, true)) {
+                    inFlightBulkRequest.countDown();
+                    // During network issues the bulk request would be retried eventually
+                    // and the retry can end up dispatched in the GENERIC thread pool
+                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulated");
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        final var concurrentFlushRunning = new CountDownLatch(2);
+        final var expectedSuccessfulBulkRequests = new CountDownLatch(3);
+        final var listener = new BulkProcessor.Listener() {
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {
+
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                expectedSuccessfulBulkRequests.countDown();
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                assert false : "Unexpected failure " + failure;
+            }
+        };
+        try (
+            var processor = BulkProcessor.builder(client::bulk, listener, "BulkProcessorIT")
+                .setConcurrentRequests(1)
+                .setBulkActions(-1)
+                .setFlushInterval(TimeValue.timeValueMillis(200))
+                .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.MB))
+                .setFlushCondition(() -> {
+                    concurrentFlushRunning.countDown();
+                    return true;
+                })
+                .build()
+        ) {
+            processor.add(
+                new IndexRequest(index).source(Requests.INDEX_CONTENT_TYPE, "field", randomRealisticUnicodeOfLengthBetween(1, 30))
+            );
+
+            inFlightBulkRequest.await();
+
+            processor.add(
+                new IndexRequest(index).source(Requests.INDEX_CONTENT_TYPE, "field", randomRealisticUnicodeOfLengthBetween(1, 30))
+            );
+
+            concurrentFlushRunning.await();
+
+            // Saturate the GENERIC thread pool with BulkProcessor#add tasks
+            for (int i = 0; i < maxGenericPoolSize; i++) {
+                threadPool.executor(ThreadPool.Names.GENERIC)
+                    .submit(
+                        () -> {
+                            processor.add(
+                                new IndexRequest(index).source(
+                                    Requests.INDEX_CONTENT_TYPE,
+                                    "field",
+                                    randomRealisticUnicodeOfLengthBetween(1, 30)
+                                )
+                            );
+                        }
+                    );
+            }
+
+            expectedSuccessfulBulkRequests.await();
+        }
     }
 
     private static MultiGetRequestBuilder indexDocs(Client client, BulkProcessor processor, int numDocs) throws Exception {

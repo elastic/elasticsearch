@@ -81,7 +81,7 @@ public final class Scripts {
 
     public static ScriptTemplate nullSafeSort(ScriptTemplate script) {
         String methodName;
-        if (script.outputType().name().equals("VERSION")) {
+        if (script.outputType() == DataTypes.VERSION) {
             methodName = "nullSafeSortVersion";
         } else if (script.outputType().isNumeric()) {
             methodName = "nullSafeSortNumeric";

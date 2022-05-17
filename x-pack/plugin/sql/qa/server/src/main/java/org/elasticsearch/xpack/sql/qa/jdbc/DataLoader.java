@@ -282,8 +282,26 @@ public class DataLoader {
             createIndex.startObject("properties");
             {
                 createIndex.startObject("id").field("type", "integer").endObject();
-                createIndex.startObject("version").field("type", "version").endObject();
-                createIndex.startObject("name").field("type", "text").endObject();
+                createIndex.startObject("version");
+                {
+                    createIndex.field("type", "version");
+                    createIndex.startObject("fields");
+                    {
+                        createIndex.startObject("raw").field("type", "keyword").endObject();
+                    }
+                    createIndex.endObject();
+                }
+                createIndex.endObject();
+                createIndex.startObject("name");
+                {
+                    createIndex.field("type", "text");
+                    createIndex.startObject("fields");
+                    {
+                        createIndex.startObject("raw").field("type", "keyword").endObject();
+                    }
+                    createIndex.endObject();
+                }
+                createIndex.endObject();
             }
             createIndex.endObject();
         }

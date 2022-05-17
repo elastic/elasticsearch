@@ -777,7 +777,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
     }
 
     public void testStringToVersion() {
-        Converter conversion = converterFor(KEYWORD, VERSION);
+        Converter conversion = converterFor(randomFrom(KEYWORD, TEXT), VERSION);
         assertNull(conversion.convert(null));
         assertEquals(new Version("2.1.4").toString(), conversion.convert("2.1.4").toString());
         assertEquals(new Version("2.1.4").toBytesRef(), ((Version) conversion.convert("2.1.4")).toBytesRef());
@@ -788,12 +788,13 @@ public class SqlDataTypeConverterTests extends ESTestCase {
     public void testVersionToString() {
         Source s = new Source(Location.EMPTY, "2.1.4");
         Source s2 = new Source(Location.EMPTY, "2.1.4-SNAPSHOT");
-        Converter stringToString = converterFor(VERSION, KEYWORD);
-        assertEquals("2.1.4", stringToString.convert(new Literal(s, "2.1.4", VERSION)));
-        assertEquals("2.1.4-SNAPSHOT", stringToString.convert(new Literal(s2, "2.1.4-SNAPSHOT", VERSION)));
-        Converter stringToIp = converterFor(KEYWORD, VERSION);
-        assertEquals("2.1.4", stringToString.convert(stringToIp.convert(new Literal(s, "2.1.4", KEYWORD))));
-        assertEquals("2.1.4-SNAPSHOT", stringToString.convert(stringToIp.convert(new Literal(s2, "2.1.4-SNAPSHOT", KEYWORD))));
+        final DataType stringType = randomFrom(KEYWORD, TEXT);
+        Converter versionToString = converterFor(VERSION, stringType);
+        assertEquals("2.1.4", versionToString.convert(new Literal(s, "2.1.4", VERSION)));
+        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(new Literal(s2, "2.1.4-SNAPSHOT", VERSION)));
+        Converter stringToVersion = converterFor(stringType, VERSION);
+        assertEquals("2.1.4", versionToString.convert(stringToVersion.convert(new Literal(s, "2.1.4", stringType))));
+        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(stringToVersion.convert(new Literal(s2, "2.1.4-SNAPSHOT", stringType))));
     }
 
     private DataType randomInterval() {

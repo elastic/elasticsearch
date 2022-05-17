@@ -73,21 +73,21 @@ public final class Comparisons {
             return null;
         }
         // typical number comparison
-        if (l instanceof Number && r instanceof Number) {
-            return compare((Number) l, (Number) r);
+        if (l instanceof Number lN && r instanceof Number rN) {
+            return compare(lN, rN);
         }
 
         // automatic conversion for versions
-        if (l instanceof Version && r instanceof String) {
-            return ((Version) l).compareTo(new Version((String) r));
+        if (l instanceof Version lV && r instanceof String rStr) {
+            return lV.compareTo(new Version(rStr));
         }
-        if (l instanceof String && r instanceof Version) {
-            return new Version((String) l).compareTo((Version) r);
+        if (l instanceof String lStr && r instanceof Version rV) {
+            return new Version(lStr).compareTo(rV);
         }
 
-        if (l instanceof Comparable && r instanceof Comparable) {
+        if (l instanceof Comparable lC && r instanceof Comparable) {
             try {
-                return Integer.valueOf(((Comparable) l).compareTo(r));
+                return Integer.valueOf(lC.compareTo(r));
             } catch (ClassCastException cce) {
                 // when types are not compatible, cce is thrown
                 // fall back to null

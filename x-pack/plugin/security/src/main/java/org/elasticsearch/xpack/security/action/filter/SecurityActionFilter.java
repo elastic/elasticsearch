@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.action.filter;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -105,6 +106,7 @@ public class SecurityActionFilter implements ActionFilter {
                 AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(
                     threadContext,
                     securityContext,
+                    Version.CURRENT, // current version since this is on the same node
                     (original) -> { applyInternal(task, chain, action, request, contextPreservingListener); }
                 );
             } else {

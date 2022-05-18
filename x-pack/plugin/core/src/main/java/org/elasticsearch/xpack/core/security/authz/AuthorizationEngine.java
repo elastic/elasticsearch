@@ -254,7 +254,6 @@ public interface AuthorizationEngine {
         }
     }
 
-
     /**
      * This encapsulates the privileges that can be checked for access. It's intentional that the privileges to be checked are specified
      * in the same manner that they are granted in the {@link RoleDescriptor}. The privilege check can be detailed or not, per the

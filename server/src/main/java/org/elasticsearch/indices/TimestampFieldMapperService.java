@@ -119,7 +119,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
 
                         @Override
                         protected void doRun() throws Exception {
-                            try (MapperService mapperService = indicesService.createIndexMapperService(indexMetadata)) {
+                            try (MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata)) {
                                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
                                 logger.trace("computed timestamp field mapping for {}", index);
                                 future.onResponse(fromMapperService(mapperService));

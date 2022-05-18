@@ -65,10 +65,10 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      */
     private final TimeValue veryRecentPast;
     /**
-     * This is the number of times that it is OK for the master history to show a transition from a non-null master to a null master before
-     * it starts impacting the health status.
+     * If the master transitions from a non-null master to a null master at least this manhy timesThis is the number of times it starts
+     * impacting the health status.
      */
-    private final int acceptableNullTransitions;
+    private final int unacceptableNullTransitions;
     /**
      * This is the number of times that it is OK for the master history to show a transition one non-null master to a different non-null
      * master before it starts impacting the health status.
@@ -127,7 +127,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         this.clusterService = clusterService;
         this.masterHistoryService = masterHistoryService;
         this.veryRecentPast = VERY_RECENT_PAST_SETTING.get(clusterService.getSettings());
-        this.acceptableNullTransitions = ACCEPTABLE_NULL_TRANSITIONS_SETTING.get(clusterService.getSettings());
+        this.unacceptableNullTransitions = ACCEPTABLE_NULL_TRANSITIONS_SETTING.get(clusterService.getSettings()) + 1;
         this.acceptableIdentityChanges = ACCEPTABLE_IDENTITY_CHANGES_SETTING.get(clusterService.getSettings());
         clusterService.addListener(this);
     }
@@ -146,9 +146,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     public HealthIndicatorResult calculate(boolean explain) {
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         if (hasSeenMasterInVeryRecentPast()) {
-            return calculateWhenHaveSeenMasterRecently(localMasterHistory, explain);
+            return calculateOnHaveSeenMasterRecently(localMasterHistory, explain);
         } else {
-            return calculateWhenHaveNotSeenMasterRecently(localMasterHistory, explain);
+            return calculateOnHaveNotSeenMasterRecently(localMasterHistory, explain);
         }
     }
 
@@ -158,14 +158,14 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @param explain Whether to calculate and include the details and user actions in the result
      * @return The HealthIndicatorResult for the given localMasterHistory
      */
-    private HealthIndicatorResult calculateWhenHaveSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
+    private HealthIndicatorResult calculateOnHaveSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
         int masterChanges = MasterHistory.getNumberOfMasterIdentityChanges(localMasterHistory.getNodes());
         logger.trace("Have seen a master in the last {}): {}", veryRecentPast, localMasterHistory.getMostRecentNonNullMaster());
         final HealthIndicatorResult result;
         if (masterChanges > acceptableIdentityChanges) {
-            result = calculateWhenMasterHasChangedIdentity(localMasterHistory, masterChanges, explain);
-        } else if (localMasterHistory.hasMasterGoneNullAtLeastNTimes(acceptableNullTransitions + 1)) {
-            result = calculateWhenMasterHasFlappedNull(localMasterHistory, explain);
+            result = calculateOnMasterHasChangedIdentity(localMasterHistory, masterChanges, explain);
+        } else if (localMasterHistory.hasMasterGoneNullAtLeastNTimes(unacceptableNullTransitions)) {
+            result = calculateOnMasterHasFlappedNull(localMasterHistory, explain);
         } else {
             result = getMasterIsStableResult(explain, localMasterHistory);
         }
@@ -180,7 +180,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @param explain Whether to calculate and include the details in the result
      * @return The HealthIndicatorResult for the given localMasterHistory
      */
-    private HealthIndicatorResult calculateWhenMasterHasChangedIdentity(
+    private HealthIndicatorResult calculateOnMasterHasChangedIdentity(
         MasterHistory localMasterHistory,
         int masterChanges,
         boolean explain
@@ -268,7 +268,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @param explain Whether to calculate and include the details in the result
      * @return The HealthIndicatorResult for the given localMasterHistory
      */
-    private HealthIndicatorResult calculateWhenMasterHasFlappedNull(MasterHistory localMasterHistory, boolean explain) {
+    private HealthIndicatorResult calculateOnMasterHasFlappedNull(MasterHistory localMasterHistory, boolean explain) {
         DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
         boolean localNodeIsMaster = clusterService.localNode().equals(master);
         List<DiscoveryNode> remoteHistory;
@@ -294,7 +294,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
          */
         boolean masterConfirmedUnstable = localNodeIsMaster
             || remoteHistory == null
-            || MasterHistory.hasMasterGoneNullAtLeastNTimes(remoteHistory, acceptableNullTransitions + 1)
+            || MasterHistory.hasMasterGoneNullAtLeastNTimes(remoteHistory, unacceptableNullTransitions)
             || MasterHistory.getNumberOfMasterIdentityChanges(remoteHistory) > acceptableIdentityChanges;
         if (masterConfirmedUnstable) {
             if (localNodeIsMaster == false && remoteHistory == null) {
@@ -358,7 +358,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @param explain Whether to calculate and include the details in the result
      * @return The HealthIndicatorResult for the given localMasterHistory
      */
-    private HealthIndicatorResult calculateWhenHaveNotSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
+    private HealthIndicatorResult calculateOnHaveNotSeenMasterRecently(MasterHistory localMasterHistory, boolean explain) {
         // NOTE: The logic in this method will be implemented in a future PR
         HealthStatus stableMasterStatus = HealthStatus.RED;
         String summary = "No master has been observed recently";
@@ -398,7 +398,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
         DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
         if (currentMaster == null && previousMaster != null) {
-            if (masterHistoryService.getLocalMasterHistory().hasMasterGoneNullAtLeastNTimes(acceptableNullTransitions + 1)) {
+            if (masterHistoryService.getLocalMasterHistory().hasMasterGoneNullAtLeastNTimes(unacceptableNullTransitions)) {
                 DiscoveryNode master = masterHistoryService.getLocalMasterHistory().getMostRecentNonNullMaster();
                 /*
                  * If the most recent master was this box, there is no point in making a transport request -- we already know what this

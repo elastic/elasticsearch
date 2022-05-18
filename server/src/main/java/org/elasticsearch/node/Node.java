@@ -202,6 +202,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -386,7 +387,7 @@ public class Node implements Closeable {
                 initialEnvironment.pluginsFile(),
                 classpathPlugins
             );
-            final Settings settings = pluginsService.updatedSettings();
+            final Settings settings = mergePluginSettings(pluginsService.pluginMap(), tmpSettings);
 
             /*
              * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
@@ -1477,6 +1478,39 @@ public class Node implements Closeable {
      */
     protected PluginsService getPluginsService() {
         return pluginsService;
+    }
+
+    /**
+     * Plugins can provide additional settings for the node, but two plugins
+     * cannot provide the same setting.
+     * @param pluginMap A map of plugin names to plugin instances
+     * @param originalSettings The node's original settings, which silently override any setting provided by the plugins.
+     * @return A {@link Settings} with the merged node and plugin settings
+     * @throws IllegalArgumentException if two plugins provide the same additional setting key
+     */
+    static Settings mergePluginSettings(Map<String, Plugin> pluginMap, Settings originalSettings) {
+        Map<String, String> foundSettings = new HashMap<>();
+        final Settings.Builder builder = Settings.builder();
+        for (Map.Entry<String, Plugin> entry : pluginMap.entrySet()) {
+            Settings settings = entry.getValue().additionalSettings();
+            for (String setting : settings.keySet()) {
+                String oldPlugin = foundSettings.put(setting, entry.getKey());
+                if (oldPlugin != null) {
+                    throw new IllegalArgumentException(
+                        "Cannot have additional setting ["
+                            + setting
+                            + "] "
+                            + "in plugin ["
+                            + entry.getKey()
+                            + "], already added in plugin ["
+                            + oldPlugin
+                            + "]"
+                    );
+                }
+            }
+            builder.put(settings);
+        }
+        return builder.put(originalSettings).build();
     }
 
     /**

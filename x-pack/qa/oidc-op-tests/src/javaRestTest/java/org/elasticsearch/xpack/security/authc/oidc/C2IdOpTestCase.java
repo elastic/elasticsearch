@@ -25,7 +25,6 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.protocol.BasicHttpContext;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
@@ -212,7 +211,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(request, context))) {
             return body.apply(response);
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("HTTP Request [{}] failed", request.getURI()), e);
+            logger.warn(() -> "HTTP Request [" + request.getURI() + "] failed", e);
             throw e;
         }
     }

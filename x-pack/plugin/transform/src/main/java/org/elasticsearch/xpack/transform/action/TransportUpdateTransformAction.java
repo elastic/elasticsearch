@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,6 +50,8 @@ import org.elasticsearch.xpack.transform.transforms.TransformTask;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
+
 public class TransportUpdateTransformAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateTransformAction.class);
@@ -71,8 +72,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         TransformServices transformServices,
-        Client client,
-        IngestService ingestService
+        Client client
     ) {
         super(
             UpdateTransformAction.NAME,
@@ -117,66 +117,71 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             }
             return;
         }
-
-        // set headers to run transform as calling user
-        Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
-            threadPool.getThreadContext(),
-            clusterService.state()
-        );
-
-        TransformConfigUpdate update = request.getUpdate();
-        update.setHeaders(filteredHeaders);
-
-        // GET transform and attempt to update
-        // We don't want the update to complete if the config changed between GET and INDEX
-        transformConfigManager.getTransformConfigurationForUpdate(request.getId(), ActionListener.wrap(configAndVersion -> {
-            TransformUpdater.updateTransform(
-                securityContext,
-                indexNameExpressionResolver,
-                clusterState,
-                settings,
-                client,
-                transformConfigManager,
-                configAndVersion.v1(),
-                update,
-                configAndVersion.v2(),
-                request.isDeferValidation(),
-                false, // dryRun
-                true, // checkAccess
-                request.getTimeout(),
-                ActionListener.wrap(updateResponse -> {
-                    TransformConfig updatedConfig = updateResponse.getConfig();
-                    auditor.info(updatedConfig.getId(), "Updated transform.");
-                    logger.debug("[{}] Updated transform [{}]", updatedConfig.getId(), updateResponse.getStatus());
-
-                    checkTransformConfigAndLogWarnings(updatedConfig);
-
-                    if (update.changesSettings(configAndVersion.v1())) {
-                        PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
-                            request.getId(),
-                            clusterState
-                        );
-
-                        // to send a request to apply new settings at runtime, several requirements must be met:
-                        // - transform must be running, meaning a task exists
-                        // - transform is not failed (stopped transforms do not have a task)
-                        // - the node where transform is executed on is at least 7.8.0 in order to understand the request
-                        if (transformTask != null
-                            && transformTask.isAssigned()
-                            && transformTask.getState() instanceof TransformState
-                            && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED
-                            && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_7_8_0)) {
-
-                            request.setNodes(transformTask.getExecutorNode());
-                            request.setConfig(updatedConfig);
-                            super.doExecute(task, request, listener);
-                            return;
-                        }
-                    }
-                    listener.onResponse(new Response(updatedConfig));
-                }, listener::onFailure)
+        useSecondaryAuthIfAvailable(securityContext, () -> {
+            // set headers to run transform as calling user
+            Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+                threadPool.getThreadContext(),
+                clusterService.state()
             );
-        }, listener::onFailure));
+
+            TransformConfigUpdate update = request.getUpdate();
+            update.setHeaders(filteredHeaders);
+
+            // GET transform and attempt to update
+            // We don't want the update to complete if the config changed between GET and INDEX
+            transformConfigManager.getTransformConfigurationForUpdate(
+                request.getId(),
+                ActionListener.wrap(
+                    configAndVersion -> TransformUpdater.updateTransform(
+                        securityContext,
+                        indexNameExpressionResolver,
+                        clusterState,
+                        settings,
+                        client,
+                        transformConfigManager,
+                        configAndVersion.v1(),
+                        update,
+                        configAndVersion.v2(),
+                        request.isDeferValidation(),
+                        false, // dryRun
+                        true, // checkAccess
+                        request.getTimeout(),
+                        ActionListener.wrap(updateResponse -> {
+                            TransformConfig updatedConfig = updateResponse.getConfig();
+                            auditor.info(updatedConfig.getId(), "Updated transform.");
+                            logger.debug("[{}] Updated transform [{}]", updatedConfig.getId(), updateResponse.getStatus());
+
+                            checkTransformConfigAndLogWarnings(updatedConfig);
+
+                            if (update.changesSettings(configAndVersion.v1())) {
+                                PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
+                                    request.getId(),
+                                    clusterState
+                                );
+
+                                // to send a request to apply new settings at runtime, several requirements must be met:
+                                // - transform must be running, meaning a task exists
+                                // - transform is not failed (stopped transforms do not have a task)
+                                // - the node where transform is executed on is at least 7.8.0 in order to understand the request
+                                if (transformTask != null
+                                    && transformTask.isAssigned()
+                                    && transformTask.getState() instanceof TransformState
+                                    && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED
+                                    && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_7_8_0)) {
+
+                                    request.setNodes(transformTask.getExecutorNode());
+                                    request.setConfig(updatedConfig);
+                                    super.doExecute(task, request, listener);
+                                    return;
+                                }
+                            }
+                            listener.onResponse(new Response(updatedConfig));
+                        }, listener::onFailure)
+                    ),
+                    listener::onFailure
+                )
+            );
+        });
     }
 
     private void checkTransformConfigAndLogWarnings(TransformConfig config) {

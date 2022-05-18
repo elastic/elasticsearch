@@ -77,6 +77,7 @@ public class MappingLookupTests extends ESTestCase {
             "object",
             "object",
             Explicit.EXPLICIT_TRUE,
+            Explicit.IMPLICIT_TRUE,
             ObjectMapper.Dynamic.TRUE,
             Collections.singletonMap("object.subfield", fieldMapper)
         );
@@ -250,14 +251,13 @@ public class MappingLookupTests extends ESTestCase {
         final String indexedValue;
 
         FakeFieldMapper(FakeFieldType fieldType, String indexedValue) {
-            super(
-                fieldType.name(),
-                fieldType,
-                new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue)),
-                MultiFields.empty(),
-                CopyTo.empty()
-            );
+            super(fieldType.name(), fieldType, MultiFields.empty(), CopyTo.empty());
             this.indexedValue = indexedValue;
+        }
+
+        @Override
+        public Map<String, NamedAnalyzer> indexAnalyzers() {
+            return Map.of(mappedFieldType.name(), new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue)));
         }
 
         @Override

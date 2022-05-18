@@ -27,7 +27,7 @@ Previews a {transform}.
 
 Requires the following privileges:
 
-* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this
   privilege)
 * source indices: `read`, `view_index_metadata`.
 
@@ -51,6 +51,15 @@ or an index template with your preferred mappings before you start the
 
 You must choose either the `latest` or `pivot` method for your {transform}; you
 cannot use both in a single {transform}.
+
+IMPORTANT: When you preview a {transform}, it uses the credentials of the user
+calling the API. When you start a {transform}, it uses the roles of the last
+user to create or update it. If the two sets of roles differ, the preview may
+not accurately reflect the behavior of the {transform}. To avoid such problems,
+the same user that creates or updates the {transform} should preview it to
+ensure it is returning the expected data. Alternatively, use
+<<http-clients-secondary-authorization,secondary authorization headers>> to
+supply the credentials
 
 [role="child_attributes"]
 

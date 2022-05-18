@@ -1232,7 +1232,7 @@ public final class NodeEnvironment implements Closeable {
                     logger.trace("releasing lock [{}]", lock);
                     lock.close();
                 } catch (IOException e) {
-                    logger.trace(() -> new ParameterizedMessage("failed to release lock [{}]", lock), e);
+                    logger.trace(() -> "failed to release lock [" + lock + "]", e);
                 }
             }
         }

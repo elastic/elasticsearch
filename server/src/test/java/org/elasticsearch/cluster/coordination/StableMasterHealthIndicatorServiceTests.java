@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,13 +33,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
+public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinatorTestCase {
     DiscoveryNode node1;
     DiscoveryNode node2;
     DiscoveryNode node3;
@@ -306,6 +306,105 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         when(masterHistoryService.getRemoteMasterHistory()).thenReturn(remoteHistory);
         HealthIndicatorResult result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
+    }
+
+    public void testGreenForStableCluster() {
+        try (Cluster cluster = new Cluster(5)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                HealthIndicatorResult healthIndicatorResult = node.stableMasterHealthIndicatorService.calculate(true);
+                assertThat(healthIndicatorResult.status(), equalTo(HealthStatus.GREEN));
+            }
+        }
+    }
+
+    public void testRedForNoMaster() {
+        try (Cluster cluster = new Cluster(5, false, Settings.EMPTY)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                if (node.getLocalNode().isMasterNode()) {
+                    node.disconnect();
+                }
+            }
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "stabilizing"); // allow for a reconfiguration
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                HealthIndicatorResult healthIndicatorResult = node.stableMasterHealthIndicatorService.calculate(true);
+                if (node.getLocalNode().isMasterNode() == false) {
+                    assertThat(healthIndicatorResult.status(), equalTo(HealthStatus.RED));
+                }
+            }
+            while (cluster.clusterNodes.stream().filter(Cluster.ClusterNode::deliverBlackholedRequests).count() != 0L) {
+                logger.debug("--> stabilising again after delivering blackholed requests");
+                cluster.runFor(DEFAULT_STABILISATION_TIME, "avoiding failure");
+            }
+        }
+    }
+
+    public void testYellowWithTooManyMasterChanges() {
+        testChangeMasterThreeTimes(2, 100, "The master has changed");
+    }
+
+    public void testYellowWithTooManyMasterNullTransitions() {
+        testChangeMasterThreeTimes(100, 2, "no master multiple times");
+    }
+
+    private void testChangeMasterThreeTimes(int acceptableIdentityChanges, int acceptableNullTransitions, String expectedSummarySubstring) {
+        int clusterSize = 5;
+        int masterChanges = 3;
+        Settings settings = Settings.builder()
+            .put(StableMasterHealthIndicatorService.ACCEPTABLE_IDENTITY_CHANGES_SETTING.getKey(), acceptableIdentityChanges)
+            .put(StableMasterHealthIndicatorService.ACCEPTABLE_NULL_TRANSITIONS_SETTING.getKey(), acceptableNullTransitions)
+            .build();
+        try (Cluster cluster = new Cluster(clusterSize, true, settings)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            // Force the master to change by disconnecting it:
+            for (int i = 0; i < masterChanges; i++) {
+                final Cluster.ClusterNode leader = cluster.getAnyLeader();
+                logger.info("--> blackholing leader {}", leader);
+                leader.disconnect();
+                cluster.stabilise();
+            }
+
+            final Cluster.ClusterNode currentLeader = cluster.getAnyLeader();
+            HealthIndicatorResult healthIndicatorResult = currentLeader.stableMasterHealthIndicatorService.calculate(true);
+            assertThat(healthIndicatorResult.status(), equalTo(HealthStatus.YELLOW));
+            assertThat(healthIndicatorResult.summary(), containsString(expectedSummarySubstring));
+        }
+    }
+
+    public void testGreenAfterShrink() {
+        try (Cluster cluster = new Cluster(5)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            {
+                final Cluster.ClusterNode leader = cluster.getAnyLeader();
+                logger.info("setting auto-shrink reconfiguration to false");
+                leader.submitSetAutoShrinkVotingConfiguration(false);
+                cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+            }
+            final Cluster.ClusterNode disconnect1 = cluster.getAnyNode();
+            final Cluster.ClusterNode disconnect2 = cluster.getAnyNodeExcept(disconnect1);
+
+            logger.info("--> disconnecting {} and {}", disconnect1, disconnect2);
+            disconnect1.disconnect();
+            disconnect2.disconnect();
+            cluster.stabilise();
+
+            final Cluster.ClusterNode leader = cluster.getAnyLeader();
+            logger.info("setting auto-shrink reconfiguration to true");
+            leader.submitSetAutoShrinkVotingConfiguration(true);
+            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY * 2); // allow for a reconfiguration
+            for (Cluster.ClusterNode node : cluster.clusterNodes) {
+                HealthIndicatorResult healthIndicatorResult = node.stableMasterHealthIndicatorService.calculate(true);
+                if (leader.getLastAppliedClusterState().getLastCommittedConfiguration().getNodeIds().contains(node.getId())) {
+                    assertThat(healthIndicatorResult.status(), equalTo(HealthStatus.GREEN));
+                }
+            }
+        }
     }
 
     private static ClusterState createClusterState(DiscoveryNode masterNode) {

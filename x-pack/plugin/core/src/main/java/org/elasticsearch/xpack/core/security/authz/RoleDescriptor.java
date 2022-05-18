@@ -441,7 +441,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         );
     }
 
-    // TODO javadoc
+    /**
+     * Parses the privileges to be checked, from the same syntax used for granting privileges in a {@code RoleDescriptor}.
+     */
     public static PrivilegesToCheck parsePrivilegesToCheck(
         String description,
         boolean runDetailedCheck,

@@ -254,7 +254,13 @@ public interface AuthorizationEngine {
         }
     }
 
-    // TODO java doc
+
+    /**
+     * This encapsulates the privileges that can be checked for access. It's intentional that the privileges to be checked are specified
+     * in the same manner that they are granted in the {@link RoleDescriptor}. The privilege check can be detailed or not, per the
+     * {@link #runDetailedCheck} parameter. The detailed response {@link PrivilegesCheckResult} of a check run, also shows which privileges
+     * are NOT granted.
+     */
     record PrivilegesToCheck(
         String[] cluster,
         RoleDescriptor.IndicesPrivileges[] index,
@@ -348,7 +354,12 @@ public interface AuthorizationEngine {
         }
     }
 
-    // TODO javadoc
+    /**
+     * The result of a (has) privilege check. This is not an Elasticsearch authorization result (though clients can base their authorization
+     * decisions on this response). The {@link #allChecksSuccess} field tells if all the privileges are granted over all the resources.
+     * The {@link #details} field is only present (non-null) if the check has been run in a detailed mode
+     * {@link PrivilegesToCheck#runDetailedCheck}, and contains a run-down of which privileges are granted over which resources or not.
+     */
     final class PrivilegesCheckResult {
 
         public static final PrivilegesCheckResult ALL_CHECKS_SUCCESS_NO_DETAILS = new PrivilegesCheckResult(true, null);

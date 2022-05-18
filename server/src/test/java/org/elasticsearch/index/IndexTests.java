@@ -66,4 +66,11 @@ public class IndexTests extends ESTestCase {
         assertNotEquals(index1, index3);
         assertNotEquals(index1, index4);
     }
+
+    public void testIndexAndEquals(){
+        assertEquals("[name/unknown]", new Index("name", "unknown").toString());
+        Index index3 = new Index("hello", "1");
+        Index index4 = new Index("2", "hello");
+        assertNotEquals(index3,index4);
+    }
 }

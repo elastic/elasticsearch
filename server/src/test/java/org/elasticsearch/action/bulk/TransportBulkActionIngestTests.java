@@ -57,6 +57,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -634,8 +635,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         Exception exception = new Exception("fake exception");
         ClusterState state = clusterService.state();
 
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templateMetadataBuilder = ImmutableOpenMap.builder();
-        templateMetadataBuilder.put(
+        Map<String, IndexTemplateMetadata> templateMetadata = new HashMap<>();
+        templateMetadata.put(
             "template1",
             IndexTemplateMetadata.builder("template1")
                 .patterns(Arrays.asList("missing_index"))
@@ -643,7 +644,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 .settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline1").build())
                 .build()
         );
-        templateMetadataBuilder.put(
+        templateMetadata.put(
             "template2",
             IndexTemplateMetadata.builder("template2")
                 .patterns(Arrays.asList("missing_*"))
@@ -651,11 +652,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 .settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build())
                 .build()
         );
-        templateMetadataBuilder.put(
-            "template3",
-            IndexTemplateMetadata.builder("template3").patterns(Arrays.asList("missing*")).order(3).build()
-        );
-        templateMetadataBuilder.put(
+        templateMetadata.put("template3", IndexTemplateMetadata.builder("template3").patterns(Arrays.asList("missing*")).order(3).build());
+        templateMetadata.put(
             "template4",
             IndexTemplateMetadata.builder("template4")
                 .patterns(Arrays.asList("nope"))
@@ -667,7 +665,6 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         Metadata metadata = mock(Metadata.class);
         when(state.metadata()).thenReturn(metadata);
         when(state.getMetadata()).thenReturn(metadata);
-        final ImmutableOpenMap<String, IndexTemplateMetadata> templateMetadata = templateMetadataBuilder.build();
         when(metadata.templates()).thenReturn(templateMetadata);
         when(metadata.getTemplates()).thenReturn(templateMetadata);
         when(metadata.indices()).thenReturn(ImmutableOpenMap.of());

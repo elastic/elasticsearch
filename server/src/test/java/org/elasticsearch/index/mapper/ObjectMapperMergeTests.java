@@ -103,7 +103,8 @@ public class ObjectMapperMergeTests extends ESTestCase {
     public void testMergeDisabledRootMapper() {
         String type = MapperService.SINGLE_MAPPING_NAME;
         final RootObjectMapper rootObjectMapper = (RootObjectMapper) new RootObjectMapper.Builder(type, ObjectMapper.Defaults.SUBOBJECTS)
-            .enabled(false).build(MapperBuilderContext.ROOT);
+            .enabled(false)
+            .build(MapperBuilderContext.ROOT);
         // the root is disabled, and we are not trying to re-enable it, but we do want to be able to add runtime fields
         final RootObjectMapper mergeWith = new RootObjectMapper.Builder(type, ObjectMapper.Defaults.SUBOBJECTS).addRuntimeFields(
             Collections.singletonMap("test", new TestRuntimeField("test", "long"))
@@ -134,12 +135,14 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
     private static RootObjectMapper createRootObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
         return (RootObjectMapper) new RootObjectMapper.Builder(name, ObjectMapper.Defaults.SUBOBJECTS).enabled(enabled)
-            .addMappers(mappers).build(MapperBuilderContext.ROOT);
+            .addMappers(mappers)
+            .build(MapperBuilderContext.ROOT);
     }
 
     private static ObjectMapper createObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
         return new ObjectMapper.Builder(name, ObjectMapper.Defaults.SUBOBJECTS).enabled(enabled)
-            .addMappers(mappers).build(MapperBuilderContext.ROOT);
+            .addMappers(mappers)
+            .build(MapperBuilderContext.ROOT);
     }
 
     private TextFieldMapper createTextFieldMapper(String name) {

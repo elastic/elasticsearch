@@ -17,7 +17,6 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;

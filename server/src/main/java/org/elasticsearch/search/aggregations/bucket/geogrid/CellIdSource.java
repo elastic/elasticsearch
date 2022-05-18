@@ -78,12 +78,12 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
      *
      * This method maybe faster than having to compute the bounding box for each point grid.
      * */
-    protected boolean validPoint(double x, double y) {
-        if (geoBoundingBox.top() > y && geoBoundingBox.bottom() < y) {
+    protected boolean validPoint(double lon, double lat) {
+        if (geoBoundingBox.top() > lat && geoBoundingBox.bottom() < lat) {
             if (crossesDateline) {
-                return geoBoundingBox.left() < x || geoBoundingBox.right() > x;
+                return geoBoundingBox.left() < lon || geoBoundingBox.right() > lon;
             } else {
-                return geoBoundingBox.left() < x && geoBoundingBox.right() > x;
+                return geoBoundingBox.left() < lon && geoBoundingBox.right() > lon;
             }
         }
         return false;

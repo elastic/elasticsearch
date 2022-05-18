@@ -228,29 +228,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         plugins.stream().map(LoadedPlugin::instance).forEach(consumer);
     }
 
-    public Settings updatedSettings() {
-        Map<String, String> foundSettings = new HashMap<>();
-        final Settings.Builder builder = Settings.builder();
-        for (LoadedPlugin plugin : plugins) {
-            Settings settings = plugin.instance().additionalSettings();
-            for (String setting : settings.keySet()) {
-                String oldPlugin = foundSettings.put(setting, plugin.info().getName());
-                if (oldPlugin != null) {
-                    throw new IllegalArgumentException(
-                        "Cannot have additional setting ["
-                            + setting
-                            + "] "
-                            + "in plugin ["
-                            + plugin.info().getName()
-                            + "], already added in plugin ["
-                            + oldPlugin
-                            + "]"
-                    );
-                }
-            }
-            builder.put(settings);
-        }
-        return builder.put(this.settings).build();
+    /**
+     * Sometimes we want the plugin name for error handling.
+     * @return A map of plugin names to plugin instances.
+     */
+    public Map<String, Plugin> pluginMap() {
+        return plugins.stream().collect(Collectors.toMap(p -> p.info().getName(), LoadedPlugin::instance));
     }
 
     /**

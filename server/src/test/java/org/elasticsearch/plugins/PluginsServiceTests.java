@@ -38,23 +38,6 @@ import static org.hamcrest.Matchers.sameInstance;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsServiceTests extends ESTestCase {
-    public static class AdditionalSettingsPlugin1 extends Plugin {
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder()
-                .put("foo.bar", "1")
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.MMAPFS.getSettingsKey())
-                .build();
-        }
-    }
-
-    public static class AdditionalSettingsPlugin2 extends Plugin {
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder().put("foo.bar", "2").build();
-        }
-    }
-
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings) {
@@ -63,10 +46,6 @@ public class PluginsServiceTests extends ESTestCase {
 
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin> classpathPlugin) {
         return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), List.of(classpathPlugin));
-    }
-
-    static PluginsService newPluginsService(Settings settings, List<Class<? extends Plugin>> classpathPlugins) {
-        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), classpathPlugins);
     }
 
     static PluginsService newPluginsService(
@@ -83,41 +62,13 @@ public class PluginsServiceTests extends ESTestCase {
         );
     }
 
-    public void testAdditionalSettings() {
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put("my.setting", "test")
-            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
-            .build();
-        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class);
-        Settings newSettings = service.updatedSettings();
-        assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
-        assertEquals("1", newSettings.get("foo.bar")); // added setting exists
-        // does not override pre existing settings
-        assertEquals(IndexModule.Type.NIOFS.getSettingsKey(), newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()));
-    }
-
-    public void testAdditionalSettingsClash() {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, AdditionalSettingsPlugin2.class);
-        try {
-            service.updatedSettings();
-            fail("Expected exception when building updated settings");
-        } catch (IllegalArgumentException e) {
-            String msg = e.getMessage();
-            assertTrue(msg, msg.contains("Cannot have additional setting [foo.bar]"));
-            assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin1.class.getName()));
-            assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin2.class.getName()));
-        }
-    }
-
     public void testFilterPlugins() {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put("my.setting", "test")
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
             .build();
-        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, FilterablePlugin.class);
+        PluginsService service = newPluginsService(settings, FakePlugin.class, FilterablePlugin.class);
         List<ScriptPlugin> scriptPlugins = service.filterPlugins(ScriptPlugin.class);
         assertEquals(1, scriptPlugins.size());
         assertEquals(FilterablePlugin.class, scriptPlugins.get(0).getClass());
@@ -358,6 +309,61 @@ public class PluginsServiceTests extends ESTestCase {
 
         }
 
+    }
+
+    public void testPluginNameClash() throws IOException {
+        // This test opens a child classloader, reading a jar under the test temp
+        // dir (a dummy plugin). Classloaders are closed by GC, so when test teardown
+        // occurs the jar is deleted while the classloader is still open. However, on
+        // windows, files cannot be deleted when they are still open by a process.
+        assumeFalse("windows deletion behavior is asinine", Constants.WINDOWS);
+        final Path pathHome = createTempDir();
+        final Path plugins = pathHome.resolve("plugins");
+        final Path fake1 = plugins.resolve("fake1");
+        final Path fake2 = plugins.resolve("fake2");
+
+        PluginTestUtil.writePluginProperties(
+            fake1,
+            "description",
+            "description",
+            "name",
+            "fake",
+            "version",
+            "1.0.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "test.DummyPlugin"
+        );
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
+            Files.copy(jar, fake1.resolve("plugin.jar"));
+        }
+
+        PluginTestUtil.writePluginProperties(
+            fake2,
+            "description",
+            "description",
+            "name",
+            "fake",
+            "version",
+            "1.0.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "test.NonExtensiblePlugin"
+        );
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("non-extensible-plugin.jar")) {
+            Files.copy(jar, fake2.resolve("plugin.jar"));
+        }
+
+        final Settings settings = Settings.builder().put("path.home", pathHome).build();
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
+        assertThat(e.getMessage(), containsString("duplicate plugin: "));
+        assertThat(e.getMessage(), containsString("Name: fake"));
     }
 
     public void testExistingMandatoryInstalledPlugin() throws IOException {

@@ -30,6 +30,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
+@SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDistanceQueryBuilder> {
 
     @Override
@@ -129,6 +130,35 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         } else {
             assertEquals(GeoShapeFieldMapper.GeoShapeFieldType.class, fieldType.getClass());
         }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86834")
+    public void testParsingAndToQueryGeoJSON() throws IOException {
+        // TODO: GeoJSON support missing for geo_distance query, although all other point formats work
+        String query = """
+            {
+                "geo_distance":{
+                    "distance":"12mi",
+                    "%s":{
+                        "type": "Point",
+                        "coordinates": [-70,40]
+                    }
+                }
+            }
+            """.formatted(GEO_POINT_FIELD_NAME);
+        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
+    }
+
+    public void testParsingAndToQueryWKT() throws IOException {
+        String query = """
+            {
+                "geo_distance":{
+                    "distance":"12mi",
+                    "%s":"POINT(-70 40)"
+                }
+            }
+            """.formatted(GEO_POINT_FIELD_NAME);
+        assertGeoDistanceRangeQuery(query, 40, -70, 12, DistanceUnit.MILES);
     }
 
     public void testParsingAndToQuery1() throws IOException {

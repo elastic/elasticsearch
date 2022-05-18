@@ -1077,4 +1077,101 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
               }
             }"""), Strings.toString(parsedDoc2.dynamicMappingsUpdate()));
     }
+
+    private MapperService createDynamicTemplateNoSubobjects() throws IOException {
+        return createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match_mapping_type", "object");
+                        b.field("match", "metric");
+                        b.startObject("mapping").field("type", "object").field("subobjects", false).endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+    }
+
+    private static void assertNoSubobjects(MapperService mapperService) {
+        assertThat(mapperService.fieldType("foo.bar.baz").typeName(), equalTo("long"));
+        assertNotNull(mapperService.mappingLookup().objectMappers().get("foo.bar"));
+        assertThat(mapperService.fieldType("foo.metric.count").typeName(), equalTo("long"));
+        assertThat(mapperService.fieldType("foo.metric.count.min").typeName(), equalTo("long"));
+        assertThat(mapperService.fieldType("foo.metric.count.max").typeName(), equalTo("long"));
+        assertNotNull(mapperService.mappingLookup().objectMappers().get("foo.metric"));
+        assertNull(mapperService.mappingLookup().objectMappers().get("foo.metric.count"));
+    }
+
+    public void testSubobjectsFalseFlatPaths() throws IOException {
+        MapperService mapperService = createDynamicTemplateNoSubobjects();
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("foo.metric.count", 10);
+            b.field("foo.bar.baz", 10);
+            b.field("foo.metric.count.min", 4);
+            b.field("foo.metric.count.max", 15);
+        }));
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        assertNoSubobjects(mapperService);
+    }
+
+    public void testSubobjectsFalseStructuredPaths() throws IOException {
+        MapperService mapperService = createDynamicTemplateNoSubobjects();
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("foo");
+            {
+                b.startObject("metric");
+                {
+                    b.field("count", 10);
+                    b.field("count.min", 4);
+                    b.field("count.max", 15);
+                }
+                b.endObject();
+                b.startObject("bar");
+                b.field("baz", 10);
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        assertNoSubobjects(mapperService);
+    }
+
+    public void testSubobjectsFalseArrayOfObjects() throws IOException {
+        MapperService mapperService = createDynamicTemplateNoSubobjects();
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("foo");
+            {
+                b.startArray("metric");
+                {
+                    b.startObject();
+                    {
+                        b.field("count", 10);
+                        b.field("count.min", 4);
+                        b.field("count.max", 15);
+                    }
+                    b.endObject();
+                    b.startObject();
+                    {
+                        b.field("count", 5);
+                        b.field("count.min", 3);
+                        b.field("count.max", 50);
+                    }
+                    b.endObject();
+                }
+                b.endArray();
+                b.startObject("bar");
+                b.field("baz", 10);
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        assertNoSubobjects(mapperService);
+    }
 }

@@ -58,6 +58,10 @@ public class NestedObjectMapper extends ObjectMapper {
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(name, parserContext.indexVersionCreated());
+            parseSubobjects(node, builder);
+            if (builder.subobjects.explicit()) {
+                throw new MapperParsingException("Nested type [" + name + "] does not support [subobjects] parameter");
+            }
             parseNested(name, node, builder);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -66,9 +70,6 @@ public class NestedObjectMapper extends ObjectMapper {
                 if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)) {
                     iterator.remove();
                 }
-            }
-            if (builder.subobjects.explicit()) {
-                throw new MapperParsingException("Nested type [" + name + "] does not support [subobjects] parameter");
             }
             return builder;
         }

@@ -153,6 +153,7 @@ public class RootObjectMapper extends ObjectMapper {
         public RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
             RootObjectMapper.Builder builder = new Builder(name);
+            parseSubobjects(node, builder);
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();

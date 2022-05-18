@@ -187,6 +187,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
             ObjectMapper.Builder builder = new Builder(name);
+            parseSubobjects(node, builder);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -219,9 +220,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             } else if (fieldName.equals("enabled")) {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
                 return true;
-            } else if (fieldName.equals("subobjects")) {
-                builder.subobjects(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".subobjects"));
-                return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
                     // nothing to do here, empty (to support "properties: []" case)
@@ -240,6 +238,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return true;
             }
             return false;
+        }
+
+        protected static void parseSubobjects(Map<String, Object> node, ObjectMapper.Builder builder) {
+            Object subobjectsNode = node.remove("subobjects");
+            if (subobjectsNode != null) {
+                builder.subobjects(XContentMapValues.nodeBooleanValue(subobjectsNode, "subobjects.subobjects"));
+            }
         }
 
         protected static void parseProperties(
@@ -493,6 +498,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
         if (mergedMappers != null) {
             mappers = Map.copyOf(mergedMappers);
+            System.out.println(mappers);
+            Thread.dumpStack();
         }
     }
 

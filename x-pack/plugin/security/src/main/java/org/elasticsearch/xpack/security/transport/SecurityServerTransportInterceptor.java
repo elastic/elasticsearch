@@ -106,6 +106,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(
                         threadPool.getThreadContext(),
                         securityContext,
+                        minVersion,
                         (original) -> sendWithUser(
                             connection,
                             action,

@@ -8,6 +8,9 @@
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -22,7 +25,19 @@ public record HealthIndicatorResult(
     HealthIndicatorDetails details,
     List<HealthIndicatorImpact> impacts,
     List<UserAction> userActions
-) implements ToXContentObject {
+) implements ToXContentObject, Writeable {
+
+    public HealthIndicatorResult(StreamInput in) throws IOException {
+        this(
+            in.readString(),
+            in.readString(),
+            HealthStatus.fromStreamInput(in),
+            in.readString(),
+            null,
+            in.readList(HealthIndicatorImpact::new),
+            in.readList(UserAction::new)
+        );
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -40,5 +55,16 @@ public record HealthIndicatorResult(
             builder.field("user_actions", userActions);
         }
         return builder.endObject();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeString(component);
+        status.writeTo(out);
+        out.writeString(summary);
+        details.writeTo(out);
+        out.writeList(impacts);
+        out.writeList(userActions);
     }
 }

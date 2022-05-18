@@ -8,17 +8,30 @@
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public interface HealthIndicatorDetails extends ToXContentObject {
+public interface HealthIndicatorDetails extends ToXContentObject, Writeable, Writeable.Reader<HealthIndicatorDetails> {
 
     HealthIndicatorDetails EMPTY = new HealthIndicatorDetails() {
+
+        @Override
+        public HealthIndicatorDetails read(StreamInput in) {
+            return EMPTY;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject().endObject();
         }
     };
+
 }

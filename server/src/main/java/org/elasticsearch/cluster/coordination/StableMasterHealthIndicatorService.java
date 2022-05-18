@@ -424,8 +424,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     details.put("cluster_coordination", discoveryModule.getCoordinator().getClusterFormationState().getDescription());
                 }
             } else if (clusterService.localNode().isMasterNode() == false) { // none is elected master and we aren't master eligible
+                // Use StableMasterHealthIndicatorServiceAction
                 stableMasterStatus = HealthStatus.RED;
-                summary = "Something is very wrong";
+                summary = "No node is elected master, and this node is not master eligible. Reaching out to other nodes";
             } else { // none is elected master and we are master eligible
                 for (Map.Entry<DiscoveryNode, ClusterFormationStateOrException> entry : nodeToClusterFormationStateMap.entrySet()) {
                     if (entry.getValue().exception() != null) {

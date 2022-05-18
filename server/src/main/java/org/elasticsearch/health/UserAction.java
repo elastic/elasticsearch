@@ -8,6 +8,9 @@
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,7 +24,38 @@ import java.util.List;
  * @param definition The definition of the user action (e.g. message, helpURL)
  * @param affectedResources Optional list of "things" that this action should be taken on (e.g. shards, indices, or policies).
  */
-public record UserAction(Definition definition, @Nullable List<String> affectedResources) implements ToXContentObject {
+public record UserAction(Definition definition, @Nullable List<String> affectedResources) implements ToXContentObject, Writeable {
+
+    public UserAction(StreamInput in) throws IOException {
+        this(getDefinitionFromStreamInput(in), getAffectedResourcesFromStreamInput(in));
+    }
+
+    private static Definition getDefinitionFromStreamInput(StreamInput in) throws IOException {
+        String id = in.readString();
+        String message = in.readString();
+        String helpURL = in.readOptionalString();
+        return new Definition(id, message, helpURL);
+    }
+
+    private static List<String> getAffectedResourcesFromStreamInput(StreamInput in) throws IOException {
+        boolean hasAffectedResources = in.readBoolean();
+        if (hasAffectedResources) {
+            return in.readStringList();
+        } else {
+            return null;
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(definition.id);
+        out.writeString(definition.message);
+        out.writeOptionalString(definition().helpURL);
+        out.writeBoolean(affectedResources != null);
+        if (affectedResources != null) {
+            out.writeStringCollection(affectedResources);
+        }
+    }
 
     /**
      * Details a potential action that a user could take to clear an issue identified by a {@link HealthService}.

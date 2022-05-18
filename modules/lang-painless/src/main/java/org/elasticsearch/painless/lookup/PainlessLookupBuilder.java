@@ -20,6 +20,7 @@ import org.elasticsearch.painless.spi.WhitelistConstructor;
 import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistMethod;
+import org.elasticsearch.painless.spi.annotation.AliasAnnotation;
 import org.elasticsearch.painless.spi.annotation.AugmentedAnnotation;
 import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
 import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
@@ -358,6 +359,7 @@ public final class PainlessLookupBuilder {
 
         String javaClassName = clazz.getName();
         String importedCanonicalClassName = javaClassName.substring(javaClassName.lastIndexOf('.') + 1).replace('$', '.');
+        // String importedCanonicalClassName = javaClassName.substring(javaClassName.replace('$', '.').lastIndexOf('.') + 1);
         boolean importClassName = annotations.containsKey(NoImportAnnotation.class) == false;
 
         if (canonicalClassName.equals(importedCanonicalClassName)) {
@@ -373,7 +375,12 @@ public final class PainlessLookupBuilder {
                         throw new IllegalArgumentException("inconsistent no_import parameter found for class [" + canonicalClassName + "]");
                     }
 
-                    canonicalClassNamesToClasses.put(importedCanonicalClassName.intern(), clazz);
+                    if (annotations.get(AliasAnnotation.class)instanceof AliasAnnotation alias) {
+                        canonicalClassNamesToClasses.put(importedCanonicalClassName.intern(), clazz);
+                        canonicalClassNamesToClasses.put(alias.alias(), clazz);
+                    } else {
+                        canonicalClassNamesToClasses.put(importedCanonicalClassName.intern(), clazz);
+                    }
                 }
             } else if (importedClass != clazz) {
                 throw new IllegalArgumentException(

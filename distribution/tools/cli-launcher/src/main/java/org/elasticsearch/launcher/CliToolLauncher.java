@@ -119,7 +119,7 @@ class CliToolLauncher {
       * http://commons.apache.org/proper/commons-daemon/procrun.html
       *
       * NOTE: If this method is renamed and/or moved, make sure to
-      * update elasticsearch-service.bat!
+      * update WindowsServiceInstallCommand!
       */
     static void close(String[] args) throws IOException {
         command.close();

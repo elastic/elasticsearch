@@ -56,7 +56,7 @@ public class ServerProcess {
     // the thread pumping stderr watching for state change messages
     private final ErrorPumpThread errorPump;
 
-    // a flag marking whether the java process has been detached from
+    // a flag marking whether the streams of the java subprocess have been closed
     private volatile boolean detached = false;
 
     ServerProcess(Process jvmProcess, ErrorPumpThread errorPump) {
@@ -150,6 +150,14 @@ public class ServerProcess {
         }
     }
 
+    /**
+     * Stop the subprocess.
+     *
+     * <p> This sends a special code, {@link BootstrapInfo#SERVER_SHUTDOWN_MARKER} to the stdin
+     * of the process, then waits for the process to exit.
+     *
+     * <p> Note that if {@link #detach()} has been called, this method is a no-op.
+     */
     public synchronized void stop() {
         if (detached) {
             return;

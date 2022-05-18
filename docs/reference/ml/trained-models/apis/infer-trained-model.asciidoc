@@ -243,7 +243,7 @@ POST _ml/trained_models/model2/_infer
 --------------------------------------------------
 // TEST[skip:TBD]
 
-The API returns a respons like the following:
+The API returns a response similar to the following:
 
 [source,console-result]
 ----

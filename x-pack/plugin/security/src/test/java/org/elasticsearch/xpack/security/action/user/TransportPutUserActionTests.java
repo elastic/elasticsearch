@@ -251,14 +251,11 @@ public class TransportPutUserActionTests extends ESTestCase {
     }
 
     private String randomMaxLengthUsername() {
-        Character[] username = randomArray(
-            NativeRealmValidationUtil.MAX_NAME_LENGTH,
-            NativeRealmValidationUtil.MAX_NAME_LENGTH,
-            Character[]::new,
-            () -> randomFrom(Validation.VALID_NAME_CHARS)
-        );
-
-        return toString(username);
+        StringBuilder username = new StringBuilder();
+        for (int i = 0; i < NativeRealmValidationUtil.MAX_NAME_LENGTH; i++) {
+            username.append(randomFrom(Validation.VALID_NAME_CHARS));
+        }
+        return username.toString();
     }
 
     private String toString(Character[] chars) {

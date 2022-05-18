@@ -1,5 +1,5 @@
 pr: 86740
-summary: Log warning when hash function used by cache is not allowed in FIPS mode
+summary: Log warning when hash function used by cache is not recommended in FIPS mode
 area: FIPS
 type: enhancement
 issues: []

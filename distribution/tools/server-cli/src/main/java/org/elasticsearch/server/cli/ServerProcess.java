@@ -136,6 +136,7 @@ public class ServerProcess {
     public synchronized void detach() throws IOException {
         errorPump.drain();
         IOUtils.close(jvmProcess.getOutputStream(), jvmProcess.getInputStream(), jvmProcess.getErrorStream());
+        detached = true;
     }
 
     /**

@@ -17,6 +17,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
@@ -363,10 +364,14 @@ public class ServerProcessTests extends ESTestCase {
             stderr.println(BootstrapInfo.SERVER_READY_MARKER);
             stderr.println("final message");
             stderr.close();
+            // will block until stdin closed manually after test
+            assertThat(stdin.read(), equalTo(-1));
         };
         var server = startProcess(true, false, null, "");
         server.detach();
         assertThat(terminal.getErrorOutput(), containsString("final message"));
+        server.stop(); // this should be a noop, and will fail the stdin read assert above if shutdown sent
+        process.processStdin.close(); // unblock the "process" thread so it can exit
     }
 
     public void testStop() throws Exception {

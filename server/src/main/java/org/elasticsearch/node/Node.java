@@ -386,7 +386,10 @@ public class Node implements Closeable {
                 initialEnvironment.pluginsFile(),
                 classpathPlugins
             );
-            final Settings settings = Settings.builder().put(pluginsService.mergedPluginSettings()).put(tmpSettings).build();
+            final Settings settings = Settings.builder()
+                .put(PluginsService.mergedPluginSettings(pluginsService.pluginMap()))
+                .put(tmpSettings)
+                .build();
 
             /*
              * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting

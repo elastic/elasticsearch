@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -89,8 +90,8 @@ public class PluginsServiceTests extends ESTestCase {
             .put("my.setting", "test")
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
             .build();
-        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class);
-        Settings newSettings = Settings.builder().put(service.mergedPluginSettings()).put(settings).build();
+        Map<String, Plugin> pluginMap = Map.of(AdditionalSettingsPlugin1.class.getName(), new AdditionalSettingsPlugin1());
+        Settings newSettings = Settings.builder().put(PluginsService.mergedPluginSettings(pluginMap)).put(settings).build();
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
         // does not override pre existing settings
@@ -98,9 +99,13 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testAdditionalSettingsClash() {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, AdditionalSettingsPlugin2.class);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, service::mergedPluginSettings);
+        Map<String, Plugin> pluginMap = Map.of(
+            AdditionalSettingsPlugin1.class.getName(),
+            new AdditionalSettingsPlugin1(),
+            AdditionalSettingsPlugin2.class.getName(),
+            new AdditionalSettingsPlugin2()
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.mergedPluginSettings(pluginMap));
         String msg = e.getMessage();
         assertTrue(msg, msg.contains("Cannot have additional setting [foo.bar]"));
         assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin1.class.getName()));

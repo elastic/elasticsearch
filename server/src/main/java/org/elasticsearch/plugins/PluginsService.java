@@ -236,10 +236,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return plugins.stream().collect(Collectors.toMap(p -> p.info().getName(), LoadedPlugin::instance));
     }
 
-    public Settings mergedPluginSettings() {
+    public static Settings mergedPluginSettings(Map<String, Plugin> pluginMap) {
         Map<String, String> foundSettings = new HashMap<>();
         final Settings.Builder builder = Settings.builder();
-        for (Map.Entry<String, Plugin> entry : this.pluginMap().entrySet()) {
+        for (Map.Entry<String, Plugin> entry : pluginMap.entrySet()) {
             Settings settings = entry.getValue().additionalSettings();
             for (String setting : settings.keySet()) {
                 String oldPlugin = foundSettings.put(setting, entry.getKey());

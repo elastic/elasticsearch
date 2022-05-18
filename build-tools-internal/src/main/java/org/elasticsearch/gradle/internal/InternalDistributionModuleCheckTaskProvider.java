@@ -20,24 +20,17 @@ import org.gradle.api.tasks.TaskProvider;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
-import java.net.URI;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toSet;
 
 /**
  * Distribution level checks for Elasticsearch Java modules, i.e. modular jar files.
@@ -60,13 +53,11 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.cli",
         "org.elasticsearch.geo",
         "org.elasticsearch.lz4",
-        "org.elasticsearch.plugin.classloader",
-        "org.elasticsearch.secure_sm",
+        "org.elasticsearch.pluginclassloader",
+        "org.elasticsearch.securesm",
         "org.elasticsearch.server",
         "org.elasticsearch.xcontent"
     );
-
-    private static final Class<?> THIS_CLASS = InternalDistributionModuleCheckTaskProvider.class;
 
     private static final Predicate<ModuleReference> isESModule = mref -> mref.descriptor().name().startsWith("org.elasticsearch");
 
@@ -96,8 +87,6 @@ public class InternalDistributionModuleCheckTaskProvider {
                     try {
                         assertAllESJarsAreModular(libPath);
                         assertAllModulesPresent(libPath);
-                        assertModuleVersions(libPath, VersionProperties.getElasticsearch());
-                        assertModuleServices(libPath);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -129,59 +118,6 @@ public class InternalDistributionModuleCheckTaskProvider {
             throw new GradleException(
                 "expected modules " + listToString(EXPECTED_ES_MODUlES) + ", \nactual modules " + listToString(actualESModules)
             );
-        }
-    }
-
-    /** Checks that all expected Elasticsearch modules have the expected versions. */
-    private static void assertModuleVersions(Path libPath, String expectedVersion) {
-        List<ModuleReference> esModules = ModuleFinder.of(libPath)
-            .findAll()
-            .stream()
-            .filter(isESModule)
-            .sorted(Comparator.comparing(ModuleReference::descriptor))
-            .toList();
-        for (ModuleReference mref : esModules) {
-            String mVersion = mref.descriptor()
-                .rawVersion()
-                .orElseThrow(() -> new GradleException("no version found in module " + mref.descriptor().name()));
-            if (mVersion != expectedVersion) {
-                new GradleException("Expected version [" + expectedVersion + "], in " + mref.descriptor());
-            }
-        }
-    }
-
-    /** Checks that all modules have, at least, the META-INF services declared. */
-    private static void assertModuleServices(Path libPath) throws IOException {
-        List<ModuleReference> esModules = ModuleFinder.of(libPath)
-            .findAll()
-            .stream()
-            .filter(isESModule) // TODO: how to open this to all, including plugins and modules
-            .sorted(Comparator.comparing(ModuleReference::descriptor))
-            .toList();
-
-        for (ModuleReference mref : esModules) {
-            URI uri = URI.create("jar:" + mref.location().get());
-            Set<String> modServices = mref.descriptor().provides().stream().map(ModuleDescriptor.Provides::service).collect(toSet());
-            try (var fileSystem = FileSystems.newFileSystem(uri, Map.of(), THIS_CLASS.getClassLoader())) {
-                Path servicesRoot = fileSystem.getPath("/META-INF/services");
-                if (Files.exists(servicesRoot)) {
-                    Files.walk(servicesRoot)
-                        .filter(Files::isRegularFile)
-                        .map(p -> servicesRoot.relativize(p))
-                        .map(Path::toString)
-                        .forEach(service -> {
-                            if (modServices.contains(service) == false) {
-                                throw new GradleException(
-                                    "Expected provides %s in module %s with provides %s.".formatted(
-                                        service,
-                                        mref.descriptor().name(),
-                                        mref.descriptor().provides()
-                                    )
-                                );
-                            }
-                        });
-                }
-            }
         }
     }
 

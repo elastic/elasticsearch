@@ -292,20 +292,20 @@ public class Node implements Closeable {
     final NamedXContentRegistry namedXContentRegistry;
 
     public Node(Environment environment) {
-        this(environment, Collections.emptyList(), true);
+        this(environment, PluginsService.getCreatePluginsServiceFunction(environment), true);
     }
 
     /**
      * Constructs a node
      *
      * @param initialEnvironment         the initial environment for this node, which will be added to by plugins
-     * @param classpathPlugins           the plugins to be loaded from the classpath
+     * @param pluginsServiceFunction     a function that takes a {@link Settings} object and returns a {@link PluginsService}
      * @param forbidPrivateIndexSettings whether or not private index settings are forbidden when creating an index; this is used in the
      *                                   test framework for tests that rely on being able to set private settings
      */
     protected Node(
         final Environment initialEnvironment,
-        Collection<Class<? extends Plugin>> classpathPlugins,
+        final Function<Settings, PluginsService> pluginsServiceFunction,
         boolean forbidPrivateIndexSettings
     ) {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
@@ -380,13 +380,7 @@ public class Node implements Closeable {
                 );
             }
 
-            this.pluginsService = new PluginsService(
-                tmpSettings,
-                initialEnvironment.configFile(),
-                initialEnvironment.modulesFile(),
-                initialEnvironment.pluginsFile(),
-                classpathPlugins
-            );
+            this.pluginsService = pluginsServiceFunction.apply(tmpSettings);
             final Settings settings = mergePluginSettings(pluginsService.pluginMap(), tmpSettings);
 
             /*

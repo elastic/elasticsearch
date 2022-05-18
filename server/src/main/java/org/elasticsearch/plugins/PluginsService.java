@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
@@ -484,5 +485,21 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     @SuppressWarnings("unchecked")
     public <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance())).toList();
+    }
+
+    /**
+     * Get a function that will take a {@link Settings} object and return a {@link PluginsService}.
+     * This function passes in an empty list of classpath plugins.
+     * @param environment The environment for the plugins service.
+     * @return A function for creating a plugins service.
+     */
+    public static Function<Settings, PluginsService> getCreatePluginsServiceFunction(Environment environment) {
+        return settings -> new PluginsService(
+            settings,
+            environment.configFile(),
+            environment.modulesFile(),
+            environment.pluginsFile(),
+            List.of()
+        );
     }
 }

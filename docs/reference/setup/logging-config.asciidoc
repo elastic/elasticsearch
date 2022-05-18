@@ -208,12 +208,26 @@ critical feature was used, it won't be removed in next major version, but might
 be removed in the future.
 
 To stop writing deprecation log messages, set `logger.deprecation.level`
-to `OFF`:
+to `OFF` in `log4j2.properties` :
 
 [source,properties]
 ----
 logger.deprecation.level = OFF
 ----
+Alternatively, you can change the logging level dynamically: 
+
+[source,console]
+----
+PUT /_cluster/settings
+{
+  "persistent": {
+    "logger.org.elasticsearch.deprecation": "OFF"
+  }
+}
+----
+
+Refer to <<configuring-logging-levels,Configuring logging levels>>.
+
 
 You can identify what is triggering deprecated functionality if `X-Opaque-Id` was used as an HTTP header.
 The user ID is included in the `X-Opaque-ID` field in deprecation JSON logs.

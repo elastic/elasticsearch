@@ -49,4 +49,4 @@
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
-          ./.ci/os.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $PACKAGING_TASK
+          ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $PACKAGING_TASK

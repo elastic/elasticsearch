@@ -64,6 +64,10 @@ public record ProfileDocument(
             final String domainName = realm.getDomain() != null ? realm.getDomain().name() : null;
             return new Profile.ProfileUser(username, roles, realm.getName(), domainName, email, fullName);
         }
+
+        public Subject toSubject() {
+            return new Subject(new User(username, roles.toArray(String[]::new), fullName, email, Map.of(), true), realm);
+        }
     }
 
     @Override
@@ -86,13 +90,6 @@ public record ProfileDocument(
         }
         builder.endObject();
         return builder;
-    }
-
-    public Subject subject() {
-        return new Subject(
-            new User(user.username, user.roles.toArray(String[]::new), user.fullName, user.email, Map.of(), true),
-            user.realm
-        );
     }
 
     static ProfileDocument fromSubject(Subject subject) {

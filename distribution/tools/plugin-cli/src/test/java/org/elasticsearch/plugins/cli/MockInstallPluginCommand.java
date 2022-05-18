@@ -30,8 +30,4 @@ public class MockInstallPluginCommand extends InstallPluginCommand {
         return this.env != null ? this.env : super.createEnv(options, processInfo);
     }
 
-    @Override
-    protected boolean addShutdownHook() {
-        return false;
-    }
 }

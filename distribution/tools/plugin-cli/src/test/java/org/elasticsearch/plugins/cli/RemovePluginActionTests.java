@@ -239,9 +239,6 @@ public class RemovePluginActionTests extends ESTestCase {
         MockTerminal terminal = MockTerminal.create();
 
         new MockRemovePluginCommand(env) {
-            protected boolean addShutdownHook() {
-                return false;
-            }
         }.main(new String[] { "-Epath.home=" + home, "fake" }, terminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
         try (
             BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()));

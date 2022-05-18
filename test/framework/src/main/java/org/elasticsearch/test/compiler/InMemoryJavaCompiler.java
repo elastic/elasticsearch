@@ -8,15 +8,12 @@
 
 package org.elasticsearch.test.compiler;
 
+import org.elasticsearch.test.PrivilegedOperations;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.DomainCombiner;
-import java.security.PrivilegedAction;
-import java.security.ProtectionDomain;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -134,7 +131,7 @@ public class InMemoryJavaCompiler {
         var files = sources.entrySet().stream().map(e -> new InMemoryJavaFileObject(e.getKey(), e.getValue())).toList();
         CompilationTask task = getCompilationTask(files, options);
 
-        boolean result = privilegedCall(task::call);
+        boolean result = PrivilegedOperations.compilationTaskCall(task);
         if (result == false) {
             throw new RuntimeException("Could not compile " + sources.entrySet().stream().toList());
         }
@@ -155,7 +152,7 @@ public class InMemoryJavaCompiler {
         InMemoryJavaFileObject file = new InMemoryJavaFileObject(className, sourceCode);
         CompilationTask task = getCompilationTask(file, options);
 
-        boolean result = privilegedCall(task::call);
+        boolean result = PrivilegedOperations.compilationTaskCall(task);
         if (result == false) {
             throw new RuntimeException("Could not compile " + className + " with source code " + sourceCode);
         }
@@ -173,26 +170,5 @@ public class InMemoryJavaCompiler {
 
     private static CompilationTask getCompilationTask(InMemoryJavaFileObject file, String... options) {
         return getCompiler().getTask(null, new FileManagerWrapper(file), null, List.of(options), null, List.of(file));
-    }
-
-    // -- security manager related stuff, to facilitate asserting permissions during compilation
-    // (since the JDK compiler checks a number of permissions)
-
-    @SuppressWarnings("removal")
-    private static AccessControlContext getContext() {
-        ProtectionDomain[] pda = new ProtectionDomain[] { privilegedCall(org.elasticsearch.secure_sm.SecureSM.class::getProtectionDomain) };
-        DomainCombiner combiner = (ignoreCurrent, ignoreAssigned) -> pda;
-        AccessControlContext acc = new AccessControlContext(AccessController.getContext(), combiner);
-        // getContext must be called with the new acc so that a combined context will be created
-        return AccessController.doPrivileged((PrivilegedAction<AccessControlContext>) AccessController::getContext, acc);
-    }
-
-    // Use the all-powerful protection domain of secure_sm for wrapping calls
-    @SuppressWarnings("removal")
-    private static final AccessControlContext context = getContext();
-
-    @SuppressWarnings("removal")
-    static <T> T privilegedCall(Supplier<T> supplier) {
-        return AccessController.doPrivileged((PrivilegedAction<T>) supplier::get, context);
     }
 }

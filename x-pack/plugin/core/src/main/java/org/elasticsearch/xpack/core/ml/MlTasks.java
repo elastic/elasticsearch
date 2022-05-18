@@ -166,7 +166,7 @@ public final class MlTasks {
         }
         JobState jobState = jobTaskState.getState();
         if (jobTaskState.isStatusStale(task)) {
-            // the job is re-locating
+            // the job is relocating
             if (jobState == JobState.CLOSING) {
                 // previous executor node failed while the job was closing - it won't
                 // be reopened on another node, so consider it CLOSED for most purposes

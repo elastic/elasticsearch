@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.action.shard;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -34,6 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -557,13 +559,11 @@ public class ShardStateAction {
 
         @Override
         public void onFailure(Exception e) {
-            if (e instanceof NotMasterException) {
-                logger.debug(() -> new ParameterizedMessage("{} no longer master while failing shard [{}]", entry.shardId, entry));
-            } else if (e instanceof FailedToCommitClusterStateException) {
-                logger.debug(() -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", entry.shardId, entry), e);
-            } else {
-                logger.error(() -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", entry.shardId, entry), e);
-            }
+            logger.log(
+                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.ERROR,
+                () -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", entry.shardId, entry),
+                e
+            );
             listener.onFailure(e);
         }
 

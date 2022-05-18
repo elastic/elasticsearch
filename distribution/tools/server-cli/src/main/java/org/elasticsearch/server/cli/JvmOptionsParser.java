@@ -8,6 +8,9 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserException;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -72,50 +75,73 @@ final class JvmOptionsParser {
                 "Expected two arguments specifying path to ES_PATH_CONF and plugins directory, but was " + Arrays.toString(args)
             );
         }
+        try {
+            Path configDir = Paths.get(args[0]);
+            Path pluginsDir = Paths.get(args[1]);
+            Path tmpDir = Paths.get(System.getenv("ES_TMPDIR"));
+            String envOptions = System.getenv("ES_JAVA_OPTS");
+            var jvmOptions = determineJvmOptions(configDir, pluginsDir, tmpDir, envOptions);
+
+            Launchers.outPrintln(String.join(" ", jvmOptions));
+        } catch (UserException e) {
+            Launchers.errPrintln(e.getMessage());
+            Launchers.exit(e.exitCode);
+        }
+    }
+
+    /**
+     * Determines the jvm options that should be passed to the Elasticsearch Java process.
+     *
+     * <p> This method works by joining the options found in {@link SystemJvmOptions}, the {@code jvm.options} file,
+     * files in the {@code jvm.options.d} directory, and the options given by the {@code ES_JAVA_OPTS} environment
+     * variable.
+     *
+     * @param configDir the ES config dir
+     * @param pluginsDir the ES plugins dir
+     * @param tmpDir the directory that should be passed to {@code -Djava.io.tmpdir}
+     * @param envOptions the options passed through the ES_JAVA_OPTS env var
+     * @return the list of options to put on the Java command line
+     * @throws InterruptedException if the java subprocess is interrupted
+     * @throws IOException if there is a problem reading any of the files
+     * @throws UserException if there is a problem parsing the jvm.options file or jvm.options.d files
+     */
+    static List<String> determineJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws InterruptedException,
+        IOException, UserException {
 
         final JvmOptionsParser parser = new JvmOptionsParser();
 
         final Map<String, String> substitutions = new HashMap<>();
-        substitutions.put("ES_TMPDIR", System.getenv("ES_TMPDIR"));
-        final String environmentPathConf = System.getenv("ES_PATH_CONF");
-        if (environmentPathConf != null) {
-            substitutions.put("ES_PATH_CONF", environmentPathConf);
-        }
+        substitutions.put("ES_TMPDIR", tmpDir.toString());
+        substitutions.put("ES_PATH_CONF", configDir.toString());
 
         try {
-            final List<String> jvmOptions = parser.jvmOptions(
-                Paths.get(args[0]),
-                Paths.get(args[1]),
-                System.getenv("ES_JAVA_OPTS"),
-                substitutions
-            );
-            Launchers.outPrintln(String.join(" ", jvmOptions));
+            return parser.jvmOptions(configDir, pluginsDir, envOptions, substitutions);
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
                 Locale.ROOT,
-                "encountered [%d] error%s parsing [%s]",
+                "encountered [%d] error%s parsing [%s]%s",
                 e.invalidLines().size(),
                 e.invalidLines().size() == 1 ? "" : "s",
-                e.jvmOptionsFile()
+                e.jvmOptionsFile(),
+                System.lineSeparator()
             );
-            Launchers.errPrintln(errorMessage);
+            StringBuilder msg = new StringBuilder(errorMessage);
             int count = 0;
             for (final Map.Entry<Integer, String> entry : e.invalidLines().entrySet()) {
                 count++;
                 final String message = String.format(
                     Locale.ROOT,
-                    "[%d]: encountered improperly formatted JVM option in [%s] on line number [%d]: [%s]",
+                    "[%d]: encountered improperly formatted JVM option in [%s] on line number [%d]: [%s]%s",
                     count,
                     e.jvmOptionsFile(),
                     entry.getKey(),
-                    entry.getValue()
+                    entry.getValue(),
+                    System.lineSeparator()
                 );
-                Launchers.errPrintln(message);
+                msg.append(message);
             }
-            Launchers.exit(1);
+            throw new UserException(ExitCodes.CONFIG, msg.toString());
         }
-
-        Launchers.exit(0);
     }
 
     private List<String> jvmOptions(final Path config, Path plugins, final String esJavaOpts, final Map<String, String> substitutions)

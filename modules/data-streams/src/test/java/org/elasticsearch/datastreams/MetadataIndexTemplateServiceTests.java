@@ -46,13 +46,16 @@ import static org.mockito.Mockito.when;
  */
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86333")
     public void testValidateTsdbDataStreamsReferringTsdbTemplate() throws Exception {
         var state = ClusterState.EMPTY_STATE;
         final var service = getMetadataIndexTemplateService();
         var template = new ComposableIndexTemplate(
             Collections.singletonList("logs-*-*"),
-            new Template(builder().put("index.routing_path", "uid").build(), new CompressedXContent(generateTsdbMapping()), null),
+            new Template(
+                builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(),
+                new CompressedXContent(generateTsdbMapping()),
+                null
+            ),
             null,
             100L,
             null,

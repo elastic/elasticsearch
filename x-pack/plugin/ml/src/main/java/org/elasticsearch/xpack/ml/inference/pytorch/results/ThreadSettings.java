@@ -13,42 +13,32 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Objects;
 
-public record ThreadSettings(int inferenceThreads, int modelThreads) implements ToXContentObject {
+public record ThreadSettings(int numThreadsPerAllocation, int numAllocations, String requestId) implements ToXContentObject {
 
-    private static final ParseField INFERENCE_THREADS = new ParseField("inference_threads");
-    private static final ParseField MODEL_THREADS = new ParseField("model_threads");
+    private static final ParseField NUM_ALLOCATIONS = new ParseField("num_threads_per_allocation");
+    private static final ParseField NUM_THREADS_PER_ALLOCATION = new ParseField("num_allocations");
 
     public static ConstructingObjectParser<ThreadSettings, Void> PARSER = new ConstructingObjectParser<>(
         "thread_settings",
-        a -> new ThreadSettings((int) a[0], (int) a[1])
+        a -> new ThreadSettings((int) a[0], (int) a[1], (String) a[2])
     );
 
     static {
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), INFERENCE_THREADS);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MODEL_THREADS);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUM_THREADS_PER_ALLOCATION);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUM_ALLOCATIONS);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PyTorchResult.REQUEST_ID);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(INFERENCE_THREADS.getPreferredName(), inferenceThreads);
-        builder.field(MODEL_THREADS.getPreferredName(), modelThreads);
+        builder.field(NUM_THREADS_PER_ALLOCATION.getPreferredName(), numThreadsPerAllocation);
+        builder.field(NUM_ALLOCATIONS.getPreferredName(), numAllocations);
+        if (requestId != null) {
+            builder.field(PyTorchResult.REQUEST_ID.getPreferredName(), requestId);
+        }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ThreadSettings that = (ThreadSettings) o;
-        return inferenceThreads == that.inferenceThreads && modelThreads == that.modelThreads;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(inferenceThreads, modelThreads);
     }
 }

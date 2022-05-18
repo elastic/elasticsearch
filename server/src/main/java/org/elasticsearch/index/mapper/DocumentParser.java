@@ -445,7 +445,13 @@ public final class DocumentParser {
         Mapper objectMapper = getMapper(context, mapper, currentFieldName);
         if (objectMapper != null) {
             context.path().add(currentFieldName);
+            if (objectMapper instanceof ObjectMapper objMapper) {
+                if (objMapper.subobjects() == false) {
+                    context.path().setWithinLeafObject(true);
+                }
+            }
             parseObjectOrField(context, objectMapper);
+            context.path().setWithinLeafObject(false);
             context.path().remove();
         } else {
             parseObjectDynamic(context, mapper, currentFieldName);
@@ -474,7 +480,13 @@ public final class DocumentParser {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper);
             }
             context.path().add(currentFieldName);
+            if (dynamicObjectMapper instanceof ObjectMapper objectMapper) {
+                if (objectMapper.subobjects() == false) {
+                    context.path().setWithinLeafObject(true);
+                }
+            }
             parseObjectOrField(context, dynamicObjectMapper);
+            context.path().setWithinLeafObject(false);
             context.path().remove();
         }
     }
@@ -789,7 +801,7 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(name, fullPath, Explicit.IMPLICIT_TRUE, Dynamic.RUNTIME, Collections.emptyMap());
+            super(name, fullPath, Explicit.IMPLICIT_TRUE, Explicit.IMPLICIT_TRUE, Dynamic.RUNTIME, Collections.emptyMap());
         }
     }
 
@@ -815,7 +827,11 @@ public final class DocumentParser {
             XContentParser parser
         ) throws IOException {
             super(mappingLookup, indexSettings, indexAnalyzers, parserContext, source);
-            this.parser = DotExpandingXContentParser.expandDots(parser);
+            if (mappingLookup.getMapping().getRoot().subobjects()) {
+                this.parser = DotExpandingXContentParser.expandDots(parser, this.path::isWithinLeafObject);
+            } else {
+                this.parser = parser;
+            }
             this.document = new LuceneDocument();
             this.documents.add(document);
             this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();

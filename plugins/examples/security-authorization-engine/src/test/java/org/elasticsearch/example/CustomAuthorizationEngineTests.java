@@ -52,9 +52,9 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
         CustomAuthorizationEngine engine = new CustomAuthorizationEngine();
         // unauthorized
         {
-            Authentication authentication =
-                new Authentication(new User("joe", new String[]{"custom_superuser"}, new User("bar", "not_superuser")),
-                    new RealmRef("test", "test", "node"), new RealmRef("test", "test", "node"));
+            Authentication authentication = Authentication
+                .newRealmAuthentication(new User("bar", "not_superuser"), new RealmRef("test", "test", "node"))
+                .runAs(new User("joe", "custom_superuser"), new RealmRef("test", "test", "node"));
             RequestInfo info = new RequestInfo(authentication, request, action, null);
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(info, future);
@@ -69,9 +69,9 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
         // authorized
         {
-            Authentication authentication =
-                new Authentication(new User("joe", new String[]{"not_superuser"}, new User("bar", "custom_superuser")),
-                    new RealmRef("test", "test", "node"), new RealmRef("test", "test", "node"));
+            Authentication authentication = Authentication
+                .newRealmAuthentication(new User("bar", "custom_superuser"), new RealmRef("test", "test", "node"))
+                .runAs(new User("joe", "not_superuser"), new RealmRef("test", "test", "node"));
             RequestInfo info = new RequestInfo(authentication, request, action, null);
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(info, future);
@@ -103,7 +103,8 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
         // unauthorized
         {
             RequestInfo unauthReqInfo =
-                new RequestInfo(new Authentication(new User("joe", "not_superuser"), new RealmRef("test", "test", "node"), null),
+                new RequestInfo(
+                    Authentication.newRealmAuthentication(new User("joe", "not_superuser"), new RealmRef("test", "test", "node")),
                     requestInfo.getRequest(), requestInfo.getAction(), null);
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(unauthReqInfo, future);
@@ -128,7 +129,8 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
         // authorized
         {
             RequestInfo requestInfo =
-                new RequestInfo(new Authentication(new User("joe", "custom_superuser"), new RealmRef("test", "test", "node"), null),
+                new RequestInfo(
+                    Authentication.newRealmAuthentication(new User("joe", "custom_superuser"), new RealmRef("test", "test", "node")),
                     new SearchRequest(), "indices:data/read/search", null);
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(requestInfo, future);
@@ -149,7 +151,8 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
         // unauthorized
         {
             RequestInfo requestInfo =
-                new RequestInfo(new Authentication(new User("joe", "not_superuser"), new RealmRef("test", "test", "node"), null),
+                new RequestInfo(
+                    Authentication.newRealmAuthentication(new User("joe", "not_superuser"), new RealmRef("test", "test", "node")),
                     new SearchRequest(), "indices:data/read/search", null);
             PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
             engine.resolveAuthorizationInfo(requestInfo, future);
@@ -171,7 +174,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
         final String action = "cluster:monitor/foo";
         final TransportRequest request = new TransportRequest() {};
         final Authentication authentication =
-            new Authentication(new User("joe", "custom_superuser"), new RealmRef("test", "test", "node"), null);
+            Authentication.newRealmAuthentication(new User("joe", "custom_superuser"), new RealmRef("test", "test", "node"));
         return new RequestInfo(authentication, request, action, null);
     }
 }

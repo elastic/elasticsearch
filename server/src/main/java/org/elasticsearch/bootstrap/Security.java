@@ -16,7 +16,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.PluginsUtils;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
 
@@ -156,10 +156,10 @@ final class Security {
             }
         };
 
-        for (Path plugin : PluginsService.findPluginDirs(environment.pluginsFile())) {
+        for (Path plugin : PluginsUtils.findPluginDirs(environment.pluginsFile())) {
             addPolicy.accept(PolicyUtil.getPluginPolicyInfo(plugin, environment.tmpFile()));
         }
-        for (Path plugin : PluginsService.findPluginDirs(environment.modulesFile())) {
+        for (Path plugin : PluginsUtils.findPluginDirs(environment.modulesFile())) {
             addPolicy.accept(PolicyUtil.getModulePolicyInfo(plugin, environment.tmpFile()));
         }
 

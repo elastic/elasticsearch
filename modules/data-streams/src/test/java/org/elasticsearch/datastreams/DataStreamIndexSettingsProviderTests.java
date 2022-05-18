@@ -20,7 +20,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
@@ -44,8 +43,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings
         );
-        assertThat(result.size(), equalTo(3));
-        assertThat(result.get(IndexSettings.MODE.getKey()), equalTo(IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT)));
+        assertThat(result.size(), equalTo(2));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
     }
@@ -66,8 +64,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings
         );
-        assertThat(result.size(), equalTo(3));
-        assertThat(result.get(IndexSettings.MODE.getKey()), equalTo(IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT)));
+        assertThat(result.size(), equalTo(2));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
     }
@@ -94,8 +91,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings
         );
-        assertThat(result.size(), equalTo(3));
-        assertThat(result.get(IndexSettings.MODE.getKey()), equalTo(IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT)));
+        assertThat(result.size(), equalTo(2));
         assertThat(result.get(IndexSettings.TIME_SERIES_START_TIME.getKey()), equalTo(FORMATTER.format(currentEnd)));
         assertThat(
             result.get(IndexSettings.TIME_SERIES_END_TIME.getKey()),

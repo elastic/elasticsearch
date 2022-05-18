@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySourc
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -29,6 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +66,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
 
     private final List<ShardRouting> allActiveShards;
 
-    IndexRoutingTable(Index index, ImmutableOpenIntMap<IndexShardRoutingTable> shards) {
+    IndexRoutingTable(Index index, Map<Integer, IndexShardRoutingTable> shards) {
         this.index = index;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
         this.shards = new IndexShardRoutingTable[shards.size()];
@@ -328,7 +328,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
     public static class Builder {
 
         private final Index index;
-        private final ImmutableOpenIntMap.Builder<IndexShardRoutingTable> shards = ImmutableOpenIntMap.builder();
+        private final Map<Integer, IndexShardRoutingTable> shards = new HashMap<>();
 
         public Builder(Index index) {
             this.index = index;
@@ -487,7 +487,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         }
 
         public Builder addReplica() {
-            for (var shardNumber : shards.keys()) {
+            for (var shardNumber : shards.keySet()) {
                 ShardId shardId = new ShardId(index, shardNumber);
                 // version 0, will get updated when reroute will happen
                 ShardRouting shard = ShardRouting.newUnassigned(
@@ -502,7 +502,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         }
 
         public Builder removeReplica() {
-            for (var shardId : shards.keys()) {
+            for (var shardId : shards.keySet()) {
                 IndexShardRoutingTable indexShard = shards.get(shardId);
                 if (indexShard.replicaShards().isEmpty()) {
                     // nothing to do here!
@@ -557,7 +557,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         }
 
         public IndexRoutingTable build() {
-            return new IndexRoutingTable(index, shards.build());
+            return new IndexRoutingTable(index, shards);
         }
     }
 

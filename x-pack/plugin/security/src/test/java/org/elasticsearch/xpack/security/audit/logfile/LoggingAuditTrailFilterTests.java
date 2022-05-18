@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
+import org.elasticsearch.xpack.sql.proto.core.Nullable;
 import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
@@ -127,13 +128,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         // filter by username
         final List<String> filteredUsernames = randomNonEmptyListOfFilteredNames();
-        final List<User> filteredUsers = filteredUsernames.stream().map(u -> {
-            if (randomBoolean()) {
-                return new User(u);
-            } else {
-                return new User(new User(u), new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4)));
-            }
-        }).collect(Collectors.toList());
+        final List<User> filteredUsers = filteredUsernames.stream().map(u -> { return new User(u); }).collect(Collectors.toList());
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.userPolicy.users", filteredUsernames);
         // filter by realms
         final List<String> filteredRealms = randomNonEmptyListOfFilteredNames();
@@ -165,9 +160,6 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                 )
         );
         final User unfilteredUser = mock(User.class);
-        if (randomBoolean()) {
-            when(unfilteredUser.authenticatedUser()).thenReturn(new User(randomFrom(filteredUsernames)));
-        }
         // null user field does NOT match
         assertFalse(
             "Does not match the user filter predicate because of null username.",
@@ -312,13 +304,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         // filter by username
         final List<String> filteredUsernames = randomNonEmptyListOfFilteredNames();
-        final List<User> filteredUsers = filteredUsernames.stream().map(u -> {
-            if (randomBoolean()) {
-                return new User(u);
-            } else {
-                return new User(new User(u), new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4)));
-            }
-        }).collect(Collectors.toList());
+        final List<User> filteredUsers = filteredUsernames.stream().map(u -> { return new User(u); }).collect(Collectors.toList());
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.completeFilterPolicy.users", filteredUsernames);
         // filter by realms
         final List<String> filteredRealms = randomNonEmptyListOfFilteredNames();
@@ -353,14 +339,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                 )
         );
         final User unfilteredUser;
-        if (randomBoolean()) {
-            unfilteredUser = new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
-        } else {
-            unfilteredUser = new User(
-                new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)),
-                new User(randomFrom(filteredUsers).principal())
-            );
-        }
+        unfilteredUser = new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
         // one field does not match or is empty
         assertFalse(
             "Does not match the filter predicate because of the user.",
@@ -514,13 +493,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         // filter by username
         final List<String> filteredUsernames = randomNonEmptyListOfFilteredNames();
-        final List<User> filteredUsers = filteredUsernames.stream().map(u -> {
-            if (randomBoolean()) {
-                return new User(u);
-            } else {
-                return new User(new User(u), new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4)));
-            }
-        }).collect(Collectors.toList());
+        final List<User> filteredUsers = filteredUsernames.stream().map(u -> { return new User(u); }).collect(Collectors.toList());
         filteredUsernames.add(""); // filter by missing user name
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.completeFilterPolicy.users", filteredUsernames);
         // filter by realms
@@ -562,14 +535,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                 )
         );
         final User unfilteredUser;
-        if (randomBoolean()) {
-            unfilteredUser = new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
-        } else {
-            unfilteredUser = new User(
-                new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)),
-                new User(randomFrom(filteredUsers).principal())
-            );
-        }
+        unfilteredUser = new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
         // one field does not match or is empty
         assertFalse(
             "Does not match the filter predicate because of the user.",
@@ -756,13 +722,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.firstPolicy.roles", filteredRoles);
         // second policy: users and indices filters
         final List<String> filteredUsernames = randomNonEmptyListOfFilteredNames();
-        final List<User> filteredUsers = filteredUsernames.stream().map(u -> {
-            if (randomBoolean()) {
-                return new User(u);
-            } else {
-                return new User(new User(u), new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4)));
-            }
-        }).collect(Collectors.toList());
+        final List<User> filteredUsers = filteredUsernames.stream().map(u -> { return new User(u); }).collect(Collectors.toList());
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.secondPolicy.users", filteredUsernames);
         // filter by indices
         final List<String> filteredIndices = randomNonEmptyListOfFilteredNames();
@@ -771,14 +731,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
 
         final User unfilteredUser;
-        if (randomBoolean()) {
-            unfilteredUser = new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
-        } else {
-            unfilteredUser = new User(
-                new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)),
-                new User(randomFrom(filteredUsers).principal())
-            );
-        }
+        unfilteredUser = new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
         final List<String> someRolesDoNotMatch = new ArrayList<>(randomSubsetOf(randomIntBetween(0, filteredRoles.size()), filteredRoles));
         for (int i = 0; i < randomIntBetween(1, 8); i++) {
             someRolesDoNotMatch.add(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
@@ -879,14 +832,12 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         Authentication filteredAuthentication;
         if (randomBoolean()) {
             filteredAuthentication = createAuthentication(
-                new User(randomFrom(allFilteredUsers), new String[] { "r1" }, new User("authUsername", new String[] { "r2" })),
+                new User(randomFrom(allFilteredUsers), "r1"),
+                new User("authUsername", "r2"),
                 "effectiveRealmName"
             );
         } else {
-            filteredAuthentication = createAuthentication(
-                new User(randomFrom(allFilteredUsers), new String[] { "r1" }),
-                "effectiveRealmName"
-            );
+            filteredAuthentication = createAuthentication(new User(randomFrom(allFilteredUsers), "r1"), "effectiveRealmName");
         }
         if (randomBoolean()) {
             filteredAuthentication = createApiKeyAuthentication(apiKeyService, filteredAuthentication);
@@ -894,16 +845,13 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         Authentication unfilteredAuthentication;
         if (randomBoolean()) {
             unfilteredAuthentication = createAuthentication(
-                new User(
-                    UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4),
-                    new String[] { "r1" },
-                    new User("authUsername", new String[] { "r2" })
-                ),
+                new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4), "r1"),
+                new User("authUsername", "r2"),
                 "effectiveRealmName"
             );
         } else {
             unfilteredAuthentication = createAuthentication(
-                new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4), new String[] { "r1" }),
+                new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4), "r1"),
                 "effectiveRealmName"
             );
         }
@@ -1252,11 +1200,13 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         }
         final String filteredRealm = randomFrom(allFilteredRealms);
         final String unfilteredRealm = UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4);
-        User user;
+        final User user, authUser;
         if (randomBoolean()) {
-            user = new User("user1", new String[] { "r1" }, new User("authUsername", new String[] { "r2" }));
+            user = new User("user1", "r1");
+            authUser = new User("authUsername", "r2");
         } else {
-            user = new User("user1", new String[] { "r1" });
+            user = new User("user1", "r1");
+            authUser = null;
         }
         final TransportRequest request = randomBoolean()
             ? new MockRequest(threadContext)
@@ -1343,8 +1293,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         // accessGranted
         Authentication authentication = randomBoolean()
-            ? createAuthentication(user, filteredRealm)
-            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm));
+            ? createAuthentication(user, authUser, filteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, authUser, filteredRealm));
         auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "_action", request, authzInfo(new String[] { "role1" }));
         if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
             && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
@@ -1360,8 +1310,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         authentication = randomBoolean()
-            ? createAuthentication(user, unfilteredRealm)
-            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm));
+            ? createAuthentication(user, authUser, unfilteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, authUser, unfilteredRealm));
         auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "_action", request, authzInfo(new String[] { "role1" }));
         if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
             && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
@@ -1399,8 +1349,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         authentication = randomBoolean()
-            ? createAuthentication(user, filteredRealm)
-            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm));
+            ? createAuthentication(user, authUser, filteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, authUser, filteredRealm));
         auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "internal:_action", request, authzInfo(new String[] { "role1" }));
         if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
             && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
@@ -1416,8 +1366,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         authentication = randomBoolean()
-            ? createAuthentication(user, unfilteredRealm)
-            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm));
+            ? createAuthentication(user, authUser, unfilteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, authUser, unfilteredRealm));
         auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "internal:_action", request, authzInfo(new String[] { "role1" }));
         if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
             && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
@@ -1434,8 +1384,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         // accessDenied
         authentication = randomBoolean()
-            ? createAuthentication(user, filteredRealm)
-            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm));
+            ? createAuthentication(user, authUser, filteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, authUser, filteredRealm));
         auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "_action", request, authzInfo(new String[] { "role1" }));
         if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
             && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
@@ -1451,8 +1401,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         authentication = randomBoolean()
-            ? createAuthentication(user, unfilteredRealm)
-            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm));
+            ? createAuthentication(user, authUser, unfilteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, authUser, unfilteredRealm));
         auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "_action", request, authzInfo(new String[] { "role1" }));
         if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
             && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
@@ -1490,8 +1440,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         authentication = randomBoolean()
-            ? createAuthentication(user, filteredRealm)
-            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm));
+            ? createAuthentication(user, authUser, filteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, authUser, filteredRealm));
         auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "internal:_action", request, authzInfo(new String[] { "role1" }));
         if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
             && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
@@ -1507,8 +1457,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         authentication = randomBoolean()
-            ? createAuthentication(user, unfilteredRealm)
-            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm));
+            ? createAuthentication(user, authUser, unfilteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, authUser, unfilteredRealm));
         auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "internal:_action", request, authzInfo(new String[] { "role1" }));
         if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
             && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
@@ -1543,8 +1493,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         authentication = randomBoolean()
-            ? createAuthentication(user, filteredRealm)
-            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm));
+            ? createAuthentication(user, authUser, filteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, authUser, filteredRealm));
         auditTrail.tamperedRequest(randomAlphaOfLength(8), authentication, "_action", request);
         if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
             && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
@@ -1560,8 +1510,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         authentication = randomBoolean()
-            ? createAuthentication(user, unfilteredRealm)
-            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm));
+            ? createAuthentication(user, authUser, unfilteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, authUser, unfilteredRealm));
         auditTrail.tamperedRequest(randomAlphaOfLength(8), authentication, "_action", request);
         if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
             && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
@@ -1599,7 +1549,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         // runAsGranted
         auditTrail.runAsGranted(
             randomAlphaOfLength(8),
-            createAuthentication(user, filteredRealm),
+            createAuthentication(user, authUser, filteredRealm),
             "_action",
             new MockRequest(threadContext),
             authzInfo(new String[] { "role1" })
@@ -1610,7 +1560,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.runAsGranted(
             randomAlphaOfLength(8),
-            createAuthentication(user, unfilteredRealm),
+            createAuthentication(user, authUser, unfilteredRealm),
             "_action",
             new MockRequest(threadContext),
             authzInfo(new String[] { "role1" })
@@ -1622,7 +1572,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         // runAsDenied
         auditTrail.runAsDenied(
             randomAlphaOfLength(8),
-            createAuthentication(user, filteredRealm),
+            createAuthentication(user, authUser, filteredRealm),
             "_action",
             new MockRequest(threadContext),
             authzInfo(new String[] { "role1" })
@@ -1633,7 +1583,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.runAsDenied(
             randomAlphaOfLength(8),
-            createAuthentication(user, unfilteredRealm),
+            createAuthentication(user, authUser, unfilteredRealm),
             "_action",
             new MockRequest(threadContext),
             authzInfo(new String[] { "role1" })
@@ -1644,7 +1594,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.runAsDenied(
             randomAlphaOfLength(8),
-            createAuthentication(user, filteredRealm),
+            createAuthentication(user, authUser, filteredRealm),
             getRestRequest(),
             authzInfo(new String[] { "role1" })
         );
@@ -1654,7 +1604,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.runAsDenied(
             randomAlphaOfLength(8),
-            createAuthentication(user, unfilteredRealm),
+            createAuthentication(user, authUser, unfilteredRealm),
             getRestRequest(),
             authzInfo(new String[] { "role1" })
         );
@@ -1663,22 +1613,22 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // authentication Success
-        auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, unfilteredRealm), getRestRequest());
+        auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, authUser, unfilteredRealm), getRestRequest());
         assertThat("AuthenticationSuccess rest request: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, filteredRealm), getRestRequest());
+        auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, authUser, filteredRealm), getRestRequest());
         assertThat("AuthenticationSuccess rest request: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, unfilteredRealm), "_action", request);
+        auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, authUser, unfilteredRealm), "_action", request);
         assertThat("AuthenticationSuccess message: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, filteredRealm), "_action", request);
+        auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, authUser, filteredRealm), "_action", request);
         assertThat("AuthenticationSuccess message: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
@@ -1734,12 +1684,9 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final String[] unfilteredRoles = _unfilteredRoles.toArray(new String[0]);
         Authentication authentication;
         if (randomBoolean()) {
-            authentication = createAuthentication(
-                new User("user1", new String[] { "r1" }, new User("authUsername", new String[] { "r2" })),
-                "effectiveRealmName"
-            );
+            authentication = createAuthentication(new User("user1", "r1"), new User("authUsername", "r2"), "effectiveRealmName");
         } else {
-            authentication = createAuthentication(new User("user1", new String[] { "r1" }), "effectiveRealmName");
+            authentication = createAuthentication(new User("user1", "r1"), "effectiveRealmName");
         }
         if (randomBoolean()) {
             authentication = createApiKeyAuthentication(apiKeyService, authentication);
@@ -2054,12 +2001,9 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final String[] unfilteredIndices = _unfilteredIndices.toArray(new String[0]);
         Authentication authentication;
         if (randomBoolean()) {
-            authentication = createAuthentication(
-                new User("user1", new String[] { "r1" }, new User("authUsername", new String[] { "r2" })),
-                "effectiveRealmName"
-            );
+            authentication = createAuthentication(new User("user1", "r1"), new User("authUsername", "r2"), "effectiveRealmName");
         } else {
-            authentication = createAuthentication(new User("user1", new String[] { "r1" }), "effectiveRealmName");
+            authentication = createAuthentication(new User("user1", "r1"), "effectiveRealmName");
         }
         if (randomBoolean()) {
             authentication = createApiKeyAuthentication(apiKeyService, authentication);
@@ -2523,11 +2467,13 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         }
         final String filteredAction = randomFrom(filteredActions);
         final String unfilteredAction = "mock_action/mock_action";
-        User user;
+        final User user, authUser;
         if (randomBoolean()) {
-            user = new User("user1", new String[] { "r1" }, new User("authUsername", new String[] { "r2" }));
+            user = new User("user1", "r1");
+            authUser = new User("authUsername", "r2");
         } else {
-            user = new User("user1", new String[] { "r1" });
+            user = new User("user1", "r1");
+            authUser = null;
         }
         final TransportRequest request = randomBoolean()
             ? new MockRequest(threadContext)
@@ -2600,7 +2546,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // accessGranted
-        Authentication authentication = createAuthentication(user, "realm");
+        Authentication authentication = createAuthentication(user, authUser, "realm");
         auditTrail.accessGranted(randomAlphaOfLength(8), authentication, filteredAction, request, authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted message: not filtered out by the action filters", logOutput.size(), is(0));
         logOutput.clear();
@@ -2672,7 +2618,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         // runAsGranted
         auditTrail.runAsGranted(
             randomAlphaOfLength(8),
-            createAuthentication(user, "realm"),
+            createAuthentication(user, authUser, "realm"),
             filteredAction,
             new MockRequest(threadContext),
             authzInfo(new String[] { "role1" })
@@ -2683,7 +2629,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.runAsGranted(
             randomAlphaOfLength(8),
-            createAuthentication(user, "realm"),
+            createAuthentication(user, authUser, "realm"),
             unfilteredAction,
             new MockRequest(threadContext),
             authzInfo(new String[] { "role1" })
@@ -2695,7 +2641,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         // runAsDenied
         auditTrail.runAsDenied(
             randomAlphaOfLength(8),
-            createAuthentication(user, "realm"),
+            createAuthentication(user, authUser, "realm"),
             filteredAction,
             new MockRequest(threadContext),
             authzInfo(new String[] { "role1" })
@@ -2706,7 +2652,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.runAsDenied(
             randomAlphaOfLength(8),
-            createAuthentication(user, "realm"),
+            createAuthentication(user, authUser, "realm"),
             unfilteredAction,
             new MockRequest(threadContext),
             authzInfo(new String[] { "role1" })
@@ -2717,7 +2663,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.runAsDenied(
             randomAlphaOfLength(8),
-            createAuthentication(user, "realm"),
+            createAuthentication(user, authUser, "realm"),
             getRestRequest(),
             authzInfo(new String[] { "role1" })
         );
@@ -2730,7 +2676,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // authentication Success
-        auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, "realm"), getRestRequest());
+        auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, authUser, "realm"), getRestRequest());
         if (filterMissingAction) {
             assertThat("AuthenticationSuccess rest request: not filtered out by the missing action filter", logOutput.size(), is(0));
         } else {
@@ -2739,12 +2685,12 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, "realm"), filteredAction, request);
+        auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, authUser, "realm"), filteredAction, request);
         assertThat("AuthenticationSuccess message: filtered action is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, "realm"), unfilteredAction, request);
+        auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, authUser, "realm"), unfilteredAction, request);
         assertThat("AuthenticationSuccess message: unfiltered action is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
@@ -2769,17 +2715,24 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     }
 
     private static Authentication createAuthentication(User user, String effectiveRealmName) {
-        assert false == User.isInternal(user);
-        if (user.isRunAs()) {
+        return createAuthentication(user, null, effectiveRealmName);
+    }
+
+    private static Authentication createAuthentication(User effectiveUser, @Nullable User authenticatingUser, String effectiveRealmName) {
+        assert false == User.isInternal(effectiveUser);
+        if (authenticatingUser != null) {
             return AuthenticationTestHelper.builder()
-                .user(user.authenticatedUser())
+                .user(authenticatingUser)
                 .realmRef(new RealmRef(UNFILTER_MARKER + randomAlphaOfLength(4), "test", "foo"))
                 .runAs()
-                .user(new User(user.principal(), user.roles(), user.fullName(), user.email(), user.metadata(), user.enabled()))
+                .user(effectiveUser)
                 .realmRef(new RealmRef(effectiveRealmName, "up", "by"))
                 .build();
         } else {
-            return AuthenticationTestHelper.builder().user(user).realmRef(new RealmRef(effectiveRealmName, "test", "foo")).build(false);
+            return AuthenticationTestHelper.builder()
+                .user(effectiveUser)
+                .realmRef(new RealmRef(effectiveRealmName, "test", "foo"))
+                .build(false);
         }
     }
 

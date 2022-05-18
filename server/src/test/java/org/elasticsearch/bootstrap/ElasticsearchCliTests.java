@@ -177,10 +177,6 @@ public class ElasticsearchCliTests extends CommandTestCase {
                 }
             }
 
-            @Override
-            public boolean addShutdownHook() {
-                return false;
-            }
         };
     }
 }

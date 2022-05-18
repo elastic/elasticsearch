@@ -157,10 +157,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 .toList();
             if (closedIndices.isEmpty() == false) {
                 markAsFailed(
-                    new IllegalStateException(
-                        new ParameterizedMessage("indices must be open to be migrated, but indices {} are closed", closedIndices)
-                            .getFormattedMessage()
-                    )
+                    new IllegalStateException("indices must be open to be migrated, but indices " + closedIndices + " are closed")
                 );
                 return;
             }

@@ -42,6 +42,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                     "index": {
                         "number_of_replicas": 0,
                         "number_of_shards": 2,
+                        "mode": "time_series",
                         "routing_path": ["metricset", "time_series_dimension"]
                     }
                 },

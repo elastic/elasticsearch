@@ -102,8 +102,8 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
         PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(
             nativeController,
             processPipes,
-            task.getParams().getInferenceThreads(),
-            task.getParams().getModelThreads()
+            task.getParams().getThreadsPerAllocation(),
+            task.getParams().getNumberOfAllocations()
         );
         try {
             pyTorchBuilder.build();

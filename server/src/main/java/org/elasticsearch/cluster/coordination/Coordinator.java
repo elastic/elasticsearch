@@ -197,6 +197,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.joinHelper = new JoinHelper(
             allocationService,
             masterService,
+            clusterApplier,
             transportService,
             this::getCurrentTerm,
             this::handleJoinRequest,
@@ -674,7 +675,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private void sendJoinValidate(DiscoveryNode discoveryNode, ActionListener<Empty> listener) {
         joinValidationService.validateJoin(discoveryNode, listener.delegateResponse((delegate, e) -> {
-            logger.warn(new ParameterizedMessage("failed to validate incoming join request from node [{}]", discoveryNode), e);
+            logger.warn(() -> "failed to validate incoming join request from node [" + discoveryNode + "]", e);
             delegate.onFailure(
                 new IllegalStateException(
                     String.format(
@@ -905,9 +906,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
             final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
-            if (lastAcceptedState.metadata().clusterUUIDCommitted()) {
-                logger.info("cluster UUID [{}]", lastAcceptedState.metadata().clusterUUID());
-            }
+            clusterBootstrapService.logBootstrapState(lastAcceptedState.metadata());
             final VotingConfiguration votingConfiguration = lastAcceptedState.getLastCommittedConfiguration();
             if (singleNodeDiscovery
                 && votingConfiguration.isEmpty() == false
@@ -1270,7 +1269,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         try {
             return coordinationState.get().handleJoin(join);
         } catch (CoordinationStateRejectedException e) {
-            logger.debug(new ParameterizedMessage("failed to add {} - ignoring", join), e);
+            logger.debug(() -> "failed to add " + join + " - ignoring", e);
             return false;
         }
     }
@@ -1400,7 +1399,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 }
             }
         } catch (Exception e) {
-            logger.debug(() -> new ParameterizedMessage("[{}] publishing failed", clusterStatePublicationEvent.getSummary()), e);
+            logger.debug(() -> "[" + clusterStatePublicationEvent.getSummary() + "] publishing failed", e);
             publishListener.onFailure(new FailedToCommitClusterStateException("publishing failed", e));
         }
     }

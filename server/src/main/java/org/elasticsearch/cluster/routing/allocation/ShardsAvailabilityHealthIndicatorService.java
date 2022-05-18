@@ -353,6 +353,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      */
     List<UserAction.Definition> diagnoseUnassignedShardRouting(ShardRouting shardRouting, ClusterState state) {
         List<UserAction.Definition> actions = new ArrayList<>();
+        LOGGER.trace("Diagnosing unassigned shard [{}] due to reason [{}]", shardRouting.shardId(), shardRouting.unassignedInfo());
         switch (shardRouting.unassignedInfo().getLastAllocationStatus()) {
             case NO_VALID_SHARD_COPY:
                 if (UnassignedInfo.Reason.NODE_LEFT == shardRouting.unassignedInfo().getReason()) {

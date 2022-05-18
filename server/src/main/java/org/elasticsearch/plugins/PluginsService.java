@@ -16,10 +16,10 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
@@ -172,23 +172,19 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     // package-private for testing
-    static void checkMandatoryPlugins(List<String> pluginsNames, List<String> mandatoryPlugins) {
-        if (mandatoryPlugins.isEmpty() == false) {
-            Set<String> missingPlugins = new HashSet<>();
-            for (String mandatoryPlugin : mandatoryPlugins) {
-                if (pluginsNames.contains(mandatoryPlugin) == false && missingPlugins.contains(mandatoryPlugin) == false) {
-                    missingPlugins.add(mandatoryPlugin);
-                }
-            }
-            if (missingPlugins.isEmpty() == false) {
-                final String message = String.format(
-                    Locale.ROOT,
-                    "missing mandatory plugins [%s], found plugins [%s]",
-                    Strings.collectionToDelimitedString(missingPlugins, ", "),
-                    Strings.collectionToDelimitedString(pluginsNames, ", ")
-                );
-                throw new IllegalStateException(message);
-            }
+    static void checkMandatoryPlugins(List<String> existingPlugins, List<String> mandatoryPlugins) {
+        if (mandatoryPlugins.isEmpty()) {
+            return;
+        }
+
+        Set<String> missingPlugins = Sets.difference(new HashSet<>(mandatoryPlugins), new HashSet<>(existingPlugins));
+        if (missingPlugins.isEmpty() == false) {
+            final String message = "missing mandatory plugins ["
+                + String.join(", ", missingPlugins)
+                + "], found plugins ["
+                + String.join(", ", existingPlugins)
+                + "]";
+            throw new IllegalStateException(message);
         }
     }
 

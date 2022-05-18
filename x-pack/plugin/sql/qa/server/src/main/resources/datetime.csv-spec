@@ -1173,8 +1173,8 @@ M       | 1996-11-05 00:00:00.000Z
 
 selectFormat
 schema::format_date:s|format_datetime:s|format_time:s
-SELECT FORMAT('2020-04-05T11:22:33.123Z'::date, 'dd/MM/YYYY HH:mm:ss.fff') AS format_date,
-FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff') AS format_datetime,
+SELECT FORMAT('2020-04-05T11:22:33.123Z'::date, 'dd/MM/yyyy HH:mm:ss.fff') AS format_date,
+FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/yyyy HH:mm:ss.ff') AS format_datetime,
 FORMAT('11:22:33.123456789Z'::time, 'HH:mm:ss.ff') AS format_time;
 
        format_date      |    format_datetime     |   format_time
@@ -1184,8 +1184,8 @@ FORMAT('11:22:33.123456789Z'::time, 'HH:mm:ss.ff') AS format_time;
 
 selectFormatWithLength
 schema::format_datetime:s|length:i
-SELECT FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff') AS format_datetime,
-LENGTH(FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff')) AS length;
+SELECT FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/yyyy HH:mm:ss.ff') AS format_datetime,
+LENGTH(FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/yyyy HH:mm:ss.ff')) AS length;
 
     format_datetime     | length
 ------------------------+----------------
@@ -1194,7 +1194,7 @@ LENGTH(FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff')) A
 
 selectFormatWithField
 schema::birth_date:ts|format_birth_date1:s|format_birth_date2:s|emp_no:i
-SELECT birth_date, FORMAT(birth_date, 'MM/dd/YYYY') AS format_birth_date1, FORMAT(birth_date, concat(gender, 'M/dd')) AS format_birth_date2, emp_no
+SELECT birth_date, FORMAT(birth_date, 'MM/dd/yyyy') AS format_birth_date1, FORMAT(birth_date, concat(gender, 'M/dd')) AS format_birth_date2, emp_no
 FROM test_emp WHERE gender = 'M' AND emp_no BETWEEN 10037 AND 10052 ORDER BY emp_no;
 
        birth_date        | format_birth_date1 | format_birth_date2 | emp_no
@@ -1233,7 +1233,7 @@ WHERE FORMAT(birth_date, 'MM')::integer > 10 ORDER BY emp_no LIMIT 10;
 
 formatOrderBy
 schema::birth_date:ts|format_birth_date:s
-SELECT birth_date, FORMAT(birth_date, 'MM/dd/YYYY') AS format_birth_date FROM test_emp ORDER BY 2 DESC NULLS LAST LIMIT 10;
+SELECT birth_date, FORMAT(birth_date, 'MM/dd/yyyy') AS format_birth_date FROM test_emp ORDER BY 2 DESC NULLS LAST LIMIT 10;
 
        birth_date        | format_birth_date
 -------------------------+---------------

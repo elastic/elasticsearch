@@ -92,6 +92,7 @@ public class ResizeNumberOfShardsCalculatorTests extends ESTestCase {
 
     public void testCalculateTargetShardsNumberInShrink() {
         assertEquals(1, calculateAcceptableNumberOfShards(0, 0));
+        assertEquals(3, calculateAcceptableNumberOfShards(9, 2));
         assertEquals(1, calculateAcceptableNumberOfShards(10, 0));
         assertEquals(1, calculateAcceptableNumberOfShards(10, 1));
         assertEquals(2, calculateAcceptableNumberOfShards(10, 2));

@@ -38,7 +38,7 @@ import java.util.Objects;
  * Creates a Lucene query that will filter for all documents that intersects the specified
  * bin of a grid.
  *
- * It supports gehash and geotile grids for both GeoShape and GeoPoint and the Geohex grid
+ * It supports geohash and geotile grids for both GeoShape and GeoPoint and the geohex grid
  * only for GeoPoint.
  * */
 public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilder> {

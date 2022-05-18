@@ -52,9 +52,9 @@ public class PutRoleRequestTests extends ESTestCase {
 
     public void testValidationErrorWithTooLongRoleName() {
         final PutRoleRequest request = new PutRoleRequest();
-        request.name(randomAlphaOfLengthBetween(
-            NativeRealmValidationUtil.MAX_NAME_LENGTH + 1,
-            NativeRealmValidationUtil.MAX_NAME_LENGTH * 2));
+        request.name(
+            randomAlphaOfLengthBetween(NativeRealmValidationUtil.MAX_NAME_LENGTH + 1, NativeRealmValidationUtil.MAX_NAME_LENGTH * 2)
+        );
         request.cluster("manage_security");
 
         // Fail

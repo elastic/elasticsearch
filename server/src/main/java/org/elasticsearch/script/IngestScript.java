@@ -16,6 +16,9 @@ import java.util.Map;
 
 /**
  * A script used by the Ingest Script Processor.
+ *
+ * Metadata:
+ *  _index, _id, _routing, _version, _version_type, timestamp
  */
 public abstract class IngestScript {
 

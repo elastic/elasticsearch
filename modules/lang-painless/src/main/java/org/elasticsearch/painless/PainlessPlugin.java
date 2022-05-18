@@ -100,6 +100,13 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
                 );
             }
 
+            // TODO(stu): Map<String, Whitelist> shared = new HashMap<>();
+            // for (String sharedWhitelist : context.getSharedWhitelists()) {
+            //   contextWhitelists.add(
+            //      shared.putIfAbsent(sharedWhitelist,
+            //          k -> WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch." + k + ".txt")
+            //      ) ) ;
+
             whitelists.put(context, contextWhitelists);
         }
 

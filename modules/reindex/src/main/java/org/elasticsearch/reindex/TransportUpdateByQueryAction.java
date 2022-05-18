@@ -193,37 +193,37 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     validateOp(getOp());
                 }
                 if (indexChanged()) {
-                    unsupported(INDEX, true);
+                    unsupported(INDEX_NAME, true);
                 }
                 if (idChanged()) {
-                    unsupported(ID, true);
+                    unsupported(ID_NAME, true);
                 }
                 if (routingChanged()) {
-                    unsupported(ROUTING, true);
+                    unsupported(ROUTING_NAME, true);
                 }
                 if (versionChanged()) {
-                    unsupported(VERSION, true);
+                    unsupported(VERSION_NAME, true);
                 }
             }
 
             @Override
             public void setIndex(String index) {
-                unsupported(INDEX, true);
+                unsupported(INDEX_NAME, true);
             }
 
             @Override
             public void setId(String id) {
-                unsupported(ID, true);
+                unsupported(ID_NAME, true);
             }
 
             @Override
             public void setRouting(String routing) {
-                unsupported(ROUTING, true);
+                unsupported(ROUTING_NAME, true);
             }
 
             @Override
             public void setVersion(Long version) {
-                unsupported(VERSION, true);
+                unsupported(VERSION_NAME, true);
             }
         }
     }

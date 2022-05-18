@@ -14,19 +14,17 @@ import org.elasticsearch.script.field.Metadata;
 import java.util.Map;
 
 /**
- * An update script.  _update with script or update via _update using upsert.  For inserts
- * done via _update's upsert, use {@link InsertScript}.
+ * A script for reindex.
  *
  * Metadata
- *  RO: _index, _id, _routing, _version, _now (timestamp)
- *  RW: _op {@link org.elasticsearch.script.field.Op}, NOOP ("none"), INDEX, DELETE, CREATE
+ *   RW: _index (non-null), _id, _routing, _version, _op {@link org.elasticsearch.script.field.Op} One of NOOP, INDEX, DELETE
  */
-public abstract class UpdateScript {
+public abstract class ReindexScript {
 
     public static final String[] PARAMETERS = {};
 
-    /** The context used to compile {@link UpdateScript} factories. */
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("update", Factory.class);
+    /** The context used to compile {@link ReindexScript} factories. */
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("reindex", Factory.class);
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
@@ -37,7 +35,7 @@ public abstract class UpdateScript {
     /** The update context for the script. */
     private final Map<String, Object> ctx;
 
-    public UpdateScript(Map<String, Object> params, Metadata metadata, Map<String, Object> ctx) {
+    public ReindexScript(Map<String, Object> params, Metadata metadata, Map<String, Object> ctx) {
         this.params = params;
         this.metadata = metadata;
         this.ctx = ctx;
@@ -60,6 +58,6 @@ public abstract class UpdateScript {
     public abstract void execute();
 
     public interface Factory {
-        UpdateScript newInstance(Map<String, Object> params, Metadata metadata, Map<String, Object> ctx);
+        ReindexScript newInstance(Map<String, Object> params, Metadata metadata, Map<String, Object> ctx);
     }
 }

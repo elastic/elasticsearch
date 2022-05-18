@@ -71,7 +71,7 @@ public class InternalDistributionModuleCheckTaskProvider {
     private static final Predicate<ModuleReference> isESModule = mref -> mref.descriptor().name().startsWith("org.elasticsearch");
 
     private static Predicate<Path> isESJar = path -> path.getFileName().toString().startsWith(ES_JAR_PREFIX);
-    
+
     private static Predicate<Path> isNotExcluded = path -> ES_JAR_EXCLUDES.stream()
         .filter(path.getFileName().toString()::startsWith)
         .findAny()

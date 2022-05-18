@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -29,7 +28,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -40,23 +38,6 @@ import static org.hamcrest.Matchers.sameInstance;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsServiceTests extends ESTestCase {
-    public static class AdditionalSettingsPlugin1 extends Plugin {
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder()
-                .put("foo.bar", "1")
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.MMAPFS.getSettingsKey())
-                .build();
-        }
-    }
-
-    public static class AdditionalSettingsPlugin2 extends Plugin {
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder().put("foo.bar", "2").build();
-        }
-    }
-
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings) {
@@ -85,41 +66,13 @@ public class PluginsServiceTests extends ESTestCase {
         );
     }
 
-    public void testAdditionalSettings() {
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put("my.setting", "test")
-            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
-            .build();
-        Map<String, Plugin> pluginMap = Map.of(AdditionalSettingsPlugin1.class.getName(), new AdditionalSettingsPlugin1());
-        Settings newSettings = Settings.builder().put(Node.mergedPluginSettings(pluginMap)).put(settings).build();
-        assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
-        assertEquals("1", newSettings.get("foo.bar")); // added setting exists
-        // does not override pre existing settings
-        assertEquals(IndexModule.Type.NIOFS.getSettingsKey(), newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()));
-    }
-
-    public void testAdditionalSettingsClash() {
-        Map<String, Plugin> pluginMap = Map.of(
-            AdditionalSettingsPlugin1.class.getName(),
-            new AdditionalSettingsPlugin1(),
-            AdditionalSettingsPlugin2.class.getName(),
-            new AdditionalSettingsPlugin2()
-        );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Node.mergedPluginSettings(pluginMap));
-        String msg = e.getMessage();
-        assertTrue(msg, msg.contains("Cannot have additional setting [foo.bar]"));
-        assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin1.class.getName()));
-        assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin2.class.getName()));
-    }
-
     public void testFilterPlugins() {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put("my.setting", "test")
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
             .build();
-        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, FilterablePlugin.class);
+        PluginsService service = newPluginsService(settings, FakePlugin.class, FilterablePlugin.class);
         List<ScriptPlugin> scriptPlugins = service.filterPlugins(ScriptPlugin.class);
         assertEquals(1, scriptPlugins.size());
         assertEquals(FilterablePlugin.class, scriptPlugins.get(0).getClass());

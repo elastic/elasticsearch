@@ -181,10 +181,7 @@ public class XPackSettings {
 
     public static final List<String> DEFAULT_CIPHERS = JDK12_CIPHERS;
 
-    /*
-     * Do not allow insecure hashing algorithms to be used for password hashing
-     */
-    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = defaultHashingAlgorithmSetting(
+    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = defaultStoredHashAlgorithmSetting(
         "xpack.security.authc.password_hashing.algorithm",
         (s) -> {
             if (XPackSettings.FIPS_MODE_ENABLED.get(s)) {
@@ -195,12 +192,15 @@ public class XPackSettings {
         }
     );
 
-    public static final Setting<String> SERVICE_TOKEN_HASHING_ALGORITHM = defaultHashingAlgorithmSetting(
+    public static final Setting<String> SERVICE_TOKEN_HASHING_ALGORITHM = defaultStoredHashAlgorithmSetting(
         "xpack.security.authc.service_token_hashing.algorithm",
         (s) -> Hasher.PBKDF2_STRETCH.name()
     );
 
-    private static Setting<String> defaultHashingAlgorithmSetting(String key, Function<Settings, String> defaultHashingAlgorithm) {
+    /*
+     * Do not allow insecure hashing algorithms to be used for password hashing
+     */
+    public static Setting<String> defaultStoredHashAlgorithmSetting(String key, Function<Settings, String> defaultHashingAlgorithm) {
         return new Setting<>(new Setting.SimpleKey(key), defaultHashingAlgorithm, Function.identity(), v -> {
             if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
                 throw new IllegalArgumentException(

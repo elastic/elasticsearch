@@ -875,11 +875,11 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         return aliasedIndices.keySet();
     }
 
-    public ImmutableOpenMap<String, IndexTemplateMetadata> templates() {
+    public Map<String, IndexTemplateMetadata> templates() {
         return this.templates;
     }
 
-    public ImmutableOpenMap<String, IndexTemplateMetadata> getTemplates() {
+    public Map<String, IndexTemplateMetadata> getTemplates() {
         return templates();
     }
 

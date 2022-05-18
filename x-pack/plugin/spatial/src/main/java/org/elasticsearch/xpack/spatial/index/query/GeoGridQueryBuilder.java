@@ -52,14 +52,13 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
 
             @Override
             protected Query toQuery(SearchExecutionContext context, String fieldName, MappedFieldType fieldType, String id) {
-                if ((fieldType instanceof GeoShapeQueryable) == false) {
-                    throw new QueryShardException(
-                        context,
-                        "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
-                    );
+                if (fieldType instanceof GeoShapeQueryable geoShapeQueryable) {
+                    return geoShapeQueryable.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, getQueryHash(id));
                 }
-                final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType;
-                return geoShapeQueryable.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, getQueryHash(id));
+                throw new QueryShardException(
+                    context,
+                    "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
+                );
             }
 
             @Override
@@ -78,14 +77,13 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
 
             @Override
             protected Query toQuery(SearchExecutionContext context, String fieldName, MappedFieldType fieldType, String id) {
-                if ((fieldType instanceof GeoShapeQueryable) == false) {
-                    throw new QueryShardException(
-                        context,
-                        "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
-                    );
+                if (fieldType instanceof GeoShapeQueryable geoShapeQueryable) {
+                    return geoShapeQueryable.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, getQueryTile(id));
                 }
-                final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType;
-                return geoShapeQueryable.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, getQueryTile(id));
+                throw new QueryShardException(
+                    context,
+                    "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query"
+                );
             }
 
             @Override

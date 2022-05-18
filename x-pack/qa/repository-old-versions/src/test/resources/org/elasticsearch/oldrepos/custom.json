@@ -1,0 +1,22 @@
+"_default_": {
+  "properties": {
+    "apache2": {
+      "properties": {
+        "access": {
+          "properties": {
+            "agent": {
+              "type": "text"
+            },
+            "url": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        }
+      }
+    },
+    "completion": {
+      "type": "completion"
+    }
+  }
+}

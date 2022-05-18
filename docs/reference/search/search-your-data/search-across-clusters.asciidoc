@@ -98,7 +98,7 @@ PUT _cluster/settings
 ==== Search a single remote cluster
 
 In the search request, you specify data streams and indices on a remote cluster
-as `<remote_cluster_name>:<target>``.
+as `<remote_cluster_name>:<target>`.
 
 The following <<search-search,search>> API request searches the
 `my-index-000001` index on a single remote cluster, `cluster_one`.

@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
@@ -316,7 +315,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
             @Override
             Optional<Tuple<Map<String, BytesReference>, Set<String>>> calculateTemplateChanges(
-                ImmutableOpenMap<String, IndexTemplateMetadata> templates
+                Map<String, IndexTemplateMetadata> templates
             ) {
                 final Optional<Tuple<Map<String, BytesReference>, Set<String>>> ans = super.calculateTemplateChanges(templates);
                 calculateInvocation.release();

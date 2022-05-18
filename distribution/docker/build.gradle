@@ -11,10 +11,9 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import java.nio.file.Path
 import java.time.temporal.ChronoUnit
 
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
-apply plugin: 'elasticsearch.rest-resources'
 
 String buildId = providers.systemProperty('build.id').getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false
@@ -203,7 +202,7 @@ tasks.named("preProcessFixture").configure {
   }
 }
 
-tasks.named("processTestResources").configure {
+tasks.named("processYamlRestTestResources").configure {
   from project(':x-pack:plugin:core')
     .files(
       'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
@@ -211,14 +210,14 @@ tasks.named("processTestResources").configure {
     )
 }
 
-tasks.register("integTest", Test) {
+tasks.named("yamlRestTest").configure {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
   maxParallelForks = '1'
   include '**/*IT.class'
 }
 
 tasks.named("check").configure {
-  dependsOn "integTest"
+  dependsOn "yamlRestTest"
 }
 
 // We build the images used in compose locally, but the pull command insists on using a repository
@@ -346,6 +345,10 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       noCache = BuildParams.isCi
       tags = generateTags(base)
 
+      // We don't build the Iron Bank image when we release Elasticsearch, as there's
+      // separate process for submitting new releases. However, for testing we do a
+      // "test build" so that we can check that the Docker build at least works and
+      // is functional.
       if (base == DockerBase.IRON_BANK) {
         Map<String, String> buildArgsMap = [
           'BASE_REGISTRY': 'docker.elastic.co',

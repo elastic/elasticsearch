@@ -16,12 +16,11 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -45,13 +44,13 @@ import static org.hamcrest.Matchers.hasSize;
 public class Netty4BadRequestTests extends ESTestCase {
 
     private NetworkService networkService;
-    private MockBigArrays bigArrays;
+    private PageCacheRecycler recycler;
     private ThreadPool threadPool;
 
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
-        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        recycler = new MockPageCacheRecycler(Settings.EMPTY);
         threadPool = new TestThreadPool("test");
     }
 
@@ -83,7 +82,6 @@ public class Netty4BadRequestTests extends ESTestCase {
             HttpServerTransport httpServerTransport = new Netty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,

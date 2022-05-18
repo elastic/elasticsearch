@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -50,6 +51,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
@@ -281,7 +283,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     logger.info("Performing reroute [{}]", r);
-                    reroutedIndices.addAll(createdIndices);
+                    for (IndexRoutingTable indexRoutingTable : currentState.getRoutingTable()) {
+                        reroutedIndices.add(indexRoutingTable.getIndex().getName());
+                    }
                     return allocationService.reroute(currentState, "test", ActionListener.noop());
                 }
 
@@ -349,9 +353,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
         try {
             assertTrue("Should call all listeners", listenersCountdown.await(10, TimeUnit.SECONDS));
-            assertThat(createdIndices.size(), equalTo(indexNameGenerator.get()));
-            assertThat(allocatedIndices.size(), equalTo(indexNameGenerator.get()));
-            assertThat(reroutedIndices.size(), equalTo(indexNameGenerator.get()));
+            assertThat("Allocated indexes", allocatedIndices, containsInAnyOrder(createdIndices.toArray(String[]::new)));
+            assertThat("Rerouted indexes", reroutedIndices, containsInAnyOrder(createdIndices.toArray(String[]::new)));
         } finally {
             clusterService.close();
             terminate(threadPool);

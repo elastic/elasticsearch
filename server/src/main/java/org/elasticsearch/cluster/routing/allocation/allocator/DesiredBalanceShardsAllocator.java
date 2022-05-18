@@ -94,8 +94,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 var shouldReroute = desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh);
                 var lastConvergedIndexAfterUpdate = getCurrentDesiredBalance().lastConvergedIndex();
 
-                if (/*lastConvergedIndexBeforeUpdate != lastConvergedIndexAfterUpdate*/ shouldReroute) {
+                if (shouldReroute) {
                     rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
+                } else {
+                    logger.info("Execute listeners for input [{}] after no reroutes required", lastConvergedIndexAfterUpdate);
+                    executeListeners(lastConvergedIndexAfterUpdate);
                 }
             }
 
@@ -134,13 +137,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
         DesiredBalance currentDesiredBalance = getCurrentDesiredBalance();
         new DesiredBalanceReconciler(currentDesiredBalance, allocation).run();
-
-        logger.info(
-            "Computation [{}] hasChanges={}, lastConvergedIndex={}",
-            index,
-            allocation.routingNodesChanged(),
-            currentDesiredBalance.lastConvergedIndex()
-        );
 
         if (allocation.routingNodesChanged()) {
             // Execute listeners after cluster state is applied

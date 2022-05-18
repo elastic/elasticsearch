@@ -490,10 +490,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             .build();
         when(clusterService.state()).thenReturn(state);
         var e = expectThrows(ElasticsearchException.class, () -> geoIpDownloader.updateDatabases());
-        assertThat(
-            e.getMessage(),
-            equalTo("not all primary shards of [.geoip_databases] index are active")
-        );
+        assertThat(e.getMessage(), equalTo("not all primary shards of [.geoip_databases] index are active"));
         verifyNoInteractions(httpClient);
     }
 

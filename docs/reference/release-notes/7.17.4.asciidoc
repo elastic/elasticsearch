@@ -3,13 +3,6 @@
 
 Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
 
-[[breaking-7.17.4]]
-[float]
-=== Breaking changes
-
-Java High Level REST Client::
-* Enable HLRC compatibility mode by default {es-pull}86517[#86517]
-
 [[bug-7.17.4]]
 [float]
 === Bug fixes

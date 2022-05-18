@@ -24,11 +24,11 @@ import org.elasticsearch.server.cli.ServerProcess;
  * This class is expected to be run via Apache Procrun in a long lived JVM that will call close
  * when the server should shutdown.
  */
-class WindowsService extends EnvironmentAwareCommand {
+class WindowsServiceDaemon extends EnvironmentAwareCommand {
 
     private volatile ServerProcess server;
 
-    WindowsService() {
+    WindowsServiceDaemon() {
         super("Starts and stops the Elasticsearch server process for a Windows Service");
     }
 

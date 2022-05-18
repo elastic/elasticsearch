@@ -11,14 +11,14 @@ package org.elasticsearch.windows.service;
 import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
 
-public class WindowsServiceProvider implements CliToolProvider {
+public class WindowsServiceDaemonProvider implements CliToolProvider {
     @Override
     public String name() {
-        return "windows-service";
+        return "windows-service-daemon";
     }
 
     @Override
     public Command create() {
-        return new WindowsService();
+        return new WindowsServiceDaemon();
     }
 }

@@ -59,7 +59,7 @@ class WindowsServiceInstallCommand extends ProcrunCommand {
         addArg(args, "--StartMode", "jvm");
         addArg(args, "--StopMode", "jvm");
         addArg(args, "--StartPath", pinfo.workingDir().toString());
-        addArg(args, "++JvmOptions", "-Dcli.name=windows-service");
+        addArg(args, "++JvmOptions", "-Dcli.name=windows-service-daemon");
         addArg(args, "++JvmOptions", "-Dcli.libs=lib/tools/server-cli,lib/tools/windows-service-cli");
         addArg(args, "++Environment", "HOSTNAME=%s".formatted(pinfo.envVars().get("COMPUTERNAME")));
 

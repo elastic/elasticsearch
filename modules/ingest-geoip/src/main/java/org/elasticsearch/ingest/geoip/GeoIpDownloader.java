@@ -10,7 +10,6 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -173,7 +172,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             }
         } catch (Exception e) {
             stats = stats.failedDownload();
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("error downloading geoip database [{}]", name), e);
+            logger.error((Supplier<?>) () -> "error downloading geoip database [" + name + "]", e);
         }
     }
 

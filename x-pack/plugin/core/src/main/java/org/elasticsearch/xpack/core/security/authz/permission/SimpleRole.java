@@ -8,8 +8,14 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
@@ -19,9 +25,17 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 public class SimpleRole implements Role {
+
+    public static final Setting<Integer> CACHE_SIZE_SETTING = Setting.intSetting(
+        "xpack.security.authz.store.roles.has_privileges.cache.max_size",
+        1000,
+        Setting.Property.NodeScope
+    );
 
     private final String[] names;
     private final ClusterPermission cluster;
@@ -155,4 +169,33 @@ public class SimpleRole implements Role {
         return result;
     }
 
+    private final AtomicReference<Cache<PrivilegesToCheck, PrivilegesCheckResult>> hasPrivilegesCacheReference = new AtomicReference<>();
+
+    public void cacheHasPrivileges(Settings settings, PrivilegesToCheck privilegesToCheck, PrivilegesCheckResult privilegesCheckResult)
+        throws ExecutionException {
+        Cache<PrivilegesToCheck, PrivilegesCheckResult> cache = hasPrivilegesCacheReference.get();
+        if (cache == null) {
+            final CacheBuilder<PrivilegesToCheck, PrivilegesCheckResult> cacheBuilder = CacheBuilder.builder();
+            final int cacheSize = CACHE_SIZE_SETTING.get(settings);
+            if (cacheSize >= 0) {
+                cacheBuilder.setMaximumWeight(cacheSize);
+            }
+            hasPrivilegesCacheReference.compareAndSet(null, cacheBuilder.build());
+            cache = hasPrivilegesCacheReference.get();
+        }
+        cache.computeIfAbsent(privilegesToCheck, ignore -> privilegesCheckResult);
+    }
+
+    public PrivilegesCheckResult checkPrivilegesWithCache(PrivilegesToCheck privilegesToCheck) {
+        final Cache<PrivilegesToCheck, PrivilegesCheckResult> cache = hasPrivilegesCacheReference.get();
+        if (cache == null) {
+            return null;
+        }
+        return cache.get(privilegesToCheck);
+    }
+
+    // package private for testing
+    Cache<PrivilegesToCheck, PrivilegesCheckResult> getHasPrivilegesCache() {
+        return hasPrivilegesCacheReference.get();
+    }
 }

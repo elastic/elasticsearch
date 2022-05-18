@@ -1918,7 +1918,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new MetadataDeleteIndexService(settings, clusterService, allocationService),
                     new IndexMetadataVerifier(settings, namedXContentRegistry, mapperRegistry, indexScopedSettings, ScriptCompiler.NONE),
                     shardLimitValidator,
-                    EmptySystemIndices.INSTANCE
+                    EmptySystemIndices.INSTANCE,
+                    indicesService
                 );
                 actions.put(
                     PutMappingAction.INSTANCE,

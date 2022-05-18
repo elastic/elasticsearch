@@ -248,7 +248,7 @@ The API returns a response similar to the following:
 [source,console-result]
 ----
 {
-    "predicted_value": <string subsection of the text that is the answer>
+    "predicted_value": <string subsection of the text that is the answer>,
     "start_offset": <character offset in document to start>,
     "end_offset": <character offset end of the answer,
     "prediction_probability": <prediction score>

@@ -13,4 +13,6 @@ module org.elasticsearch.rankeval {
     requires java.naming;
 
     exports org.elasticsearch.index.rankeval;
+
+    provides org.elasticsearch.plugins.spi.NamedXContentProvider with org.elasticsearch.index.rankeval.RankEvalNamedXContentProvider;
 }

@@ -39,6 +39,15 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableList;
 
+/**
+ * This runner executes test suits against two clusters (a "write" (the remote) cluster and a
+ * "search" cluster) connected via CCS.
+ * The test runner maintains an additional client to the one provided by ESClientYamlSuiteTestCase
+ * That client instance (and a corresponding client only used for administration) is running all API calls
+ * defined in CCS_APIS against the "search" cluster, while all other operations like indexing are performed
+ * using the client running against the "write" cluster.
+ *
+ */
 @TimeoutSuite(millis = 15 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
@@ -50,7 +59,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     // the remote cluster is the one we write index operations etc... to
     private static final String REMOTE_CLUSTER_NAME = "remote_cluster";
-    // the following are the CCS api calls that we run against the "search" cluster in this test setup
+    // the CCS api calls that we run against the "search" cluster in this test setup
     private static final Set<String> CCS_APIS = Set.of(
         "search",
         "field_caps",
@@ -60,6 +69,9 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         "indices.resolve_index"
     );
 
+    /**
+     * initialize the search client and an additional administration client and check for an established connection
+     */
     @Before
     public void initSearchClient() throws IOException {
         if (searchClient == null) {
@@ -98,6 +110,8 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 os,
                 this::getClientBuilderWithSniffedHosts
             ) {
+                // we overwrite this method so the search client can modify the index names by prefixing them with the
+                // remote cluster name before sending the requests
                 public ClientYamlTestResponse callApi(
                     String apiName,
                     Map<String, String> params,
@@ -109,7 +123,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                     if (apiName.equals("scroll") == false && apiName.equals("clear_scroll") == false) {
                         String parameterName = "index";
                         if (apiName.equals("indices.resolve_index")) {
-                            // in this api the index parameter is called "name"
+                            // in this specific api, the index parameter is called "name"
                             parameterName = "name";
                         }
                         String originalIndices = params.get(parameterName);
@@ -146,6 +160,10 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         super(rewrite(testCandidate));
     }
 
+    /**
+     * we need to rewrite a few "match" sections in order to change the expected index name values
+     * to include the remote cluster prefix
+     */
     private static ClientYamlTestCandidate rewrite(ClientYamlTestCandidate clientYamlTestCandidate) {
         ClientYamlTestSection testSection = clientYamlTestCandidate.getTestSection();
         List<ExecutableSection> executableSections = testSection.getExecutableSections();
@@ -218,6 +236,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient
     ) {
+        // depending on the API called, we either return the client running against the "write" or the "search" cluster here
         return new ClientYamlTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType()) {
             protected ClientYamlTestClient clientYamlTestClient(String apiName) {
                 if (CCS_APIS.contains(apiName)) {

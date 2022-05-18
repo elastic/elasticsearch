@@ -124,17 +124,21 @@ public abstract class PipelineAggregationBuilder
 
             @Override
             public void validateParentAggSequentiallyOrdered(String type, String name) {
+                noParentCantBeOrdered(type, name);
+            }
+
+            @Override
+            public void validateParentAggSequentiallyOrderedWithoutSkips(String type, String name) {
+                noParentCantBeOrdered(type, name);
+            }
+
+            private void noParentCantBeOrdered(String type, String name) {
                 addValidationError(
                     type
                         + " aggregation ["
                         + name
                         + "] must have a histogram, date_histogram or auto_date_histogram as parent but doesn't have a parent"
                 );
-            }
-
-            @Override
-            public void validateParentAggSequentiallyOrderedWithoutSkips(String type, String name) {
-                validateParentAggSequentiallyOrdered(type, name);
             }
         }
 
@@ -210,7 +214,7 @@ public abstract class PipelineAggregationBuilder
         public abstract void validateParentAggSequentiallyOrdered(String type, String name);
 
         /**
-         * Validates that the parent is sequentially ordered.
+         * Validates that the parent is sequentially ordered and doesn't have any gps.
          */
         public abstract void validateParentAggSequentiallyOrderedWithoutSkips(String type, String name);
 

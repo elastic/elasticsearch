@@ -112,8 +112,8 @@ GET /my_locations/_search
 --------------------------------------------------
 // TESTRESPONSE[s/"took" : 10/"took" : $body.took/]
 
-Using the geo_grid query, we can extract the documents on one of those buckets by executing
-a geo_grid query using the bucket key with the following syntax:
+We can extract the documents on one of those buckets by executing a geo_grid query
+using the bucket key with the following syntax:
 
 [source,console]
 --------------------------------------------------
@@ -224,8 +224,8 @@ GET /my_locations/_search
 --------------------------------------------------
 // TESTRESPONSE[s/"took" : 1/"took" : $body.took/]
 
-Using the geo_grid query, we can extract the documents on one of those buckets by executing
-a geo_grid query using the bucket key with the following syntax:
+We can extract the documents on one of those buckets by executing a geo_grid query
+using the bucket key with the following syntax:
 
 [source,console]
 --------------------------------------------------
@@ -337,8 +337,8 @@ GET /my_locations/_search
 --------------------------------------------------
 // TESTRESPONSE[s/"took" : 2/"took" : $body.took/]
 
-Using the geo_grid query, we can extract the documents on one of those buckets by executing
-a geo_grid query using the bucket key with the following syntax:
+We can extract the documents on one of those buckets by executing a geo_grid query
+using the bucket key with the following syntax:
 
 [source,console]
 --------------------------------------------------

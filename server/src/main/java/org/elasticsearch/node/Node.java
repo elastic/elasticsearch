@@ -202,6 +202,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -386,10 +387,7 @@ public class Node implements Closeable {
                 initialEnvironment.pluginsFile(),
                 classpathPlugins
             );
-            final Settings settings = Settings.builder()
-                .put(PluginsService.mergedPluginSettings(pluginsService.pluginMap()))
-                .put(tmpSettings)
-                .build();
+            final Settings settings = Settings.builder().put(mergedPluginSettings(pluginsService.pluginMap())).put(tmpSettings).build();
 
             /*
              * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
@@ -1479,6 +1477,31 @@ public class Node implements Closeable {
      */
     protected PluginsService getPluginsService() {
         return pluginsService;
+    }
+
+    public static Settings mergedPluginSettings(Map<String, Plugin> pluginMap) {
+        Map<String, String> foundSettings = new HashMap<>();
+        final Settings.Builder builder = Settings.builder();
+        for (Map.Entry<String, Plugin> entry : pluginMap.entrySet()) {
+            Settings settings = entry.getValue().additionalSettings();
+            for (String setting : settings.keySet()) {
+                String oldPlugin = foundSettings.put(setting, entry.getKey());
+                if (oldPlugin != null) {
+                    throw new IllegalArgumentException(
+                        "Cannot have additional setting ["
+                            + setting
+                            + "] "
+                            + "in plugin ["
+                            + entry.getKey()
+                            + "], already added in plugin ["
+                            + oldPlugin
+                            + "]"
+                    );
+                }
+            }
+            builder.put(settings);
+        }
+        return builder.build();
     }
 
     /**

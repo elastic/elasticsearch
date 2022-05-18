@@ -45,9 +45,39 @@ import static java.util.stream.Collectors.toSet;
  */
 public class InternalDistributionModuleCheckTaskProvider {
 
-    private final Logger LOGGER = Logging.getLogger(InternalDistributionModuleCheckTaskProvider.class);  // #### add some logging
+    private static final Logger LOGGER = Logging.getLogger(InternalDistributionModuleCheckTaskProvider.class);
 
     private static final String MODULE_INFO = "module-info.class";
+
+    private static final String ES_JAR_PREFIX = "elasticsearch-";
+
+    /** ES jars in the lib directory that are not modularized. For now, es-log4j is the only one. */
+    private static final List<String> ES_JAR_EXCLUDES = List.of("elasticsearch-log4j");
+
+    /** List of the current Elasticsearch Java Modules, by name. */
+    private static final List<String> EXPECTED_ES_MODUlES = List.of(
+        "org.elasticsearch.base",
+        "org.elasticsearch.cli",
+        "org.elasticsearch.geo",
+        "org.elasticsearch.lz4",
+        "org.elasticsearch.plugin.classloader",
+        "org.elasticsearch.secure_sm",
+        "org.elasticsearch.server",
+        "org.elasticsearch.xcontent"
+    );
+
+    private static final Class<?> THIS_CLASS = InternalDistributionModuleCheckTaskProvider.class;
+
+    private static final Predicate<ModuleReference> isESModule = mref -> mref.descriptor().name().startsWith("org.elasticsearch");
+
+    private static Predicate<Path> isESJar = path -> path.getFileName().toString().startsWith(ES_JAR_PREFIX);
+    
+    private static Predicate<Path> isNotExcluded = path -> ES_JAR_EXCLUDES.stream()
+        .filter(path.getFileName().toString()::startsWith)
+        .findAny()
+        .isEmpty();
+
+    private static final Function<ModuleReference, String> toName = mref -> mref.descriptor().name();
 
     private InternalDistributionModuleCheckTaskProvider() {};
 
@@ -76,16 +106,6 @@ public class InternalDistributionModuleCheckTaskProvider {
         });
     }
 
-    private static final String ES_JAR_PREFIX = "elasticsearch-";
-    // ES jars in the lib directory that are not modularized. For now, es-log4j is the only one
-    private static final List<String> ES_JAR_EXCLUDES = List.of("elasticsearch-log4j");
-
-    private static Predicate<Path> isESJar = path -> path.getFileName().toString().startsWith(ES_JAR_PREFIX);
-    private static Predicate<Path> isNotExcluded = path -> ES_JAR_EXCLUDES.stream()
-        .filter(path.getFileName().toString()::startsWith)
-        .findAny()
-        .isEmpty();
-
     /** Checks that all expected ES jar files are modular, i.e. contain a module-info.class in their root. */
     private static void assertAllESJarsAreModular(Path libPath) throws IOException {
         try (var s = Files.walk(libPath, 1)) {
@@ -101,21 +121,6 @@ public class InternalDistributionModuleCheckTaskProvider {
             });
         }
     }
-
-    private static final Predicate<ModuleReference> isESModule = mref -> mref.descriptor().name().startsWith("org.elasticsearch");
-    private static final Function<ModuleReference, String> toName = mref -> mref.descriptor().name();
-
-    /** List of the current Elasticsearch Java Modules, by name. */
-    private static final List<String> EXPECTED_ES_MODUlES = List.of(
-        "org.elasticsearch.base",
-        "org.elasticsearch.cli",
-        "org.elasticsearch.geo",
-        "org.elasticsearch.lz4",
-        "org.elasticsearch.plugin.classloader",
-        "org.elasticsearch.secure_sm",
-        "org.elasticsearch.server",
-        "org.elasticsearch.xcontent"
-    );
 
     /** Checks that all expected Elasticsearch modules are present. */
     private static void assertAllModulesPresent(Path libPath) {
@@ -144,8 +149,6 @@ public class InternalDistributionModuleCheckTaskProvider {
             }
         }
     }
-
-    static final Class<?> THIS_CLASS = InternalDistributionModuleCheckTaskProvider.class;
 
     /** Checks that all modules have, at least, the META-INF services declared. */
     private static void assertModuleServices(Path libPath) throws IOException {

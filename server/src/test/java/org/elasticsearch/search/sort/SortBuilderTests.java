@@ -106,7 +106,7 @@ public class SortBuilderTests extends ESTestCase {
         assertEquals(new GeoDistanceSortBuilder("pin.location", 40, -70), sortBuilder);
 
         json = """
-            { "sort" : [{"_geo_distance" : {"pin.location" : "40,-70" } }] }""";
+            { "sort" : [{"_geo_distance" : {"pin.location" : "POINT (-70 40)" } }] }""";
         result = parseSort(json);
         assertEquals(1, result.size());
         sortBuilder = result.get(0);
@@ -210,7 +210,7 @@ public class SortBuilderTests extends ESTestCase {
                 },
                 {
                   "_geo_distance": {
-                    "pin.location": "40,-70"
+                    "pin.location": "POINT (-70 40)"
                   }
                 },
                 "_score"

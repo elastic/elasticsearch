@@ -62,7 +62,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
     private record DesiredBalancesListener(long index, ActionListener<Void> listener) {}
 
-    private final AtomicLong indexGenerator = new AtomicLong(0);
+    private final AtomicLong indexGenerator = new AtomicLong(-1);
     private final Queue<DesiredBalancesListener> pendingListeners = new LinkedList<>();
     private long lastConvergedIndex = -1;
 

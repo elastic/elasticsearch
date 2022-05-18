@@ -1253,7 +1253,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             )
         );
 
-        ImmutableOpenMap<String, IndexTemplateMetadata> migratedTemplates = mb.build().templates();
+        Map<String, IndexTemplateMetadata> migratedTemplates = mb.build().templates();
         assertThat(migratedTemplates.get("template-with-require-routing").settings().size(), is(1));
         assertThat(migratedTemplates.get("template-with-include-routing").settings().size(), is(1));
         assertThat(migratedTemplates.get("template-with-require-and-include-routing").settings().size(), is(1));

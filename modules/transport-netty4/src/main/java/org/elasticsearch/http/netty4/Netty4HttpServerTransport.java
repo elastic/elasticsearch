@@ -39,7 +39,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.http.AbstractHttpServerTransport;
@@ -142,14 +141,13 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     public Netty4HttpServerTransport(
         Settings settings,
         NetworkService networkService,
-        BigArrays bigArrays,
         ThreadPool threadPool,
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
         SharedGroupFactory sharedGroupFactory
     ) {
-        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings);
+        super(settings, networkService, Netty4Utils.createRecycler(settings), threadPool, xContentRegistry, dispatcher, clusterSettings);
         Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;

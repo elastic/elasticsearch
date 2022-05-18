@@ -133,7 +133,7 @@ class H3LatLonGeometry extends LatLonGeometry {
 
         @Override
         public boolean intersectsLine(double minX, double maxX, double minY, double maxY, double aX, double aY, double bX, double bY) {
-            throw new IllegalArgumentException();
+            throw new UnsupportedOperationException("intersectsLine not implemented in H3Polygon2D");
         }
 
         @Override
@@ -149,12 +149,12 @@ class H3LatLonGeometry extends LatLonGeometry {
             double cX,
             double cY
         ) {
-            throw new IllegalArgumentException();
+            throw new UnsupportedOperationException("intersectsTriangle not implemented in H3Polygon2D");
         }
 
         @Override
         public boolean containsLine(double minX, double maxX, double minY, double maxY, double aX, double aY, double bX, double bY) {
-            throw new IllegalArgumentException();
+            throw new UnsupportedOperationException("containsLine not implemented in H3Polygon2D");
         }
 
         @Override
@@ -190,7 +190,7 @@ class H3LatLonGeometry extends LatLonGeometry {
             double bX,
             double bY
         ) {
-            throw new IllegalArgumentException();
+            throw new UnsupportedOperationException("withinLine not implemented in H3Polygon2D");
         }
 
         @Override
@@ -209,7 +209,7 @@ class H3LatLonGeometry extends LatLonGeometry {
             double cY,
             boolean ca
         ) {
-            throw new IllegalArgumentException();
+            throw new UnsupportedOperationException("withinTriangle not implemented in H3Polygon2D");
         }
     }
 }

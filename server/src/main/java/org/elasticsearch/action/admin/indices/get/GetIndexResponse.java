@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -36,11 +35,11 @@ import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER
  */
 public class GetIndexResponse extends ActionResponse implements ToXContentObject {
 
-    private Map<String, MappingMetadata> mappings = new HashMap<>();
-    private Map<String, List<AliasMetadata>> aliases = new HashMap<>();
-    private Map<String, Settings> settings = new HashMap<>();
-    private Map<String, Settings> defaultSettings = new HashMap<>();
-    private Map<String, String> dataStreams = new HashMap<>();
+    private Map<String, MappingMetadata> mappings = Map.of();
+    private Map<String, List<AliasMetadata>> aliases = Map.of();
+    private Map<String, Settings> settings = Map.of();
+    private Map<String, Settings> defaultSettings = Map.of();
+    private Map<String, String> dataStreams = Map.of();
     private final String[] indices;
 
     public GetIndexResponse(

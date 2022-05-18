@@ -65,7 +65,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
             .prepareGetIndex()
             .setFeatures(GetIndexRequest.Feature.MAPPINGS)
             .get();
-        assertExpectedMappings((ImmutableOpenMap<String, MappingMetadata>) getIndexResponse.mappings());
+        assertExpectedMappings(getIndexResponse.mappings());
     }
 
     public void testGetFieldMappings() {

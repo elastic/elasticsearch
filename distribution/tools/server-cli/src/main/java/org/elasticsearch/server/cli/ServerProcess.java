@@ -8,8 +8,6 @@
 
 package org.elasticsearch.server.cli;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.ExitCodes;
@@ -19,11 +17,15 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.attribute.FileAttribute;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -39,15 +41,14 @@ import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptible;
  * and receiving control signals on stderr. The start method does not return until the
  * server is ready to process requests and has exited the bootstrap thread.
  *
- * <p> The caller starting a {@link ServerProcess} can do one of several things:
+ * <p> The caller starting a {@link ServerProcess} can then do one of several things:
  * <ul>
  *     <li>Block on the server process exiting, by calling {@link #waitFor()}</li>
  *     <li>Detach from the server process by calling {@link #detach()}</li>
- *     <li>Tell the server process to shutdown and wait for it by calling {@link #stop()}</li>
+ *     <li>Tell the server process to shutdown and wait for it to exit by calling {@link #stop()}</li>
  * </ul>
  */
 public class ServerProcess {
-    private static final Logger logger = LogManager.getLogger(ServerProcess.class);
 
     // the actual java process of the server
     private final Process jvmProcess;
@@ -63,11 +64,13 @@ public class ServerProcess {
         this.errorPump = errorPump;
     }
 
+    // this allows mocking the process building by tests
     interface OptionsBuilder {
         List<String> getJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws InterruptedException,
             IOException, UserException;
     }
 
+    // this allows mocking the process building by tests
     interface ProcessStarter {
         Process start(ProcessBuilder pb) throws IOException;
     }
@@ -103,7 +106,6 @@ public class ServerProcess {
             jvmProcess = createProcess(processInfo, args.configDir(), pluginsDir, optionsBuilder, processStarter);
             errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
             errorPump.start();
-            logger.info("ES PID: " + jvmProcess.pid());
             sendArgs(args, jvmProcess.getOutputStream());
 
             String errorMsg = errorPump.waitUntilReady();
@@ -140,6 +142,7 @@ public class ServerProcess {
      * Waits for the subprocess to exit.
      */
     public void waitFor() {
+        errorPump.drain();
         int exitCode = nonInterruptible(jvmProcess::waitFor);
         if (exitCode != ExitCodes.OK) {
             throw new RuntimeException("server process exited with status code " + exitCode);
@@ -188,9 +191,13 @@ public class ServerProcess {
         ProcessStarter processStarter
     ) throws InterruptedException, IOException, UserException {
         Map<String, String> envVars = new HashMap<>(processInfo.envVars());
-        Path tempDir = TempDirectory.setup(envVars);
-        List<String> jvmOptions = optionsBuilder.getJvmOptions(configDir, pluginsDir, tempDir, envVars.get("ES_JAVA_OPTS"));
-        // jvmOptions.add("-Des.path.conf=" + env.configFile());
+        Path tempDir = setupTempDir(processInfo, envVars.remove("ES_TMPDIR"));
+        if (envVars.containsKey("LIBFFI_TMPDIR") == false) {
+            envVars.put("LIBFFI_TMPDIR", tempDir.toString());
+        }
+
+        List<String> jvmOptions = optionsBuilder.getJvmOptions(configDir, pluginsDir, tempDir, envVars.remove("ES_JAVA_OPTS"));
+        // also pass through distribution type
         jvmOptions.add("-Des.distribution.type=" + processInfo.sysprops().get("es.distribution.type"));
 
         Path esHome = processInfo.workingDir();
@@ -200,7 +207,7 @@ public class ServerProcess {
         command.add(javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString());
         command.addAll(jvmOptions);
         command.add("-cp");
-        // The '*' isn't allows by the windows filesystem, so we need to force it into the classpath after converting to a string.
+        // The '*' isn't allowed by the windows filesystem, so we need to force it into the classpath after converting to a string.
         // Thankfully this will all go away when switching to modules, which take the directory instead of a glob.
         command.add(esHome.resolve("lib") + (isWindows ? "\\" : "/") + "*");
         command.add("org.elasticsearch.bootstrap.Elasticsearch");
@@ -210,5 +217,42 @@ public class ServerProcess {
         builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
 
         return processStarter.start(builder);
+    }
+
+    /**
+     * Returns the java.io.tmpdir Elasticsearch should use, creating it if necessary.
+     *
+     * <p> On non-Windows OS, this will be created as a sub-directory of the default temporary directory.
+     * Note that this causes the created temporary directory to be a private temporary directory.
+     */
+    private static Path setupTempDir(ProcessInfo processInfo, String tmpDirOverride) throws UserException, IOException {
+        final Path path;
+        if (tmpDirOverride != null) {
+            path = Paths.get(tmpDirOverride);
+            if (Files.exists(path) == false) {
+                throw new UserException(ExitCodes.CONFIG, "Temporary directory [" + path + "] does not exist or is not accessible");
+            }
+            if (Files.isDirectory(path) == false) {
+                throw new UserException(ExitCodes.CONFIG, "Temporary directory [" + path + "] is not a directory");
+            }
+        } else {
+            if (processInfo.sysprops().get("os.name").startsWith("Windows")) {
+                /*
+                 * On Windows, we avoid creating a unique temporary directory per invocation lest
+                 * we pollute the temporary directory. On other operating systems, temporary directories
+                 * will be cleaned automatically via various mechanisms (e.g., systemd, or restarts).
+                 */
+                path = Paths.get(processInfo.sysprops().get("java.io.tmpdir"), "elasticsearch");
+                Files.createDirectories(path);
+            } else {
+                path = createTempDirectory("elasticsearch-");
+            }
+        }
+        return path;
+    }
+
+    @SuppressForbidden(reason = "Files#createTempDirectory(String, FileAttribute...)")
+    private static Path createTempDirectory(final String prefix, final FileAttribute<?>... attrs) throws IOException {
+        return Files.createTempDirectory(prefix, attrs);
     }
 }

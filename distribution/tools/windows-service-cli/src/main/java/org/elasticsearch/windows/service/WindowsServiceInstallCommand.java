@@ -52,8 +52,8 @@ class WindowsServiceInstallCommand extends ProcrunCommand {
         addArg(
             args,
             "--Description",
-            pinfo.envVars().getOrDefault("SERVICE_DESCRIPTION",
-                "Elasticsearch %s Windows Service - https://elastic.co".formatted(Version.CURRENT))
+            pinfo.envVars()
+                .getOrDefault("SERVICE_DESCRIPTION", "Elasticsearch %s Windows Service - https://elastic.co".formatted(Version.CURRENT))
         );
         addArg(args, "--Jvm", getJvmDll(getJavaHome(pinfo.sysprops())).toString());
         addArg(args, "--StartMode", "jvm");
@@ -132,7 +132,10 @@ class WindowsServiceInstallCommand extends ProcrunCommand {
         // validate username and password come together
         boolean hasUsername = pinfo.envVars().containsKey("SERVICE_USERNAME");
         if (pinfo.envVars().containsKey("SERVICE_PASSWORD") != hasUsername) {
-            throw new UserException(ExitCodes.CONFIG, "Both service username and password must be set, only got " + (hasUsername ? "SERVICE_USERNAME" : "SERVICE_PASSWORD"));
+            throw new UserException(
+                ExitCodes.CONFIG,
+                "Both service username and password must be set, only got " + (hasUsername ? "SERVICE_USERNAME" : "SERVICE_PASSWORD")
+            );
         }
     }
 

@@ -237,7 +237,7 @@ POST _ml/trained_models/model2/_infer
   "inference_config": {
     "question_answering": {
       "question": "<question to be answered>"
-      }
+    }
   }
 }
 --------------------------------------------------

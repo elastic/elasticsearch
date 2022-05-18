@@ -68,6 +68,7 @@ public class IndexTests extends ESTestCase {
     }
 
     public void testIndexAndEquals(){
+        //add a new test case
         assertEquals("[name/unknown]", new Index("name", "unknown").toString());
         Index index3 = new Index("hello", "1");
         Index index4 = new Index("2", "hello");

@@ -498,8 +498,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
         if (mergedMappers != null) {
             mappers = Map.copyOf(mergedMappers);
-            System.out.println(mappers);
-            Thread.dumpStack();
         }
     }
 

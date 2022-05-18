@@ -419,6 +419,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(mapperService.fieldType("metrics.service.time.max"));
     }
 
+    public void testExplicitDefaultSubobjects() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", true)));
+        assertEquals("{\"_doc\":{\"subobjects\":true}}", Strings.toString(mapperService.mappingLookup().getMapping()));
+    }
+
     public void testSubobjectsFalseRootWithInnerObject() {
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
             b.field("subobjects", false);

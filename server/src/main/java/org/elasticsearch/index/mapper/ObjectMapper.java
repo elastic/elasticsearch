@@ -515,7 +515,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
         }
-        if (subobjects() == false) {
+        if (subobjects != Defaults.SUBOBJECTS) {
             builder.field("subobjects", subobjects.value());
         }
         if (custom != null) {

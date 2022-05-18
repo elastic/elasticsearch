@@ -48,10 +48,6 @@ public class PluginsServiceTests extends ESTestCase {
         return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), List.of(classpathPlugin));
     }
 
-    static PluginsService newPluginsService(Settings settings, List<Class<? extends Plugin>> classpathPlugins) {
-        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), classpathPlugins);
-    }
-
     static PluginsService newPluginsService(
         Settings settings,
         Class<? extends Plugin> classpathPlugin1,

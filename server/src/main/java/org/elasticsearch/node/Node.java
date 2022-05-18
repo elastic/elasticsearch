@@ -387,7 +387,7 @@ public class Node implements Closeable {
                 initialEnvironment.pluginsFile(),
                 classpathPlugins
             );
-            final Settings settings = Settings.builder().put(mergedPluginSettings(pluginsService.pluginMap())).put(tmpSettings).build();
+            final Settings settings = mergePluginSettings(pluginsService.pluginMap(), tmpSettings);
 
             /*
              * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
@@ -1479,7 +1479,15 @@ public class Node implements Closeable {
         return pluginsService;
     }
 
-    public static Settings mergedPluginSettings(Map<String, Plugin> pluginMap) {
+    /**
+     * Plugins can provide additional settings for the node, but two plugins
+     * cannot provide the same setting.
+     * @param pluginMap A map of plugin names to plugin instances
+     * @param originalSettings The node's original settings, which silently override any setting provided by the plugins.
+     * @return A {@link Settings} with the merged node and plugin settings
+     * @throws IllegalArgumentException if two plugins provide the same additional setting key
+     */
+    static Settings mergePluginSettings(Map<String, Plugin> pluginMap, Settings originalSettings) {
         Map<String, String> foundSettings = new HashMap<>();
         final Settings.Builder builder = Settings.builder();
         for (Map.Entry<String, Plugin> entry : pluginMap.entrySet()) {
@@ -1501,7 +1509,7 @@ public class Node implements Closeable {
             }
             builder.put(settings);
         }
-        return builder.build();
+        return builder.put(originalSettings).build();
     }
 
     /**

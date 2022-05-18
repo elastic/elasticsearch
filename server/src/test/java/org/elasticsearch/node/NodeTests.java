@@ -466,13 +466,14 @@ public class NodeTests extends ESTestCase {
     }
 
     public void testAdditionalSettings() {
+        Map<String, Plugin> pluginMap = Map.of(AdditionalSettingsPlugin1.class.getName(), new AdditionalSettingsPlugin1());
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put("my.setting", "test")
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
             .build();
-        Map<String, Plugin> pluginMap = Map.of(AdditionalSettingsPlugin1.class.getName(), new AdditionalSettingsPlugin1());
-        Settings newSettings = Settings.builder().put(Node.mergedPluginSettings(pluginMap)).put(settings).build();
+
+        Settings newSettings = Node.mergePluginSettings(pluginMap, settings);
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
         // does not override pre existing settings
@@ -486,7 +487,10 @@ public class NodeTests extends ESTestCase {
             AdditionalSettingsPlugin2.class.getName(),
             new AdditionalSettingsPlugin2()
         );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Node.mergedPluginSettings(pluginMap));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Node.mergePluginSettings(pluginMap, Settings.EMPTY)
+        );
         String msg = e.getMessage();
         assertTrue(msg, msg.contains("Cannot have additional setting [foo.bar]"));
         assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin1.class.getName()));

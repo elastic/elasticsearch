@@ -25,16 +25,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -44,7 +40,8 @@ import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.UpdateScript;
+import org.elasticsearch.script.field.BulkMetadata;
+import org.elasticsearch.script.field.Op;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -54,7 +51,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -72,6 +68,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
+import static org.elasticsearch.index.VersionType.INTERNAL;
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
@@ -823,9 +820,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
     public abstract static class ScriptApplier implements BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
 
         private final WorkerBulkByScrollTaskState taskWorker;
-        private final ScriptService scriptService;
-        private final Script script;
-        private final Map<String, Object> params;
+        protected final ScriptService scriptService;
+        protected final Script script;
+        protected final Map<String, Object> params;
 
         public ScriptApplier(
             WorkerBulkByScrollTaskState taskWorker,
@@ -840,98 +837,54 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
 
         @Override
-        @SuppressWarnings("unchecked")
         public RequestWrapper<?> apply(RequestWrapper<?> request, ScrollableHitSource.Hit doc) {
             if (script == null) {
                 return request;
             }
+            return updateRequest(request, execute(doc, request.getSource()));
+        }
 
-            Map<String, Object> context = new HashMap<>();
-            context.put(IndexFieldMapper.NAME, doc.getIndex());
-            context.put(IdFieldMapper.NAME, doc.getId());
-            Long oldVersion = doc.getVersion();
-            context.put(VersionFieldMapper.NAME, oldVersion);
-            String oldRouting = doc.getRouting();
-            context.put(RoutingFieldMapper.NAME, oldRouting);
-            context.put(SourceFieldMapper.NAME, request.getSource());
+        protected abstract BulkMetadata execute(ScrollableHitSource.Hit doc, Map<String, Object> source);
 
-            OpType oldOpType = OpType.INDEX;
-            context.put("op", oldOpType.toString());
-
-            UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
-            UpdateScript updateScript = factory.newInstance(params, context);
-            updateScript.execute();
-
-            String newOp = (String) context.remove("op");
-            if (newOp == null) {
-                throw new IllegalArgumentException("Script cleared operation type");
+        protected RequestWrapper<?> updateRequest(RequestWrapper<?> request, BulkMetadata metadata) {
+            List<String> extraKeys = metadata.extraKeys();
+            if (extraKeys.isEmpty() == false) {
+                throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", extraKeys) + ']');
             }
+            request.setIndex(metadata.getIndex());
+            request.setId(metadata.getId());
+            Long version = metadata.getVersion();
+            if (version == null) {
+                request.setVersion(Versions.MATCH_ANY);
+                request.setVersionType(INTERNAL);
+            } else {
+                request.setVersion(version);
+            }
+            request.setRouting(metadata.getRouting());
 
             /*
              * It'd be lovely to only set the source if we know its been modified
              * but it isn't worth keeping two copies of it around just to check!
              */
-            request.setSource((Map<String, Object>) context.remove(SourceFieldMapper.NAME));
+            request.setSource(metadata.getSource());
 
-            Object newValue = context.remove(IndexFieldMapper.NAME);
-            if (false == doc.getIndex().equals(newValue)) {
-                scriptChangedIndex(request, newValue);
-            }
-            newValue = context.remove(IdFieldMapper.NAME);
-            if (false == doc.getId().equals(newValue)) {
-                scriptChangedId(request, newValue);
-            }
-            newValue = context.remove(VersionFieldMapper.NAME);
-            if (false == Objects.equals(oldVersion, newValue)) {
-                scriptChangedVersion(request, newValue);
-            }
-            /*
-             * Its important that routing comes after parent in case you want to
-             * change them both.
-             */
-            newValue = context.remove(RoutingFieldMapper.NAME);
-            if (false == Objects.equals(oldRouting, newValue)) {
-                scriptChangedRouting(request, newValue);
-            }
-
-            OpType newOpType = OpType.fromString(newOp);
-            if (newOpType != oldOpType) {
-                return scriptChangedOpType(request, oldOpType, newOpType);
-            }
-
-            if (false == context.isEmpty()) {
-                throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", context.keySet()) + ']');
-            }
-            return request;
-        }
-
-        protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, OpType oldOpType, OpType newOpType) {
-            switch (newOpType) {
-                case NOOP -> {
+            Op op = metadata.getOp();
+            switch (op) {
+                case CREATE:
+                    return request;
+                case NOOP:
                     taskWorker.countNoop();
                     return null;
-                }
-                case DELETE -> {
+                case DELETE:
                     RequestWrapper<DeleteRequest> delete = wrap(new DeleteRequest(request.getIndex(), request.getId()));
                     delete.setVersion(request.getVersion());
                     delete.setVersionType(VersionType.INTERNAL);
                     delete.setRouting(request.getRouting());
                     return delete;
-                }
-                default -> throw new IllegalArgumentException(
-                    "Unsupported operation type change from [" + oldOpType + "] to [" + newOpType + "]"
-                );
+                default:
+                    throw new IllegalArgumentException("Unsupported operation type change from [" + Op.CREATE + "] to [" + op + "]");
             }
         }
-
-        protected abstract void scriptChangedIndex(RequestWrapper<?> request, Object to);
-
-        protected abstract void scriptChangedId(RequestWrapper<?> request, Object to);
-
-        protected abstract void scriptChangedVersion(RequestWrapper<?> request, Object to);
-
-        protected abstract void scriptChangedRouting(RequestWrapper<?> request, Object to);
-
     }
 
     public enum OpType {

@@ -10,6 +10,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.script.field.BulkMetadata;
 import org.elasticsearch.script.field.Op;
 
 import java.util.Map;
@@ -23,7 +24,7 @@ import java.util.Map;
  */
 public abstract class UpdateByQueryScript {
 
-    public static final String[] PARAMETERS = { "ctx" };
+    public static final String[] PARAMETERS = {};
 
     /** The context used to compile {@link UpdateByQueryScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>(
@@ -38,6 +39,8 @@ public abstract class UpdateByQueryScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
+    private BulkMetadata metadata;
+
     public UpdateByQueryScript(Map<String, Object> params) {
         this.params = params;
     }
@@ -47,7 +50,22 @@ public abstract class UpdateByQueryScript {
         return params;
     }
 
-    public abstract void execute(Map<String, Object> ctx);
+    public void setMetadata(BulkMetadata metadata) {
+        this.metadata = metadata;
+    }
+
+    public BulkMetadata meta() {
+        return metadata;
+    }
+
+    public Map<String, Object> getCtx() {
+        if (metadata == null) {
+            return null;
+        }
+        return metadata.getCtx();
+    }
+
+    public abstract void execute();
 
     public interface Factory {
         UpdateByQueryScript newInstance(Map<String, Object> params);

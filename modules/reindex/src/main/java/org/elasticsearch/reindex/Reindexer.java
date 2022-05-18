@@ -34,13 +34,11 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -49,8 +47,11 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.reindex.remote.RemoteScrollableHitSource;
+import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.field.BulkMetadata;
+import org.elasticsearch.script.field.Op;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -64,13 +65,11 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
-import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
 public class Reindexer {
@@ -288,7 +287,7 @@ public class Reindexer {
             Script script = mainRequest.getScript();
             if (script != null) {
                 assert scriptService != null : "Script service must be set";
-                return new Reindexer.AsyncIndexBySearchAction.ReindexScriptApplier(worker, scriptService, script, script.getParams());
+                return new ReindexScriptApplier(worker, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
         }
@@ -373,8 +372,8 @@ public class Reindexer {
             }
         }
 
-        class ReindexScriptApplier extends ScriptApplier {
-            // TODO(stu): this should use ReindexScript
+        static class ReindexScriptApplier extends ScriptApplier {
+            private ReindexScript reindex;
 
             ReindexScriptApplier(
                 WorkerBulkByScrollTaskState taskWorker,
@@ -385,55 +384,22 @@ public class Reindexer {
                 super(taskWorker, scriptService, script, params);
             }
 
-            /*
-             * Methods below here handle script updating the index request. They try
-             * to be pretty liberal with regards to types because script are often
-             * dynamically typed.
-             */
-
             @Override
-            protected void scriptChangedIndex(RequestWrapper<?> request, Object to) {
-                requireNonNull(to, "Can't reindex without a destination index!");
-                request.setIndex(to.toString());
-            }
-
-            @Override
-            protected void scriptChangedId(RequestWrapper<?> request, Object to) {
-                request.setId(Objects.toString(to, null));
-            }
-
-            @Override
-            protected void scriptChangedVersion(RequestWrapper<?> request, Object to) {
-                if (to == null) {
-                    request.setVersion(Versions.MATCH_ANY);
-                    request.setVersionType(INTERNAL);
-                } else {
-                    request.setVersion(asLong(to, VersionFieldMapper.NAME));
+            protected BulkMetadata execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
+                if (reindex == null) {
+                    reindex = scriptService.compile(script, ReindexScript.CONTEXT).newInstance(params);
                 }
-            }
-
-            @Override
-            protected void scriptChangedRouting(RequestWrapper<?> request, Object to) {
-                request.setRouting(Objects.toString(to, null));
-            }
-
-            private long asLong(Object from, String name) {
-                /*
-                 * Stuffing a number into the map will have converted it to
-                 * some Number.
-                 * */
-                Number fromNumber;
-                try {
-                    fromNumber = (Number) from;
-                } catch (ClassCastException e) {
-                    throw new IllegalArgumentException(name + " may only be set to an int or a long but was [" + from + "]", e);
-                }
-                long l = fromNumber.longValue();
-                // Check that we didn't round when we fetched the value.
-                if (fromNumber.doubleValue() != l) {
-                    throw new IllegalArgumentException(name + " may only be set to an int or a long but was [" + from + "]");
-                }
-                return l;
+                ReindexScript.Metadata md = new ReindexScript.Metadata(
+                    doc.getIndex(),
+                    doc.getId(),
+                    doc.getVersion(),
+                    doc.getRouting(),
+                    Op.INDEX,
+                    source
+                );
+                reindex.setMetadata(md);
+                reindex.execute();
+                return md;
             }
         }
     }

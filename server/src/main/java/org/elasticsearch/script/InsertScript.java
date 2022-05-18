@@ -14,7 +14,6 @@ import org.elasticsearch.script.field.Op;
 
 import java.util.Map;
 
-
 /**
  * Insertions done via scripted upsert
  *

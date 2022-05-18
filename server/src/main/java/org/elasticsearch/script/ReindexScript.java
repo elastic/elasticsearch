@@ -10,9 +10,10 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.script.field.BulkMetadata;
+import org.elasticsearch.script.field.Op;
 
 import java.util.Map;
-
 
 /**
  * A script for reindex.
@@ -22,7 +23,7 @@ import java.util.Map;
  */
 public abstract class ReindexScript {
 
-    public static final String[] PARAMETERS = { "ctx" };
+    public static final String[] PARAMETERS = {};
 
     /** The context used to compile {@link ReindexScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>(
@@ -37,6 +38,8 @@ public abstract class ReindexScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
+    private Metadata metadata;
+
     public ReindexScript(Map<String, Object> params) {
         this.params = params;
     }
@@ -46,9 +49,47 @@ public abstract class ReindexScript {
         return params;
     }
 
-    public abstract void execute(Map<String, Object> ctx);
+    public void setMetadata(Metadata metadata) {
+        this.metadata = metadata;
+    }
+
+    public Metadata meta() {
+        return metadata;
+    }
+
+    public Map<String, Object> getCtx() {
+        if (metadata == null) {
+            return null;
+        }
+        return metadata.getCtx();
+    }
+
+    public abstract void execute();
 
     public interface Factory {
         ReindexScript newInstance(Map<String, Object> params);
+    }
+
+    public static class Metadata extends BulkMetadata {
+        public Metadata(String index, String id, Long version, String routing, Op op, Map<String, Object> source) {
+            super(index, id, version, routing, op, source);
+        }
+
+        @Override
+        public void setIndex(String index) {
+            if (index == null) {
+                throw new IllegalArgumentException("destination index must be non-null");
+            }
+            super.setIndex(index);
+        }
+
+        @Override
+        public String getIndex() {
+            String index = super.getIndex();
+            if (index == null) {
+                throw new IllegalArgumentException("destination index must be non-null");
+            }
+            return index;
+        }
     }
 }

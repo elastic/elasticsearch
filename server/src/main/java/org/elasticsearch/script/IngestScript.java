@@ -11,11 +11,8 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.script.field.Op;
 
 import java.time.ZonedDateTime;
-import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 
@@ -24,7 +21,7 @@ import java.util.Map;
  */
 public abstract class IngestScript {
 
-    public static final String[] PARAMETERS = { };
+    public static final String[] PARAMETERS = {};
 
     /** The context used to compile {@link IngestScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>(
@@ -42,7 +39,6 @@ public abstract class IngestScript {
     private final Map<String, Object> ctx;
 
     private final Metadata metadata;
-
 
     public IngestScript(Map<String, Object> params, Map<String, Object> ctx, ZonedDateTime timestamp) {
         this.params = params;
@@ -72,6 +68,7 @@ public abstract class IngestScript {
     public static class Metadata extends org.elasticsearch.script.field.Metadata {
         private final ZonedDateTime timestamp;
         public static final String VERSION_TYPE = "_version_type";
+
         public Metadata(Map<String, Object> ctx, ZonedDateTime timestamp) {
             super(ctx);
             this.timestamp = timestamp;

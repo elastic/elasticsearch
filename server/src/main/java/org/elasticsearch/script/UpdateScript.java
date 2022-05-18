@@ -11,7 +11,6 @@ package org.elasticsearch.script;
 
 import java.util.Map;
 
-
 /**
  * An update script.  _update with script or update via _update using upsert.  For inserts
  * done via _update's upsert, use {@link InsertScript}.

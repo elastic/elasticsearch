@@ -18,9 +18,6 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
@@ -29,6 +26,9 @@ import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.UpdateByQueryScript;
+import org.elasticsearch.script.field.BulkMetadata;
+import org.elasticsearch.script.field.Op;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -133,8 +133,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             return wrap(index);
         }
 
-        class UpdateByQueryScriptApplier extends ScriptApplier {
-            // TODO(stu): this should use UpdateByQueryScript
+        static class UpdateByQueryScriptApplier extends ScriptApplier {
+            private UpdateByQueryScript update = null;
 
             UpdateByQueryScriptApplier(
                 WorkerBulkByScrollTaskState taskWorker,
@@ -146,25 +146,15 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             }
 
             @Override
-            protected void scriptChangedIndex(RequestWrapper<?> request, Object to) {
-                throw new IllegalArgumentException("Modifying [" + IndexFieldMapper.NAME + "] not allowed");
+            protected BulkMetadata execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
+                if (update == null) {
+                    update = scriptService.compile(script, UpdateByQueryScript.CONTEXT).newInstance(params);
+                }
+                BulkMetadata md = new BulkMetadata(doc.getIndex(), doc.getId(), doc.getVersion(), doc.getRouting(), Op.INDEX, source);
+                update.setMetadata(md);
+                update.execute();
+                return md;
             }
-
-            @Override
-            protected void scriptChangedId(RequestWrapper<?> request, Object to) {
-                throw new IllegalArgumentException("Modifying [" + IdFieldMapper.NAME + "] not allowed");
-            }
-
-            @Override
-            protected void scriptChangedVersion(RequestWrapper<?> request, Object to) {
-                throw new IllegalArgumentException("Modifying [_version] not allowed");
-            }
-
-            @Override
-            protected void scriptChangedRouting(RequestWrapper<?> request, Object to) {
-                throw new IllegalArgumentException("Modifying [" + RoutingFieldMapper.NAME + "] not allowed");
-            }
-
         }
     }
 }

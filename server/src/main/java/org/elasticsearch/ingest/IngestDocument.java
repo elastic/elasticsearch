@@ -749,7 +749,7 @@ public final class IngestDocument {
         if (ingestMetadata == null) {
             return null;
         }
-        if (ingestMetadata.get(TIMESTAMP) instanceof ZonedDateTime timestamp) {
+        if (ingestMetadata.get(TIMESTAMP)instanceof ZonedDateTime timestamp) {
             return timestamp;
         }
         return null;

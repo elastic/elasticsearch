@@ -6,7 +6,7 @@
 # Side Public License, v 1.
 #
 
-# This file contains a whitelist for the ingest scripts
+# This file contains a whitelist for reindex scripts
 
 class java.lang.String {
   String org.elasticsearch.painless.api.Augmentation sha1()
@@ -19,7 +19,7 @@ class org.elasticsearch.painless.api.Json {
   String dump(def, boolean)
 }
 
-class org.elasticsearch.script.IngestScript$Metadata {
+class org.elasticsearch.script.ReindexScript$Metadata {
     String getIndex()
     void setIndex(String)
 
@@ -32,18 +32,16 @@ class org.elasticsearch.script.IngestScript$Metadata {
     Long getVersion()
     void setVersion(Long)
 
-    VersionType getVersionType()
-    void setVersionType(VersionType)
-
-    ZonedDateTime getTimestamp()
+    Op getOp()
+    void setOp(Op op)
 }
 
-class org.elasticsearch.script.IngestScript {
-    org.elasticsearch.script.IngestScript.Metadata meta()
+class org.elasticsearch.script.ReindexScript$Metadata {
+    org.elasticsearch.script.ReindexScript.Metadata meta()
 }
 
-class org.elasticsearch.index.VersionType {
-  VersionType INTERNAL
-  VersionType EXTERNAL
-  VersionType EXTERNAL_GTE
+class org.elasticsearch.script.field.Op {
+  Op NOOP
+  Op INDEX
+  Op DELETE
 }

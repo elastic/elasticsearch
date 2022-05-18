@@ -18,8 +18,8 @@ Finds documents with geoshapes or geopoints within the specified distance of a c
 Find documents with geoshapes or geopoints which intersect the specified polygon.
 
 <<query-dsl-geo-shape-query,`geo_shape`>> query::
-Finds documents with geoshapes or geopoints which either intersect, are contained by,
-or do not intersect the specified geoshape.
+Finds documents with geoshapes or geopoints which are related to the specified geoshape.
+Possible spatial relationships to specify are: intersects, contained, within and disjoint.
 
 <<query-dsl-geo-grid-query,`geo_grid`>> query::
 Finds documents with:

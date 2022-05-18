@@ -1,0 +1,5 @@
+pr: 86876
+summary: Add a new test case for ESLogger
+area: test logger-usage
+type: test
+issues: []

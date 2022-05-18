@@ -104,7 +104,7 @@ lower range and up to the upper range. This is a common scenario
 in Linux deployments where cgroups is used.
 [source,console]
 --------------------------------------------------
-PUT /_internal/desired_nodes/Ywkh3INLQcuPT49f6kcppA/100
+PUT /_internal/desired_nodes/Ywkh3INLQcuPT49f6kcppA/101
 {
     "nodes" : [
         {

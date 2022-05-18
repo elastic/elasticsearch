@@ -358,6 +358,8 @@ public final class PainlessLookupBuilder {
 
         String javaClassName = clazz.getName();
         String importedCanonicalClassName = javaClassName.substring(javaClassName.lastIndexOf('.') + 1).replace('$', '.');
+        // TODO(stu):
+        // String importedCanonicalClassName = javaClassName.substring(javaClassName.replace('$', '.').lastIndexOf('.') + 1);
         boolean importClassName = annotations.containsKey(NoImportAnnotation.class) == false;
 
         if (canonicalClassName.equals(importedCanonicalClassName)) {

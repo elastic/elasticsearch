@@ -11,6 +11,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.field.MapBackedMetadata;
 
 import java.time.ZonedDateTime;
 import java.util.Locale;
@@ -65,17 +66,43 @@ public abstract class IngestScript {
         IngestScript newInstance(Map<String, Object> params, Map<String, Object> ctx, ZonedDateTime timestamp);
     }
 
-    public static class Metadata extends org.elasticsearch.script.field.Metadata {
+    public static class Metadata {
+        private final MapBackedMetadata store;
         private final ZonedDateTime timestamp;
         public static final String VERSION_TYPE = "_version_type";
 
         public Metadata(Map<String, Object> ctx, ZonedDateTime timestamp) {
-            super(ctx);
+            store = new MapBackedMetadata(ctx);
             this.timestamp = timestamp;
         }
 
+        public String getIndex() {
+            return store.getIndex();
+        }
+        public void setIndex(String index) {
+            store.setIndex(index);
+        }
+        public String getId() {
+            return store.getId();
+        }
+        public void setId(String id) {
+            store.setId(id);
+        }
+        public String getRouting() {
+            return store.getRouting();
+        }
+        public void setRouting(String routing) {
+            store.setRouting(routing);
+        }
+        public Long getVersion() {
+            return store.getVersion();
+        }
+        public void setVersion(Long version) {
+            store.setVersion(version);
+        }
+
         public VersionType getVersionType() {
-            String str = getString(VERSION_TYPE);
+            String str = store.getString(VERSION_TYPE);
             if (str == null) {
                 return null;
             }
@@ -84,9 +111,9 @@ public abstract class IngestScript {
 
         public void setVersionType(VersionType versionType) {
             if (versionType == null) {
-                ctx.put(VERSION_TYPE, null);
+                store.set(VERSION_TYPE, null);
             } else {
-                ctx.put(VERSION_TYPE, VersionType.toString(versionType));
+                store.set(VERSION_TYPE, VersionType.toString(versionType));
             }
         }
 

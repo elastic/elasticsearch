@@ -10,7 +10,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.script.field.BulkMetadata;
+import org.elasticsearch.script.field.AbstractBulkMetadata;
 import org.elasticsearch.script.field.Op;
 
 import java.util.Map;
@@ -39,7 +39,7 @@ public abstract class UpdateByQueryScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    private BulkMetadata metadata;
+    private Metadata metadata;
 
     public UpdateByQueryScript(Map<String, Object> params) {
         this.params = params;
@@ -50,11 +50,11 @@ public abstract class UpdateByQueryScript {
         return params;
     }
 
-    public void setMetadata(BulkMetadata metadata) {
+    public void setMetadata(Metadata metadata) {
         this.metadata = metadata;
     }
 
-    public BulkMetadata meta() {
+    public Metadata meta() {
         return metadata;
     }
 
@@ -69,5 +69,11 @@ public abstract class UpdateByQueryScript {
 
     public interface Factory {
         UpdateByQueryScript newInstance(Map<String, Object> params);
+    }
+
+    public static class Metadata extends AbstractBulkMetadata {
+        public Metadata(String index, String id, Long version, String routing, Op op, Map<String, Object> source) {
+            super(index, id, version, routing, op, source);
+        }
     }
 }

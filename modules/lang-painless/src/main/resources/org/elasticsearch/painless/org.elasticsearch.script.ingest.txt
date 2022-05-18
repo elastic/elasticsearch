@@ -39,7 +39,7 @@ class org.elasticsearch.script.IngestScript$Metadata {
 }
 
 class org.elasticsearch.script.IngestScript {
-    org.elasticsearch.script.IngestScript.Metadata meta()
+    Metadata meta()
 }
 
 class org.elasticsearch.index.VersionType {

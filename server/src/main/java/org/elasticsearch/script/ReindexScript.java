@@ -10,10 +10,17 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.script.field.AbstractBulkMetadata;
 import org.elasticsearch.script.field.BulkMetadata;
+import org.elasticsearch.script.field.MapBackedMetadata;
 import org.elasticsearch.script.field.Op;
 
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A script for reindex.
@@ -70,22 +77,24 @@ public abstract class ReindexScript {
         ReindexScript newInstance(Map<String, Object> params);
     }
 
-    public static class Metadata extends BulkMetadata {
+    /**
+     *  Metadata
+     *    RW: _index (non-null), _id, _routing, _version, _op {@link org.elasticsearch.script.field.Op} One of NOOP, INDEX, DELETE
+     */
+    public static class Metadata extends AbstractBulkMetadata {
         public Metadata(String index, String id, Long version, String routing, Op op, Map<String, Object> source) {
             super(index, id, version, routing, op, source);
         }
 
-        @Override
         public void setIndex(String index) {
             if (index == null) {
                 throw new IllegalArgumentException("destination index must be non-null");
             }
-            super.setIndex(index);
+            store.setIndex(index);
         }
 
-        @Override
         public String getIndex() {
-            String index = super.getIndex();
+            String index = store.getIndex();
             if (index == null) {
                 throw new IllegalArgumentException("destination index must be non-null");
             }

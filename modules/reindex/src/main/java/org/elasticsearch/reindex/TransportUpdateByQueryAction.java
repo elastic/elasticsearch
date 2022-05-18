@@ -28,6 +28,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateByQueryScript;
 import org.elasticsearch.script.field.BulkMetadata;
+import org.elasticsearch.script.field.AbstractBulkMetadata;
 import org.elasticsearch.script.field.Op;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -150,7 +151,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 if (update == null) {
                     update = scriptService.compile(script, UpdateByQueryScript.CONTEXT).newInstance(params);
                 }
-                BulkMetadata md = new BulkMetadata(doc.getIndex(), doc.getId(), doc.getVersion(), doc.getRouting(), Op.INDEX, source);
+                UpdateByQueryScript.Metadata md = new UpdateByQueryScript.Metadata(doc.getIndex(), doc.getId(), doc.getVersion(), doc.getRouting(), Op.INDEX, source);
                 update.setMetadata(md);
                 update.execute();
                 return md;

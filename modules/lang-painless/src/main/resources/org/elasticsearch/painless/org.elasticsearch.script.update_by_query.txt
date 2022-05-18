@@ -19,7 +19,7 @@ class org.elasticsearch.painless.api.Json {
   String dump(def, boolean)
 }
 
-class org.elasticsearch.script.IngestScript$Metadata {
+class org.elasticsearch.script.UpdateByQueryScript$Metadata {
     String getIndex()
 
     String getId()

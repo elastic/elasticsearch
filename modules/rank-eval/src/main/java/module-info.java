@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.module.rankeval {
+module org.elasticsearch.rankeval {
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.base;

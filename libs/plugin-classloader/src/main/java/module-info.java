@@ -6,6 +6,6 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.plugin.classloader {
+module org.elasticsearch.pluginclassloader {
     exports org.elasticsearch.plugins.loader;
 }

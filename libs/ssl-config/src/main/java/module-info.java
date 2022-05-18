@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.ssl.config {
+module org.elasticsearch.sslconfig {
     requires org.elasticsearch.base;
 
     exports org.elasticsearch.common.ssl;

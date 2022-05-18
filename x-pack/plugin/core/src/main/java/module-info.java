@@ -9,7 +9,7 @@ module org.elasticsearch.xcore {
     requires org.elasticsearch.cli;
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
-    requires org.elasticsearch.ssl.config;
+    requires org.elasticsearch.sslconfig;
     requires org.elasticsearch.xcontent;
     requires org.apache.httpcomponents.httpcore;
     requires org.apache.httpcomponents.httpclient;

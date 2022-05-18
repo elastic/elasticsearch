@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.plugin.analysis.icu {
+module org.elasticsearch.analysis.icu {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;

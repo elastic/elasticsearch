@@ -6,6 +6,6 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.secure.sm {
+module org.elasticsearch.securesm {
     exports org.elasticsearch.secure_sm;
 }

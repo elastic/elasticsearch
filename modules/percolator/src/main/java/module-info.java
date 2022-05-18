@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.module.percolator {
+module org.elasticsearch.percolator {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;

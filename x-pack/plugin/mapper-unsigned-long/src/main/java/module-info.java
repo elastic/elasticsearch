@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-module org.elasticsearch.mapper.unsigned_long {
+module org.elasticsearch.mapper.unsignedlong {
     requires org.apache.lucene.core;
     requires org.elasticsearch.server;
     requires org.apache.lucene.sandbox;

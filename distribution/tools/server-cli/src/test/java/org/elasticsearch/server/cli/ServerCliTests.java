@@ -60,6 +60,7 @@ public class ServerCliTests extends CommandTestCase {
         assertMutuallyExclusiveOptions("-V", "--daemonize");
         assertMutuallyExclusiveOptions("-V", "-p", "/tmp/pid");
         assertMutuallyExclusiveOptions("-V", "--pidfile", "/tmp/pid");
+        assertMutuallyExclusiveOptions("-V", "--enrollment-token", "mytoken");
         assertMutuallyExclusiveOptions("--version", "-d");
         assertMutuallyExclusiveOptions("--version", "--daemonize");
         assertMutuallyExclusiveOptions("--version", "-p", "/tmp/pid");

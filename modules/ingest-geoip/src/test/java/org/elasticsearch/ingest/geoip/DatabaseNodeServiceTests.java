@@ -352,7 +352,11 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         return MessageDigests.toHexString(md.digest());
     }
 
-    private static ClusterState createClusterState(PersistentTasksCustomMetadata tasksCustomMetadata) {
+    static ClusterState createClusterState(PersistentTasksCustomMetadata tasksCustomMetadata) {
+        return createClusterState(tasksCustomMetadata, false);
+    }
+
+    static ClusterState createClusterState(PersistentTasksCustomMetadata tasksCustomMetadata, boolean noStartedShards) {
         boolean aliasGeoipDatabase = randomBoolean();
         String indexName = aliasGeoipDatabase
             ? GeoIpDownloader.DATABASES_INDEX + "-" + randomAlphaOfLength(5)
@@ -376,9 +380,11 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
-        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
-            shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted()
-        ).build();
+        shardRouting = shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize());
+        if (noStartedShards == false) {
+            shardRouting = shardRouting.moveToStarted();
+        }
+        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(shardRouting).build();
         return ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).put(idxMeta))
             .nodes(

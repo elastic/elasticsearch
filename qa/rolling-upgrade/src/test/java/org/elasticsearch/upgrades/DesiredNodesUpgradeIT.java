@@ -19,8 +19,8 @@ import static org.hamcrest.Matchers.is;
 
 public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
     public void testUpgradeDesiredNodes() throws Exception {
-        // Desired nodes was introduced in 8.2
-        if (UPGRADE_FROM_VERSION.before(Version.V_8_2_0)) {
+        // Desired nodes was introduced in 8.1
+        if (UPGRADE_FROM_VERSION.before(Version.V_8_1_0)) {
             return;
         }
 

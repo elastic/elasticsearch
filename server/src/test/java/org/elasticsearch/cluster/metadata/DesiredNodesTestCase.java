@@ -59,16 +59,11 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static DesiredNode randomDesiredNode(Version version, Consumer<Settings.Builder> settingsProvider) {
-        return switch (randomInt(2)) {
-            case 0 -> randomDesiredNode(version, randomProcessor(), settingsProvider);
-            case 1 -> randomDesiredNode(version, randomIntBetween(1, 256), settingsProvider);
-            case 2 -> randomDesiredNode(version, randomIntBetween(1, 256) + randomFloat(), settingsProvider);
-            default -> throw new IllegalStateException();
-        };
-    }
-
-    public static DesiredNode randomDesiredNode(Version version, int processors, Consumer<Settings.Builder> settingsProvider) {
-        return randomDesiredNode(version, (float) processors, settingsProvider);
+        if (randomBoolean()) {
+            return randomDesiredNode(version, randomProcessor(), settingsProvider);
+        } else {
+            return randomDesiredNode(version, randomIntBetween(1, 256) + randomFloat(), settingsProvider);
+        }
     }
 
     public static DesiredNode randomDesiredNode(Version version, float processors, Consumer<Settings.Builder> settingsProvider) {

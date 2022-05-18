@@ -245,7 +245,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         return roundDown(minProcessors());
     }
 
-    public float maxProcessors() {
+    public Float maxProcessors() {
         if (processors != null) {
             return processors;
         }
@@ -253,7 +253,11 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         return processorsRange.max();
     }
 
-    public int roundedUpMaxProcessors() {
+    public Integer roundedUpMaxProcessors() {
+        if (maxProcessors() == null) {
+            return null;
+        }
+
         return roundUp(maxProcessors());
     }
 
@@ -402,11 +406,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
                     "min processors must be less than or equal to max processors and it was: min: " + min + " max: " + max
                 );
             }
-        }
-
-        @Override
-        public Float max() {
-            return max == null ? min : max;
         }
 
         @Nullable

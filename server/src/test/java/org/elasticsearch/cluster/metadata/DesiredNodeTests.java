@@ -76,7 +76,7 @@ public class DesiredNodeTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new DesiredNode(
                 settings,
-                new DesiredNode.ProcessorsRange(randomFloat() + 1, randomInvalidFloatProcessor()),
+                new DesiredNode.ProcessorsRange(randomFloat() + 0.1f, randomInvalidFloatProcessor()),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
                 Version.CURRENT
@@ -93,11 +93,13 @@ public class DesiredNodeTests extends ESTestCase {
             )
         );
 
+        final var lowerBound = randomFloatBetween(0.1f, 10);
+        final var upperBound = randomFloatBetween(0.01f, lowerBound - Math.ulp(lowerBound));
         expectThrows(
             IllegalArgumentException.class,
             () -> new DesiredNode(
                 settings,
-                new DesiredNode.ProcessorsRange(3.0f, 2.0f),
+                new DesiredNode.ProcessorsRange(lowerBound, upperBound),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
                 Version.CURRENT
@@ -224,6 +226,15 @@ public class DesiredNodeTests extends ESTestCase {
     }
 
     private Float randomInvalidFloatProcessor() {
-        return randomFrom(-1.0f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY);
+        return randomFrom(0.0f, -1.0f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY);
+    }
+
+    private float randomFloatBetween(float start, float end) {
+        float result = 0.0f;
+        while (result < start || result > end || Float.isNaN(result)) {
+            result = start + randomFloat() * (end - start);
+        }
+
+        return result;
     }
 }

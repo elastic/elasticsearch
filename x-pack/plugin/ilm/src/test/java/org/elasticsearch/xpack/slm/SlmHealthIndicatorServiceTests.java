@@ -48,8 +48,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    null,
                     "SLM is running",
+                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1)),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -70,8 +70,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     YELLOW,
-                    SlmHealthIndicatorService.HELP_URL,
                     "SLM is not running",
+                    SlmHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1)),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
@@ -99,8 +99,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    null,
                     "No policies configured",
+                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -120,8 +120,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    null,
                     "No policies configured",
+                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()

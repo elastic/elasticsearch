@@ -51,6 +51,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
+                    null,
                     "No corrupted repositories.",
                     new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size())),
                     Collections.emptyList(),
@@ -75,6 +76,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     RED,
+                    RepositoryIntegrityHealthIndicatorService.HELP_URL,
                     "Detected [1] corrupted repositories: [corrupted-repo].",
                     new SimpleHealthIndicatorDetails(
                         Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
@@ -103,6 +105,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
+                    null,
                     "No repositories configured.",
                     HealthIndicatorDetails.EMPTY,
                     Collections.emptyList(),

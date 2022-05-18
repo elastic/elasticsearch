@@ -840,7 +840,7 @@ public class SecurityTests extends ESTestCase {
             "hash not fips compliant",
             Security.class.getName(),
             Level.WARN,
-            "Only SSHA256 or PBKDF2 are recommended for in-memory credential hashing in a FIPS 140 JVM. "
+            "Only SSHA256 or PBKDF2 is recommended for in-memory credential hashing in a FIPS 140 JVM. "
                 + "Please change the ["
                 + settingKey
                 + "] setting from [*] to an appropriate value."

@@ -19,7 +19,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
     requires org.elasticsearch.plugin.classloader;
-    requires org.elasticsearch.secure_sm;
+    requires org.elasticsearch.secure.sm;
     requires org.elasticsearch.xcontent;
 
     requires com.sun.jna;

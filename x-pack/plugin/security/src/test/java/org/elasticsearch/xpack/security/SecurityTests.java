@@ -629,7 +629,7 @@ public class SecurityTests extends ESTestCase {
                 randomFrom(
                     Hasher.getAvailableAlgoCacheHash()
                         .stream()
-                        .filter(alg -> alg.startsWith("pbkdf2") || alg.equals("sha1") || alg.equals("ssha256"))
+                        .filter(alg -> alg.startsWith("pbkdf2") || alg.equals("ssha256"))
                         .collect(Collectors.toList())
                 )
             )
@@ -830,7 +830,7 @@ public class SecurityTests extends ESTestCase {
         return randomFrom(
             Hasher.getAvailableAlgoCacheHash()
                 .stream()
-                .filter(alg -> (alg.startsWith("pbkdf2") || alg.equals("sha1") || alg.equals("ssha256")) == false)
+                .filter(alg -> (alg.startsWith("pbkdf2") || alg.equals("ssha256")) == false)
                 .collect(Collectors.toList())
         );
     }
@@ -840,7 +840,7 @@ public class SecurityTests extends ESTestCase {
             "hash not fips compliant",
             Security.class.getName(),
             Level.WARN,
-            "Only SSHA256, SHA1, or PBKDF2 are allowed for secure hashing in a FIPS 140 JVM. "
+            "Only SSHA256 or PBKDF2 are recommended for in-memory credential hashing in a FIPS 140 JVM. "
                 + "Please change the ["
                 + settingKey
                 + "] setting from [*] to an appropriate value."

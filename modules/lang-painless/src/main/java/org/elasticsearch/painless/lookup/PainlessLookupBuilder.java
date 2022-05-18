@@ -374,11 +374,9 @@ public final class PainlessLookupBuilder {
                         throw new IllegalArgumentException("inconsistent no_import parameter found for class [" + canonicalClassName + "]");
                     }
 
+                    canonicalClassNamesToClasses.put(importedCanonicalClassName.intern(), clazz);
                     if (annotations.get(AliasAnnotation.class)instanceof AliasAnnotation alias) {
-                        canonicalClassNamesToClasses.put(importedCanonicalClassName.intern(), clazz);
                         canonicalClassNamesToClasses.put(alias.alias(), clazz);
-                    } else {
-                        canonicalClassNamesToClasses.put(importedCanonicalClassName.intern(), clazz);
                     }
                 }
             } else if (importedClass != clazz) {

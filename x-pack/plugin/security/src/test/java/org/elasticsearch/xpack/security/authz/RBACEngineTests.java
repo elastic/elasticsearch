@@ -334,18 +334,13 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
-        final PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(
-            new String[] { ClusterHealthAction.NAME },
-            new IndicesPrivileges[] {
-                IndicesPrivileges.builder().indices("academy").privileges(DeleteAction.NAME, IndexAction.NAME).build() },
-            new ApplicationResourcePrivileges[0],
-            true
+        final PrivilegesCheckResult result = hasPrivileges(
+            IndicesPrivileges.builder().indices("academy").privileges(DeleteAction.NAME, IndexAction.NAME).build(),
+            authzInfo,
+            List.of(),
+            new String[] { ClusterHealthAction.NAME }
         );
 
-        final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck, Collections.emptyList(), future);
-
-        final PrivilegesCheckResult result = future.get();
         assertThat(result, notNullValue());
         assertThat(result.allChecksSuccess(), is(true));
 
@@ -372,18 +367,13 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
-        final PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(
-            new String[] { "monitor", "manage" },
-            new IndicesPrivileges[] {
-                IndicesPrivileges.builder().indices("academy", "initiative", "school").privileges("delete", "index", "manage").build() },
-            new ApplicationResourcePrivileges[0],
-            true
+        PrivilegesCheckResult response = hasPrivileges(
+            IndicesPrivileges.builder().indices("academy", "initiative", "school").privileges("delete", "index", "manage").build(),
+            authzInfo,
+            List.of(),
+            new String[] { "monitor", "manage" }
         );
-        final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck, Collections.emptyList(), future);
 
-        final PrivilegesCheckResult response = future.get();
-        assertThat(response, notNullValue());
         assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.getDetails().cluster(), aMapWithSize(2));
         assertThat(response.getDetails().cluster().get("monitor"), equalTo(true));
@@ -477,8 +467,7 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
-        final PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(
-            new String[0],
+        final PrivilegesCheckResult response = hasPrivileges(
             new IndicesPrivileges[] {
                 IndicesPrivileges.builder()
                     .indices("logstash-2016-*")
@@ -519,13 +508,11 @@ public class RBACEngineTests extends ESTestCase {
                     .application("kibana")
                     .privileges("space:view/dashboard")
                     .build() },
-            true
+            authzInfo,
+            privs,
+            new String[0]
         );
 
-        final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, privilegesToCheck, privs, future);
-
-        final PrivilegesCheckResult response = future.get();
         assertThat(response, notNullValue());
         assertThat(response.allChecksSuccess(), is(false));
         assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(8));
@@ -1490,6 +1477,7 @@ public class RBACEngineTests extends ESTestCase {
         final PrivilegesCheckResult privilegesCheckResult2 = future2.get();
         assertThat(privilegesCheckResult2, notNullValue());
 
+        // same result independent of the "runDetailedCheck" flag
         assertThat(privilegesCheckResult.allChecksSuccess(), is(privilegesCheckResult2.allChecksSuccess()));
 
         if (privilegesToCheck.runDetailedCheck()) {

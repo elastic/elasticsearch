@@ -269,14 +269,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     ) {
         final JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
         ActionListener<Job> clearedTimeListener = ActionListener.wrap(job -> listener.onResponse(response), e -> {
-            logger.error(new ParameterizedMessage("[{}] Failed to clear finished_time", jobId), e);
+            logger.error(() -> "[" + jobId + "] Failed to clear finished_time", e);
             // Not a critical error so continue
             listener.onResponse(response);
         });
         ActionListener<Boolean> mappingsUpdatedListener = ActionListener.wrap(
             mappingUpdateResponse -> jobConfigProvider.updateJob(jobId, update, null, clearedTimeListener),
             e -> {
-                logger.error(new ParameterizedMessage("[{}] Failed to update mapping; not clearing finished_time", jobId), e);
+                logger.error(() -> "[" + jobId + "] Failed to update mapping; not clearing finished_time", e);
                 // Not a critical error so continue without attempting to clear finish time
                 listener.onResponse(response);
             }

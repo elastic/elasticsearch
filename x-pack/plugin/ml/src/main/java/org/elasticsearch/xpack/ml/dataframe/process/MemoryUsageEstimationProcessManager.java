@@ -130,14 +130,12 @@ public class MemoryUsageEstimationProcessManager {
     private static MemoryUsageEstimationResult readResult(String jobId, AnalyticsProcess<MemoryUsageEstimationResult> process) {
         Iterator<MemoryUsageEstimationResult> iterator = process.readAnalyticsResults();
         if (iterator.hasNext() == false) {
-            String errorMsg = new ParameterizedMessage("[{}] Memory usage estimation process returned no results", jobId)
-                .getFormattedMessage();
+            String errorMsg = "[" + jobId + "] Memory usage estimation process returned no results";
             throw ExceptionsHelper.serverError(errorMsg);
         }
         MemoryUsageEstimationResult result = iterator.next();
         if (iterator.hasNext()) {
-            String errorMsg = new ParameterizedMessage("[{}] Memory usage estimation process returned more than one result", jobId)
-                .getFormattedMessage();
+            String errorMsg = "[" + jobId + "] Memory usage estimation process returned more than one result";
             throw ExceptionsHelper.serverError(errorMsg);
         }
         return result;

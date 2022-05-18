@@ -11,7 +11,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -133,29 +132,16 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     protected AbstractGeometryFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        Map<String, NamedAnalyzer> indexAnalyzers,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> ignoreZValue,
         MultiFields multiFields,
         CopyTo copyTo,
         Parser<T> parser
     ) {
-        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
         this.parser = parser;
-    }
-
-    protected AbstractGeometryFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        Explicit<Boolean> ignoreMalformed,
-        Explicit<Boolean> ignoreZValue,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Parser<T> parser
-    ) {
-        this(simpleName, mappedFieldType, Collections.emptyMap(), ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
     }
 
     protected AbstractGeometryFieldMapper(
@@ -166,7 +152,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         Parser<T> parser,
         String onScriptError
     ) {
-        super(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, true, onScriptError);
+        super(simpleName, mappedFieldType, multiFields, copyTo, true, onScriptError);
         this.ignoreMalformed = Explicit.EXPLICIT_FALSE;
         this.ignoreZValue = Explicit.EXPLICIT_FALSE;
         this.parser = parser;

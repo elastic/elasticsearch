@@ -181,7 +181,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                     .map(InferenceProcessor::getModelId)
                     .forEach(allReferencedModelKeys::add);
             } catch (Exception ex) {
-                logger.warn(new ParameterizedMessage("failed to load pipeline [{}]", pipelineId), ex);
+                logger.warn(() -> "failed to load pipeline [" + pipelineId + "]", ex);
             }
         }
         return allReferencedModelKeys;
@@ -209,7 +209,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         List<String> modelAliases,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        logger.debug(() -> new ParameterizedMessage("[{}] Deleting model", request.getId()));
+        logger.debug(() -> "[" + request.getId() + "] Deleting model");
 
         ActionListener<AcknowledgedResponse> nameDeletionListener = ActionListener.wrap(
             ack -> trainedModelProvider.deleteTrainedModel(request.getId(), ActionListener.wrap(r -> {

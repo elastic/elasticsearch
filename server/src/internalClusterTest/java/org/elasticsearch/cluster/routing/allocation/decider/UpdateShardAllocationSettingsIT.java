@@ -29,7 +29,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
     /**
      * Tests that updating the {@link EnableAllocationDecider} related settings works as expected.
      */
-    public void testEnableRebalance() throws InterruptedException {
+    public void testEnableRebalance() {
         final String firstNode = internalCluster().startNode();
         client().admin()
             .cluster()
@@ -115,7 +115,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
     /**
      * Tests that updating the {@link SameShardAllocationDecider#CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING} setting works as expected.
      */
-    public void testUpdateSameHostSetting() throws Exception {
+    public void testUpdateSameHostSetting() {
         internalCluster().startNodes(2);
         // same same_host to true, since 2 nodes are started on the same host,
         // only primaries should be assigned

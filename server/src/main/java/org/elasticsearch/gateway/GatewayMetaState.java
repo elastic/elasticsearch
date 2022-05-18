@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -243,7 +242,7 @@ public class GatewayMetaState implements Closeable {
     }
 
     private static boolean applyPluginUpgraders(
-        ImmutableOpenMap<String, IndexTemplateMetadata> existingData,
+        Map<String, IndexTemplateMetadata> existingData,
         UnaryOperator<Map<String, IndexTemplateMetadata>> upgrader,
         Consumer<String> removeData,
         BiConsumer<String, IndexTemplateMetadata> putData

@@ -11,6 +11,7 @@ package org.elasticsearch.index.bulk.stats;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Test;
 
 public class BulkStatsTests extends AbstractWireSerializingTestCase<BulkStats> {
 
@@ -91,5 +92,17 @@ public class BulkStatsTests extends AbstractWireSerializingTestCase<BulkStats> {
         assertEquals(equalTo, stats.getTotalTimeInMillis());
         assertEquals(equalTo, stats.getTotalSizeInBytes());
     }
+
+    public void testAdd() {
+        BulkStats bulkStats1 = new BulkStats(1,1,1,1,1);
+        BulkStats bulkStats2 = new BulkStats(2,2,2,2,2);
+
+        bulkStats1.addTotals(bulkStats2);
+
+        assertEquals(bulkStats1.getTotalOperations(),3);
+        assertEquals(bulkStats1.getTotalTimeInMillis(),3);
+        assertEquals(bulkStats1.getTotalSizeInBytes(),3);
+    }
+
 
 }

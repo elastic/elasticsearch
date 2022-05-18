@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
@@ -55,7 +55,7 @@ public final class ResourcePrivilegesMap {
     }
 
     public static final class Builder {
-        private Map<String, ResourcePrivileges.Builder> resourceToResourcePrivilegesBuilder = new LinkedHashMap<>();
+        private Map<String, ResourcePrivileges.Builder> resourceToResourcePrivilegesBuilder = new TreeMap<>();
 
         public Builder addResourcePrivilege(String resource, String privilege, Boolean allowed) {
             assert resource != null && privilege != null && allowed != null

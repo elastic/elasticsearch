@@ -1019,19 +1019,23 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
+        List<String> resources = new ArrayList<>();
+        resources.add("foo/1");
+        resources.add("foo/bar/2");
+        resources.add("foo/bar/baz");
+        resources.add("baz/bar/foo");
+        Collections.shuffle(resources, random());
+        List<String> privileges = new ArrayList<>();
+        privileges.add("read");
+        privileges.add("write");
+        privileges.add("all");
+        Collections.shuffle(privileges, random());
+
         final PrivilegesCheckResult response = hasPrivileges(
             new IndicesPrivileges[0],
             new ApplicationResourcePrivileges[] {
-                ApplicationResourcePrivileges.builder()
-                    .application("app1")
-                    .resources("foo/1", "foo/bar/2", "foo/bar/baz", "baz/bar/foo")
-                    .privileges("read", "write", "all")
-                    .build(),
-                ApplicationResourcePrivileges.builder()
-                    .application("app2")
-                    .resources("foo/1", "foo/bar/2", "foo/bar/baz", "baz/bar/foo")
-                    .privileges("read", "write", "all")
-                    .build() },
+                ApplicationResourcePrivileges.builder().application("app1").resources(resources).privileges(privileges).build(),
+                ApplicationResourcePrivileges.builder().application("app2").resources(resources).privileges(privileges).build() },
             authzInfo,
             privs,
             Strings.EMPTY_ARRAY

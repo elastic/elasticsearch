@@ -1672,7 +1672,7 @@ public class RestoreService implements ClusterStateApplier {
 
             try {
                 Mapping mapping;
-                try (MapperService mapperService = indicesService.createIndexMapperService(convertedIndexMetadata)) {
+                try (MapperService mapperService = indicesService.createIndexMapperServiceForValidation(convertedIndexMetadata)) {
                     // create and validate in-memory mapping
                     mapperService.merge(convertedIndexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
                     mapping = mapperService.documentMapper().mapping();

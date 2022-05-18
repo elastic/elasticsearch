@@ -11,7 +11,6 @@ package org.elasticsearch.index.bulk.stats;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 public class BulkStatsTests extends AbstractWireSerializingTestCase<BulkStats> {
 

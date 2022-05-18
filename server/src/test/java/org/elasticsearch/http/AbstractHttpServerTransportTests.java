@@ -224,7 +224,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         try (AbstractHttpServerTransport transport = failureAssertingtHttpServerTransport(clusterSettings, Set.of("Accept"))) {
 
             Map<String, List<String>> headers = new HashMap<>();
-            headers.put("Accept", Collections.singletonList("incorrectheader"));
+            headers.put("Accept", List.of("incorrectHeader"));
+            if (randomBoolean()) {
+                headers.put("Content-Type", List.of("alsoIncorrectHeader"));
+            }
 
             FakeRestRequest.FakeHttpRequest fakeHttpRequest = new FakeRestRequest.FakeHttpRequest(
                 RestRequest.Method.GET,
@@ -237,8 +240,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
         try (AbstractHttpServerTransport transport = failureAssertingtHttpServerTransport(clusterSettings, Set.of("Content-Type"))) {
             Map<String, List<String>> headers = new HashMap<>();
-            headers.put("Accept", Collections.singletonList("application/json"));
-            headers.put("Content-Type", Collections.singletonList("incorrectheader"));
+            if (randomBoolean()) {
+                headers.put("Accept", List.of("application/json"));
+            }
+            headers.put("Content-Type", List.of("incorrectHeader"));
 
             FakeRestRequest.FakeHttpRequest fakeHttpRequest = new FakeRestRequest.FakeHttpRequest(
                 RestRequest.Method.GET,

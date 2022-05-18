@@ -97,7 +97,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((MatchOnlyTextFieldMapper) m).indexAnalyzer,
-                m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap
+                m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap,
+                indexCreatedVersion
             );
         }
 

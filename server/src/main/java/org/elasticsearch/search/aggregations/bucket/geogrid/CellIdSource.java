@@ -45,7 +45,6 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
     @Override
     public final SortedNumericDocValues longValues(LeafReaderContext ctx) {
         final MultiGeoPointValues multiGeoPointValues = valuesSource.geoPointValues(ctx);
-
         if (geoBoundingBox.isUnbounded()) {
             return unboundedCellValues(multiGeoPointValues);
         } else {

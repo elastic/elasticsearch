@@ -43,7 +43,7 @@ public class GeoHexCellIdSource extends CellIdSource {
                 final double lon = target.getLon();
                 final long hex = H3.geoToH3(lat, lon, precision);
                 // validPoint is a fast check, validHex is slow
-                if (predicate.validPoint(lat, lon) || predicate.validHex(hex)) {
+                if (validPoint(lat, lon) || predicate.validHex(hex)) {
                     values[valuesIdx] = hex;
                     return valuesIdx + 1;
                 }
@@ -56,7 +56,6 @@ public class GeoHexCellIdSource extends CellIdSource {
 
         private final boolean crossesDateline;
         private final GeoBoundingBox bbox;
-
         private final long northPoleHex, southPoleHex;
 
         GeoHexPredicate(GeoBoundingBox bbox, int precision) {
@@ -97,17 +96,6 @@ public class GeoHexCellIdSource extends CellIdSource {
                     return bbox.left() < maxLon || bbox.right() > minLon;
                 } else {
                     return bbox.left() < maxLon && bbox.right() > minLon;
-                }
-            }
-            return false;
-        }
-
-        public boolean validPoint(double lat, double lon) {
-            if (bbox.top() > lat && bbox.bottom() < lat) {
-                if (crossesDateline) {
-                    return bbox.left() < lon || bbox.right() > lon;
-                } else {
-                    return bbox.left() < lon && bbox.right() > lon;
                 }
             }
             return false;

@@ -24,11 +24,13 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
     private final GeoPoint valuesSource;
     private final int precision;
     private final GeoBoundingBox geoBoundingBox;
+    private final boolean crossesDateline;
 
     protected CellIdSource(GeoPoint valuesSource, int precision, GeoBoundingBox geoBoundingBox) {
         this.valuesSource = valuesSource;
         this.precision = precision;
         this.geoBoundingBox = geoBoundingBox;
+        this.crossesDateline = geoBoundingBox.left() > geoBoundingBox.right();
     }
 
     protected final int precision() {
@@ -69,6 +71,23 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
     @Override
     public final SortedBinaryDocValues bytesValues(LeafReaderContext ctx) {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * checks if the point is inside the bounding box. If the method return true, the point should be added to the final
+     * result, otherwise implementors might need to check if the point grid intersects the bounding box.
+     *
+     * This method maybe faster than having to compute the bounding box for each point grid.
+     * */
+    protected boolean validPoint(double x, double y) {
+        if (geoBoundingBox.top() > y && geoBoundingBox.bottom() < y) {
+            if (crossesDateline) {
+                return geoBoundingBox.left() < x || geoBoundingBox.right() > x;
+            } else {
+                return geoBoundingBox.left() < x && geoBoundingBox.right() > x;
+            }
+        }
+        return false;
     }
 
 }

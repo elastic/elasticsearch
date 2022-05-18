@@ -10,13 +10,14 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 /**
  * Class to help convert {@link MultiGeoPointValues} to Geohash {@link CellValues}
  */
 public class GeoHashCellIdSource extends CellIdSource {
 
-    public GeoHashCellIdSource(GeoPoint valuesSource, int precision, GeoBoundingBox geoBoundingBox) {
+    public GeoHashCellIdSource(ValuesSource.GeoPoint valuesSource, int precision, GeoBoundingBox geoBoundingBox) {
         super(valuesSource, precision, geoBoundingBox);
     }
 
@@ -38,24 +39,12 @@ public class GeoHashCellIdSource extends CellIdSource {
             @Override
             protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
                 final String hash = Geohash.stringEncode(target.getLon(), target.getLat(), precision);
-                if (validPoint(boundingBox, target.getLon(), target.getLat()) || predicate.validHash(hash)) {
+                if (validPoint(target.getLon(), target.getLat()) || predicate.validHash(hash)) {
                     values[valuesIdx] = Geohash.longEncode(hash);
                     return valuesIdx + 1;
                 }
                 return valuesIdx;
             }
         };
-    }
-
-    private static boolean validPoint(GeoBoundingBox bbox, double x, double y) {
-        if (bbox.top() > y && bbox.bottom() < y) {
-            boolean crossesDateline = bbox.left() > bbox.right();
-            if (crossesDateline) {
-                return bbox.left() < x || bbox.right() > x;
-            } else {
-                return bbox.left() < x && bbox.right() > x;
-            }
-        }
-        return false;
     }
 }

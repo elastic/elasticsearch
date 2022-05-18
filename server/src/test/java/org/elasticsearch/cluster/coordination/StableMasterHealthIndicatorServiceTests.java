@@ -130,7 +130,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
          * On the master node:
          *   node1 -> null -> node1 -> null -> node1 -> null -> node1-> null -> node1
          * In this case, the master identity changed 0 times as seen from the local node. The same master went null 4 times as seen from
-         * my the local node. So we check the remote history. The remote history sees that the master went to null 4 times, the status is
+         * the local node. So we check the remote history. The remote history sees that the master went to null 4 times, the status is
          * YELLOW.
          */
         MasterHistoryService masterHistoryService = createMasterHistoryService();
@@ -190,8 +190,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
          *   node1 -> null -> node1 -> null -> node1 -> null -> node1 -> null -> node1
          * Connecting to the master node throws an exception
          * In this case, the master identity changed 0 times as seen from the local node. The same master went null 4 times as seen from
-         * my the local node. So we check the remote history. The remote history throws an exception, so the status is
-         * YELLOW.
+         * the local node. So we check the remote history. The remote history throws an exception, so the status is YELLOW.
          */
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
@@ -227,9 +226,9 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
          * On the master node:
          *   node1 -> null -> node1 -> node2 -> node3 -> node2 -> node3
          * In this case, the master identity changed 0 times as seen from the local node. The same master went null 4 times as seen from
-         * my the local node. So we check the remote history. The master only went null here one time, but it changed identity 4 times. So
-         * we still get a status of YELLOW. (Note: This scenario might not be possible in the real world for a couple of reasons7, but it
-         * tests edge cases)
+         * the local node. So we check the remote history. The master only went null here one time, but it changed identity 4 times. So we
+         * still get a status of YELLOW. (Note: This scenario might not be possible in the real world for a couple of reasons, but it tests
+         * edge cases)
          */
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();

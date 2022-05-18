@@ -56,7 +56,7 @@ import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATI
  */
 public class StableMasterHealthIndicatorService implements HealthIndicatorService, ClusterStateListener {
 
-    public static final String NAME = "stable_master";
+    public static final String NAME = "master_is_stable";
 
     private final ClusterService clusterService;
     private final MasterHistoryService masterHistoryService;
@@ -185,7 +185,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         int masterChanges,
         boolean explain
     ) {
-        logger.trace("Have seen {} master changes in the last {}}", masterChanges, localMasterHistory.getMaxHistoryAge());
+        logger.trace("Have seen {} master changes in the last {}", masterChanges, localMasterHistory.getMaxHistoryAge());
         HealthStatus stableMasterStatus = HealthStatus.YELLOW;
         String summary = String.format(
             Locale.ROOT,
@@ -234,8 +234,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         if (explain) {
             UserAction.Definition contactSupport = new UserAction.Definition(
                 "contact_support",
-                "The Elasticsearch cluster does not have a stable master node. This almost always requires expert assistance. Please "
-                    + "contact Elastic support to resolve the problem.",
+                "The Elasticsearch cluster does not have a stable master node. Please contact Elastic Support "
+                    + "(https://support.elastic.co) to discuss available options.",
                 null
             );
             UserAction userAction = new UserAction(contactSupport, null);

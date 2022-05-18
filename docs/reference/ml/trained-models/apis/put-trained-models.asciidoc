@@ -706,7 +706,6 @@ text.
 `tokenization`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
-
 Recommended to set `max_sentence_length` to `386` with `128` of `span` and set 
 `truncate` to `none`.
 +

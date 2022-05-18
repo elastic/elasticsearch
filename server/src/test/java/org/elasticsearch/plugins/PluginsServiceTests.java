@@ -295,12 +295,30 @@ public class PluginsServiceTests extends ESTestCase {
         assertEquals("Plugin [myplugin] cannot extend non-extensible plugin [nonextensible]", e.getMessage());
     }
 
-    public void testExistingMandatoryClasspathPlugin() {
+    public void testPassingMandatoryPluginCheck() {
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put("plugin.mandatory", "org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
             .build();
-        newPluginsService(settings, FakePlugin.class);
+        PluginsService.checkMandatoryPlugins(
+            List.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin"),
+            List.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
+        );
+    }
+
+    public void testFailingMandatoryPluginCheck() {
+        final Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put("plugin.mandatory", "org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
+            .build();
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.checkMandatoryPlugins(List.of(), List.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin"))
+        );
+        assertEquals(
+            "missing mandatory plugins [org.elasticsearch.plugins.PluginsServiceTests$FakePlugin], found plugins []",
+            e.getMessage()
+        );
     }
 
     public static class FakePlugin extends Plugin {

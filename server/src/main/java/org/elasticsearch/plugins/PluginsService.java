@@ -16,10 +16,10 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
@@ -163,30 +163,29 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         this.info = new PluginsAndModules(pluginsList, modulesList);
         this.plugins = Collections.unmodifiableList(pluginsLoaded);
 
-        // Checking expected plugins
-        List<String> mandatoryPlugins = MANDATORY_SETTING.get(settings);
-        if (mandatoryPlugins.isEmpty() == false) {
-            Set<String> missingPlugins = new HashSet<>();
-            for (String mandatoryPlugin : mandatoryPlugins) {
-                if (pluginsNames.contains(mandatoryPlugin) == false && missingPlugins.contains(mandatoryPlugin) == false) {
-                    missingPlugins.add(mandatoryPlugin);
-                }
-            }
-            if (missingPlugins.isEmpty() == false) {
-                final String message = String.format(
-                    Locale.ROOT,
-                    "missing mandatory plugins [%s], found plugins [%s]",
-                    Strings.collectionToDelimitedString(missingPlugins, ", "),
-                    Strings.collectionToDelimitedString(pluginsNames, ", ")
-                );
-                throw new IllegalStateException(message);
-            }
-        }
+        checkMandatoryPlugins(pluginsNames, MANDATORY_SETTING.get(settings));
 
         // we don't log jars in lib/ we really shouldn't log modules,
         // but for now: just be transparent so we can debug any potential issues
         logPluginInfo(info.getModuleInfos(), "module", logger);
         logPluginInfo(info.getPluginInfos(), "plugin", logger);
+    }
+
+    // package-private for testing
+    static void checkMandatoryPlugins(List<String> existingPlugins, List<String> mandatoryPlugins) {
+        if (mandatoryPlugins.isEmpty()) {
+            return;
+        }
+
+        Set<String> missingPlugins = Sets.difference(new HashSet<>(mandatoryPlugins), new HashSet<>(existingPlugins));
+        if (missingPlugins.isEmpty() == false) {
+            final String message = "missing mandatory plugins ["
+                + String.join(", ", missingPlugins)
+                + "], found plugins ["
+                + String.join(", ", existingPlugins)
+                + "]";
+            throw new IllegalStateException(message);
+        }
     }
 
     private static void logPluginInfo(final List<PluginInfo> pluginInfos, final String type, final Logger logger) {

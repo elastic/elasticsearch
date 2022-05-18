@@ -36,13 +36,11 @@ import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER
  */
 public class GetIndexResponse extends ActionResponse implements ToXContentObject {
 
-
-    private Map<String, MappingMetadata> mappings = Map.of();
-    private Map<String, List<AliasMetadata>> aliases = Map.of();
-    private Map<String, Settings> settings = Map.of();
-    private Map<String, Settings> defaultSettings = Map.of();
-    private Map<String, String> dataStreams = Map.of();
-
+    private Map<String, MappingMetadata> mappings = new HashMap<>();
+    private Map<String, List<AliasMetadata>> aliases = new HashMap<>();
+    private Map<String, Settings> settings = new HashMap<>();
+    private Map<String, Settings> defaultSettings = new HashMap<>();
+    private Map<String, String> dataStreams = new HashMap<>();
     private final String[] indices;
 
     public GetIndexResponse(

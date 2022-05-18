@@ -97,8 +97,9 @@ class ErrorPumpThread extends Thread {
             }
         } catch (IOException e) {
             ioFailure = e;
+        } finally {
+            writer.flush();
+            readyOrDead.countDown();
         }
-        writer.flush();
-        readyOrDead.countDown();
     }
 }

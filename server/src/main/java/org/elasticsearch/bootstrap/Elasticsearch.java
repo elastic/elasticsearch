@@ -158,12 +158,15 @@ class Elasticsearch {
             int msg = -1;
             try {
                 msg = stdin.read();
-            } catch (IOException e) {}
-            if (msg == BootstrapInfo.SERVER_SHUTDOWN_MARKER) {
-                exit(0);
-            } else {
-                // parent process died or there was an error reading from it
-                exit(1);
+            } catch (IOException e) {
+                // ignore, whether we cleanly got end of stream (-1) or an error, we will shut down below
+            } finally {
+                if (msg == BootstrapInfo.SERVER_SHUTDOWN_MARKER) {
+                    exit(0);
+                } else {
+                    // parent process died or there was an error reading from it
+                    exit(1);
+                }
             }
         }).start();
     }

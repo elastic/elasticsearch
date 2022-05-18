@@ -156,7 +156,6 @@ public class ServerProcess {
         }
 
         sendShutdownMarker();
-        errorPump.drain();
         waitFor();
     }
 

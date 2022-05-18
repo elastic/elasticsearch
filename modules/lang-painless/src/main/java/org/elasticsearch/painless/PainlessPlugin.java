@@ -103,11 +103,14 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         }
 
         List<Whitelist> testWhitelists = new ArrayList<>();
+        /*
+        TODO(stu): this conflicts with alias
         for (ScriptContext<?> context : ScriptModule.CORE_CONTEXTS.values()) {
             if (ScriptModule.RUNTIME_FIELDS_CONTEXTS.contains(context) == false) {
                 testWhitelists.addAll(whitelists.get(context));
             }
         }
+         */
         testWhitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.json.txt"));
         whitelists.put(PainlessExecuteAction.PainlessTestScript.CONTEXT, testWhitelists);
     }

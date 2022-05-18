@@ -9,18 +9,10 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.field.AbstractBulkMetadata;
-import org.elasticsearch.script.field.BulkMetadata;
-import org.elasticsearch.script.field.MapBackedMetadata;
 import org.elasticsearch.script.field.Op;
 
-import java.util.Arrays;
-import java.util.EnumSet;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * A script for reindex.
@@ -33,14 +25,7 @@ public abstract class ReindexScript {
     public static final String[] PARAMETERS = {};
 
     /** The context used to compile {@link ReindexScript} factories. */
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>(
-        "reindex",
-        Factory.class,
-        200,
-        TimeValue.timeValueMillis(0),
-        false,
-        true
-    );
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("reindex", Factory.class);
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
@@ -99,6 +84,18 @@ public abstract class ReindexScript {
                 throw new IllegalArgumentException("destination index must be non-null");
             }
             return index;
+        }
+
+        public void setId(String id) {
+            store.setId(id);
+        }
+
+        public void setRouting(String routing) {
+            store.setRouting(routing);
+        }
+
+        public void setVersion(Long version) {
+            store.setVersion(version);
         }
     }
 }

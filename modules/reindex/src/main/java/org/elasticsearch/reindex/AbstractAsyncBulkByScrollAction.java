@@ -25,7 +25,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
@@ -48,12 +47,10 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -68,7 +65,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
-import static org.elasticsearch.index.VersionType.INTERNAL;
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
@@ -818,6 +814,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Apply a {@link Script} to a {@link RequestWrapper}
      */
     public abstract static class ScriptApplier implements BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
+        protected static final Op INITIAL_OPERATION = Op.INDEX;
 
         private final WorkerBulkByScrollTaskState taskWorker;
         protected final ScriptService scriptService;
@@ -841,26 +838,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             if (script == null) {
                 return request;
             }
-            return updateRequest(request, execute(doc, request.getSource()));
-        }
-
-        protected abstract BulkMetadata execute(ScrollableHitSource.Hit doc, Map<String, Object> source);
-
-        protected RequestWrapper<?> updateRequest(RequestWrapper<?> request, BulkMetadata metadata) {
-            List<String> extraKeys = metadata.extraKeys();
-            if (extraKeys.isEmpty() == false) {
-                throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", extraKeys) + ']');
-            }
-            request.setIndex(metadata.getIndex());
-            request.setId(metadata.getId());
-            Long version = metadata.getVersion();
-            if (version == null) {
-                request.setVersion(Versions.MATCH_ANY);
-                request.setVersionType(INTERNAL);
-            } else {
-                request.setVersion(version);
-            }
-            request.setRouting(metadata.getRouting());
+            BulkMetadata metadata = execute(doc, request.getSource());
 
             /*
              * It'd be lovely to only set the source if we know its been modified
@@ -868,53 +846,62 @@ public abstract class AbstractAsyncBulkByScrollAction<
              */
             request.setSource(metadata.getSource());
 
-            Op op = metadata.getOp();
+            if (metadata.indexChanged()) {
+                scriptChangedIndex(request, metadata.getIndex());
+            }
+
+            if (metadata.idChanged()) {
+                scriptChangedId(request, metadata.getId());
+            }
+
+            if (metadata.versionChanged()) {
+                scriptChangedVersion(request, metadata.getVersion());
+            }
+            /*
+             * Its important that routing comes after parent in case you want to
+             * change them both.
+             */
+            if (metadata.routingChanged()) {
+                scriptChangedRouting(request, metadata.getRouting());
+            }
+
+            if (metadata.opChanged()) {
+                return scriptChangedOpType(request, metadata.getOp());
+            }
+
+            List<String> extraKeys = metadata.extraKeys();
+            if (false == extraKeys.isEmpty()) {
+                throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", extraKeys) + ']');
+            }
+            return request;
+        }
+
+        protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, Op op) {
             switch (op) {
-                case CREATE:
-                    return request;
-                case NOOP:
+                case NOOP -> {
                     taskWorker.countNoop();
                     return null;
-                case DELETE:
+                }
+                case DELETE -> {
                     RequestWrapper<DeleteRequest> delete = wrap(new DeleteRequest(request.getIndex(), request.getId()));
                     delete.setVersion(request.getVersion());
                     delete.setVersionType(VersionType.INTERNAL);
                     delete.setRouting(request.getRouting());
                     return delete;
-                default:
-                    throw new IllegalArgumentException("Unsupported operation type change from [" + Op.CREATE + "] to [" + op + "]");
+                }
+                default -> throw new IllegalArgumentException("Unsupported operation type [" + op + "]");
             }
         }
-    }
 
-    public enum OpType {
+        protected abstract void scriptChangedIndex(RequestWrapper<?> request, String to);
 
-        NOOP("noop"),
-        INDEX("index"),
-        DELETE("delete");
+        protected abstract void scriptChangedId(RequestWrapper<?> request, String to);
 
-        private final String id;
+        protected abstract void scriptChangedVersion(RequestWrapper<?> request, Long to);
 
-        OpType(String id) {
-            this.id = id;
-        }
+        protected abstract void scriptChangedRouting(RequestWrapper<?> request, String to);
 
-        public static OpType fromString(String opType) {
-            String lowerOpType = opType.toLowerCase(Locale.ROOT);
-            return switch (lowerOpType) {
-                case "noop" -> OpType.NOOP;
-                case "index" -> OpType.INDEX;
-                case "delete" -> OpType.DELETE;
-                default -> throw new IllegalArgumentException(
-                    "Operation type [" + lowerOpType + "] not allowed, only " + Arrays.toString(values()) + " are allowed"
-                );
-            };
-        }
-
-        @Override
-        public String toString() {
-            return id.toLowerCase(Locale.ROOT);
-        }
+        protected abstract BulkMetadata execute(ScrollableHitSource.Hit doc, Map<String, Object> source);
     }
 
     static class ScrollConsumableHitsResponse {

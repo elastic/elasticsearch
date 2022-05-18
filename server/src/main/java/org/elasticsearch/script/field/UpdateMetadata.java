@@ -15,7 +15,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Map;
 
-
 /**
  * Metadata for Updates via {@link UpdateScript} with script and upsert.
  *

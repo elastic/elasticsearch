@@ -19,7 +19,7 @@ class org.elasticsearch.painless.api.Json {
   String dump(def, boolean)
 }
 
-class org.elasticsearch.script.ReindexScript$Metadata {
+class org.elasticsearch.script.ReindexScript$Metadata @alias[class="Metadata"] {
     String getIndex()
     void setIndex(String)
 
@@ -33,11 +33,11 @@ class org.elasticsearch.script.ReindexScript$Metadata {
     void setVersion(Long)
 
     Op getOp()
-    void setOp(Op op)
+    void setOp(Op)
 }
 
-class org.elasticsearch.script.ReindexScript$Metadata {
-    org.elasticsearch.script.ReindexScript.Metadata meta()
+class org.elasticsearch.script.ReindexScript {
+    Metadata meta()
 }
 
 class org.elasticsearch.script.field.Op {

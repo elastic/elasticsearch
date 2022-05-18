@@ -13,10 +13,28 @@ import java.util.Map;
 
 public interface BulkMetadata {
     List<String> extraKeys();
+
     String getIndex();
+
+    boolean indexChanged();
+
     String getId();
+
+    boolean idChanged();
+
     Long getVersion();
+
+    boolean versionChanged();
+
     String getRouting();
+
+    boolean routingChanged();
+
     Op getOp();
+
+    boolean opChanged();
+
     Map<String, Object> getSource();
+
+    Map<String, Object> getCtx();
 }

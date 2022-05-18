@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -51,7 +52,6 @@ import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.field.BulkMetadata;
-import org.elasticsearch.script.field.Op;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -70,6 +70,7 @@ import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
+import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
 public class Reindexer {
@@ -394,12 +395,38 @@ public class Reindexer {
                     doc.getId(),
                     doc.getVersion(),
                     doc.getRouting(),
-                    Op.INDEX,
+                    INITIAL_OPERATION,
                     source
                 );
                 reindex.setMetadata(md);
                 reindex.execute();
                 return md;
+            }
+
+            @Override
+            protected void scriptChangedIndex(RequestWrapper<?> request, String to) {
+                requireNonNull(to, "Can't reindex without a destination index!");
+                request.setIndex(to);
+            }
+
+            @Override
+            protected void scriptChangedId(RequestWrapper<?> request, String to) {
+                request.setId(to);
+            }
+
+            @Override
+            protected void scriptChangedVersion(RequestWrapper<?> request, Long to) {
+                if (to == null) {
+                    request.setVersion(Versions.MATCH_ANY);
+                    request.setVersionType(INTERNAL);
+                } else {
+                    request.setVersion(to);
+                }
+            }
+
+            @Override
+            protected void scriptChangedRouting(RequestWrapper<?> request, String to) {
+                request.setRouting(to);
             }
         }
     }

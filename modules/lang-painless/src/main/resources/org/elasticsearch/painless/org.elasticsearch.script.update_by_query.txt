@@ -19,7 +19,7 @@ class org.elasticsearch.painless.api.Json {
   String dump(def, boolean)
 }
 
-class org.elasticsearch.script.UpdateByQueryScript$Metadata {
+class org.elasticsearch.script.UpdateByQueryScript$Metadata @alias[class="Metadata"] {
     String getIndex()
 
     String getId()
@@ -29,11 +29,11 @@ class org.elasticsearch.script.UpdateByQueryScript$Metadata {
     Long getVersion()
 
     Op getOp()
-    void setOp(Op op)
+    void setOp(Op)
 }
 
 class org.elasticsearch.script.UpdateByQueryScript {
-    org.elasticsearch.script.UpdateByQueryScript.Metadata meta()
+    Metadata meta()
 }
 
 class org.elasticsearch.script.field.Op {

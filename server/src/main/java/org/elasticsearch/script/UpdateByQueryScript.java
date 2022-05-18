@@ -9,7 +9,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.field.AbstractBulkMetadata;
 import org.elasticsearch.script.field.Op;
 
@@ -27,14 +26,7 @@ public abstract class UpdateByQueryScript {
     public static final String[] PARAMETERS = {};
 
     /** The context used to compile {@link UpdateByQueryScript} factories. */
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>(
-        "update_by_query",
-        Factory.class,
-        200,
-        TimeValue.timeValueMillis(0),
-        false,
-        true
-    );
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("update_by_query", Factory.class);
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;

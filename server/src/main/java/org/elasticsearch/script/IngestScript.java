@@ -79,24 +79,31 @@ public abstract class IngestScript {
         public String getIndex() {
             return store.getIndex();
         }
+
         public void setIndex(String index) {
             store.setIndex(index);
         }
+
         public String getId() {
             return store.getId();
         }
+
         public void setId(String id) {
             store.setId(id);
         }
+
         public String getRouting() {
             return store.getRouting();
         }
+
         public void setRouting(String routing) {
             store.setRouting(routing);
         }
+
         public Long getVersion() {
             return store.getVersion();
         }
+
         public void setVersion(Long version) {
             store.setVersion(version);
         }

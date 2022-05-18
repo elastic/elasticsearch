@@ -30,6 +30,7 @@ import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsServiceTests;
 import org.elasticsearch.plugins.RecoveryPlannerPlugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
@@ -343,12 +344,17 @@ public class NodeTests extends ESTestCase {
         }
     }
 
+    /**
+     * TODO: Remove this test once classpath plugins are fully moved to MockNode.
+     * In production, plugin name clashes are checked in a completely different way.
+     * See {@link PluginsServiceTests#testPluginNameClash()}
+     */
     public void testNodeFailsToStartWhenThereAreMultipleRecoveryPlannerPluginsLoaded() {
         List<Class<? extends Plugin>> plugins = basePlugins();
         plugins.add(MockRecoveryPlannerPlugin.class);
         plugins.add(MockRecoveryPlannerPlugin.class);
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> new MockNode(baseSettings().build(), plugins));
-        assertThat(exception.getMessage(), containsString("A single RecoveryPlannerPlugin was expected but got:"));
+        assertThat(exception.getMessage(), containsString("Duplicate key org.elasticsearch.node.NodeTests$MockRecoveryPlannerPlugin"));
     }
 
     public void testHeadersToCopyInTaskManagerAreTheSameAsDeclaredInTask() throws IOException {

@@ -311,6 +311,61 @@ public class PluginsServiceTests extends ESTestCase {
 
     }
 
+    public void testPluginNameClash() throws IOException {
+        // This test opens a child classloader, reading a jar under the test temp
+        // dir (a dummy plugin). Classloaders are closed by GC, so when test teardown
+        // occurs the jar is deleted while the classloader is still open. However, on
+        // windows, files cannot be deleted when they are still open by a process.
+        assumeFalse("windows deletion behavior is asinine", Constants.WINDOWS);
+        final Path pathHome = createTempDir();
+        final Path plugins = pathHome.resolve("plugins");
+        final Path fake1 = plugins.resolve("fake1");
+        final Path fake2 = plugins.resolve("fake2");
+
+        PluginTestUtil.writePluginProperties(
+            fake1,
+            "description",
+            "description",
+            "name",
+            "fake",
+            "version",
+            "1.0.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "test.DummyPlugin"
+        );
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
+            Files.copy(jar, fake1.resolve("plugin.jar"));
+        }
+
+        PluginTestUtil.writePluginProperties(
+            fake2,
+            "description",
+            "description",
+            "name",
+            "fake",
+            "version",
+            "1.0.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "test.NonExtensiblePlugin"
+        );
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("non-extensible-plugin.jar")) {
+            Files.copy(jar, fake2.resolve("plugin.jar"));
+        }
+
+        final Settings settings = Settings.builder().put("path.home", pathHome).build();
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
+        assertThat(e.getMessage(), containsString("duplicate plugin: "));
+        assertThat(e.getMessage(), containsString("Name: fake"));
+    }
+
     public void testExistingMandatoryInstalledPlugin() throws IOException {
         // This test opens a child classloader, reading a jar under the test temp
         // dir (a dummy plugin). Classloaders are closed by GC, so when test teardown

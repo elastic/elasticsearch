@@ -550,31 +550,102 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testCheckingIndexPermissionsDefinedOnDifferentPatterns() throws Exception {
-        Role role = Role.builder(RESTRICTED_INDICES, "test-write")
-            .add(IndexPrivilege.INDEX, "apache-*")
-            .add(IndexPrivilege.DELETE, "apache-2016-*")
-            .build();
-        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(
+            Role.builder(RESTRICTED_INDICES, "test-multiple")
+                .add(IndexPrivilege.CREATE_DOC, "*")
+                .add(IndexPrivilege.INDEX, "apache-*", "unrelated", "something_else*")
+                .add(IndexPrivilege.DELETE, "apache-2016-*", ".security*")
+                .build(),
+            null
+        );
 
-        final PrivilegesCheckResult response = hasPrivileges(
-            IndicesPrivileges.builder().indices("apache-2016-12", "apache-2017-01").privileges("index", "delete").build(),
+        List<String> indices = new ArrayList<>(3);
+        indices.add("apache-2016-12");
+        indices.add("apache-2017-01");
+        indices.add("other");
+        Collections.shuffle(indices, random());
+        List<String> privileges = new ArrayList<>(3);
+        privileges.add("create_doc");
+        privileges.add("index");
+        privileges.add("delete");
+        Collections.shuffle(privileges, random());
+        PrivilegesCheckResult response = hasPrivileges(
+            IndicesPrivileges.builder().indices(indices).privileges(privileges).allowRestrictedIndices(randomBoolean()).build(),
             authzInfo,
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
         );
         assertThat(response.allChecksSuccess(), is(false));
+        assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(3));
+        assertThat(
+            response.getDetails().index().values(),
+            containsInAnyOrder(
+                ResourcePrivileges.builder("apache-2016-12")
+                    .addPrivileges(
+                        MapBuilder.newMapBuilder(new TreeMap<String, Boolean>())
+                            .put("create_doc", true)
+                            .put("index", true)
+                            .put("delete", true)
+                            .map()
+                    )
+                    .build(),
+                ResourcePrivileges.builder("apache-2017-01")
+                    .addPrivileges(
+                        MapBuilder.newMapBuilder(new TreeMap<String, Boolean>())
+                            .put("create_doc", true)
+                            .put("index", true)
+                            .put("delete", false)
+                            .map()
+                    )
+                    .build(),
+                ResourcePrivileges.builder("other")
+                    .addPrivileges(
+                        MapBuilder.newMapBuilder(new TreeMap<String, Boolean>())
+                            .put("create_doc", true)
+                            .put("index", false)
+                            .put("delete", false)
+                            .map()
+                    )
+                    .build()
+            )
+        );
+
+        indices = new ArrayList<>(2);
+        indices.add("apache-2016-12");
+        indices.add("apache-2017-01");
+        Collections.shuffle(indices, random());
+        privileges = new ArrayList<>(3);
+        privileges.add("create");
+        privileges.add("create_doc");
+        privileges.add("index");
+        Collections.shuffle(privileges, random());
+        response = hasPrivileges(
+            IndicesPrivileges.builder().indices(indices).privileges(privileges).allowRestrictedIndices(randomBoolean()).build(),
+            authzInfo,
+            Collections.emptyList(),
+            Strings.EMPTY_ARRAY
+        );
+        assertThat(response.allChecksSuccess(), is(true));
         assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(2));
         assertThat(
             response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder("apache-2016-12")
                     .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).put("delete", true).map()
+                        MapBuilder.newMapBuilder(new TreeMap<String, Boolean>())
+                            .put("create_doc", true)
+                            .put("create", true)
+                            .put("index", true)
+                            .map()
                     )
                     .build(),
                 ResourcePrivileges.builder("apache-2017-01")
                     .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).put("delete", false).map()
+                        MapBuilder.newMapBuilder(new TreeMap<String, Boolean>())
+                            .put("create_doc", true)
+                            .put("create", true)
+                            .put("index", true)
+                            .map()
                     )
                     .build()
             )

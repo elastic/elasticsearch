@@ -441,6 +441,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         );
     }
 
+    // TODO javadoc
     public static PrivilegesToCheck parsePrivilegesToCheck(
         String description,
         boolean runDetailedCheck,

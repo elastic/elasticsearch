@@ -89,7 +89,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
                     applicationPrivilegeDescriptors,
                     listener.map(privilegesCheckResult -> {
                         if (privilegesCheckResult.getDetails() == null) {
-                            logger.error("User 'has privileges' call returns empty details, but this breaks the check method contract");
+                            logger.error("User 'has privileges' call returns empty details, which breaks the check method contract");
                         }
                         assert privilegesCheckResult.getDetails() != null : "runDetailedCheck is 'true' but the result has no details";
                         return new HasPrivilegesResponse(

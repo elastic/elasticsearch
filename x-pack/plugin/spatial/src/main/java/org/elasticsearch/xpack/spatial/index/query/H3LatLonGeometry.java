@@ -74,7 +74,7 @@ class H3LatLonGeometry extends LatLonGeometry {
             h3 = H3.stringToH3(h3Address);
             res = H3.getResolution(h3Address);
             hexagon = getGeoPolygon(h3Address);
-            // I tried to compute the bounding box to set min/man values, but it seems to fail
+            // I tried to compute the bounding box to set min/max values, but it seems to fail
             // due to numerical errors. For now, we just don't use it, this means we will not be
             // using the optimization provided by lucene's ComponentPredicate.
 

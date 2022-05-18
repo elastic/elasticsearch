@@ -876,7 +876,7 @@ public class WildcardFieldMapper extends FieldMapper {
         String nullValue,
         Version indexVersionCreated
     ) {
-        super(simpleName, mappedFieldType, mappedFieldType.analyzer, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
         this.indexVersionCreated = indexVersionCreated;
@@ -884,6 +884,11 @@ public class WildcardFieldMapper extends FieldMapper {
         this.ngramFieldType.setTokenized(true);
         this.ngramFieldType.freeze();
         assert ngramFieldType.indexOptions() == IndexOptions.DOCS;
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), fieldType().analyzer);
     }
 
     /** Values that have more chars than the return value of this method will

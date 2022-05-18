@@ -223,7 +223,8 @@ classes:
 ----
 // NOTCONSOLE
 
-Question answering require extra configuration defining the question to answer.
+Question answering models require extra configuration defining the question to 
+answer.
 
 [source,console]
 --------------------------------------------------

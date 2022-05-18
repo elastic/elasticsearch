@@ -10,22 +10,19 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -46,8 +43,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
     private static final Logger logger = LogManager.getLogger(TransportClusterUpdateSettingsAction.class);
 
-    private final AllocationService allocationService;
-
     private final ClusterSettings clusterSettings;
 
     @Inject
@@ -55,7 +50,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        AllocationService allocationService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterSettings clusterSettings
@@ -72,7 +66,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             ClusterUpdateSettingsResponse::new,
             ThreadPool.Names.SAME
         );
-        this.allocationService = allocationService;
         this.clusterSettings = clusterSettings;
     }
 
@@ -145,7 +138,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         final ActionListener<ClusterUpdateSettingsResponse> listener
     ) {
         final SettingsUpdater updater = new SettingsUpdater(clusterSettings);
-        clusterService.submitStateUpdateTask(UPDATE_TASK_SOURCE, new AckedClusterStateUpdateTask(Priority.IMMEDIATE, request, listener) {
+        submitUnbatchedTask(UPDATE_TASK_SOURCE, new AckedClusterStateUpdateTask(Priority.IMMEDIATE, request, listener) {
 
             private volatile boolean changed = false;
 
@@ -193,36 +186,26 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                     return;
                 }
 
-                // The reason the reroute needs to be send as separate update task, is that all the *cluster* settings are encapsulate
-                // in the components (e.g. FilterAllocationDecider), so the changes made by the first call aren't visible
-                // to the components until the ClusterStateListener instances have been invoked, but are visible after
-                // the first update task has been completed.
-                clusterService.submitStateUpdateTask(
-                    REROUTE_TASK_SOURCE,
-                    new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
-
-                        @Override
-                        public boolean mustAck(DiscoveryNode discoveryNode) {
-                            // we wait for the reroute ack only if the update settings was acknowledged
-                            return updateSettingsAcked;
-                        }
-
-                        @Override
-                        // we return when the cluster reroute is acked or it times out but the acknowledged flag depends on whether the
-                        // update settings was acknowledged
-                        protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
-                            return new ClusterUpdateSettingsResponse(
-                                updateSettingsAcked && acknowledged,
+                // The reason the reroute needs to be send as separate update task, is that all the *cluster* settings are encapsulated in
+                // the components (e.g. FilterAllocationDecider), so the changes made by the first call aren't visible to the components
+                // until the ClusterStateListener instances have been invoked, but are visible after the first update task has been
+                // completed.
+                clusterService.getRerouteService().reroute(REROUTE_TASK_SOURCE, Priority.URGENT, new ActionListener<>() {
+                    @Override
+                    public void onResponse(ClusterState clusterState) {
+                        listener.onResponse(
+                            new ClusterUpdateSettingsResponse(
+                                updateSettingsAcked,
                                 updater.getTransientUpdates(),
                                 updater.getPersistentUpdate()
-                            );
-                        }
+                            )
+                        );
+                    }
 
-                        @Override
-                        public void onNoLongerMaster() {
-                            logger.debug(
-                                "failed to preform reroute after cluster settings were updated - current node is no longer a master"
-                            );
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.debug(() -> "failed to perform [" + REROUTE_TASK_SOURCE + "]", e);
+                        if (MasterService.isPublishFailureException(e)) {
                             listener.onResponse(
                                 new ClusterUpdateSettingsResponse(
                                     updateSettingsAcked,
@@ -230,28 +213,16 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                                     updater.getPersistentUpdate()
                                 )
                             );
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            // if the reroute fails we only log
-                            logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", REROUTE_TASK_SOURCE), e);
+                        } else {
                             listener.onFailure(new ElasticsearchException("reroute after update settings failed", e));
                         }
-
-                        @Override
-                        public ClusterState execute(final ClusterState currentState) {
-                            // now, reroute in case things that require it changed (e.g. number of replicas)
-                            return allocationService.reroute(currentState, "reroute after cluster update settings");
-                        }
-                    },
-                    newExecutor()
-                );
+                    }
+                });
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", UPDATE_TASK_SOURCE), e);
+                logger.debug(() -> "failed to perform [" + UPDATE_TASK_SOURCE + "]", e);
                 super.onFailure(e);
             }
 
@@ -266,11 +237,11 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                 changed = clusterState != currentState;
                 return clusterState;
             }
-        }, newExecutor());
+        });
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

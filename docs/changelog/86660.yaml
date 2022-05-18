@@ -1,0 +1,5 @@
+pr: 86660
+summary: Fix `max_model_memory_limit` reported by `_ml/info` when autoscaling is enabled
+area: Machine Learning
+type: bug
+issues: []

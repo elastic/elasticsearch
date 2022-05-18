@@ -11,6 +11,7 @@ import joptsimple.OptionSpec;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
@@ -50,7 +51,7 @@ class SystemKeyTool extends EnvironmentAwareCommand {
     );
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         final Path keyPath;
 
         if (options.hasArgument(arguments)) {

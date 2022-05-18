@@ -72,7 +72,7 @@ See <<back-up-config-files>> and <<cluster-state-snapshots>>.
 // [END] Snapshot and restore
 
 [role="exclude",id="configuring-tls-docker"]
-== Encrypting communications in an {es} Docker Container
+=== Encrypting communications in an {es} Docker Container
 
 Refer to <<docker-compose-file,Starting a multi-node cluster with Docker Compose>>.
 
@@ -84,7 +84,7 @@ Refer to <<docker-compose-file,Starting a multi-node cluster with Docker Compose
 // [START] Remote clusters
 
 [role="exclude",id="ccs-clients-integrations"]
-== {ccs-cap}, clients, and integrations
+=== {ccs-cap}, clients, and integrations
 
 Refer to <<security-clients-integrations,Securing clients and integrations>>.
 
@@ -1857,3 +1857,8 @@ include::redirects.asciidoc[tag=upgrade-reindex]
 
 For more information about reindexing from a remote cluster, refer to
 <<reindex-from-remote>>.
+
+[role="exclude",id="infer-trained-model-deployment"]
+=== Infer trained model deployment API
+
+See <<infer-trained-model>>.

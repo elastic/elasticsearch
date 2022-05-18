@@ -54,7 +54,7 @@ List projects = [
   'distribution:bwc:staged',
   'distribution:tools:java-version-checker',
   'distribution:tools:cli-launcher',
-  'distribution:tools:launchers',
+  'distribution:tools:server-cli',
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',

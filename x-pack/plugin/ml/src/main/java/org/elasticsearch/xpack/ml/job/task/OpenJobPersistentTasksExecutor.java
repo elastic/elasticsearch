@@ -338,7 +338,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             logger.debug("[{}] updated task state to failed", jobId);
             stopAssociatedDatafeedForFailedJob(jobId);
         }, e -> {
-            logger.error(new ParameterizedMessage("[{}] error while setting task state to failed; marking task as failed", jobId), e);
+            logger.error(() -> "[" + jobId + "] error while setting task state to failed; marking task as failed", e);
             jobTask.markAsFailed(e);
             stopAssociatedDatafeedForFailedJob(jobId);
         }));
@@ -382,7 +382,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             );
         }, e -> {
             if (autodetectProcessManager.isNodeDying() == false) {
-                logger.error(new ParameterizedMessage("[{}] failed to search for associated datafeed", jobId), e);
+                logger.error(() -> "[" + jobId + "] failed to search for associated datafeed", e);
             }
         });
 
@@ -579,7 +579,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                             // changed nodes while waiting for it to close then it will remove the persistent task, which should
                             // stop the job doing anything significant on its new node. However, the finish time of the job will
                             // not be set correctly.
-                            logger.error(new ParameterizedMessage("[{}] error finalizing job", jobId), e);
+                            logger.error(() -> "[" + jobId + "] error finalizing job", e);
                             Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                             if (unwrapped instanceof DocumentMissingException || unwrapped instanceof ResourceNotFoundException) {
                                 jobTask.markAsCompleted();

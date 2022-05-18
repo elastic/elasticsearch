@@ -256,10 +256,12 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             discoveredChangePoints.add(changePoint);
             double pValue = 1;
             for (int i : discoveredChangePoints) {
-                double ksTestPValue = KOLMOGOROV_SMIRNOV_TEST.kolmogorovSmirnovTest(
-                    Arrays.copyOfRange(timeWindow, 0, i),
-                    Arrays.copyOfRange(timeWindow, i, timeWindow.length)
-                );
+                double[] x = Arrays.copyOfRange(timeWindow, 0, i);
+                double[] y = Arrays.copyOfRange(timeWindow, i, timeWindow.length);
+                double statistic = KOLMOGOROV_SMIRNOV_TEST.kolmogorovSmirnovStatistic(x, y);
+                double ksTestPValue = x.length > 10_000
+                    ? KOLMOGOROV_SMIRNOV_TEST.approximateP(statistic, x.length, y.length)
+                    : KOLMOGOROV_SMIRNOV_TEST.exactP(statistic, x.length, y.length, false);
                 if (ksTestPValue < pValue) {
                     changePoint = i;
                     pValue = ksTestPValue;

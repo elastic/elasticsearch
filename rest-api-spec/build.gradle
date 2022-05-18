@@ -40,7 +40,6 @@ testClusters.configureEach {
 }
 
 tasks.named("test").configure { enabled = false }
-tasks.named("jarHell").configure { enabled = false }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 

@@ -6,3 +6,11 @@
  * Side Public License, v 1.
  */
 include 'reaper'
+
+dependencyResolutionManagement {
+    versionCatalogs {
+        buildLibs {
+            from(files("../gradle/build.versions.toml"))
+        }
+    }
+}

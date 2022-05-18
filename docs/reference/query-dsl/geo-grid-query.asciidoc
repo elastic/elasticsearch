@@ -8,7 +8,7 @@ Matches <<geo-point,`geo_point`>> and <<geo-shape,`geo_shape`>> values that
 intersect a grid cell from a GeoGrid aggregation.
 
 The query is designed to match the documents that fall inside a bucket of a geogrid aggregation by
-providing the key of the bucket.For geohash and geotile grids, the query can be used for geo_point
+providing the key of the bucket. For geohash and geotile grids, the query can be used for geo_point
 and geo_shape fields. For geo_hex grid, it can only be used for geo_point fields.
 
 [discrete]
@@ -113,7 +113,7 @@ GET /my_locations/_search
 // TESTRESPONSE[s/"took" : 10/"took" : $body.took/]
 
 Using the geo_grid query, we can extract the documents on one of those buckets by executing
-a a geo_grid query using the bucket key with the following syntax:
+a geo_grid query using the bucket key with the following syntax:
 
 [source,console]
 --------------------------------------------------
@@ -225,7 +225,7 @@ GET /my_locations/_search
 // TESTRESPONSE[s/"took" : 1/"took" : $body.took/]
 
 Using the geo_grid query, we can extract the documents on one of those buckets by executing
-a a geo_grid query using the bucket key with the following syntax:
+a geo_grid query using the bucket key with the following syntax:
 
 [source,console]
 --------------------------------------------------
@@ -338,7 +338,7 @@ GET /my_locations/_search
 // TESTRESPONSE[s/"took" : 2/"took" : $body.took/]
 
 Using the geo_grid query, we can extract the documents on one of those buckets by executing
-a a geo_grid query using the bucket key with the following syntax:
+a geo_grid query using the bucket key with the following syntax:
 
 [source,console]
 --------------------------------------------------

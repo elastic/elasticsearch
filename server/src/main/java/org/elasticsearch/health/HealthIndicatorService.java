@@ -24,6 +24,10 @@ public interface HealthIndicatorService {
 
     HealthIndicatorResult calculate(boolean explain);
 
+    default String helpURL() {
+        return null;
+    }
+
     /**
      * This method creates a HealthIndicatorResult with the given information. Note that it sorts the impacts by severity (the lower the
      * number the higher the severity), and only keeps the 3 highest-severity impacts.
@@ -44,6 +48,10 @@ public interface HealthIndicatorService {
             .sorted(Comparator.comparingInt(HealthIndicatorImpact::severity))
             .limit(3)
             .collect(Collectors.toList());
-        return new HealthIndicatorResult(name(), component(), status, summary, details, impactsList, userActions);
+        String helpURL = null;
+        if (status.equals(HealthStatus.GREEN) == false && userActions.isEmpty()) {
+            helpURL = helpURL();
+        }
+        return new HealthIndicatorResult(name(), component(), status, summary, helpURL, details, impactsList, userActions);
     }
 }

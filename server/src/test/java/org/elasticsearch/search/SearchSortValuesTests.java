@@ -128,4 +128,23 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
         values[sortValues.length] = randomSortValue(randomFrom(XContentType.values()), randomBoolean());
         return new SearchSortValues(values);
     }
+
+
+    public void testGetRawSortValues() throws IOException{
+        SearchSortValues sortValues = new SearchSortValues(new Object[] { 1, "swe", 2.0 });
+        Object[] rawSortValues = sortValues.getRawSortValues();
+        Object[] expected = new Object[] {1, "swe", 2.0};
+        assertArrayEquals(expected, rawSortValues);
+    }
+    public void testEquals() {
+        SearchSortValues sortValues = new SearchSortValues(new Object[] { 1, "swe", 2.0 });
+        Object[] expected = new Object[] {1, "swe", 2.0};
+        int index = 0;
+        for (Object obj : sortValues.getRawSortValues()) {
+            assert (obj.equals(expected[index]));
+        }
+    }
+
+
+
 }

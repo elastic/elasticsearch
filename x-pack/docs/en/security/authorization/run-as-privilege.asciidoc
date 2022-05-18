@@ -46,7 +46,6 @@ To submit a request as another user, you specify the user in the
 ----
 curl -H "es-security-runas-user: jacknich"  -u es-admin -X GET http://localhost:9200/
 ----
-// NOTCONSOLE
 
 [[run-as-privilege-apply]]
 == Apply the `run_as` privilege to roles
@@ -169,7 +168,6 @@ request as the `analyst_user`
 ----
 curl -s -X GET -H "Authorization: Bearer g8HpAxZVcUY1X2taaVFhMkdMbzRnUGd0TjdnAAAAAAAAAAAA" -H "es-security-runas-user: analyst_user" https://localhost:9200/_security/_authenticate
 ----
-// NOTCONSOLE
 
 The response indicates that the `analyst_user` submitted this request:
 

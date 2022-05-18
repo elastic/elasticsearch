@@ -13,6 +13,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,12 +25,21 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ProcrunCommandTests extends WindowsServiceCliTestCase {
 
-    PreExecuteHook preExecuteHook = null;
-    boolean includeLogArgs = false;
-    String additionalArgs = "";
+    PreExecuteHook preExecuteHook;
+    boolean includeLogArgs;
+    String additionalArgs;
+    String serviceId;
 
     interface PreExecuteHook {
         void preExecute(Terminal terminal, ProcessInfo pinfo, String serviceId) throws UserException;
+    }
+
+    @Before
+    public void resetArgs() {
+        serviceId = "elasticsearch-service-x64";
+        preExecuteHook = null;
+        includeLogArgs = false;
+        additionalArgs = "";
     }
 
     class TestProcrunCommand extends ProcrunCommand {
@@ -87,12 +97,12 @@ public class ProcrunCommandTests extends WindowsServiceCliTestCase {
 
     @Override
     protected String getDefaultSuccessMessage() {
-        return "success message for elasticsearch-service-x64";
+        return "success message for " + serviceId;
     }
 
     @Override
     protected String getDefaultFailureMessage() {
-        return "failure message for elasticsearch-service-x64";
+        return "failure message for " + serviceId;
     }
 
     public void testMissingExe() throws Exception {
@@ -125,32 +135,24 @@ public class ProcrunCommandTests extends WindowsServiceCliTestCase {
     public void testDefaultLogArgs() throws Exception {
         String logsDir = esHomeDir.resolve("logs").toString();
         assertLogArgs(
-            Map.of(
-                "--LogPath",
-                "\"" + logsDir + "\"",
-                "--LogPrefix",
-                "\"elasticsearch-service-x64\"",
-                "--StdError",
-                "auto",
-                "--StdOutput",
-                "auto"
-            )
+            Map.of("LogPath", "\"" + logsDir + "\"", "LogPrefix", "\"elasticsearch-service-x64\"", "StdError", "auto", "StdOutput", "auto")
         );
     }
 
     public void testLogOpts() throws Exception {
         envVars.put("LOG_OPTS", "--LogPath custom");
-        assertLogArgs(Map.of("--LogPath", "custom"));
+        assertLogArgs(Map.of("LogPath", "custom"));
     }
 
     public void testLogDir() throws Exception {
         envVars.put("SERVICE_LOG_DIR", "mylogdir");
-        assertLogArgs(Map.of("--LogPath", "\"mylogdir\""));
+        assertLogArgs(Map.of("LogPath", "\"mylogdir\""));
     }
 
     public void testLogPrefix() throws Exception {
+        serviceId = "myservice";
         envVars.put("SERVICE_ID", "myservice");
-        assertLogArgs(Map.of("--LogPrefix", "\"myservice\""));
+        assertLogArgs(Map.of("LogPrefix", "\"myservice\""));
     }
 
     public void testAdditionalArgs() throws Exception {

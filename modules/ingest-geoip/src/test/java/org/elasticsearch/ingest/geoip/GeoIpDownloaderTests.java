@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -477,6 +478,21 @@ public class GeoIpDownloaderTests extends ESTestCase {
                     + "] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, "
                     + "index has read-only-allow-delete block];"
             )
+        );
+        verifyNoInteractions(httpClient);
+    }
+
+    public void testUpdateDatabasesIndexNotReady() {
+        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()), true);
+        var geoIpIndex = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
+        state = ClusterState.builder(state)
+            .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .build();
+        when(clusterService.state()).thenReturn(state);
+        var e = expectThrows(ElasticsearchException.class, () -> geoIpDownloader.updateDatabases());
+        assertThat(
+            e.getMessage(),
+            equalTo("not all primary shards of [.geoip_databases] index are active")
         );
         verifyNoInteractions(httpClient);
     }

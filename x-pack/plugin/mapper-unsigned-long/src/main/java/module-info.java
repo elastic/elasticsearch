@@ -15,4 +15,6 @@ module org.elasticsearch.mapper.unsignedlong {
     exports org.elasticsearch.xpack.unsignedlong; // for the painless script engine
 
     opens org.elasticsearch.xpack.unsignedlong to org.elasticsearch.painless.spi; // whitelist resource access
+
+    provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.xpack.unsignedlong.DocValuesWhitelistExtension;
 }

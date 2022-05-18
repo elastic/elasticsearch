@@ -698,11 +698,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-question-a
 (Optional, integer)
 The maximum amount of words that the answer consists. Defaults to `15`.
 
-`question`::::
-(Required, string)
-The question that you want to be answered based on the context of the provided 
-text.
-
 `tokenization`::::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]

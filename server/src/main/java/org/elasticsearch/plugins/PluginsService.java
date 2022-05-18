@@ -163,8 +163,16 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         this.info = new PluginsAndModules(pluginsList, modulesList);
         this.plugins = Collections.unmodifiableList(pluginsLoaded);
 
-        // Checking expected plugins
-        List<String> mandatoryPlugins = MANDATORY_SETTING.get(settings);
+        checkMandatoryPlugins(pluginsNames, MANDATORY_SETTING.get(settings));
+
+        // we don't log jars in lib/ we really shouldn't log modules,
+        // but for now: just be transparent so we can debug any potential issues
+        logPluginInfo(info.getModuleInfos(), "module", logger);
+        logPluginInfo(info.getPluginInfos(), "plugin", logger);
+    }
+
+    // package-private for testing
+    static void checkMandatoryPlugins(List<String> pluginsNames, List<String> mandatoryPlugins) {
         if (mandatoryPlugins.isEmpty() == false) {
             Set<String> missingPlugins = new HashSet<>();
             for (String mandatoryPlugin : mandatoryPlugins) {
@@ -182,11 +190,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 throw new IllegalStateException(message);
             }
         }
-
-        // we don't log jars in lib/ we really shouldn't log modules,
-        // but for now: just be transparent so we can debug any potential issues
-        logPluginInfo(info.getModuleInfos(), "module", logger);
-        logPluginInfo(info.getPluginInfos(), "plugin", logger);
     }
 
     private static void logPluginInfo(final List<PluginInfo> pluginInfos, final String type, final Logger logger) {

@@ -350,6 +350,35 @@ public class PluginsServiceTests extends ESTestCase {
             .put("plugin.mandatory", "org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
             .build();
         newPluginsService(settings, FakePlugin.class);
+        PluginsService.checkMandatoryPlugins(
+            List.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin"),
+            List.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
+        );
+    }
+
+    public void testMissingMandatoryClasspathPlugin() {
+        final Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put("plugin.mandatory", "org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
+            .build();
+        {
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
+            assertEquals(
+                "missing mandatory plugins [org.elasticsearch.plugins.PluginsServiceTests$FakePlugin], found plugins []",
+                e.getMessage()
+            );
+        }
+
+        {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> PluginsService.checkMandatoryPlugins(List.of(), List.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin"))
+            );
+            assertEquals(
+                "missing mandatory plugins [org.elasticsearch.plugins.PluginsServiceTests$FakePlugin], found plugins []",
+                e.getMessage()
+            );
+        }
     }
 
     public static class FakePlugin extends Plugin {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -22,14 +23,17 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Set;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -53,10 +57,13 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.ingest.geoip.DatabaseNodeServiceTests.createClusterState;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.ENDPOINT_SETTING;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.MAX_CHUNK_SIZE;
 import static org.elasticsearch.tasks.TaskId.EMPTY_TASK_ID;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class GeoIpDownloaderTests extends ESTestCase {
@@ -78,7 +85,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
                 Set.of(GeoIpDownloader.ENDPOINT_SETTING, GeoIpDownloader.POLL_INTERVAL_SETTING, GeoIpDownloaderTaskExecutor.ENABLED_SETTING)
             )
         );
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
+        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Collections.emptyMap()));
         when(clusterService.state()).thenReturn(state);
         client = new MockClient(threadPool);
         geoIpDownloader = new GeoIpDownloader(
@@ -457,6 +464,38 @@ public class GeoIpDownloaderTests extends ESTestCase {
         };
         geoIpDownloader.updateDatabases();
         assertFalse(it.hasNext());
+    }
+
+    public void testUpdateDatabasesWriteBlock() {
+        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Collections.emptyMap()));
+        String geoIpIndex = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
+        state = ClusterState.builder(state)
+            .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .build();
+        when(clusterService.state()).thenReturn(state);
+        Exception e = expectThrows(ClusterBlockException.class, () -> geoIpDownloader.updateDatabases());
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "index ["
+                    + geoIpIndex
+                    + "] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, "
+                    + "index has read-only-allow-delete block];"
+            )
+        );
+        verifyNoInteractions(httpClient);
+    }
+
+    public void testUpdateDatabasesIndexNotReady() {
+        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Collections.emptyMap()), true);
+        String geoIpIndex = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
+        state = ClusterState.builder(state)
+            .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .build();
+        when(clusterService.state()).thenReturn(state);
+        Exception e = expectThrows(ElasticsearchException.class, () -> geoIpDownloader.updateDatabases());
+        assertThat(e.getMessage(), equalTo("not all primary shards of [.geoip_databases] index are active"));
+        verifyNoInteractions(httpClient);
     }
 
     private static class MockClient extends NoOpClient {

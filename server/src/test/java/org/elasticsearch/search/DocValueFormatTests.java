@@ -115,6 +115,19 @@ public class DocValueFormatTests extends ESTestCase {
         assertSame(DocValueFormat.BINARY, in.readNamedWriteable(DocValueFormat.class));
     }
 
+    public void testIPFormatAndParse() {
+        assertEquals(
+            "192.168.168.42",
+            DocValueFormat.IP.format(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.168.42"))))
+        );
+        assertEquals("::1", DocValueFormat.IP.format(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1")))));
+        assertEquals(
+            new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.168.42"))),
+            DocValueFormat.IP.parseBytesRef("192.168.168.42")
+        );
+        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), DocValueFormat.IP.parseBytesRef("::1"));
+    }
+
     public void testRawFormat() {
         assertEquals(0L, DocValueFormat.RAW.format(0));
         assertEquals(-1L, DocValueFormat.RAW.format(-1));

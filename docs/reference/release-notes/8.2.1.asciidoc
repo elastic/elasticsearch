@@ -44,6 +44,7 @@ Machine Learning::
 * Fix `max_model_memory_limit` reported by `_ml/info` when autoscaling is enabled {es-pull}86660[#86660]
 * Improve reliability of job stats in larger clusters {es-pull}86305[#86305]
 * Make autoscaling and task assignment use same memory staleness definition {es-pull}86632[#86632] (issue: {es-issue}86616[#86616])
+* Fix edge case which could cause the model bounds to inflate after detecting seasonality {ml-pull}2261[#2261]
 
 Packaging::
 * Fix edge case where user-defined heap settings are ignored {es-pull}86438[#86438] (issue: {es-issue}86431[#86431])

@@ -5,10 +5,10 @@
 <titleabbrev>Never condition</titleabbrev>
 ++++
 
-Use the `never` condition to set the condition to `false`. This means the
-watch actions are never executed when the watch is triggered. The watch input is
-executed, a record is added to the watch history, and the watch execution ends.
-This condition is generally used for testing.
+Use the `never` condition so that watch actions will never be executed
+when the watch is triggered. The watch input is executed, a record is
+added to the watch history, and the watch execution ends. This
+condition is generally used for testing.
 
 ==== Using the never condition
 

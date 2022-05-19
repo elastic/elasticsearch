@@ -91,10 +91,6 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
         }).getFiles();
 
         project.getTasks().named("compileJava", JavaCompile.class).configure(task -> {
-            task.getOptions()
-                .getCompilerArgs()
-                .add("-Xlint:-module,-exports,-requires-automatic,-requires-transitive-automatic,-missing-explicit-ctor");
-
             var argumentProvider = new CompileModulePathArgumentProvider(isModuleProject, moduleCompileClasspath);
             task.getOptions().getCompilerArgumentProviders().add(argumentProvider);
             FileCollection classpath = task.getClasspath();
@@ -163,6 +159,7 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
             }
             if (isModuleProject) {
                 extraArgs.add("--module-version=" + VersionProperties.getElasticsearch());
+                extraArgs.add("-Xlint:-module,-exports,-requires-automatic,-requires-transitive-automatic,-missing-explicit-ctor");
             }
             return List.copyOf(extraArgs);
         }

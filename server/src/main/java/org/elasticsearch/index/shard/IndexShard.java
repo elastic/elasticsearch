@@ -1046,7 +1046,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (Exception e) {
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    () -> format(
+                    format(
                         ROOT,
                         "index-fail [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s]",
                         index.id(),

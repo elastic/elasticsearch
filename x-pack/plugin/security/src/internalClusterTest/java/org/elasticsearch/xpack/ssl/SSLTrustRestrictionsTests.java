@@ -170,7 +170,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             tryConnect(trustedCert, false);
         } catch (SSLException | SocketException ex) {
             logger.warn(
-                () -> format(
+                format(
                     ROOT,
                     "unexpected handshake failure with certificate [%s] [%s]",
                     trustedCert.certificate.getSubjectX500Principal(),

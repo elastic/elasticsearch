@@ -305,7 +305,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 assert globalCheckpoint + 1 >= startingSeqNo : "invalid startingSeqNo " + startingSeqNo + " >= " + globalCheckpoint;
             } catch (IOException | TranslogCorruptedException e) {
                 logger.warn(
-                    () -> format(
+                    format(
                         ROOT,
                         "error while reading global checkpoint from translog, "
                             + "resetting the starting sequence number from %s to unassigned and recovering as if there are none",
@@ -324,7 +324,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         } catch (final IOException e) {
             if (startingSeqNo != UNASSIGNED_SEQ_NO) {
                 logger.warn(
-                    () -> format(
+                    format(
                         ROOT,
                         "error while listing local files, resetting the starting sequence number from %s "
                             + "to unassigned and recovering as if there are none",

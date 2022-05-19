@@ -5,8 +5,7 @@
 <titleabbrev>Always condition</titleabbrev>
 ++++
 
-Use the `always` condition so that watch actions will always be
-executed when the watch is triggered, unless they are
+Use the `always` condition to perform the watch actions whenever the watch is triggered, unless they are
 <<actions-ack-throttle,throttled>>.
 
 The `always` condition enables you to perform watch actions on a fixed schedule,

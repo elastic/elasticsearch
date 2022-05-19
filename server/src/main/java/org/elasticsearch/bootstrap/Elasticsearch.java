@@ -62,13 +62,13 @@ class Elasticsearch {
         try {
             final var in = new InputStreamStreamInput(System.in);
             final ServerArgs serverArgs = new ServerArgs(in);
+            initPidFile(serverArgs.pidFile());
             elasticsearch.init(
                 serverArgs.daemonize(),
                 serverArgs.quiet(),
                 new Environment(serverArgs.nodeSettings(), serverArgs.configDir()),
                 serverArgs.keystorePassword()
             );
-            initPidFile(serverArgs.pidFile());
 
             err.println(BootstrapInfo.SERVER_READY_MARKER);
             if (serverArgs.daemonize()) {

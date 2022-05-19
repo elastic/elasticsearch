@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
-import org.gradle.api.GradleException;
 import org.gradle.api.Named;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -24,43 +23,24 @@ import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.SourceSet;
-import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.process.CommandLineArgumentProvider;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.lang.module.ModuleDescriptor.Provides;
-import java.lang.module.ModuleFinder;
-import java.lang.module.ModuleReference;
-import java.net.URI;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static java.util.stream.Collectors.toSet;
-
 /**
- * The Java Module Plugin.
- *
- * Supports the following:
- *  1) Module Compile Path and version, i.e. --module-path, ---module-version
- *  2) Additional module specific check tasks, e.g. module version, module services
+ * The Java Module Compile Path Plugin, i.e. --module-path, ---module-version
  */
 public class ElasticsearchJavaModulePlugin implements Plugin<Project> {
 
@@ -68,16 +48,6 @@ public class ElasticsearchJavaModulePlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(JavaPlugin.class);
         configureCompileModulePath(project);
-
-        if (hasModuleInfoDotJava(project)) {
-            TaskProvider<Task> checkModuleVersionTask = registerCheckModuleVersionTask(project, VersionProperties.getElasticsearch());
-            TaskProvider<Task> checkModuleServicesTask = registerCheckModuleServicesTask(project);
-            TaskProvider<Task> checkTask = project.getTasks().named("check");
-            checkTask.configure(task -> {
-                task.dependsOn(checkModuleVersionTask);
-                task.dependsOn(checkModuleServicesTask);
-            });
-        }
     }
 
     // List of root tasks, by name, whose compileJava task should not use the module path. These are test related sources.
@@ -232,84 +202,5 @@ public class ElasticsearchJavaModulePlugin implements Plugin<Project> {
 
     static boolean isIdea() {
         return System.getProperty("idea.sync.active", "false").equals("true");
-    }
-
-    // -- check tasks
-
-    private static final Predicate<ModuleReference> isESModule = mref -> mref.descriptor().name().startsWith("org.elasticsearch");
-
-    private static final Class<ElasticsearchJavaModulePlugin> THIS_CLASS = ElasticsearchJavaModulePlugin.class;
-
-    /** Checks that all expected Elasticsearch modules have the expected versions. */
-    private static TaskProvider<Task> registerCheckModuleVersionTask(Project project, String expectedVersion) {
-        return project.getTasks().register("checkModuleVersion", task -> {
-            task.doLast(new Action<>() {
-                @InputDirectory
-                File distroRoot = project.file(new File(project.getBuildDir(), "distributions"));
-
-                @Override
-                public void execute(Task task) {
-                    for (ModuleReference mref : esModulesFor(distroRoot)) {
-                        task.getLogger().info("%s checking module version for %s".formatted(task.toString(), mref.descriptor().name()));
-                        String mVersion = mref.descriptor()
-                            .rawVersion()
-                            .orElseThrow(() -> new GradleException("no version found in module " + mref.descriptor().name()));
-                        if (mVersion.equals(expectedVersion) == false) {
-                            throw new GradleException("Expected version [" + expectedVersion + "], in " + mref.descriptor());
-                        }
-                    }
-                }
-            });
-        });
-    }
-
-    /** Checks that ES modules have, at least, the META-INF services declared. */
-    private static TaskProvider<Task> registerCheckModuleServicesTask(Project project) {
-        return project.getTasks().register("checkModuleServices", task -> {
-            task.doLast(new Action<>() {
-                @InputDirectory
-                File distroRoot = project.file(new File(project.getBuildDir(), "distributions"));
-
-                @Override
-                public void execute(Task task) {
-                    for (ModuleReference mref : esModulesFor(distroRoot)) {
-                        URI uri = URI.create("jar:" + mref.location().get());
-                        Set<String> modServices = mref.descriptor().provides().stream().map(Provides::service).collect(toSet());
-                        try (var fileSystem = FileSystems.newFileSystem(uri, Map.of(), THIS_CLASS.getClassLoader())) {
-                            Path servicesRoot = fileSystem.getPath("/META-INF/services");
-                            if (Files.exists(servicesRoot)) {
-                                Files.walk(servicesRoot)
-                                    .filter(Files::isRegularFile)
-                                    .map(p -> servicesRoot.relativize(p))
-                                    .map(Path::toString)
-                                    .peek(s -> task.getLogger().info("%s checking service %s".formatted(task.toString(), s)))
-                                    .forEach(service -> {
-                                        if (modServices.contains(service) == false) {
-                                            throw new GradleException(
-                                                "Expected provides %s in module %s with provides %s.".formatted(
-                                                    service,
-                                                    mref.descriptor().name(),
-                                                    mref.descriptor().provides()
-                                                )
-                                            );
-                                        }
-                                    });
-                            }
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    }
-                }
-            });
-        });
-    }
-
-    private static List<ModuleReference> esModulesFor(File filePath) {
-        return ModuleFinder.of(filePath.toPath())
-            .findAll()
-            .stream()
-            .filter(isESModule)
-            .sorted(Comparator.comparing(ModuleReference::descriptor))
-            .toList();
     }
 }

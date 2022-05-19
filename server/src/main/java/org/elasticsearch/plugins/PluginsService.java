@@ -28,7 +28,6 @@ import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.lang.ModuleLayer.Controller;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleDescriptor;
@@ -584,7 +583,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         logger.debug(() -> "creating module layer and loader for module " + moduleName);
         var finder = ModuleFinder.of(paths);
 
-        var configuration = Configuration.resolveAndBind(ModuleFinder.of(), parentConfigurationOrBoot(parentLayers), finder, Set.of(moduleName));
+        var configuration = Configuration.resolveAndBind(
+            ModuleFinder.of(),
+            parentConfigurationOrBoot(parentLayers),
+            finder,
+            Set.of(moduleName)
+        );
         var controller = privilegedDefineModulesWithOneLoader(configuration, parentLayersOrBoot(parentLayers), parentLoader);
         var pluginModule = controller.layer().findModule(moduleName).get();
         ensureEntryPointAccessible(controller, pluginModule, className);

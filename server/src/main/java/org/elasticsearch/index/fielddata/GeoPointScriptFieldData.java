@@ -93,13 +93,8 @@ public class GeoPointScriptFieldData implements IndexGeoPointFieldData {
         GeoPointFieldScript script = leafFactory.newInstance(context);
         return new AbstractLeafGeoPointFieldData(toScriptFieldFactory) {
             @Override
-            public MultiGeoPointValues getGeoPointValues() {
-                return new GeoPointScriptDocValues(script);
-            }
-
-            @Override
             public SortedNumericDocValues getSortedNumericDocValues() {
-                return new GeoPointScriptDocValues.GeoPointScriptSortedNumericDocValues(script);
+                return new GeoPointScriptDocValues(script);
             }
 
             @Override

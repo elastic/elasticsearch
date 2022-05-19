@@ -12,16 +12,20 @@ import org.apache.lucene.index.SortedNumericDocValues;
 /**
  * {@link LeafFieldData} specialization for geo points.
  */
-public interface LeafGeoPointFieldData extends LeafFieldData {
+public abstract class LeafGeoPointFieldData implements LeafFieldData {
 
     /**
      * Return geo-point values.
      */
-    MultiGeoPointValues getGeoPointValues();
+    public final MultiGeoPointValues getGeoPointValues() {
+        return new MultiGeoPointValues(getSortedNumericDocValues());
+    }
 
     /**
-     * Return internal implementation.
+     * Return the internal representation of geo_point doc values as a {@link SortedNumericDocValues}.
+     * A point is encoded as a long that can be decoded by using
+     * {@link org.elasticsearch.common.geo.GeoPoint#resetFromEncoded(long)}
      */
-    SortedNumericDocValues getSortedNumericDocValues();
+    public abstract SortedNumericDocValues getSortedNumericDocValues();
 
 }

@@ -451,7 +451,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
         @Override
         protected NumericDocValues getMetricValues(LeafReaderContext ctx) {
-            final SortedNumericDocValues values = valuesSource.geoSortedSetValues(ctx);
+            final SortedNumericDocValues values = valuesSource.geoSortedNumericDocValues(ctx);
             final NumericDocValues singleton = DocValues.unwrapSingleton(values);
             if (singleton != null) {
                 return singleton;

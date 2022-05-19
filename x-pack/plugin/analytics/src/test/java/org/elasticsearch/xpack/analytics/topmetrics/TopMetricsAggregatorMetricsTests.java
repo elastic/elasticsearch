@@ -262,7 +262,7 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
 
     private ValuesSourceConfig toGeoPointConfig(SortedNumericDocValues values) throws IOException {
         ValuesSource.GeoPoint source = mock(ValuesSource.GeoPoint.class);
-        when(source.geoSortedSetValues(null)).thenReturn(values);
+        when(source.geoSortedNumericDocValues(null)).thenReturn(values);
         return toConfig(source, CoreValuesSourceType.GEOPOINT, DocValueFormat.RAW, true);
     }
 

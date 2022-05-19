@@ -490,24 +490,21 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
             if (shards == null) {
                 return this;
             }
-            for (int shardNumber = 0; shardNumber < shards.length; shardNumber++) {
-                IndexShardRoutingTable.Builder existing = shards[shardNumber];
+            for (IndexShardRoutingTable.Builder existing : shards) {
                 if (existing == null) {
                     continue;
                 }
                 // version 0, will get updated when reroute will happen
-                existing.addShard(newUnassignedReplica(existing.shardId()));
+                existing.addShard(
+                    ShardRouting.newUnassigned(
+                        existing.shardId(),
+                        false,
+                        PeerRecoverySource.INSTANCE,
+                        new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null)
+                    )
+                );
             }
             return this;
-        }
-
-        private ShardRouting newUnassignedReplica(ShardId shardId) {
-            return ShardRouting.newUnassigned(
-                shardId,
-                false,
-                PeerRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null)
-            );
         }
 
         public Builder removeReplica() {

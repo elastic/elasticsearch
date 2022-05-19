@@ -496,7 +496,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         );
     }
 
-    public void testSubobjectsFalse() {
+    public void testSubobjectsFalseAtRoot() {
         assertAcked(client().admin().indices().prepareCreate("test").setMapping("""
             {
               "_doc": {
@@ -516,6 +516,50 @@ public class DynamicMappingIT extends ESIntegTestCase {
         Map<String, Object> mappings = client().admin().indices().prepareGetMappings("test").get().mappings().get("test").getSourceAsMap();
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+        assertEquals(4, properties.size());
+        assertNotNull(properties.get("host.name"));
+        assertNotNull(properties.get("host.id"));
+        assertNotNull(properties.get("time"));
+        assertNotNull(properties.get("time.max"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSubobjectsFalse() {
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("""
+            {
+              "_doc": {
+                "properties": {
+                  "foo.metrics" : {
+                    "subobjects" : false,
+                    "properties" : {
+                      "host.name": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }""").get());
+
+        IndexRequest request = new IndexRequest("test").source(
+            "foo.metrics.host.name",
+            "localhost",
+            "foo.metrics.host.id",
+            111,
+            "foo.metrics.time",
+            100,
+            "foo.metrics.time.max",
+            1000
+        );
+        IndexResponse indexResponse = client().index(request).actionGet();
+        assertEquals(RestStatus.CREATED, indexResponse.status());
+
+        Map<String, Object> mappings = client().admin().indices().prepareGetMappings("test").get().mappings().get("test").getSourceAsMap();
+        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+        Map<String, Object> foo = (Map<String, Object>) properties.get("foo");
+        properties = (Map<String, Object>) foo.get("properties");
+        Map<String, Object> metrics = (Map<String, Object>) properties.get("metrics");
+        properties = (Map<String, Object>) metrics.get("properties");
         assertEquals(4, properties.size());
         assertNotNull(properties.get("host.name"));
         assertNotNull(properties.get("host.id"));

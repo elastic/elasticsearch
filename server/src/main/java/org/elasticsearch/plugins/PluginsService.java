@@ -64,18 +64,24 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * A loaded plugin is one for which Elasticsearch has successfully constructed an instance of the plugin's class
      * @param info Metadata about the plugin, usually loaded from plugin properties
      * @param instance The constructed instance of the plugin's main class
-     * @param loader   The classloader for the plugin, or null
-     * @param layer   The module layer for the plugin, or null
+     * @param loader   The classloader for the plugin
+     * @param layer   The module layer for the plugin
      */
     record LoadedPlugin(PluginInfo info, Plugin instance, ClassLoader loader, ModuleLayer layer) {
 
         LoadedPlugin {
             Objects.requireNonNull(info);
             Objects.requireNonNull(instance);
+            Objects.requireNonNull(loader);
+            Objects.requireNonNull(layer);
         }
 
+        /**
+         * Creates a loaded <i>classpath plugin</i>. A <i>classpath plugin</i> is a plugin loaded
+         * by the system classloader and defined to the unnamed module of the boot layer.
+         */
         LoadedPlugin(PluginInfo info, Plugin instance) {
-            this(info, instance, null, null);
+            this(info, instance, PluginsService.class.getClassLoader(), ModuleLayer.boot());
         }
     }
 
@@ -388,8 +394,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
             assert extendedPlugin.loader() != null : "All non-classpath plugins should be loaded with a classloader";
             extendedPlugins.add(extendedPlugin);
+            logger.debug(
+                () -> "Loading bundle: " + name + ", ext plugins: " + extendedPlugins.stream().map(lp -> lp.info().getName()).toList()
+            );
         }
-        logger.debug(() -> "Loading bundle: " + name + ", extendedPlugins: " + extendedPlugins);
 
         final ClassLoader parentLoader = PluginLoaderIndirection.createLoader(
             getClass().getClassLoader(),
@@ -443,12 +451,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         final PluginInfo plugin = bundle.plugin;
         if (plugin.getModuleName().isPresent()) {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", creating spi, modular");
-            return createSpiModuleLayer(
-                plugin.getModuleName().get(),
-                bundle.spiUrls,
-                parentLoader,
-                extendedPlugins.stream().map(LoadedPlugin::layer).toList()
-            );
+            return createSpiModuleLayer(bundle.spiUrls, parentLoader, extendedPlugins.stream().map(LoadedPlugin::layer).toList());
         } else {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", creating spi, non-modular");
             return LayerAndLoader.ofLoader(URLClassLoader.newInstance(bundle.spiUrls.toArray(new URL[0]), parentLoader));
@@ -464,11 +467,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         final PluginInfo plugin = bundle.plugin;
         if (plugin.getModuleName().isPresent()) {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", modular");
-            var layers = Stream.concat(
+            var parentLayers = Stream.concat(
                 Stream.ofNullable(spiLayerAndLoader != null ? spiLayerAndLoader.layer() : null),
                 extendedPlugins.stream().map(LoadedPlugin::layer)
             ).toList();
-            return createPluginModuleLayer(bundle, pluginParentLoader, layers);
+            return createPluginModuleLayer(bundle, pluginParentLoader, parentLayers);
         } else {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular");
             return LayerAndLoader.ofLoader(URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), pluginParentLoader));
@@ -555,16 +558,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         );
     }
 
-    static final LayerAndLoader createSpiModuleLayer(
-        String moduleName,
-        Set<URL> urls,
-        ClassLoader parentLoader,
-        List<ModuleLayer> parentLayers
-    ) {
+    static final LayerAndLoader createSpiModuleLayer(Set<URL> urls, ClassLoader parentLoader, List<ModuleLayer> parentLayers) {
         // assert bundle.plugin.getModuleName().isPresent();
         return createModuleLayer(
             null,  // no entry point
-            moduleName + ".spi",  // by convention ?
+            spiModuleName(urls),
             urlsToPaths(urls),
             parentLoader,
             parentLayers
@@ -580,7 +578,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         ClassLoader parentLoader,
         List<ModuleLayer> parentLayers
     ) {
-        logger.debug(() -> "creating module layer and loader for module " + moduleName);
+        logger.debug(() -> "Loading bundle: creating module layer and loader for module " + moduleName);
         var finder = ModuleFinder.of(paths);
 
         var configuration = Configuration.resolveAndBind(
@@ -594,7 +592,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         ensureEntryPointAccessible(controller, pluginModule, className);
         addQualifiedExports(pluginModule);
         addQualifiedOpens(pluginModule);
-        logger.debug(() -> "created module layer and loader for module " + moduleName);
+        logger.debug(() -> "Loading bundle: created module layer and loader for module " + moduleName);
         return new LayerAndLoader(controller.layer(), privilegedFindLoader(controller.layer(), moduleName));
     }
 
@@ -649,19 +647,28 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             .forEach(opens -> serverModule.addExports(opens.source(), target));
     }
 
+    /** Determines the module name of the SPI module, given its URL. */
+    static String spiModuleName(Set<URL> spiURLS) {
+        ModuleFinder finder = ModuleFinder.of(urlsToPaths(spiURLS));
+        var mrefs = finder.findAll();
+        assert mrefs.size() == 1 : "Expected a single module, got:" + mrefs;
+        return mrefs.stream().findFirst().get().descriptor().name();
+    }
+
     /**
      * Tuple of module layer and loader.
-     * Modular Plugins are mapped to a single non-null layer and loader.
-     * Non-Modular plugins have a null layer.
+     * Modular Plugins have a plugin specific loader and layer.
+     * Non-Modular plugins have a plugin specific loader and the boot layer.
      */
     record LayerAndLoader(ModuleLayer layer, ClassLoader loader) {
 
         LayerAndLoader {
+            Objects.requireNonNull(layer);
             Objects.requireNonNull(loader);
         }
 
         static LayerAndLoader ofLoader(ClassLoader loader) {
-            return new LayerAndLoader(null, loader);
+            return new LayerAndLoader(ModuleLayer.boot(), loader);
         }
     }
 

@@ -25,15 +25,20 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -42,6 +47,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ml.MachineLearning.CPU_RATIO_NODE_ATTR;
+import static org.elasticsearch.xpack.ml.MachineLearning.MACHINE_MEMORY_NODE_ATTR;
 
 public class MlInitializationService implements ClusterStateListener {
 
@@ -151,6 +158,25 @@ public class MlInitializationService implements ClusterStateListener {
                     isIndexCreationInProgress.set(false);
                 })
             );
+        }
+        if (this.isMaster && event.nodesAdded()) {
+            List<DiscoveryNode> mlNodes = event.state()
+                .nodes()
+                .stream()
+                .filter(n -> n.getRoles().contains(DiscoveryNodeRole.ML_ROLE))
+                .toList();
+            // Unable to determine ratio and we have ML nodes, calculate ratio and update cluster state
+            if (mlNodes.size() > 0 && mlNodes.get(0).getAttributes().containsKey(CPU_RATIO_NODE_ATTR) == false) {
+                DiscoveryNode biggestMLNode = mlNodes.stream()
+                    .max(Comparator.comparing(n -> NodeLoadDetector.getNodeSize(n).orElse(0L)))
+                    .get();
+                try {
+                    long memory = Long.parseLong(biggestMLNode.getAttributes().get(MACHINE_MEMORY_NODE_ATTR));
+                    long cpu = 0;
+                } catch (NumberFormatException ex) {
+                    logger.debug("Unable to parse machine memory and number cpus", ex);
+                }
+            }
         }
     }
 

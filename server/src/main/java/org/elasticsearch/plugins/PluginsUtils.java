@@ -141,6 +141,7 @@ public class PluginsUtils {
         final Set<PluginBundle> bundles = new HashSet<>();
         for (final Path plugin : findPluginDirs(directory)) {
             final PluginBundle bundle = readPluginBundle(plugin, type);
+            // PluginInfo hashes on plugin name, so this will catch name clashes
             if (bundles.add(bundle) == false) {
                 throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
             }

@@ -18,8 +18,8 @@ apply plugin: 'elasticsearch.rest-resources'
 
 // This subproject copies a subset of the rest-api-spec rest tests and runs them in a slightly
 // modified way on two clusters connected via CCS. All operations except searches and a few other
-// APIs that support CCS are run against the "write" cluster, so all indexed data will live there.
-// All search requests however are run against the other cluster connected via CCS to the "write"
+// APIs that support CCS are run against the remote "write" cluster where all indexed data will live.
+// All search requests however are run against the local cluster connected via CCS to the remote
 // cluster. The test runner modifies index names on these API calls to route to the remote cluster
 // and also modifies certain "match" sections to expect index names with the remote cluster prefix
 // on the fly while running these tests.
@@ -34,16 +34,16 @@ restResources {
   }
 }
 
-def writeCluster = testClusters.register("ccs-write") {
+def remoteCluster = testClusters.register("ccs-remote") {
   numberOfNodes = 2
   setting 'node.roles', '[data,ingest,master]'
 }
 
-def searchCluster = testClusters.register("ccs-search") {
+def localCluster = testClusters.register("ccs-local") {
   setting 'node.roles', '[data,ingest,master,remote_cluster_client]'
   setting 'cluster.remote.connections_per_cluster', '1'
   setting 'cluster.remote.remote_cluster.seeds',
-    { "\"${writeCluster.get().getAllTransportPortURI().get(0)}\"" }
+    { "\"${remoteCluster.get().getAllTransportPortURI().get(0)}\"" }
 }
 
 testClusters.configureEach {
@@ -51,24 +51,24 @@ testClusters.configureEach {
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
 
-// the following task is needed to make sure the write cluster is running before the search cluster
+// the following task is needed to make sure the remote cluster is running before the local cluster
 // gets configured with the remotes cluster seed
-tasks.register('startWriteCluster', DefaultTestClustersTask) {
-  useCluster writeCluster
+tasks.register('startRemoteCluster', DefaultTestClustersTask) {
+  useCluster remoteCluster
   doLast {
     clusters.each { c ->
-      print "Writer cluster transport uri for ccs configuration is: "
+      print "Remote cluster transport uri for ccs configuration is: "
       println c.getAllTransportPortURI().get(0)
     }
   }
 }
 
-tasks.register("ccs-write", RestIntegTestTask) {
+tasks.register("ccs-remote", RestIntegTestTask) {
   mustRunAfter("precommit")
-  dependsOn startWriteCluster
+  dependsOn startRemoteCluster
 
-  useCluster writeCluster
-  useCluster searchCluster
+  useCluster remoteCluster
+  useCluster localCluster
 
   // subset of test suite that are run in this module
   systemProperty 'tests.rest.suite',
@@ -103,10 +103,10 @@ tasks.register("ccs-write", RestIntegTestTask) {
 
 
   doFirst {
-    println "Writer cluster endpoints are: ${-> writeCluster.get().allHttpSocketURI.join(",")}"
-    println "Search cluster endpoints are: ${-> searchCluster.get().allHttpSocketURI.join(",")}"
-    nonInputProperties.systemProperty('tests.rest.cluster', writeCluster.map(c -> c.allHttpSocketURI.join(",")))
-    nonInputProperties.systemProperty('tests.rest.search_cluster', searchCluster.map(c -> c.allHttpSocketURI.join(",")))
+    println "Remote cluster endpoints are: ${-> remoteCluster.get().allHttpSocketURI.join(",")}"
+    println "Local cluster endpoints are: ${-> localCluster.get().allHttpSocketURI.join(",")}"
+    nonInputProperties.systemProperty('tests.rest.cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.rest.search_cluster', localCluster.map(c -> c.allHttpSocketURI.join(",")))
   }
 }
 

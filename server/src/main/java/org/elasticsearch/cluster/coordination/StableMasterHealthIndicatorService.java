@@ -293,15 +293,12 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
          *  or changed identity repeatedly, then we have a problem (the master has confirmed what the local node saw).
          */
         boolean masterConfirmedUnstable = localNodeIsMaster
-            || remoteHistory == null
-            || MasterHistory.hasMasterGoneNullAtLeastNTimes(remoteHistory, unacceptableNullTransitions)
-            || MasterHistory.getNumberOfMasterIdentityChanges(remoteHistory) > acceptableIdentityChanges;
+            || remoteHistoryException != null
+            || (remoteHistory != null
+                && (MasterHistory.hasMasterGoneNullAtLeastNTimes(remoteHistory, unacceptableNullTransitions)
+                    || MasterHistory.getNumberOfMasterIdentityChanges(remoteHistory) > acceptableIdentityChanges));
         if (masterConfirmedUnstable) {
-            if (localNodeIsMaster == false && remoteHistory == null) {
-                logger.trace("Unable to get master history from {}}", master);
-            } else {
-                logger.trace("The master node {} thinks it is unstable", master);
-            }
+            logger.trace("The master node {} thinks it is unstable", master);
             final HealthStatus stableMasterStatus = HealthStatus.YELLOW;
             String summary = String.format(
                 Locale.ROOT,

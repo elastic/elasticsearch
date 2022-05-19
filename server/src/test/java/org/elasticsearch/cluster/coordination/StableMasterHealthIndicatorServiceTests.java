@@ -279,7 +279,31 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(result.summary(), equalTo("The cluster has a stable master node"));
     }
 
-    public void testMixOfChanges() throws Exception {
+    public void testYellowOnProblematicRemoteHistory() throws Exception {
+        /*
+         * On the local node:
+         *   node1 -> null -> node1 -> null -> node1 -> null -> node2 -> null -> node1 -> null -> node1
+         * On the master node:
+         *   node1 -> null -> node1 -> null -> node1 -> null -> node2 -> null -> node1 -> null -> node1
+         * In this case we detect 2 identity changes (node1 -> node2, and node2 -> node1). We detect that node1 has gone to null 5 times. So
+         * we get a status of YELLOW.
+         */
+        testTooManyTransitionsToNull(false, HealthStatus.YELLOW);
+    }
+
+    public void testGreenOnNullRemoteHistory() throws Exception {
+        /*
+         * On the local node:
+         *   node1 -> null -> node1 -> null -> node1 -> null -> node2 -> null -> node1 -> null -> node1
+         * We don't get the remote master history in time so we don't know what it is.
+         * In this case we detect 2 identity changes (node1 -> node2, and node2 -> node1). We detect that node1 has gone to null 5 times. So
+         * we contact the remote master, and in this test get null in return as the master history. Since it is not definitive, we return
+         *  GREEN.
+         */
+        testTooManyTransitionsToNull(true, HealthStatus.GREEN);
+    }
+
+    private void testTooManyTransitionsToNull(boolean remoteHistoryIsNull, HealthStatus expectedStatus) throws Exception {
         /*
          * On the local node:
          *   node1 -> null -> node1 -> null -> node1 -> null -> node2 -> null -> node1 -> null -> node1
@@ -302,10 +326,10 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
-        List<DiscoveryNode> remoteHistory = localMasterHistory.getNodes();
+        List<DiscoveryNode> remoteHistory = remoteHistoryIsNull ? null : localMasterHistory.getNodes();
         when(masterHistoryService.getRemoteMasterHistory()).thenReturn(remoteHistory);
         HealthIndicatorResult result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.YELLOW));
+        assertThat(result.status(), equalTo(expectedStatus));
     }
 
     public void testGreenForStableCluster() {

@@ -245,10 +245,6 @@ final class Security {
         for (Path path : environment.repoFiles()) {
             addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete", false);
         }
-        if (environment.pidFile() != null) {
-            // we just need permission to remove the file if its elsewhere.
-            addSingleFilePath(policy, environment.pidFile(), "delete");
-        }
     }
 
     /**

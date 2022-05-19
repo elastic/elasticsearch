@@ -39,7 +39,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.Platforms;
-import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginsUtils;
 
@@ -73,7 +72,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -885,22 +883,7 @@ public class InstallPluginAction implements Closeable {
                 throw new AssertionError(e);
             }
         }).collect(Collectors.toSet());
-
-        // read existing bundles. this does some checks on the installation too.
-        Set<PluginBundle> bundles = new HashSet<>(PluginsUtils.getPluginBundles(pluginsDir));
-        bundles.addAll(PluginsUtils.getModuleBundles(modulesDir));
-        bundles.add(new PluginBundle(candidateInfo, candidateDir));
-        List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
-
-        // check jarhell of all plugins so we know this plugin and anything depending on it are ok together
-        // TODO: optimize to skip any bundles not connected to the candidate plugin?
-        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
-        for (PluginBundle bundle : sortedBundles) {
-            PluginsUtils.checkBundleJarHell(classpath, bundle, transitiveUrls);
-        }
-
-        // TODO: no jars should be an error
-        // TODO: verify the classname exists in one of the jars!
+        PluginsUtils.preInstallJarHellCheck(candidateInfo, candidateDir, pluginsDir, modulesDir, classpath);
     }
 
     /**

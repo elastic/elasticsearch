@@ -22,6 +22,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
@@ -75,12 +77,8 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
         .setSource(new SourceConfig(SOURCE_INDEX_NAME))
         .setDest(new DestConfig(DEST_INDEX_NAME, null))
         .build();
-
-    private final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, null) {
-        public User getUser() {
-            return new User(USER_NAME);
-        }
-    };
+    private ThreadPool threadPool;
+    private SecurityContext securityContext;
     private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
     private MyMockClient client;
 
@@ -90,11 +88,18 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             client.close();
         }
         client = new MyMockClient(getTestName());
+        threadPool = new TestThreadPool("transform_privilege_checker_tests");
+        securityContext = new SecurityContext(Settings.EMPTY, threadPool.getThreadContext()) {
+            public User getUser() {
+                return new User(USER_NAME);
+            }
+        };
     }
 
     @After
     public void tearDownClient() {
         client.close();
+        threadPool.shutdown();
     }
 
     public void testCheckPrivileges_NoCheckDestIndexPrivileges() {

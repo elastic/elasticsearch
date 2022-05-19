@@ -18,11 +18,19 @@ import java.util.Map;
  */
 public final class StringLiteralDeduplicator {
 
-    private static final int MAX_SIZE = 1000;
+    private static final int DEFAULT_MAX_SIZE = 1000;
 
     private final Map<String, String> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
-    public StringLiteralDeduplicator() {}
+    private final int maxSize;
+
+    public StringLiteralDeduplicator() {
+        this(DEFAULT_MAX_SIZE);
+    }
+
+    public StringLiteralDeduplicator(int maxSize) {
+        this.maxSize = maxSize;
+    }
 
     public String deduplicate(String string) {
         final String res = map.get(string);
@@ -30,7 +38,7 @@ public final class StringLiteralDeduplicator {
             return res;
         }
         final String interned = string.intern();
-        if (map.size() > MAX_SIZE) {
+        if (map.size() > maxSize) {
             map.clear();
         }
         map.put(interned, interned);

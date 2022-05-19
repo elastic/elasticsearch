@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class PluginInfoTests extends ESTestCase {
 
@@ -574,5 +575,77 @@ public class PluginInfoTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[classname] can only have a value when [type] is set to [bootstrap]"));
+    }
+
+    /**
+     * This is important because {@link PluginsUtils#getPluginBundles(Path)} will
+     * use the hashcode to catch duplicate names
+     */
+    public void testSameNameSameHash() {
+        PluginInfo info1 = new PluginInfo(
+            "c",
+            "foo",
+            "dummy",
+            Version.CURRENT,
+            "1.8",
+            "dummyclass",
+            null,
+            Collections.singletonList("foo"),
+            randomBoolean(),
+            PluginType.ISOLATED,
+            "-Dfoo=bar",
+            randomBoolean()
+        );
+        PluginInfo info2 = new PluginInfo(
+            info1.getName(),
+            randomValueOtherThan(info1.getDescription(), () -> randomAlphaOfLengthBetween(4, 12)),
+            randomValueOtherThan(info1.getVersion(), () -> randomAlphaOfLengthBetween(4, 12)),
+            info1.getElasticsearchVersion().previousMajor(),
+            randomValueOtherThan(info1.getJavaVersion(), () -> randomAlphaOfLengthBetween(4, 12)),
+            randomValueOtherThan(info1.getClassname(), () -> randomAlphaOfLengthBetween(4, 12)),
+            randomAlphaOfLength(6),
+            Collections.singletonList(
+                randomValueOtherThanMany(v -> info1.getExtendedPlugins().contains(v), () -> randomAlphaOfLengthBetween(4, 12))
+            ),
+            info1.hasNativeController() == false,
+            randomValueOtherThan(info1.getType(), () -> randomFrom(PluginType.values())),
+            randomValueOtherThan(info1.getJavaOpts(), () -> randomAlphaOfLengthBetween(4, 12)),
+            info1.isLicensed() == false
+        );
+
+        assertThat(info1.hashCode(), equalTo(info2.hashCode()));
+    }
+
+    public void testDifferentNameDifferentHash() {
+        PluginInfo info1 = new PluginInfo(
+            "c",
+            "foo",
+            "dummy",
+            Version.CURRENT,
+            "1.8",
+            "dummyclass",
+            null,
+            Collections.singletonList("foo"),
+            randomBoolean(),
+            PluginType.ISOLATED,
+            "-Dfoo=bar",
+            randomBoolean()
+        );
+        PluginInfo info2 = new PluginInfo(
+            randomValueOtherThan(info1.getName(), () -> randomAlphaOfLengthBetween(4, 12)),
+            info1.getDescription(),
+            info1.getVersion(),
+            info1.getElasticsearchVersion(),
+            info1.getJavaVersion(),
+            info1.getClassname(),
+            info1.getModuleName().orElse(null),
+            info1.getExtendedPlugins(),
+            info1.hasNativeController(),
+            info1.getType(),
+            info1.getJavaOpts(),
+            info1.isLicensed()
+        );
+
+        assertThat(info1.hashCode(), not(equalTo(info2.hashCode())));
     }
 }

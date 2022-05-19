@@ -342,8 +342,9 @@ public class ServerProcessTests extends ESTestCase {
     public void testCommandLine() throws Exception {
         String mainClass = "org.elasticsearch.bootstrap.Elasticsearch";
         String distroSysprop = "-Des.distribution.type=testdistro";
+        Path javaBin = Paths.get("javahome").resolve("bin");
         sysprops.put("es.distribution.type", "testdistro");
-        AtomicReference<String> expectedJava = new AtomicReference<>("javahome/bin/java");
+        AtomicReference<String> expectedJava = new AtomicReference<>(javaBin.resolve("java").toString());
         AtomicReference<String> expectedClasspath = new AtomicReference<>(esHomeDir.resolve("lib") + "/*");
         processValidator = pb -> {
             assertThat(pb.command(), hasItems(expectedJava.get(), distroSysprop, "-cp", expectedClasspath.get(), mainClass));
@@ -352,7 +353,7 @@ public class ServerProcessTests extends ESTestCase {
 
         sysprops.put("os.name", "Windows 10");
         sysprops.put("java.io.tmpdir", createTempDir().toString());
-        expectedJava.set(Paths.get("javahome").resolve("bin").resolve("java.exe").toString());
+        expectedJava.set(javaBin.resolve("java.exe").toString());
         expectedClasspath.set(esHomeDir.resolve("lib") + "\\*");
         runForeground();
     }

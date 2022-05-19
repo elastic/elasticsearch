@@ -64,7 +64,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
     private final AtomicLong indexGenerator = new AtomicLong(-1);
     private final Queue<DesiredBalancesListener> pendingListeners = new LinkedList<>();
-    private long lastConvergedIndex = -1;
+    private volatile long lastConvergedIndex = -1;
+    private volatile boolean allocating = false;
 
     public static DesiredBalanceShardsAllocator create(
         ShardsAllocator delegateAllocator,
@@ -93,9 +94,17 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 var shouldReroute = desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh);
                 var lastConvergedIndex = getCurrentDesiredBalance().lastConvergedIndex();
 
+                logger.trace(
+                    "Computed balance for [{}], shouldReroute={}, lastConvergedIndex={}",
+                    desiredBalanceInput.index(),
+                    shouldReroute,
+                    lastConvergedIndex
+                );
+
                 if (shouldReroute) {
                     rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
-                } else {
+                } else if (allocating == false) {
+                    logger.trace("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
                     executeListeners(lastConvergedIndex);
                 }
             }
@@ -122,6 +131,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
         // TODO must also capture any shards that the existing-shards allocators have allocated this pass, not just the ignored ones
 
+        allocating = true;
+
         var index = indexGenerator.incrementAndGet();
         synchronized (pendingListeners) {
             pendingListeners.add(new DesiredBalancesListener(index, listener));
@@ -133,19 +144,25 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         // TODO possibly add a bounded wait for the computation to complete?
         // Otherwise we will have to do a second cluster state update straight away.
 
+        logger.trace("Executing allocate for [{}]", index);
         DesiredBalance currentDesiredBalance = getCurrentDesiredBalance();
         new DesiredBalanceReconciler(currentDesiredBalance, allocation).run();
 
+        lastConvergedIndex = currentDesiredBalance.lastConvergedIndex();
         if (allocation.routingNodesChanged()) {
+            logger.trace("Delaying execution listeners up to [{}] as routing nodes have changed", index);
             // Execute listeners after cluster state is applied
-            lastConvergedIndex = currentDesiredBalance.lastConvergedIndex();
         } else {
-            executeListeners(currentDesiredBalance.lastConvergedIndex());
+            logger.trace("Executing listeners up to [{}] as routing nodes have not changed", lastConvergedIndex);
+            executeListeners(lastConvergedIndex);
         }
+
+        allocating = false;
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        logger.trace("Executing listeners up to [{}] after cluster state was committed", lastConvergedIndex);
         executeListeners(lastConvergedIndex);
     }
 

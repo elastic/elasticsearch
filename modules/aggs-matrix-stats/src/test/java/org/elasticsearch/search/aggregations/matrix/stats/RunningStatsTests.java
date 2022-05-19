@@ -66,8 +66,8 @@ public class RunningStatsTests extends BaseMatrixStatsTestCase {
                 assertEquals("Error while merging running stats " + i + " and " + j, i == j, a.canMerge(b));
                 assertEquals("Error while merging running stats " + i + " and " + j, i == j, b.canMerge(a));
             }
-            assertEquals(i == 0, a.canMerge(otherRunningStat));
-            assertEquals(i == 0, otherRunningStat.canMerge(a));
+            assertEquals("Error while merging running stats " + i, i == 0, a.canMerge(otherRunningStat));
+            assertEquals("Error while merging running stats " + i, i == 0, otherRunningStat.canMerge(a));
         }
     }
 

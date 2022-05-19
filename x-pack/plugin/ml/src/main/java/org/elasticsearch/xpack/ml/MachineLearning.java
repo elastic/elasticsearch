@@ -436,6 +436,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalDouble;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -510,6 +511,8 @@ public class MachineLearning extends Plugin
 
     // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
     private static final String PRE_V8_MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
+    public static final String CPU_RATIO_NODE_ATTR = "ml.memory_cpu_ratio";
+    public static final String INSTANCE_CONFIGURATION_NODE_ATTR = "instance_configuration";
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final String MAX_JVM_SIZE_NODE_ATTR = "ml.max_jvm_size";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS = Setting.intSetting(
@@ -705,9 +708,10 @@ public class MachineLearning extends Plugin
         String maxOpenJobsPerNodeNodeAttrName = "node.attr." + PRE_V8_MAX_OPEN_JOBS_NODE_ATTR;
         String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
         String jvmSizeAttrName = "node.attr." + MAX_JVM_SIZE_NODE_ATTR;
+        String cpuRatioAttrName = "node.attr." + CPU_RATIO_NODE_ATTR;
 
         if (enabled == false) {
-            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName);
+            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName, cpuRatioAttrName);
             return Settings.EMPTY;
         }
 
@@ -719,10 +723,13 @@ public class MachineLearning extends Plugin
                 Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes())
             );
             addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(Runtime.getRuntime().maxMemory()));
+            getCpuRatioFromInstanceConfiguration(settings.get("node.attr." + INSTANCE_CONFIGURATION_NODE_ATTR)).ifPresent(
+                d -> addMlNodeAttribute(additionalSettings, cpuRatioAttrName, Double.toString(d))
+            );
             // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
             disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName);
         } else {
-            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName);
+            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName, cpuRatioAttrName);
         }
         return additionalSettings.build();
     }
@@ -734,6 +741,45 @@ public class MachineLearning extends Plugin
         } else {
             reportClashingNodeAttribute(attrName);
         }
+    }
+
+    /**
+     * This returns the ratio of configured RAM / CPU.
+     *
+     * The "configured RAM" is the value given to the Elasticsearch node.
+     * Specifically, this means the `ml.machine_memory` calculation is considered the total node memory.
+     * This value may or may not be give to Elasticsearch via an override (system_memory).
+     *
+     * Consequently, the ratio returned here should closely match the `ml.machine_memory/available_processors` value.
+     * On smaller instances, this may not be the case (as the floor for processors is at least one).
+     *
+     * @param instanceConfiguration The ESS instance configuration
+     * @return The memory/CPU ratio
+     */
+    static OptionalDouble getCpuRatioFromInstanceConfiguration(String instanceConfiguration) {
+        if (instanceConfiguration == null) {
+            return OptionalDouble.empty();
+        }
+        if (instanceConfiguration.startsWith("gcp")) {
+            if (instanceConfiguration.contains("68x32x")) {
+                return OptionalDouble.of(2.0);
+            } else if (instanceConfiguration.startsWith("68x16x")) {
+                return OptionalDouble.of(4.0);
+            }
+        }
+        if (instanceConfiguration.startsWith("aws")) {
+            if (instanceConfiguration.contains("c5d")) {
+                return OptionalDouble.of(1.777777777777778);
+            } else if (instanceConfiguration.contains("m6gd") || instanceConfiguration.contains("m5d")) {
+                return OptionalDouble.of(3.75);
+            }
+        }
+        if (instanceConfiguration.startsWith("azure")) {
+            return OptionalDouble.of(1.875);
+        }
+        //TODO this should probably be debug....
+        logger.info("Could not automatically determine CPU ratio for configuration [{}]", instanceConfiguration);
+        return OptionalDouble.empty();
     }
 
     private void disallowMlNodeAttributes(String... mlNodeAttributes) {

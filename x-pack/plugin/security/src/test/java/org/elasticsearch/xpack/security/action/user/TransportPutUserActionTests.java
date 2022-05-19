@@ -152,7 +152,7 @@ public class TransportPutUserActionTests extends ESTestCase {
     }
 
     public void testValidUserWithMaxLengthUsername() {
-        testValidUser(new User(randomMaxLengthUsername()));
+        testValidUser(new User(randomUsername(NativeRealmValidationUtil.MAX_NAME_LENGTH)));
     }
 
     private void testValidUser(User user) {
@@ -210,7 +210,13 @@ public class TransportPutUserActionTests extends ESTestCase {
     }
 
     public void testInvalidUserWithExtraLongUsername() {
-        testInvalidUser(new User(randomExtraLongUsername()));
+        testInvalidUser(
+            new User(
+                randomUsername(
+                    randomIntBetween(NativeRealmValidationUtil.MAX_NAME_LENGTH + 1, NativeRealmValidationUtil.MAX_NAME_LENGTH * 2)
+                )
+            )
+        );
     }
 
     private void testInvalidUser(User user) {
@@ -239,31 +245,15 @@ public class TransportPutUserActionTests extends ESTestCase {
         assertThat(validation.validationErrors().size(), is(1));
     }
 
-    private String randomExtraLongUsername() {
-        Character[] username = randomArray(
-            NativeRealmValidationUtil.MAX_NAME_LENGTH + 1,
-            NativeRealmValidationUtil.MAX_NAME_LENGTH * 2,
-            Character[]::new,
-            () -> randomFrom(Validation.VALID_NAME_CHARS)
-        );
-
-        return toString(username);
-    }
-
-    private String randomMaxLengthUsername() {
+    /**
+     * Generates a random username whose length is exactly as given {@code length}.
+     */
+    private String randomUsername(long length) {
         StringBuilder username = new StringBuilder();
-        for (int i = 0; i < NativeRealmValidationUtil.MAX_NAME_LENGTH; i++) {
+        for (int i = 0; i < length; i++) {
             username.append(randomFrom(Validation.VALID_NAME_CHARS));
         }
         return username.toString();
-    }
-
-    private String toString(Character[] chars) {
-        StringBuilder builder = new StringBuilder();
-        for (Character c : chars) {
-            builder.append(c.charValue());
-        }
-        return builder.toString();
     }
 
     public void testException() {

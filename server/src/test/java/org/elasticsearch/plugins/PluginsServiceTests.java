@@ -196,7 +196,6 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(e, hasToString(containsString("no unique public constructor")));
     }
 
-    // TODO: avoid classpath plugins
     public void testLoadPluginWithNoPublicConstructorOfCorrectSignature() {
         class TooManyParametersPlugin extends Plugin {
 

@@ -18,10 +18,10 @@ apply plugin: 'elasticsearch.rest-resources'
 
 // This subproject copies a subset of the rest-api-spec rest tests and runs them in a slightly
 // modified way on two clusters connected via CCS. All operations except searches and a few other
-// APIs that support CCS are run agains the "write" cluster, so all indexed data will live there.
+// APIs that support CCS are run against the "write" cluster, so all indexed data will live there.
 // All search requests however are run against the other cluster connected via CCS to the "write"
 // cluster. The test runner modifies index names on these API calls to route to the remote cluster
-// and also modifies certain "match" sections to expect index names with the remote cluser prefix
+// and also modifies certain "match" sections to expect index names with the remote cluster prefix
 // on the fly while running these tests.
 
 restResources {
@@ -70,7 +70,7 @@ tasks.register("ccs-write", RestIntegTestTask) {
   useCluster writeCluster
   useCluster searchCluster
 
-  // subset of test suit that are run in this module
+  // subset of test suite that are run in this module
   systemProperty 'tests.rest.suite',
     [
       'field_caps',

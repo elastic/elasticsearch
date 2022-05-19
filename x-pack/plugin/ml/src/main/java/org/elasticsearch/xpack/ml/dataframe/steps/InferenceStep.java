@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.dataframe.steps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -34,6 +33,8 @@ import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.Objects;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -66,10 +67,7 @@ public class InferenceStep extends AbstractDataFrameAnalyticsStep {
     protected void doExecute(ActionListener<StepResponse> listener) {
         if (config.getAnalysis().supportsInference() == false) {
             LOGGER.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] Inference step completed immediately as analysis does not support inference",
-                    config.getId()
-                )
+                () -> format(ROOT, "[%s] Inference step completed immediately as analysis does not support inference", config.getId())
             );
             listener.onResponse(new StepResponse(false));
             return;

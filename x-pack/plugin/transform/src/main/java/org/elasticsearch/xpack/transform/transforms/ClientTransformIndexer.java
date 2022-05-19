@@ -66,6 +66,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
+
 class ClientTransformIndexer extends TransformIndexer {
 
     private static final TimeValue PIT_KEEP_ALIVE = TimeValue.timeValueSeconds(30);
@@ -336,14 +339,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {
-        logger.debug(
-            () -> new ParameterizedMessage(
-                "[{}] Updated state document from [{}] to [{}]",
-                transformConfig.getId(),
-                expectedValue,
-                newValue
-            )
-        );
+        logger.debug(() -> format(ROOT, "[%s] Updated state document from [%s] to [%s]", transformConfig.getId(), expectedValue, newValue));
         boolean updated = seqNoPrimaryTermAndIndexHolder.compareAndSet(expectedValue, newValue);
         // This should never happen. We ONLY ever update this value if at initialization or we just finished updating the document
         // famous last words...

@@ -38,6 +38,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 /**
@@ -257,7 +259,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         assert assertCurrentThreadMayWriteCacheFile();
         final long length = end - start;
         final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
-        logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference));
+        logger.trace(() -> format(ROOT, "writing range [%s-%s] to cache file [%s]", start, end, cacheFileReference));
 
         long bytesCopied = 0L;
         long remaining = end - start;
@@ -370,8 +372,9 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
                 final long length = b.remaining();
                 final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
                 logger.trace(
-                    () -> new ParameterizedMessage(
-                        "direct reading of range [{}-{}] for cache file [{}]",
+                    () -> format(
+                        ROOT,
+                        "direct reading of range [%s-%s] for cache file [%s]",
                         position,
                         position + length,
                         cacheFileReference

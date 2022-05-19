@@ -48,6 +48,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
+
 public class InferenceRunner {
 
     private static final Logger LOGGER = LogManager.getLogger(InferenceRunner.class);
@@ -160,8 +163,9 @@ public class InferenceRunner {
         Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.value();
         if (lastIncrementalId != null) {
             LOGGER.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] Resuming inference; last incremental id [{}]; processed test doc count [{}]",
+                () -> format(
+                    ROOT,
+                    "[%s] Resuming inference; last incremental id [%s]; processed test doc count [%s]",
                     config.getId(),
                     lastIncrementalId,
                     processedTestDocCount

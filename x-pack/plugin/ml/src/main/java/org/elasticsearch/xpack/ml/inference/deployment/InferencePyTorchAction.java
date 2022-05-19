@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,6 +24,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
 
@@ -52,9 +54,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
     protected void doRun() throws Exception {
         if (isNotified()) {
             // Should not execute request as it has already timed out while waiting in the queue
-            logger.debug(
-                () -> new ParameterizedMessage("[{}] skipping inference on request [{}] as it has timed out", getModelId(), getRequestId())
-            );
+            logger.debug(() -> format(ROOT, "[%s] skipping inference on request [%s] as it has timed out", getModelId(), getRequestId()));
             return;
         }
 
@@ -102,12 +102,13 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             return;
         }
 
-        logger.debug(() -> new ParameterizedMessage("[{}] retrieved result for request [{}]", getModelId(), getRequestId()));
+        logger.debug(() -> format(ROOT, "[%s] retrieved result for request [%s]", getModelId(), getRequestId()));
         if (isNotified()) {
             // The request has timed out. No need to spend cycles processing the result.
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] skipping result processing for request [{}] as the request has timed out",
+                () -> format(
+                    ROOT,
+                    "[%s] skipping result processing for request [%s] as the request has timed out",
                     getModelId(),
                     getRequestId()
                 )
@@ -115,7 +116,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             return;
         }
         InferenceResults results = inferenceResultsProcessor.processResult(tokenization, pyTorchResult.inferenceResult());
-        logger.debug(() -> new ParameterizedMessage("[{}] processed result for request [{}]", getModelId(), getRequestId()));
+        logger.debug(() -> format(ROOT, "[%s] processed result for request [%s]", getModelId(), getRequestId()));
         onSuccess(results);
     }
 

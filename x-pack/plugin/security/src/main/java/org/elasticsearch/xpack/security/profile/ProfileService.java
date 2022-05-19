@@ -81,7 +81,10 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
+import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -393,10 +396,11 @@ public class ProfileService {
                 }
             } else {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "searching existing profile document for user [{}] from any of the realms [{}] under domain [{}]",
+                    () -> format(
+                        ROOT,
+                        "searching existing profile document for user [%s] from any of the realms [%s] under domain [%s]",
                         subject.getUser().principal(),
-                        Strings.collectionToCommaDelimitedString(subject.getRealm().getDomain().realms()),
+                        collectionToCommaDelimitedString(subject.getRealm().getDomain().realms()),
                         subject.getRealm().getDomain().name()
                     )
                 );

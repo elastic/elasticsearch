@@ -56,6 +56,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
@@ -341,7 +343,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }));
         totalChannelsAccepted.incrementAndGet();
         httpClientStatsTracker.addClientStats(httpChannel);
-        logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
+        logger.trace(() -> format(ROOT, "Http channel accepted: %s", httpChannel));
     }
 
     /**

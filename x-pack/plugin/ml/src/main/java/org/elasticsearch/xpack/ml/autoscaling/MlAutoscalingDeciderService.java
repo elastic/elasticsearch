@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -66,6 +65,10 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.lang.String.format;
+import static java.time.Instant.ofEpochMilli;
+import static java.util.Locale.ROOT;
+import static org.elasticsearch.common.xcontent.XContentElasticsearchExtension.DEFAULT_FORMATTER;
 import static org.elasticsearch.xpack.core.ml.MlTasks.getDataFrameAnalyticsState;
 import static org.elasticsearch.xpack.core.ml.MlTasks.getJobStateModifiedForReassignments;
 import static org.elasticsearch.xpack.core.ml.MlTasks.getSnapshotUpgradeState;
@@ -623,8 +626,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             // This next message could obviously be pretty big, but should only get logged very rarely as it
             // requires both debug enabled and some other bug to exist to cause us to be in this branch
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "persistent tasks that caused unexpected scaling situation: [{}]",
+                () -> format(
+                    ROOT,
+                    "persistent tasks that caused unexpected scaling situation: [%s]",
                     (tasks == null) ? "null" : Strings.toString(tasks)
                 )
             );
@@ -672,8 +676,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                         MAX_OPEN_JOBS_PER_NODE.getKey()
                     );
                     logger.info(
-                        () -> new ParameterizedMessage(
-                            "{} Calculated potential scaled down capacity [{}]",
+                        () -> format(
+                            ROOT,
+                            "%s Calculated potential scaled down capacity [%s]",
                             msg,
                             scaleDownDecisionResult.requiredCapacity()
                         )
@@ -688,11 +693,12 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             }
             TimeValue downScaleDelay = DOWN_SCALE_DELAY.get(configuration);
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "not scaling down as the current scale down delay [{}] is not satisfied."
-                        + " The last time scale down was detected [{}]. Calculated scaled down capacity [{}] ",
+                () -> format(
+                    ROOT,
+                    "not scaling down as the current scale down delay [%s] is not satisfied."
+                        + " The last time scale down was detected [%s]. Calculated scaled down capacity [%s] ",
                     downScaleDelay.getStringRep(),
-                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(scaleDownDetected)),
+                    DEFAULT_FORMATTER.format(ofEpochMilli(scaleDownDetected)),
                     scaleDownDecisionResult.requiredCapacity()
                 )
             );
@@ -833,15 +839,16 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         MlScalingReason.Builder reasonBuilder
     ) {
         logger.debug(
-            () -> new ParameterizedMessage(
+            () -> format(
+                ROOT,
                 "Checking for scale up -"
-                    + " waiting data frame analytics jobs [{}]"
-                    + " data frame analytics jobs allowed to queue [{}]"
-                    + " waiting anomaly detection jobs (including model snapshot upgrades) [{}]"
-                    + " anomaly detection jobs allowed to queue [{}]"
-                    + " waiting models [{}]"
-                    + " future freed capacity [{}]"
-                    + " current scale [{}]",
+                    + " waiting data frame analytics jobs [%s]"
+                    + " data frame analytics jobs allowed to queue [%s]"
+                    + " waiting anomaly detection jobs (including model snapshot upgrades) [%s]"
+                    + " anomaly detection jobs allowed to queue [%s]"
+                    + " waiting models [%s]"
+                    + " future freed capacity [%s]"
+                    + " current scale [%s]",
                 waitingAnalyticsJobs.size(),
                 numAnalyticsJobsInQueue,
                 waitingAnomalyJobs.size() + waitingSnapshotUpgrades.size(),

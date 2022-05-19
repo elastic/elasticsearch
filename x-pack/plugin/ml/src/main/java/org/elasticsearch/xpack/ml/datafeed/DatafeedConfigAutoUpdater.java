@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,6 +26,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
+import static java.util.stream.Collectors.toList;
 
 public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateAction {
 
@@ -87,10 +90,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
         }
 
         logger.debug(
-            () -> new ParameterizedMessage(
-                "{} datafeeds are currently being updated",
-                updates.stream().map(DatafeedUpdate::getId).collect(Collectors.toList())
-            )
+            () -> format(ROOT, "%s datafeeds are currently being updated", updates.stream().map(DatafeedUpdate::getId).collect(toList()))
         );
 
         List<Exception> failures = new ArrayList<>();
@@ -113,10 +113,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
         }
         if (failures.isEmpty()) {
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "{} datafeeds are finished being updated",
-                    updates.stream().map(DatafeedUpdate::getId).collect(Collectors.toList())
-                )
+                () -> format(ROOT, "%s datafeeds are finished being updated", updates.stream().map(DatafeedUpdate::getId).collect(toList()))
             );
             return;
         }

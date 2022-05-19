@@ -51,6 +51,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
+
 /**
  * Implements the low-level mechanics of sending a cluster state to other nodes in the cluster during a publication.
  * <p>
@@ -395,8 +398,9 @@ public class PublicationTransportHandler {
                 if (e instanceof final TransportException transportException) {
                     if (transportException.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
                         logger.debug(
-                            () -> new ParameterizedMessage(
-                                "resending full cluster state to node {} reason {}",
+                            () -> format(
+                                ROOT,
+                                "resending full cluster state to node %s reason %s",
                                 destination,
                                 transportException.getDetailedMessage()
                             )

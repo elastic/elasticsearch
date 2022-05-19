@@ -114,8 +114,11 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.lang.String.format;
 import static java.util.Collections.unmodifiableList;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
+import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 
 /**
  * Service responsible for creating snapshots. This service runs all the steps executed on the master node during snapshot creation and
@@ -2055,11 +2058,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final String repositoryName = request.repository();
         final String[] snapshotNames = request.snapshots();
         logger.info(
-            () -> new ParameterizedMessage(
-                "deleting snapshots [{}] from repository [{}]",
-                Strings.arrayToCommaDelimitedString(snapshotNames),
-                repositoryName
-            )
+            () -> format(ROOT, "deleting snapshots [%s] from repository [%s]", arrayToCommaDelimitedString(snapshotNames), repositoryName)
         );
 
         final Repository repository = repositoriesService.repository(repositoryName);

@@ -52,6 +52,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static java.util.stream.Collectors.toList;
 
 public class ChunkedTrainedModelPersister {
@@ -166,8 +168,9 @@ public class ChunkedTrainedModelPersister {
         // First, store the model and refresh is necessary
         ActionListener<Void> storeListener = ActionListener.wrap(r -> {
             LOGGER.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] stored trained model definition chunk [{}] [{}]",
+                () -> format(
+                    ROOT,
+                    "[%s] stored trained model definition chunk [%s] [%s]",
                     analytics.getId(),
                     trainedModelDefinitionDoc.getModelId(),
                     trainedModelDefinitionDoc.getDocNum()

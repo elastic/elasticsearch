@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
@@ -23,6 +22,8 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.RBACEngine;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
@@ -60,8 +61,9 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
                     boolean incompatibleLicense = false;
                     if (dlsFlsUsage.hasFieldLevelSecurity()) {
                         logger.debug(
-                            () -> new ParameterizedMessage(
-                                "User [{}] has field level security on [{}]",
+                            () -> format(
+                                ROOT,
+                                "User [%s] has field level security on [%s]",
                                 requestInfo.getAuthentication(),
                                 indicesAccessControl.getIndicesWithFieldLevelSecurity()
                             )
@@ -72,8 +74,9 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
                     }
                     if (dlsFlsUsage.hasDocumentLevelSecurity()) {
                         logger.debug(
-                            () -> new ParameterizedMessage(
-                                "User [{}] has document level security on [{}]",
+                            () -> format(
+                                ROOT,
+                                "User [%s] has document level security on [%s]",
                                 requestInfo.getAuthentication(),
                                 indicesAccessControl.getIndicesWithDocumentLevelSecurity()
                             )

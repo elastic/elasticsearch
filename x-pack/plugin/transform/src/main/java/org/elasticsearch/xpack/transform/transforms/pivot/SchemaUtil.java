@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -31,6 +30,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils.extractFieldMappings;
 
 public final class SchemaUtil {
@@ -200,21 +201,12 @@ public final class SchemaUtil {
             String destinationMapping = TransformAggregations.resolveTargetMapping(aggregationName, sourceMapping);
 
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "Deduced mapping for: [{}], agg type [{}] to [{}]",
-                    targetFieldName,
-                    aggregationName,
-                    destinationMapping
-                )
+                () -> format(ROOT, "Deduced mapping for: [%s], agg type [%s] to [%s]", targetFieldName, aggregationName, destinationMapping)
             );
 
             if (TransformAggregations.isDynamicMapping(destinationMapping)) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "Dynamic target mapping set for field [{}] and aggregation [{}]",
-                        targetFieldName,
-                        aggregationName
-                    )
+                    () -> format(ROOT, "Dynamic target mapping set for field [%s] and aggregation [%s]", targetFieldName, aggregationName)
                 );
             } else if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
@@ -229,7 +221,7 @@ public final class SchemaUtil {
 
         fieldNamesForGrouping.forEach((targetFieldName, sourceFieldName) -> {
             String destinationMapping = fieldTypesForGrouping.computeIfAbsent(targetFieldName, (s) -> sourceMappings.get(sourceFieldName));
-            logger.debug(() -> new ParameterizedMessage("Deduced mapping for: [{}] to [{}]", targetFieldName, destinationMapping));
+            logger.debug(() -> format(ROOT, "Deduced mapping for: [%s] to [%s]", targetFieldName, destinationMapping));
             if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {

@@ -96,7 +96,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.lang.String.format;
 import static java.util.Collections.unmodifiableSet;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_HISTORY_UUID;
@@ -342,8 +344,9 @@ public class RestoreService implements ClusterStateApplier {
                 return true;
             }
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "Restoring snapshot[{}] skipping feature [{}] because it is not available in this cluster",
+                () -> format(
+                    ROOT,
+                    "Restoring snapshot[%s] skipping feature [%s] because it is not available in this cluster",
                     snapshotInfo.snapshotId(),
                     featureName
                 )

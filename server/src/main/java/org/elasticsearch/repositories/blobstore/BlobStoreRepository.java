@@ -149,6 +149,8 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
 
 /**
@@ -2616,7 +2618,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         CheckedConsumer<OutputStream, IOException> writer,
         boolean failIfAlreadyExists
     ) throws IOException {
-        logger.trace(() -> new ParameterizedMessage("[{}] Writing [{}] to {} atomically", metadata.name(), blobName, container.path()));
+        logger.trace(() -> format(ROOT, "[%s] Writing [%s] to %s atomically", metadata.name(), blobName, container.path()));
         container.writeBlob(blobName, failIfAlreadyExists, true, writer);
     }
 
@@ -3061,7 +3063,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 private void restoreFile(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) throws IOException {
                     ensureNotClosing(store);
-                    logger.trace(() -> new ParameterizedMessage("[{}] restoring [{}] to [{}]", metadata.name(), fileInfo, store));
+                    logger.trace(() -> format(ROOT, "[%s] restoring [%s] to [%s]", metadata.name(), fileInfo, store));
                     boolean success = false;
                     try (
                         IndexOutput indexOutput = store.createVerifyingOutput(
@@ -3321,9 +3323,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Map<String, String> serializationParams
     ) throws IOException {
         assert indexGeneration >= 0 : "Shard generation must not be negative but saw [" + indexGeneration + "]";
-        logger.trace(
-            () -> new ParameterizedMessage("[{}] Writing shard index [{}] to [{}]", metadata.name(), indexGeneration, shardContainer.path())
-        );
+        logger.trace(() -> format(ROOT, "[%s] Writing shard index [%s] to [%s]", metadata.name(), indexGeneration, shardContainer.path()));
         final String blobName = INDEX_SHARD_SNAPSHOTS_FORMAT.blobName(String.valueOf(indexGeneration));
         writeAtomic(
             shardContainer,

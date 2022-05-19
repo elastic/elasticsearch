@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -57,6 +56,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -140,8 +141,9 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         synchronized (listenersByJobId) {
             if (listenersByJobId.containsKey(request.getJobId())) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "[{}] Deletion task [{}] will wait for existing deletion task to complete",
+                    () -> format(
+                        ROOT,
+                        "[%s] Deletion task [%s] will wait for existing deletion task to complete",
                         request.getJobId(),
                         task.getId()
                     )

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -43,6 +42,9 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 /**
  * Processes {@link Aggregation} objects and writes flat JSON documents for each leaf aggregation.
@@ -260,7 +262,7 @@ class AggregationToJsonProcessor {
 
                 long bucketTime = toHistogramKeyToEpoch(bucket.getKey().get(compositeAggDateValueSourceName));
                 if (bucketTime < startTime) {
-                    LOGGER.debug(() -> new ParameterizedMessage("Skipping bucket at [{}], startTime is [{}]", bucketTime, startTime));
+                    LOGGER.debug(() -> format(ROOT, "Skipping bucket at [%s], startTime is [%s]", bucketTime, startTime));
                     continue;
                 } else {
                     checkBucketTime = false;

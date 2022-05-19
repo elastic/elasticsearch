@@ -46,6 +46,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class AnalyticsProcessManager {
@@ -281,7 +283,7 @@ public class AnalyticsProcessManager {
         DataFrameAnalyticsTask task
     ) throws IOException {
         List<String> fieldNames = dataExtractor.getFieldNames();
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] header row fields {}", task.getParams().getId(), fieldNames));
+        LOGGER.debug(() -> format(ROOT, "[%s] header row fields %s", task.getParams().getId(), fieldNames));
 
         // We add 2 extra fields, both named dot:
         // - the document hash

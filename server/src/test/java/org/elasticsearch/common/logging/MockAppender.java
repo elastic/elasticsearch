@@ -11,6 +11,7 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
+import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 
 public class MockAppender extends AbstractAppender {
@@ -25,8 +26,8 @@ public class MockAppender extends AbstractAppender {
         lastEvent = event.toImmutable();
     }
 
-    ParameterizedMessage lastParameterizedMessage() {
-        return (ParameterizedMessage) lastEvent.getMessage();
+    Message lastMessage() {
+        return lastEvent.getMessage();
     }
 
     public LogEvent getLastEventAndReset() {

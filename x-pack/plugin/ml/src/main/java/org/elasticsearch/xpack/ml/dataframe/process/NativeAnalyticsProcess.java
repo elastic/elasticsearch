@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -26,6 +25,9 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<AnalyticsResult> {
 
@@ -101,7 +103,7 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
                     break;
                 }
                 SearchHit stateDoc = stateResponse.getHits().getAt(0);
-                logger.debug(() -> new ParameterizedMessage("[{}] Restoring state document [{}]", config.jobId(), stateDoc.getId()));
+                logger.debug(() -> format(ROOT, "[%s] Restoring state document [%s]", config.jobId(), stateDoc.getId()));
                 StateToProcessWriterHelper.writeStateToStream(stateDoc.getSourceRef(), restoreStream);
             }
         }

@@ -9,12 +9,14 @@
 package org.elasticsearch.common.breaker;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 
 import java.util.concurrent.atomic.AtomicLong;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 /**
  * Breaker that will check a parent's when incrementing
@@ -45,7 +47,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         this.used = new AtomicLong(0);
         this.trippedCount = new AtomicLong(0);
         this.logger = logger;
-        logger.trace(() -> new ParameterizedMessage("creating ChildCircuitBreaker with settings {}", settings));
+        logger.trace(() -> format(ROOT, "creating ChildCircuitBreaker with settings %s", settings));
         this.parent = parent;
     }
 
@@ -72,7 +74,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             + "/"
             + new ByteSizeValue(memoryBytesLimit)
             + "]";
-        logger.debug(() -> new ParameterizedMessage("{}", message));
+        logger.debug(() -> format(ROOT, "%s", message));
         throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit, durability);
     }
 
@@ -120,8 +122,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         long newUsed;
         newUsed = this.used.addAndGet(bytes);
         logger.trace(
-            () -> new ParameterizedMessage(
-                "[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: [-1b]]",
+            () -> format(
+                ROOT,
+                "[%s] Adding [%s][%s] to used bytes [new used: [%s], limit: [-1b]]",
                 this.name,
                 new ByteSizeValue(bytes),
                 label,
@@ -183,7 +186,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     @Override
     public void addWithoutBreaking(long bytes) {
         long u = used.addAndGet(bytes);
-        logger.trace(() -> new ParameterizedMessage("[{}] Adjusted breaker by [{}] bytes, now [{}]", this.name, bytes, u));
+        logger.trace(() -> format(ROOT, "[%s] Adjusted breaker by [%s] bytes, now [%s]", this.name, bytes, u));
         assert u >= 0 : "Used bytes: [" + u + "] must be >= 0";
     }
 

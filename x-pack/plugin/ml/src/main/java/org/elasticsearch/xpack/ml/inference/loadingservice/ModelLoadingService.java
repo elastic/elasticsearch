@@ -61,6 +61,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.xpack.ml.MachineLearning.ML_MODEL_INFERENCE_FEATURE;
 
@@ -264,17 +266,13 @@ public class ModelLoadingService implements ClusterStateListener {
                 return;
             }
             modelActionListener.onResponse(cachedModel.model);
-            logger.trace(() -> new ParameterizedMessage("[{}] (model_alias [{}]) loaded from cache", modelId, modelIdOrAlias));
+            logger.trace(() -> format(ROOT, "[%s] (model_alias [%s]) loaded from cache", modelId, modelIdOrAlias));
             return;
         }
 
         if (loadModelIfNecessary(modelIdOrAlias, consumer, modelActionListener)) {
             logger.trace(
-                () -> new ParameterizedMessage(
-                    "[{}] (model_alias [{}]) is loading or loaded, added new listener to queue",
-                    modelId,
-                    modelIdOrAlias
-                )
+                () -> format(ROOT, "[%s] (model_alias [%s]) is loading or loaded, added new listener to queue", modelId, modelIdOrAlias)
             );
         }
     }
@@ -321,17 +319,11 @@ public class ModelLoadingService implements ClusterStateListener {
                 // The model is requested by a pipeline but not referenced by any ingest pipelines.
                 // This means it is a simulate call and the model should not be cached
                 logger.trace(
-                    () -> new ParameterizedMessage(
-                        "[{}] (model_alias [{}]) not actively loading, eager loading without cache",
-                        modelId,
-                        modelIdOrAlias
-                    )
+                    () -> format(ROOT, "[%s] (model_alias [%s]) not actively loading, eager loading without cache", modelId, modelIdOrAlias)
                 );
                 loadWithoutCaching(modelId, consumer, modelActionListener);
             } else {
-                logger.trace(
-                    () -> new ParameterizedMessage("[{}] (model_alias [{}]) attempting to load and cache", modelId, modelIdOrAlias)
-                );
+                logger.trace(() -> format(ROOT, "[%s] (model_alias [%s]) attempting to load and cache", modelId, modelIdOrAlias));
                 loadingListeners.put(modelId, addFluently(new ArrayDeque<>(), modelActionListener));
                 loadModel(modelId, consumer);
             }
@@ -564,9 +556,7 @@ public class ModelLoadingService implements ClusterStateListener {
     private void populateNewModelAlias(String modelId) {
         Set<String> newModelAliases = modelIdToUpdatedModelAliases.remove(modelId);
         if (newModelAliases != null && newModelAliases.isEmpty() == false) {
-            logger.trace(
-                () -> new ParameterizedMessage("[{}] model is now loaded, setting new model_aliases {}", modelId, newModelAliases)
-            );
+            logger.trace(() -> format(ROOT, "[%s] model is now loaded, setting new model_aliases %s", modelId, newModelAliases));
             for (String modelAlias : newModelAliases) {
                 modelAliasToId.put(modelAlias, modelId);
             }
@@ -590,8 +580,9 @@ public class ModelLoadingService implements ClusterStateListener {
             }
             String modelId = modelAliasToId.getOrDefault(notification.getKey(), notification.getKey());
             logger.trace(
-                () -> new ParameterizedMessage(
-                    "Persisting stats for evicted model [{}] (model_aliases {})",
+                () -> format(
+                    ROOT,
+                    "Persisting stats for evicted model [%s] (model_aliases %s)",
                     modelId,
                     modelIdToModelAliases.getOrDefault(modelId, new HashSet<>())
                 )
@@ -794,7 +785,7 @@ public class ModelLoadingService implements ClusterStateListener {
 
     private void auditIfNecessary(String modelId, MessageSupplier msg) {
         if (shouldNotAudit.contains(modelId)) {
-            logger.trace(() -> new ParameterizedMessage("[{}] {}", modelId, msg.get().getFormattedMessage()));
+            logger.trace(() -> format(ROOT, "[%s] %s", modelId, msg.get().getFormattedMessage()));
             return;
         }
         auditor.info(modelId, msg.get().getFormattedMessage());

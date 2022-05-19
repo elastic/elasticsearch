@@ -77,7 +77,9 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.lang.String.format;
 import static java.util.Collections.unmodifiableMap;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
@@ -729,9 +731,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     closeChannel = false;
                 }
             } else if (e instanceof StreamCorruptedException) {
-                logger.warn(() -> new ParameterizedMessage("{}, [{}], closing connection", e.getMessage(), channel));
+                logger.warn(() -> format(ROOT, "%s, [%s], closing connection", e.getMessage(), channel));
             } else if (e instanceof TransportNotReadyException) {
-                logger.debug(() -> new ParameterizedMessage("{} on [{}], closing connection", e.getMessage(), channel));
+                logger.debug(() -> format(ROOT, "%s on [%s], closing connection", e.getMessage(), channel));
             } else {
                 logger.warn(() -> "exception caught on transport layer [" + channel + "], closing connection", e);
             }
@@ -756,7 +758,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         // Mark the channel init time
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
-        logger.trace(() -> new ParameterizedMessage("Tcp transport channel accepted: {}", channel));
+        logger.trace(() -> format(ROOT, "Tcp transport channel accepted: %s", channel));
     }
 
     /**

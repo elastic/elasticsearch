@@ -59,6 +59,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
+
 public class TransportCloseJobAction extends TransportTasksAction<
     JobTask,
     CloseJobAction.Request,
@@ -196,10 +199,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
                                                 jobTask.getId(),
                                                 ActionListener.wrap(
                                                     r -> logger.trace(
-                                                        () -> new ParameterizedMessage(
-                                                            "[{}] removed task to close unassigned job",
-                                                            resolvedJobId
-                                                        )
+                                                        () -> format(ROOT, "[%s] removed task to close unassigned job", resolvedJobId)
                                                     ),
                                                     e -> logger.error(
                                                         () -> new ParameterizedMessage(

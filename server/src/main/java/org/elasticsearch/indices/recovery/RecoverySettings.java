@@ -10,7 +10,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
 import org.elasticsearch.Version;
@@ -37,7 +36,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.common.settings.Setting.parseInt;
+import static org.elasticsearch.common.unit.ByteSizeValue.ofBytes;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public class RecoverySettings {
@@ -520,13 +522,14 @@ public class RecoverySettings {
             finalMaxBytesPerSec = ByteSizeValue.ofBytes(maxBytesPerSec);
         }
         logger.info(
-            () -> new ParameterizedMessage(
-                "using rate limit [{}] with [default={}, read={}, write={}, max={}]",
+            () -> format(
+                ROOT,
+                "using rate limit [%s] with [default=%s, read=%s, write=%s, max=%s]",
                 finalMaxBytesPerSec,
-                ByteSizeValue.ofBytes(defaultBytesPerSec),
-                ByteSizeValue.ofBytes(readBytesPerSec),
-                ByteSizeValue.ofBytes(writeBytesPerSec),
-                ByteSizeValue.ofBytes(maxAllowedBytesPerSec)
+                ofBytes(defaultBytesPerSec),
+                ofBytes(readBytesPerSec),
+                ofBytes(writeBytesPerSec),
+                ofBytes(maxAllowedBytesPerSec)
             )
         );
         setMaxBytesPerSec(finalMaxBytesPerSec);

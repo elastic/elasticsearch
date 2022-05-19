@@ -77,6 +77,8 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction.MAX_NUM_NATIVE_DEFINITION_PARTS;
 
@@ -509,8 +511,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return true;
             }
             logger.trace(
-                () -> new ParameterizedMessage(
-                    "[{}] tested with state [{}] and nodes {} still initializing",
+                () -> format(
+                    ROOT,
+                    "[%s] tested with state [%s] and nodes %s still initializing",
                     modelId,
                     trainedModelAssignment.getAssignmentState(),
                     nodesStillInitializing

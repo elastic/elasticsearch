@@ -47,7 +47,7 @@ of update and runs with those privileges. If you provide
 <<http-clients-secondary-authorization,secondary authorization headers>>, those
 credentials are used instead.
 * You must use {kib} or this API to update a {transform}. Directly updating any 
-{transform} internal system or hidden index is not supported and may cause 
+{transform} internal, system or hidden index is not supported and may cause 
 permanent failure.
 
 ====

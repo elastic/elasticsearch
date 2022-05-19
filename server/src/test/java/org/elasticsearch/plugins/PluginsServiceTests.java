@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -290,24 +291,16 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testPassingMandatoryPluginCheck() {
-        final Settings settings = Settings.builder()
-            .put("path.home", createTempDir())
-            .put("plugin.mandatory", "org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
-            .build();
         PluginsService.checkMandatoryPlugins(
-            List.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin"),
-            List.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
+            Set.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin"),
+            Set.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
         );
     }
 
     public void testFailingMandatoryPluginCheck() {
-        final Settings settings = Settings.builder()
-            .put("path.home", createTempDir())
-            .put("plugin.mandatory", "org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
-            .build();
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PluginsService.checkMandatoryPlugins(List.of(), List.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin"))
+            () -> PluginsService.checkMandatoryPlugins(Set.of(), Set.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin"))
         );
         assertEquals(
             "missing mandatory plugins [org.elasticsearch.plugins.PluginsServiceTests$FakePlugin], found plugins []",

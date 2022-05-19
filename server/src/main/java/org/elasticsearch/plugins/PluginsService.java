@@ -88,36 +88,29 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         this.settings = settings;
         this.configPath = configPath;
 
-        List<LoadedPlugin> pluginsLoaded = new ArrayList<>();
-        List<PluginInfo> pluginsList = new ArrayList<>();
-        // we need to build a List of plugins for checking mandatory plugins
-        final List<String> pluginsNames = new ArrayList<>();
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
         List<PluginInfo> modulesList = new ArrayList<>();
+
         // load modules
         if (modulesDirectory != null) {
             try {
                 Set<PluginBundle> modules = PluginsUtils.getModuleBundles(modulesDirectory);
-                for (PluginBundle bundle : modules) {
-                    modulesList.add(bundle.plugin);
-                }
+                modules.stream().map(b -> b.plugin).forEach(modulesList::add);
                 seenBundles.addAll(modules);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
             }
         }
 
-        // now, find all the ones that are in plugins/
+        // load plugins
+        List<PluginInfo> pluginsList = new ArrayList<>();
         if (pluginsDirectory != null) {
             try {
                 // TODO: remove this leniency, but tests bogusly rely on it
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
                     Set<PluginBundle> plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
-                    for (final PluginBundle bundle : plugins) {
-                        pluginsList.add(bundle.plugin);
-                        pluginsNames.add(bundle.plugin.getName());
-                    }
+                    plugins.stream().map(b -> b.plugin).forEach(pluginsList::add);
                     seenBundles.addAll(plugins);
                 }
             } catch (IOException ex) {
@@ -125,13 +118,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
         }
 
-        Collection<LoadedPlugin> loaded = loadBundles(seenBundles);
-        pluginsLoaded.addAll(loaded);
-
         this.info = new PluginsAndModules(pluginsList, modulesList);
-        this.plugins = Collections.unmodifiableList(pluginsLoaded);
+        this.plugins = loadBundles(seenBundles);
 
-        checkMandatoryPlugins(pluginsNames, MANDATORY_SETTING.get(settings));
+        checkMandatoryPlugins(
+            pluginsList.stream().map(PluginInfo::getName).collect(Collectors.toSet()),
+            new HashSet<>(MANDATORY_SETTING.get(settings))
+        );
 
         // we don't log jars in lib/ we really shouldn't log modules,
         // but for now: just be transparent so we can debug any potential issues
@@ -140,12 +133,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     // package-private for testing
-    static void checkMandatoryPlugins(List<String> existingPlugins, List<String> mandatoryPlugins) {
+    static void checkMandatoryPlugins(Set<String> existingPlugins, Set<String> mandatoryPlugins) {
         if (mandatoryPlugins.isEmpty()) {
             return;
         }
 
-        Set<String> missingPlugins = Sets.difference(new HashSet<>(mandatoryPlugins), new HashSet<>(existingPlugins));
+        Set<String> missingPlugins = Sets.difference(mandatoryPlugins, existingPlugins);
         if (missingPlugins.isEmpty() == false) {
             final String message = "missing mandatory plugins ["
                 + String.join(", ", missingPlugins)
@@ -215,7 +208,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return this.plugins;
     }
 
-    private Collection<LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
+    private List<LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
         Map<String, LoadedPlugin> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
@@ -228,7 +221,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
 
         loadExtensions(loaded.values());
-        return loaded.values();
+        return List.copyOf(loaded.values());
     }
 
     // package-private for test visibility

@@ -616,11 +616,7 @@ public final class TokenService {
             }
         } catch (Exception e) {
             // could happen with a token that is not ours
-            if (logger.isDebugEnabled()) {
-                logger.debug("built in token service unable to decode token", e);
-            } else {
-                logger.warn("built in token service unable to decode token");
-            }
+            logger.debug("built in token service unable to decode token", e);
             listener.onResponse(null);
         }
     }

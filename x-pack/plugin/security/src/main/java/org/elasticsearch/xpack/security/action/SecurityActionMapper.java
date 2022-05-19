@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.action;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.transport.TransportRequest;
 
 /**
@@ -21,6 +22,7 @@ public class SecurityActionMapper {
 
     static final String CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME = "cluster:admin/indices/scroll/clear_all";
     static final String CLUSTER_PERMISSION_ANALYZE = "cluster:admin/analyze";
+    static final String CLUSTER_PERMISSION_PAINLESS_EXECUTE = "cluster:admin/scripts/painless/execute";
 
     /**
      * Returns the security specific action name given the incoming action name and request
@@ -39,6 +41,13 @@ public class SecurityActionMapper {
                 String[] indices = ((AnalyzeAction.Request) request).indices();
                 if (indices == null || (indices.length == 1 && indices[0] == null)) {
                     return CLUSTER_PERMISSION_ANALYZE;
+                }
+            }
+            case CLUSTER_PERMISSION_PAINLESS_EXECUTE, CLUSTER_PERMISSION_PAINLESS_EXECUTE + "[s]" -> {
+                assert request instanceof SingleShardRequest;
+                String index = ((SingleShardRequest<?>) request).index();
+                if (index != null) {
+                    return action.replace("cluster:admin", "indices:data/read");
                 }
             }
         }

@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class MockPluginsServiceTest extends ESTestCase {
+public class MockPluginsServiceTests extends ESTestCase {
 
     public static class TestPlugin1 extends Plugin {
 

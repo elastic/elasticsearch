@@ -157,7 +157,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getScript().getParams(), equalTo(Collections.emptyMap()));
         assertNotNull(processor.getPrecompiledIngestScriptFactory());
         Map<String, Object> ctx = new HashMap<>();
-        processor.getPrecompiledIngestScriptFactory().newInstance(null, ctx, null).execute();
+        processor.getPrecompiledIngestScriptFactory().newInstance(null, new IngestScript.Metadata(ctx, null)).execute();
         assertThat(ctx.get("foo"), equalTo("bar"));
     }
 

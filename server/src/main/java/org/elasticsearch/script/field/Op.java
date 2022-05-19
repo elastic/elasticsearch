@@ -13,7 +13,7 @@ import java.util.Locale;
 /**
  * Write operation for documents
  */
-public enum Op {
+public enum Op { // TODO(stu) replace with OpType
     NOOP("noop"),
     INDEX("index"),
     DELETE("delete"),

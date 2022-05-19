@@ -37,14 +37,11 @@ public abstract class IngestScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    private final Map<String, Object> ctx;
-
     private final Metadata metadata;
 
-    public IngestScript(Map<String, Object> params, Map<String, Object> ctx, ZonedDateTime timestamp) {
+    public IngestScript(Map<String, Object> params, Metadata metadata) {
         this.params = params;
-        this.ctx = ctx;
-        this.metadata = (ctx != null) ? new Metadata(ctx, timestamp) : null;
+        this.metadata = metadata;
     }
 
     /** Return the parameters for this script. */
@@ -53,7 +50,10 @@ public abstract class IngestScript {
     }
 
     public Map<String, Object> getCtx() {
-        return ctx;
+        if (metadata == null) {
+            return null;
+        }
+        return metadata.store.getMap();
     }
 
     public Metadata meta() {
@@ -63,7 +63,7 @@ public abstract class IngestScript {
     public abstract void execute();
 
     public interface Factory {
-        IngestScript newInstance(Map<String, Object> params, Map<String, Object> ctx, ZonedDateTime timestamp);
+        IngestScript newInstance(Map<String, Object> params, Metadata metadata);
     }
 
     public static class Metadata {

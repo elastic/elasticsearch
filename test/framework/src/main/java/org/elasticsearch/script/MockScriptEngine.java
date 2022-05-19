@@ -148,7 +148,7 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(BytesRefSortScript.class)) {
             return context.factoryClazz.cast(new MockBytesRefSortScriptFactory(script));
         } else if (context.instanceClazz.equals(IngestScript.class)) {
-            IngestScript.Factory factory = (vars, ctx, md) -> new IngestScript(vars, ctx, md) {
+            IngestScript.Factory factory = (vars, md) -> new IngestScript(vars, md) {
                 @Override
                 public void execute() {
                     script.apply(vars);

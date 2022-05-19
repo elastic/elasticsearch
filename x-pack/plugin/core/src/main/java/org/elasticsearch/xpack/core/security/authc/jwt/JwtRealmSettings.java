@@ -49,7 +49,7 @@ public class JwtRealmSettings {
         NONE("none"),
         SHARED_SECRET("shared_secret");
 
-        private String value;
+        private final String value;
 
         ClientAuthenticationType(String value) {
             this.value = value;
@@ -75,7 +75,7 @@ public class JwtRealmSettings {
                     + "]"
             );
         }
-    };
+    }
 
     // Default values and min/max constraints
 

@@ -24,7 +24,7 @@ public class AllJwtRealms {
 
     /**
      * Parse all realm settings passed in from {@link InternalRealms#getFactories}
-     * @param settings
+     * @param settings All xpack settings
      */
     public AllJwtRealms(final Settings settings) {
         this(JwtRealmsSettings.PRINCIPAL_CLAIMS_SETTING.get(settings));

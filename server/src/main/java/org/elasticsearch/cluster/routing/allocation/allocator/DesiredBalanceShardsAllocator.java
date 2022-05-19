@@ -106,6 +106,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 } else if (allocating == false) {
                     logger.trace("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
                     executeListeners(lastConvergedIndex);
+                } else {
+                    logger.trace("Allocation in progress");
                 }
             }
 
@@ -134,6 +136,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         allocating = true;
 
         var index = indexGenerator.incrementAndGet();
+        logger.trace("Executing allocate for [{}]", index);
         synchronized (pendingListeners) {
             pendingListeners.add(new DesiredBalancesListener(index, listener));
         }
@@ -144,7 +147,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         // TODO possibly add a bounded wait for the computation to complete?
         // Otherwise we will have to do a second cluster state update straight away.
 
-        logger.trace("Executing allocate for [{}]", index);
         DesiredBalance currentDesiredBalance = getCurrentDesiredBalance();
         new DesiredBalanceReconciler(currentDesiredBalance, allocation).run();
 
@@ -155,15 +157,15 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         } else {
             logger.trace("Executing listeners up to [{}] as routing nodes have not changed", lastConvergedIndex);
             executeListeners(lastConvergedIndex);
+            allocating = false;
         }
-
-        allocating = false;
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         logger.trace("Executing listeners up to [{}] after cluster state was committed", lastConvergedIndex);
         executeListeners(lastConvergedIndex);
+        allocating = false;
     }
 
     private void executeListeners(long convergedIndex) {

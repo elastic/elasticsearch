@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -79,7 +80,7 @@ public class ServerProcessTests extends ESTestCase {
     }
 
     void runForeground() throws Exception {
-        var server = startProcess(false, false, null, "");
+        var server = startProcess(false, false, "");
         server.waitFor();
     }
 
@@ -190,10 +191,10 @@ public class ServerProcessTests extends ESTestCase {
         }
     }
 
-    ServerProcess startProcess(boolean daemonize, boolean quiet, Path pidFile, String keystorePassword) throws Exception {
+    ServerProcess startProcess(boolean daemonize, boolean quiet, String keystorePassword) throws Exception {
         var pinfo = new ProcessInfo(Map.copyOf(sysprops), Map.copyOf(envVars), esHomeDir);
         SecureString password = new SecureString(keystorePassword.toCharArray());
-        var args = new ServerArgs(daemonize, quiet, pidFile, password, nodeSettings.build(), esHomeDir.resolve("config"));
+        var args = new ServerArgs(daemonize, quiet, password, nodeSettings.build(), esHomeDir.resolve("config"));
         ServerProcess.ProcessStarter starter = pb -> {
             if (processValidator != null) {
                 processValidator.validate(pb);
@@ -218,6 +219,12 @@ public class ServerProcessTests extends ESTestCase {
         };
         runForeground();
         assertThat(terminal.getErrorOutput(), containsString("stderr message"));
+    }
+
+    public void testPid() throws Exception {
+        var server = startProcess(true, false, "");
+        assertThat(server.pid(), equalTo(12345L));
+        server.stop();
     }
 
     public void testBootstrapError() throws Exception {
@@ -367,7 +374,7 @@ public class ServerProcessTests extends ESTestCase {
             // will block until stdin closed manually after test
             assertThat(stdin.read(), equalTo(-1));
         };
-        var server = startProcess(true, false, null, "");
+        var server = startProcess(true, false, "");
         server.detach();
         assertThat(terminal.getErrorOutput(), containsString("final message"));
         server.stop(); // this should be a noop, and will fail the stdin read assert above if shutdown sent
@@ -381,7 +388,7 @@ public class ServerProcessTests extends ESTestCase {
             nonInterruptibleVoid(mainReady::await);
             stderr.println("final message");
         };
-        var server = startProcess(false, false, null, "");
+        var server = startProcess(false, false, "");
         mainReady.countDown();
         server.stop();
         assertThat(process.main.isDone(), is(true)); // stop should have waited
@@ -396,7 +403,7 @@ public class ServerProcessTests extends ESTestCase {
             assertThat(stdin.read(), equalTo((int) BootstrapInfo.SERVER_SHUTDOWN_MARKER));
             stderr.println("final message");
         };
-        var server = startProcess(false, false, null, "");
+        var server = startProcess(false, false, "");
         new Thread(() -> {
             // simulate stop run as shutdown hook in another thread, eg from Ctrl-C
             nonInterruptibleVoid(mainReady::await);
@@ -417,7 +424,7 @@ public class ServerProcessTests extends ESTestCase {
             nonInterruptibleVoid(mainExit::await);
             exitCode.set(-9);
         };
-        var server = startProcess(false, false, null, "");
+        var server = startProcess(false, false, "");
         nonInterruptibleVoid(mainReady::await);
         process.processStderr.close(); // mimic pipe break if cli process dies
         mainExit.countDown();

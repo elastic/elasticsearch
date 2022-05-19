@@ -93,15 +93,23 @@ public class ServerCliTests extends CommandTestCase {
         assertUsage(containsString(prefix + "[foo]"), "-E", "foo=bar", "foo", "-E", "baz=qux");
     }
 
-    public void testPidFile() throws Exception {
+    public void assertPidFile(String option) throws Exception {
         Path tmpDir = createTempDir();
         Path pidFileArg = tmpDir.resolve("pid");
+        terminal.reset();
+        assertOk(option, pidFileArg.toString());
+        assertThat("pid file not written: " + pidFileArg, Files.exists(pidFileArg), is(true));
+    }
+
+    public void testPidFile() throws Exception {
+        assertPidFile("-p");
+        assertPidFile("--pidfile");
+
         assertUsage(containsString("Option p/pidfile requires an argument"), "-p");
-        argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(pidFileArg.toString()));
-        terminal.reset();
-        assertOk("-p", pidFileArg.toString());
-        terminal.reset();
-        assertOk("--pidfile", pidFileArg.toString());
+        Path pidParentFile = createTempFile();
+        assertUsage(containsString("exists but is not a directory"), "-p", pidParentFile.resolve("pid").toString());
+        assertUsage(containsString("exists but is not a regular file"), "-p", createTempDir().toString());
+
     }
 
     public void assertDaemonized(boolean daemonized, String... args) throws Exception {
@@ -298,6 +306,11 @@ public class ServerCliTests extends CommandTestCase {
 
         MockServerProcess() {
             super(null, null);
+        }
+
+        @Override
+        public long pid() {
+            return 12345;
         }
 
         @Override

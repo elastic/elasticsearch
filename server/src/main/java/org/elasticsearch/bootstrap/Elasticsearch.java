@@ -63,7 +63,6 @@ class Elasticsearch {
             final ServerArgs serverArgs = new ServerArgs(in);
             elasticsearch.init(
                 serverArgs.daemonize(),
-                serverArgs.pidFile(),
                 serverArgs.quiet(),
                 new Environment(serverArgs.nodeSettings(), serverArgs.configDir()),
                 serverArgs.keystorePassword()
@@ -186,10 +185,10 @@ class Elasticsearch {
         }
     }
 
-    void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv, SecureString keystorePassword)
+    void init(final boolean daemonize, final boolean quiet, Environment initialEnv, SecureString keystorePassword)
         throws NodeValidationException, UserException {
         try {
-            Bootstrap.init(daemonize == false, pidFile, quiet, initialEnv, keystorePassword);
+            Bootstrap.init(daemonize == false, quiet, initialEnv, keystorePassword);
         } catch (BootstrapException | RuntimeException e) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.

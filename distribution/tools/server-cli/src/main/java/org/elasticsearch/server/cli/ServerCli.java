@@ -30,6 +30,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
@@ -77,6 +78,12 @@ class ServerCli extends EnvironmentAwareCommand {
             return;
         }
 
+        Path pidFile = null;
+        if (options.has(pidfileOption)) {
+             pidFile = options.valueOf(pidfileOption);
+             validatePidFile(pidFile);
+        }
+
         if (options.valuesOf(enrollmentTokenOption).size() > 1) {
             throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
         }
@@ -87,6 +94,7 @@ class ServerCli extends EnvironmentAwareCommand {
 
         ServerArgs args = createArgs(options, env, keystorePassword);
         this.server = startServer(terminal, processInfo, args, env.pluginsFile());
+        maybeCreatePidFile(pidFile);
 
         if (options.has(daemonizeOption)) {
             server.detach();
@@ -163,14 +171,32 @@ class ServerCli extends EnvironmentAwareCommand {
             env = createEnv(options, processInfo);
         }
         return env;
+    }
 
+    private void validatePidFile(Path pidFile) throws UserException {
+        Path parent = pidFile.getParent();
+        if (parent != null && Files.exists(parent) && Files.isDirectory(parent) == false) {
+            throw new UserException(ExitCodes.USAGE, "pid file parent [" + parent + "] exists but is not a directory");
+        }
+        if (Files.exists(pidFile) && Files.isRegularFile(pidFile) == false) {
+            throw new UserException(ExitCodes.USAGE, pidFile + " exists but is not a regular file");
+        }
+    }
+
+    private void maybeCreatePidFile(Path pidFile) throws IOException {
+        if (pidFile == null) {
+            return;
+        }
+        if (Files.exists(pidFile.getParent()) == false) {
+            Files.createDirectories(pidFile.getParent());
+        }
+        Files.writeString(pidFile, Long.toString(server.pid()));
     }
 
     private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword) {
         boolean daemonize = options.has(daemonizeOption);
         boolean quiet = options.has(quietOption);
-        Path pidFile = options.valueOf(pidfileOption);
-        return new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());
+        return new ServerArgs(daemonize, quiet, keystorePassword, env.settings(), env.configFile());
     }
 
     @Override

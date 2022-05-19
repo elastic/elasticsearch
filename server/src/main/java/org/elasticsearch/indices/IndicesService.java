@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader.CacheHelper;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -164,9 +163,11 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
@@ -481,7 +482,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     }
                 } catch (IllegalIndexShardStateException | AlreadyClosedException e) {
                     // we can safely ignore illegal state on ones that are closing for example
-                    logger.trace(() -> new ParameterizedMessage("{} ignoring shard stats", indexShard.shardId()), e);
+                    logger.trace(() -> format(ROOT, "%s ignoring shard stats", indexShard.shardId()), e);
                 }
             }
         }
@@ -878,7 +879,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 deleteIndexStore(extraInfo, indexService.index(), indexSettings);
             }
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("failed to remove index {} ([{}][{}])", index, reason, extraInfo), e);
+            logger.warn(() -> format(ROOT, "failed to remove index %s ([%s][%s])", index, reason, extraInfo), e);
         }
     }
 
@@ -951,11 +952,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 deleteIndexStore(reason, oldIndexMetadata);
             } catch (Exception e) {
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "[{}] failed to delete unassigned index (reason [{}])",
-                        oldIndexMetadata.getIndex(),
-                        reason
-                    ),
+                    () -> format(ROOT, "[%s] failed to delete unassigned index (reason [%s])", oldIndexMetadata.getIndex(), reason),
                     e
                 );
             }
@@ -1017,12 +1014,9 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             success = true;
         } catch (ShardLockObtainFailedException ex) {
-            logger.debug(
-                () -> new ParameterizedMessage("{} failed to delete index store - at least one shards is still locked", index),
-                ex
-            );
+            logger.debug(() -> format(ROOT, "%s failed to delete index store - at least one shards is still locked", index), ex);
         } catch (Exception ex) {
-            logger.warn(() -> new ParameterizedMessage("{} failed to delete index", index), ex);
+            logger.warn(() -> format(ROOT, "%s failed to delete index", index), ex);
         } finally {
             if (success == false) {
                 addPendingDelete(index, indexSettings);
@@ -1133,8 +1127,9 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             } catch (Exception e) {
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "[{}] failed to load state file from a stale deleted index, " + "folders will be left on disk",
+                    () -> format(
+                        ROOT,
+                        "[%s] failed to load state file from a stale deleted index, " + "folders will be left on disk",
                         index
                     ),
                     e
@@ -1323,7 +1318,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                 );
                                 iterator.remove();
                             } catch (IOException ex) {
-                                logger.debug(() -> new ParameterizedMessage("{} retry pending delete", index), ex);
+                                logger.debug(() -> format(ROOT, "%s retry pending delete", index), ex);
                             }
                         } else {
                             assert delete.shardId != -1;
@@ -1334,7 +1329,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                     deleteShardStore("pending delete", shardLock, delete.settings);
                                     iterator.remove();
                                 } catch (IOException ex) {
-                                    logger.debug(() -> new ParameterizedMessage("{} retry pending delete", shardLock.getShardId()), ex);
+                                    logger.debug(() -> format(ROOT, "%s retry pending delete", shardLock.getShardId()), ex);
                                 }
                             } else {
                                 logger.warn("{} no shard lock for pending delete", delete.shardId);
@@ -1739,7 +1734,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 danglingIndicesThreadPoolExecutor.execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index), e);
+                        logger.warn(() -> format(ROOT, "failed to write dangling indices state for index %s", index), e);
                     }
 
                     @Override

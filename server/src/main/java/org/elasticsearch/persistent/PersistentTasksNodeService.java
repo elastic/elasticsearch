@@ -32,6 +32,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -296,8 +298,9 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 public void onFailure(Exception e) {
                     // There is really nothing we can do in case of failure here
                     logger.warn(
-                        () -> new ParameterizedMessage(
-                            "failed to cancel task [{}] with id [{}] and allocation id [{}]",
+                        () -> format(
+                            ROOT,
+                            "failed to cancel task [%s] with id [%s] and allocation id [%s]",
                             task.getAction(),
                             task.getPersistentTaskId(),
                             task.getAllocationId()

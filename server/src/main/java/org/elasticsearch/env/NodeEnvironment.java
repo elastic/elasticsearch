@@ -10,7 +10,6 @@ package org.elasticsearch.env;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
@@ -82,6 +81,9 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 /**
  * A component that holds all data paths for a single node.
@@ -222,7 +224,7 @@ public final class NodeEnvironment implements Closeable {
                         locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
                         nodePaths[dirIndex] = new NodePath(dir);
                     } catch (IOException e) {
-                        logger.trace(() -> new ParameterizedMessage("failed to obtain node lock on {}", dir.toAbsolutePath()), e);
+                        logger.trace(() -> format(ROOT, "failed to obtain node lock on %s", dir.toAbsolutePath()), e);
                         // release all the ones that were obtained up until now
                         throw (e instanceof LockObtainFailedException
                             ? e

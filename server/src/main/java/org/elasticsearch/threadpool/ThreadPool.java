@@ -48,6 +48,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static java.util.Map.entry;
 
 public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
@@ -479,14 +481,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
         return new ReschedulingRunnable(command, interval, executor, this, (e) -> {
             if (logger.isDebugEnabled()) {
-                logger.debug(() -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]", command, executor), e);
+                logger.debug(() -> format(ROOT, "scheduled task [%s] was rejected on thread pool [%s]", command, executor), e);
             }
-        },
-            (e) -> logger.warn(
-                () -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]", command, executor),
-                e
-            )
-        );
+        }, (e) -> logger.warn(() -> format(ROOT, "failed to run scheduled task [%s] on thread pool [%s]", command, executor), e));
     }
 
     protected final void stopCachedTimeThread() {

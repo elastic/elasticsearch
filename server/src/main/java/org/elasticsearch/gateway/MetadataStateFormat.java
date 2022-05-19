@@ -9,7 +9,6 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -46,6 +45,9 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 /**
  * MetadataStateFormat is a base class to write checksummed
@@ -432,7 +434,7 @@ public abstract class MetadataStateFormat<T> {
                 return state;
             } catch (Exception e) {
                 exceptions.add(new IOException("failed to read " + stateFile, e));
-                logger.debug(() -> new ParameterizedMessage("{}: failed to read [{}], ignoring...", stateFile, prefix), e);
+                logger.debug(() -> format(ROOT, "%s: failed to read [%s], ignoring...", stateFile, prefix), e);
             }
         }
         // if we reach this something went wrong

@@ -65,6 +65,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -106,7 +108,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     state = randomlyUpdateClusterState(state, clusterStateServiceMap, MockIndicesService::new);
                 } catch (AssertionError error) {
                     ClusterState finalState = state;
-                    logger.error(() -> new ParameterizedMessage("failed to random change state. last good state: \n{}", finalState), error);
+                    logger.error(() -> format(ROOT, "failed to random change state. last good state: \n%s", finalState), error);
                     throw error;
                 }
             }

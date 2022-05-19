@@ -39,6 +39,9 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
+
 public abstract class TransportBroadcastAction<
     Request extends BroadcastRequest<Request>,
     Response extends BroadcastResponse,
@@ -297,11 +300,7 @@ public abstract class TransportBroadcastAction<
                     channel.sendResponse(e);
                 } catch (Exception e1) {
                     logger.warn(
-                        () -> new ParameterizedMessage(
-                            "Failed to send error response for action [{}] and request [{}]",
-                            actionName,
-                            request
-                        ),
+                        () -> format(ROOT, "Failed to send error response for action [%s] and request [%s]", actionName, request),
                         e1
                     );
                 }

@@ -9,7 +9,6 @@
 package org.elasticsearch.action.support;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.Randomness;
@@ -20,6 +19,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 /**
  * A action that will be retried on failure if {@link RetryableAction#shouldRetry(Exception)} returns true.
@@ -149,10 +152,7 @@ public abstract class RetryableAction<Response> {
             if (shouldRetry(e)) {
                 final long elapsedMillis = threadPool.relativeTimeInMillis() - startMillis;
                 if (elapsedMillis >= timeoutMillis) {
-                    logger.debug(
-                        () -> new ParameterizedMessage("retryable action timed out after {}", TimeValue.timeValueMillis(elapsedMillis)),
-                        e
-                    );
+                    logger.debug(() -> format(ROOT, "retryable action timed out after %s", timeValueMillis(elapsedMillis)), e);
                     onFinalFailure(e);
                 } else {
                     addException(e);
@@ -165,7 +165,7 @@ public abstract class RetryableAction<Response> {
                     assert delayMillis > 0;
                     if (isDone.get() == false) {
                         final TimeValue delay = TimeValue.timeValueMillis(delayMillis);
-                        logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}", delay), e);
+                        logger.debug(() -> format(ROOT, "retrying action that failed in %s", delay), e);
                         try {
                             retryTask = threadPool.schedule(runnable, delay, executor);
                         } catch (EsRejectedExecutionException ree) {

@@ -372,10 +372,7 @@ public class PublicationTransportHandler {
                         v -> serializeFullClusterState(newState, destination)
                     );
                 } catch (Exception e) {
-                    logger.warn(
-                        () -> new ParameterizedMessage("failed to serialize cluster state before publishing it to node {}", destination),
-                        e
-                    );
+                    logger.warn(() -> format(ROOT, "failed to serialize cluster state before publishing it to node %s", destination), e);
                     listener.onFailure(e);
                     return;
                 }
@@ -440,7 +437,7 @@ public class PublicationTransportHandler {
                 );
             } catch (Exception e) {
                 assert false : e;
-                logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", destination), e);
+                logger.warn(() -> format(ROOT, "error sending cluster state to %s", destination), e);
                 listener.onFailure(e);
             }
         }

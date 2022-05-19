@@ -45,6 +45,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.function.Predicate;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
+
 /**
  * A base class for operations that needs to be performed on the master node.
  */
@@ -197,9 +200,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                         ActionListener<Response> delegate = listener.delegateResponse((delegatedListener, t) -> {
                             if (MasterService.isPublishFailureException(t)) {
                                 logger.debug(
-                                    () -> new ParameterizedMessage(
+                                    () -> format(
+                                        ROOT,
                                         "master could not publish cluster state or "
-                                            + "stepped down before publishing action [{}], scheduling a retry",
+                                            + "stepped down before publishing action [%s], scheduling a retry",
                                         actionName
                                     ),
                                     t
@@ -296,7 +300,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     logger.debug(
-                        () -> new ParameterizedMessage("timed out while retrying [{}] after failure (timeout [{}])", actionName, timeout),
+                        () -> format(ROOT, "timed out while retrying [%s] after failure (timeout [%s])", actionName, timeout),
                         failure
                     );
                     listener.onFailure(new MasterNotDiscoveredException(failure));

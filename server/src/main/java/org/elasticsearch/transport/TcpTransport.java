@@ -714,10 +714,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 logger.debug(() -> "bind exception caught on transport layer [" + channel + "]", e);
             } else if (e instanceof CancelledKeyException) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "cancelled key exception caught on transport layer [{}], disconnecting from relevant node",
-                        channel
-                    ),
+                    () -> format(ROOT, "cancelled key exception caught on transport layer [%s], disconnecting from relevant node", channel),
                     e
                 );
             } else if (e instanceof HttpRequestOnTransportException) {

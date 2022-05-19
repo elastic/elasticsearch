@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.support.single.shard;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
@@ -41,6 +40,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 
 /**
@@ -197,7 +198,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
         private void onFailure(ShardRouting shardRouting, Exception e) {
             if (e != null) {
-                logger.trace(() -> new ParameterizedMessage("{}: failed to execute [{}]", shardRouting, internalRequest.request()), e);
+                logger.trace(() -> format(ROOT, "%s: failed to execute [%s]", shardRouting, internalRequest.request()), e);
             }
             perform(e);
         }
@@ -218,7 +219,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                         failure
                     );
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("{}: failed to execute [{}]", null, internalRequest.request()), failure);
+                    logger.debug(() -> format(ROOT, "%s: failed to execute [%s]", null, internalRequest.request()), failure);
                 }
                 listener.onFailure(failure);
                 return;

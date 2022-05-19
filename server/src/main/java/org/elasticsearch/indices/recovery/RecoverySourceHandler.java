@@ -89,6 +89,8 @@ import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 
 /**
@@ -1475,8 +1477,9 @@ public class RecoverySourceHandler {
                 );
                 remoteException.addSuppressed(e);
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "{} Remote file corruption on node {}, recovering {}. local checksum OK",
+                    () -> format(
+                        ROOT,
+                        "%s Remote file corruption on node %s, recovering %s. local checksum OK",
                         shardId,
                         request.targetNode(),
                         mds

@@ -515,17 +515,13 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 });
             }, e1 -> {
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "[{}] [{}] Failed to gather information required to upgrade snapshot job",
-                        jobId,
-                        snapshotId
-                    ),
+                    () -> format(ROOT, "[%s] [%s] Failed to gather information required to upgrade snapshot job", jobId, snapshotId),
                     e1
                 );
                 task.updatePersistentTaskState(
                     failureBuilder.apply(e1.getMessage()),
                     ActionListener.wrap(t -> closeHandler.accept(e1), e2 -> {
-                        logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to set task to failed", jobId, snapshotId), e2);
+                        logger.warn(() -> format(ROOT, "[%s] [%s] failed to set task to failed", jobId, snapshotId), e2);
                         closeHandler.accept(e1);
                     })
                 );
@@ -1027,7 +1023,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
             logger.debug("Could not set job state to [{}] for job [{}] as it has been closed", state, jobId);
         } else {
-            logger.error(() -> new ParameterizedMessage("Could not set job state to [{}] for job [{}]", state, jobId), e);
+            logger.error(() -> format(ROOT, "Could not set job state to [%s] for job [%s]", state, jobId), e);
         }
     }
 

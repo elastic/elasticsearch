@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ql.async;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -40,6 +39,9 @@ import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 /**
  * Service for managing EQL requests
@@ -277,10 +279,7 @@ public class AsyncTaskManagementService<
                         if (cause instanceof DocumentMissingException == false
                             && cause instanceof VersionConflictEngineException == false) {
                             logger.error(
-                                () -> new ParameterizedMessage(
-                                    "failed to store eql search results for [{}]",
-                                    searchTask.getExecutionId().getEncoded()
-                                ),
+                                () -> format(ROOT, "failed to store eql search results for [%s]", searchTask.getExecutionId().getEncoded()),
                                 exc
                             );
                         }

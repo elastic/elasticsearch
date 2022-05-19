@@ -96,8 +96,10 @@ import java.util.function.LongSupplier;
 import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
+import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static java.util.Locale.ROOT;
 
 public class IndexService extends AbstractIndexComponent implements IndicesClusterStateService.AllocatedIndex<IndexShard> {
 
@@ -356,7 +358,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             IndexMetadata.FORMAT.writeAndCleanup(getMetadata(), nodeEnv.indexPaths(index()));
         } catch (WriteStateException e) {
-            logger.warn(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index()), e);
+            logger.warn(() -> format(ROOT, "failed to write dangling indices state for index %s", index()), e);
         }
     }
 
@@ -368,7 +370,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             MetadataStateFormat.deleteMetaState(nodeEnv.indexPaths(index()));
         } catch (IOException e) {
-            logger.warn(() -> new ParameterizedMessage("failed to delete dangling indices state for index {}", index()), e);
+            logger.warn(() -> format(ROOT, "failed to delete dangling indices state for index %s", index()), e);
         }
     }
 
@@ -569,10 +571,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     logger.trace("[{}] store not initialized prior to closing shard, nothing to close", shardId);
                 }
             } catch (Exception e) {
-                logger.warn(
-                    () -> new ParameterizedMessage("[{}] failed to close store on shard removal (reason: [{}])", shardId, reason),
-                    e
-                );
+                logger.warn(() -> format(ROOT, "[%s] failed to close store on shard removal (reason: [%s])", shardId, reason), e);
             }
         }
     }

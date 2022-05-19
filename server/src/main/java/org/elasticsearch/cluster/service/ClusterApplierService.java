@@ -51,6 +51,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 public class ClusterApplierService extends AbstractLifecycleComponent implements ClusterApplier {
@@ -399,8 +401,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             TimeValue executionTime = getTimeSince(startTimeMillis);
             logger.trace(
-                () -> new ParameterizedMessage(
-                    "failed to execute cluster state applier in [{}], state:\nversion [{}], source [{}]\n{}",
+                () -> format(
+                    ROOT,
+                    "failed to execute cluster state applier in [%s], state:\nversion [%s], source [%s]\n%s",
                     executionTime,
                     previousClusterState.version(),
                     source,

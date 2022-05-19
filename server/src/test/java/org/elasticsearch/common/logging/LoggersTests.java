@@ -11,14 +11,13 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
-import java.util.Arrays;
 
 import static java.lang.String.format;
+import static java.util.Arrays.asList;
 import static java.util.Locale.ROOT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -34,13 +33,13 @@ public class LoggersTests extends ESTestCase {
         Loggers.setLevel(testLogger, Level.TRACE);
 
         Throwable ex = randomException();
-        testLogger.error(() -> new ParameterizedMessage("an error message"), ex);
+        testLogger.error(() -> format(ROOT, "an error message"), ex);
         assertThat(appender.lastEvent.getLevel(), equalTo(Level.ERROR));
         assertThat(appender.lastEvent.getThrown(), equalTo(ex));
         assertThat(appender.lastMessage().getFormattedMessage(), equalTo("an error message"));
 
         ex = randomException();
-        testLogger.warn(() -> new ParameterizedMessage("a warn message: [{}]", "long gc"), ex);
+        testLogger.warn(() -> format(ROOT, "a warn message: [%s]", "long gc"), ex);
         assertThat(appender.lastEvent.getLevel(), equalTo(Level.WARN));
         assertThat(appender.lastEvent.getThrown(), equalTo(ex));
         assertThat(appender.lastMessage().getFormattedMessage(), equalTo("a warn message: [long gc]"));
@@ -51,13 +50,13 @@ public class LoggersTests extends ESTestCase {
         assertThat(appender.lastMessage().getFormattedMessage(), equalTo("an info message a=[1], b=[2], c=[3]"));
 
         ex = randomException();
-        testLogger.debug(() -> new ParameterizedMessage("a debug message options = {}", Arrays.asList("yes", "no")), ex);
+        testLogger.debug(() -> format(ROOT, "a debug message options = %s", asList("yes", "no")), ex);
         assertThat(appender.lastEvent.getLevel(), equalTo(Level.DEBUG));
         assertThat(appender.lastEvent.getThrown(), equalTo(ex));
         assertThat(appender.lastMessage().getFormattedMessage(), equalTo("a debug message options = [yes, no]"));
 
         ex = randomException();
-        testLogger.trace(() -> new ParameterizedMessage("a trace message; element = [{}]", new Object[] { null }), ex);
+        testLogger.trace(() -> format(ROOT, "a trace message; element = [%s]", new Object[] { null }), ex);
         assertThat(appender.lastEvent.getLevel(), equalTo(Level.TRACE));
         assertThat(appender.lastEvent.getThrown(), equalTo(ex));
         assertThat(appender.lastMessage().getFormattedMessage(), equalTo("a trace message; element = [null]"));

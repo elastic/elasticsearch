@@ -35,6 +35,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
+
 class AuthenticatorChain {
 
     private static final Logger logger = LogManager.getLogger(AuthenticatorChain.class);
@@ -245,10 +248,7 @@ class AuthenticatorChain {
             authentication = authenticationSerializer.readFromContext(context.getThreadContext());
         } catch (Exception e) {
             logger.error(
-                () -> new ParameterizedMessage(
-                    "caught exception while trying to read authentication from request [{}]",
-                    context.getRequest()
-                ),
+                () -> format(ROOT, "caught exception while trying to read authentication from request [%s]", context.getRequest()),
                 e
             );
             throw context.getRequest().tamperedRequest();

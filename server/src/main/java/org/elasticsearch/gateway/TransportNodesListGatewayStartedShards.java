@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gateway;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
@@ -43,6 +42,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 /**
  * This transport action is used to fetch the shard version from each node during primary allocation in {@link GatewayAllocator}.
@@ -148,8 +150,9 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                     } catch (Exception exception) {
                         final ShardPath finalShardPath = shardPath;
                         logger.trace(
-                            () -> new ParameterizedMessage(
-                                "{} can't open index for shard [{}] in path [{}]",
+                            () -> format(
+                                ROOT,
+                                "%s can't open index for shard [%s] in path [%s]",
                                 shardId,
                                 shardStateMetadata,
                                 (finalShardPath != null) ? finalShardPath.resolveIndex() : ""

@@ -460,7 +460,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         );
         maybeAddAlready.ifPresent(addAlready -> {
             logger.trace(
-                () -> new ParameterizedMessage("{} retention lease [{}] already exists, requesting a renewal", shardId, retentionLeaseId),
+                () -> format(ROOT, "%s retention lease [%s] already exists, requesting a renewal", shardId, retentionLeaseId),
                 addAlready
             );
             final Optional<RetentionLeaseNotFoundException> maybeRenewNotFound = syncRenewRetentionLease(
@@ -472,8 +472,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             );
             maybeRenewNotFound.ifPresent(renewNotFound -> {
                 logger.trace(
-                    () -> new ParameterizedMessage(
-                        "{} retention lease [{}] not found while attempting to renew, requesting a final add",
+                    () -> format(
+                        ROOT,
+                        "%s retention lease [%s] not found while attempting to renew, requesting a final add",
                         shardId,
                         retentionLeaseId
                     ),

@@ -10,10 +10,12 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 /**
  * {@link AbstractRunnable} implementation for completing a forking response handler, overriding any threadpool queue length limit and
@@ -63,8 +65,9 @@ abstract class ForkingResponseHandlerRunnable extends AbstractRunnable {
         } catch (Exception e2) {
             exceptionToDeliver.addSuppressed(e2);
             logger.error(
-                () -> new ParameterizedMessage(
-                    "{} [{}]",
+                () -> format(
+                    ROOT,
+                    "%s [%s]",
                     transportException == null ? "failed to handle rejection of response" : "failed to handle rejection of error response",
                     handler
                 ),
@@ -77,8 +80,9 @@ abstract class ForkingResponseHandlerRunnable extends AbstractRunnable {
     public void onFailure(Exception e) {
         assert false : e; // delivering the response shouldn't throw anything
         logger.error(
-            () -> new ParameterizedMessage(
-                "{} [{}]",
+            () -> format(
+                ROOT,
+                "%s [%s]",
                 transportException == null ? "failed to handle rejection of response" : "failed to handle rejection of error response",
                 handler
             ),

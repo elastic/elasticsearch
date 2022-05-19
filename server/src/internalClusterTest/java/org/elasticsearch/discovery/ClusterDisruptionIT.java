@@ -8,7 +8,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -61,6 +60,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
@@ -177,7 +178,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                             } catch (ElasticsearchException e) {
                                 exceptedExceptions.add(e);
                                 final String docId = id;
-                                logger.trace(() -> new ParameterizedMessage("[{}] failed id [{}] through node [{}]", name, docId, node), e);
+                                logger.trace(() -> format(ROOT, "[%s] failed id [%s] through node [%s]", name, docId, node), e);
                             } finally {
                                 countDownLatchRef.get().countDown();
                                 logger.trace("[{}] decreased counter : {}", name, countDownLatchRef.get().getCount());

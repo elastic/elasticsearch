@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
@@ -81,6 +80,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
@@ -675,11 +676,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     channel.sendResponse(e);
                 } catch (Exception e1) {
                     logger.warn(
-                        () -> new ParameterizedMessage(
-                            "Failed to send error response for action [{}] and request [{}]",
-                            actionName,
-                            request
-                        ),
+                        () -> format(ROOT, "Failed to send error response for action [%s] and request [%s]", actionName, request),
                         e1
                     );
                 }

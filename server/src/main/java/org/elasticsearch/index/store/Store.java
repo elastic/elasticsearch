@@ -9,7 +9,6 @@
 package org.elasticsearch.index.store;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.CorruptIndexException;
@@ -95,8 +94,10 @@ import java.util.function.Predicate;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 
@@ -454,7 +455,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         } catch (FileNotFoundException | NoSuchFileException ex) {
             logger.info("Failed to open / find files while reading metadata snapshot", ex);
         } catch (ShardLockObtainFailedException ex) {
-            logger.info(() -> new ParameterizedMessage("{}: failed to obtain shard lock", shardId), ex);
+            logger.info(() -> format(ROOT, "%s: failed to obtain shard lock", shardId), ex);
         }
         return MetadataSnapshot.EMPTY;
     }
@@ -823,8 +824,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // in that case we might get only IAE or similar exceptions while we are really corrupt...
                     // TODO we should check the checksum in lucene if we hit an exception
                     logger.warn(
-                        () -> new ParameterizedMessage(
-                            "failed to build store metadata. checking segment info integrity " + "(with commit [{}])",
+                        () -> format(
+                            ROOT,
+                            "failed to build store metadata. checking segment info integrity " + "(with commit [%s])",
                             commit == null ? "no" : "yes"
                         ),
                         ex

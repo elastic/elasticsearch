@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -20,6 +19,9 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 abstract class AbstractPyTorchAction<T> extends AbstractRunnable {
 
@@ -81,10 +83,7 @@ abstract class AbstractPyTorchAction<T> extends AbstractRunnable {
             listener.onFailure(e);
             return;
         }
-        getLogger().debug(
-            () -> new ParameterizedMessage("[{}] request [{}] received failure but listener already notified", modelId, requestId),
-            e
-        );
+        getLogger().debug(() -> format(ROOT, "[%s] request [%s] received failure but listener already notified", modelId, requestId), e);
     }
 
     protected void onFailure(String errorMessage) {

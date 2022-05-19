@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
@@ -26,6 +25,9 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 public class TransportShardMultiTermsVectorAction extends TransportSingleShardAction<
     MultiTermVectorsShardRequest,
@@ -94,11 +96,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
                     throw e;
                 } else {
                     logger.debug(
-                        () -> new ParameterizedMessage(
-                            "{} failed to execute multi term vectors for [{}]",
-                            shardId,
-                            termVectorsRequest.id()
-                        ),
+                        () -> format(ROOT, "%s failed to execute multi term vectors for [%s]", shardId, termVectorsRequest.id()),
                         e
                     );
                     response.add(

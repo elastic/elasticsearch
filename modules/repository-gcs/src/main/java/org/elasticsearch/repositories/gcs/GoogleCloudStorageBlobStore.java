@@ -21,7 +21,6 @@ import com.google.cloud.storage.StorageException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -58,9 +57,11 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.lang.String.format;
 import static java.net.HttpURLConnection.HTTP_GONE;
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
+import static java.util.Locale.ROOT;
 
 class GoogleCloudStorageBlobStore implements BlobStore {
 
@@ -374,7 +375,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
                 if (errorCode == HTTP_GONE) {
-                    logger.warn(() -> new ParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo), se);
+                    logger.warn(() -> format(ROOT, "Retrying broken resumable upload session for blob %s", blobInfo), se);
                     storageException = ExceptionsHelper.useOrSuppress(storageException, se);
                     continue;
                 } else if (failIfAlreadyExists && errorCode == HTTP_PRECON_FAILED) {
@@ -432,7 +433,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
                 if (errorCode == HTTP_GONE) {
-                    logger.warn(() -> new ParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo), se);
+                    logger.warn(() -> format(ROOT, "Retrying broken resumable upload session for blob %s", blobInfo), se);
                     storageException = ExceptionsHelper.useOrSuppress(storageException, se);
                     inputStream.reset();
                     continue;

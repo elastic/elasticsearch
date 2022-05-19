@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.inference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -53,6 +52,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 public class TrainedModelStatsService {
 
@@ -290,10 +292,7 @@ public class TrainedModelStatsService {
                 .setRequireAlias(true);
             return updateRequest;
         } catch (IOException ex) {
-            logger.error(
-                () -> new ParameterizedMessage("[{}] [{}] failed to serialize stats for update.", stats.getModelId(), stats.getNodeId()),
-                ex
-            );
+            logger.error(() -> format(ROOT, "[%s] [%s] failed to serialize stats for update.", stats.getModelId(), stats.getNodeId()), ex);
         }
         return null;
     }

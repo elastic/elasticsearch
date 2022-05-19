@@ -8,7 +8,6 @@
 package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -42,6 +41,9 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 public class ReplicationOperation<
     Request extends ReplicationRequest<Request>,
@@ -230,8 +232,9 @@ public class ReplicationOperation<
             @Override
             public void onFailure(Exception replicaException) {
                 logger.trace(
-                    () -> new ParameterizedMessage(
-                        "[{}] failure while performing [{}] on replica {}, request [{}]",
+                    () -> format(
+                        ROOT,
+                        "[%s] failure while performing [%s] on replica %s, request [%s]",
                         shard.shardId(),
                         opType,
                         shard,

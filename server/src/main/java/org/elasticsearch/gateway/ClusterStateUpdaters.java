@@ -10,7 +10,6 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -22,6 +21,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 
 import java.util.Map;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public class ClusterStateUpdaters {
@@ -59,12 +60,7 @@ public class ClusterStateUpdaters {
 
     private static void logInvalidSetting(final String settingType, final Map.Entry<String, String> e, final IllegalArgumentException ex) {
         logger.warn(
-            () -> new ParameterizedMessage(
-                "ignoring invalid {} setting: [{}] with value [{}]; archiving",
-                settingType,
-                e.getKey(),
-                e.getValue()
-            ),
+            () -> format(ROOT, "ignoring invalid %s setting: [%s] with value [%s]; archiving", settingType, e.getKey(), e.getValue()),
             ex
         );
     }

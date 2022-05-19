@@ -24,7 +24,6 @@ import io.netty.util.AttributeKey;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -51,6 +50,8 @@ import java.net.InetSocketAddress;
 import java.net.SocketOption;
 import java.util.Map;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -377,7 +378,7 @@ public class Netty4Transport extends TcpTransport {
     private static void addClosedExceptionLogger(Channel channel) {
         channel.closeFuture().addListener(f -> {
             if (f.isSuccess() == false) {
-                logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), f.cause());
+                logger.debug(() -> format(ROOT, "exception while closing channel: %s", channel), f.cause());
             }
         });
     }

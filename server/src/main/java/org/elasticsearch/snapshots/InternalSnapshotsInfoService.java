@@ -10,7 +10,6 @@ package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,6 +39,9 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Supplier;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 public class InternalSnapshotsInfoService implements ClusterStateListener, SnapshotsInfoService {
 
@@ -242,7 +244,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
         @Override
         public void onFailure(Exception e) {
-            logger.warn(() -> new ParameterizedMessage("failed to retrieve shard size for {}", snapshotShard), e);
+            logger.warn(() -> format(ROOT, "failed to retrieve shard size for %s", snapshotShard), e);
             boolean failed = false;
             synchronized (mutex) {
                 if (isMaster) {

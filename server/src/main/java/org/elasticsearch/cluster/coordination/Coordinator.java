@@ -699,10 +699,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             TransportRequest.Empty.INSTANCE,
             TransportRequestOptions.of(null, channelType),
             new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
-                logger.warn(
-                    () -> new ParameterizedMessage("failed to ping joining node [{}] on channel type [{}]", discoveryNode, channelType),
-                    e
-                );
+                logger.warn(() -> format(ROOT, "failed to ping joining node [%s] on channel type [%s]", discoveryNode, channelType), e);
                 listener.onFailure(
                     new IllegalStateException(
                         String.format(

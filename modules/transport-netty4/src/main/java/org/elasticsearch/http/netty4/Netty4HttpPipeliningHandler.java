@@ -216,7 +216,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     /**
      * @param ctx channel handler context
      *
-     * @return true if a call to this method resulted in a call to {@link ChannelHandlerContext#flush()} on the given {@code ctx}.
+     * @return true if a call to this method resulted in a call to {@link ChannelHandlerContext#flush()} on the given {@code ctx}
      */
     private boolean doFlush(ChannelHandlerContext ctx) {
         assert ctx.executor().inEventLoop();

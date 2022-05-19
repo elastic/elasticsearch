@@ -96,6 +96,21 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         }
     }
 
+    private static class TestActionListener implements ActionListener<Void> {
+
+        private volatile boolean wasCalled = false;
+
+        @Override
+        public void onResponse(Void unused) {
+            wasCalled = true;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            fail("should not be called in test");
+        }
+    }
+
     private static void testAllocate(GatewayAllocatorBehaviour gatewayAllocatorBehaviour) {
         final var rerouteService = new TestRerouteService();
         final var deterministicTaskQueue = new DeterministicTaskQueue();
@@ -155,21 +170,23 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         final var discoveryNode = createDiscoveryNode();
         final var indexMetadata = createIndex(TEST_INDEX);
         var clusterState = createClusterState(discoveryNode, indexMetadata);
+        var listener = new TestActionListener();
 
         switch (gatewayAllocatorBehaviour) {
             case DO_NOTHING -> {
                 // first reroute does nothing synchronously but triggers a desired balance computation which leads to a further reroute
-                assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
+                assertSame(clusterState, allocationService.reroute(clusterState, "test", listener));
                 rerouteService.setExpectReroute();
                 deterministicTaskQueue.runAllTasks();
                 rerouteService.assertNoPendingReroute();
                 final var shardRouting = clusterState.routingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
                 assertFalse(shardRouting.assignedToNode());
                 assertThat(shardRouting.unassignedInfo().getLastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.NO_ATTEMPT));
+                assertTrue(listener.wasCalled);
             }
             case STILL_FETCHING -> {
                 // first reroute will allocate nothing if the gateway allocator is still in charge
-                clusterState = allocationService.reroute(clusterState, "test", ActionListener.noop());
+                clusterState = allocationService.reroute(clusterState, "test", listener);
                 rerouteService.setExpectReroute();
                 assertTrue(deterministicTaskQueue.hasRunnableTasks());
                 deterministicTaskQueue.runAllTasks();
@@ -181,16 +198,18 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                     equalTo(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA)
                 );
                 fetchingShardData.set(false);
+                assertFalse(listener.wasCalled);
             }
             case ALLOCATE -> {
                 // first reroute will allocate according to the gateway allocator
-                clusterState = allocationService.reroute(clusterState, "test", ActionListener.noop());
+                clusterState = allocationService.reroute(clusterState, "test", listener);
                 rerouteService.setExpectReroute();
                 assertTrue(deterministicTaskQueue.hasRunnableTasks());
                 deterministicTaskQueue.runAllTasks();
                 rerouteService.assertNoPendingReroute();
                 final var shardRouting = clusterState.routingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
                 assertTrue(shardRouting.assignedToNode());
+                assertFalse(listener.wasCalled);
             }
         }
 

@@ -233,7 +233,7 @@ setups['tsds_template'] = '''
             },
             "template": {
               "settings": {
-                "index.routing_path": [ "sensor_id", "location" ],
+                "index.routing_path": [ "sensor_id", "location" ]
               },
               "mappings": {
                 "properties": {

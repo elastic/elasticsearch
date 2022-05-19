@@ -16,7 +16,3 @@ dependencies {
   compileOnly project(":server")
   testImplementation project(":test:framework")
 }
-
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-exports")
-}

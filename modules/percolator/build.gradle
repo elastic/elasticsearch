@@ -24,10 +24,6 @@ restResources {
   }
 }
 
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-exports,-missing-explicit-ctor")
-}
-
 tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
 }

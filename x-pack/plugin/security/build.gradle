@@ -143,10 +143,6 @@ dependencies {
   testImplementation('org.apache.directory.mavibot:mavibot:1.0.0-M8')
 }
 
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-exports,-missing-explicit-ctor,-requires-automatic")
-}
-
 tasks.named("processInternalClusterTestResources").configure {
   from(project(xpackModule('core')).file('src/main/config'))
   from(project(xpackModule('core')).file('src/test/resources'))

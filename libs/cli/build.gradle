@@ -20,7 +20,3 @@ tasks.named("jarHell").configure { enabled = false }
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
-
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-exports,-requires-automatic,-requires-transitive-automatic")
-}

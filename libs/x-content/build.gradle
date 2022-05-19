@@ -66,10 +66,6 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-exports")
-}
-
 File generatedResourcesDir = new File(buildDir, 'generated-resources')
 def generateProviderManifest = tasks.register("generateProviderManifest") {
   File manifestFile = new File(generatedResourcesDir, "LISTING.TXT")

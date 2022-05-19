@@ -44,10 +44,6 @@ dependencies {
   api "io.netty:netty-transport:${versions.netty}"
 }
 
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-module,-exports,-missing-explicit-ctor,-requires-automatic")
-}
-
 restResources {
   restApi {
     include '_common', 'cluster', 'nodes'

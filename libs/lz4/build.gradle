@@ -31,7 +31,3 @@ tasks.named("thirdPartyAudit").configure {
     'net.jpountz.util.UnsafeUtils'
   )
 }
-
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-module,-exports,-requires-automatic,-requires-transitive-automatic")
-}

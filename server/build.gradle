@@ -252,7 +252,3 @@ tasks.named("licenseHeaders").configure {
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
 }
-
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-module,-exports,-missing-explicit-ctor,-requires-automatic,-requires-transitive-automatic")
-}

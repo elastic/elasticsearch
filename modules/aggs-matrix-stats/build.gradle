@@ -18,7 +18,3 @@ restResources {
     include '_common', 'indices', 'cluster', 'index', 'search', 'nodes'
   }
 }
-
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-exports,-missing-explicit-ctor")
-}

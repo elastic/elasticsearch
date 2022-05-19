@@ -60,10 +60,6 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-exports,-requires-automatic,-missing-explicit-ctor")
-}
-
 ext.expansions = [
   'project.version': version
 ]

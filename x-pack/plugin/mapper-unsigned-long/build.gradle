@@ -29,10 +29,6 @@ dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-module,-exports,-missing-explicit-ctor")
-}
-
 restResources {
     restApi {
         include '_common', 'bulk', 'indices', 'index', 'search', 'xpack'

@@ -20,10 +20,6 @@ restResources {
   }
 }
 
-tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-exports,-missing-explicit-ctor")
-}
-
 testClusters.configureEach {
   // Modules who's integration is explicitly tested in integration tests
   module ':modules:lang-mustache'

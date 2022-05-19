@@ -193,7 +193,7 @@ public class ServerProcessTests extends ESTestCase {
     ServerProcess startProcess(boolean daemonize, boolean quiet, String keystorePassword) throws Exception {
         var pinfo = new ProcessInfo(Map.copyOf(sysprops), Map.copyOf(envVars), esHomeDir);
         SecureString password = new SecureString(keystorePassword.toCharArray());
-        var args = new ServerArgs(daemonize, quiet, password, nodeSettings.build(), esHomeDir.resolve("config"));
+        var args = new ServerArgs(daemonize, quiet, null, password, nodeSettings.build(), esHomeDir.resolve("config"));
         ServerProcess.ProcessStarter starter = pb -> {
             if (processValidator != null) {
                 processValidator.validate(pb);

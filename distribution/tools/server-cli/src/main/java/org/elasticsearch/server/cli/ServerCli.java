@@ -78,12 +78,6 @@ class ServerCli extends EnvironmentAwareCommand {
             return;
         }
 
-        Path pidFile = null;
-        if (options.has(pidfileOption)) {
-            pidFile = options.valueOf(pidfileOption);
-            validatePidFile(pidFile);
-        }
-
         if (options.valuesOf(enrollmentTokenOption).size() > 1) {
             throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
         }
@@ -94,7 +88,6 @@ class ServerCli extends EnvironmentAwareCommand {
 
         ServerArgs args = createArgs(options, env, keystorePassword);
         this.server = startServer(terminal, processInfo, args, env.pluginsFile());
-        maybeCreatePidFile(pidFile);
 
         if (options.has(daemonizeOption)) {
             server.detach();
@@ -183,20 +176,15 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private void maybeCreatePidFile(Path pidFile) throws IOException {
-        if (pidFile == null) {
-            return;
-        }
-        if (Files.exists(pidFile.getParent()) == false) {
-            Files.createDirectories(pidFile.getParent());
-        }
-        Files.writeString(pidFile, Long.toString(server.pid()));
-    }
-
-    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword) {
+    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword) throws UserException {
         boolean daemonize = options.has(daemonizeOption);
         boolean quiet = options.has(quietOption);
-        return new ServerArgs(daemonize, quiet, keystorePassword, env.settings(), env.configFile());
+        Path pidFile = null;
+        if (options.has(pidfileOption)) {
+            pidFile = options.valueOf(pidfileOption);
+            validatePidFile(pidFile);
+        }
+        return new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());
     }
 
     @Override

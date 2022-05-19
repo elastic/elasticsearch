@@ -22,6 +22,8 @@ import org.elasticsearch.node.NodeValidationException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
 
@@ -66,6 +68,7 @@ class Elasticsearch {
                 new Environment(serverArgs.nodeSettings(), serverArgs.configDir()),
                 serverArgs.keystorePassword()
             );
+            initPidFile(serverArgs.pidFile());
 
             err.println(BootstrapInfo.SERVER_READY_MARKER);
             if (serverArgs.daemonize()) {
@@ -167,6 +170,31 @@ class Elasticsearch {
                 }
             }
         }).start();
+    }
+
+    /**
+     * Writes the current process id into the given pidfile, if not null. The pidfile is cleaned up on system exit.
+     *
+     * @param pidFile A path to a file, or null of no pidfile should be written
+     */
+    private static void initPidFile(Path pidFile) throws IOException {
+        if (pidFile == null) {
+            return;
+        }
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (Files.exists(pidFile)) {
+                try {
+                    Files.delete(pidFile);
+                } catch (IOException e) {
+                    // ignore, nothing we can do because are shutting down
+                }
+            }
+        }, "elasticsearch[pidfile-cleanup]"));
+
+        if (Files.exists(pidFile.getParent()) == false) {
+            Files.createDirectories(pidFile.getParent());
+        }
+        Files.writeString(pidFile, Long.toString(ProcessHandle.current().pid()));
     }
 
     private static void overrideDnsCachePolicyProperties() {

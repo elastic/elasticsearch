@@ -97,8 +97,8 @@ public class ServerCliTests extends CommandTestCase {
         Path tmpDir = createTempDir();
         Path pidFileArg = tmpDir.resolve("pid");
         terminal.reset();
+        argsValidator = args -> assertThat(args.pidFile().toString(), equalTo(pidFileArg.toString()));
         assertOk(option, pidFileArg.toString());
-        assertThat("pid file not written: " + pidFileArg, Files.exists(pidFileArg), is(true));
     }
 
     public void testPidFile() throws Exception {

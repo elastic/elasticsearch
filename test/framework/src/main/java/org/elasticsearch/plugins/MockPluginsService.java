@@ -40,11 +40,7 @@ public class MockPluginsService extends PluginsService {
         final Path configPath = environment.configFile();
 
         List<LoadedPlugin> pluginsLoaded = new ArrayList<>();
-        List<PluginInfo> pluginsList = new ArrayList<>();
-        // we need to build a List of plugins for checking mandatory plugins
-        final List<String> pluginsNames = new ArrayList<>();
 
-        // first we load plugins that are on the classpath. this is for tests
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
             PluginInfo pluginInfo = new PluginInfo(
@@ -65,8 +61,6 @@ public class MockPluginsService extends PluginsService {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
             pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, null));
-            pluginsList.add(pluginInfo);
-            pluginsNames.add(pluginInfo.getName());
         }
 
         this.classpathPlugins = List.copyOf(pluginsLoaded);

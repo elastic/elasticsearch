@@ -59,6 +59,7 @@ import java.util.function.LongSupplier;
  * <ul>
  *   <li>Overriding Version.CURRENT</li>
  *   <li>Adding test plugins that exist on the classpath</li>
+ *   <li>Swapping in various mock services</li>
  * </ul>
  */
 public class MockNode extends Node {

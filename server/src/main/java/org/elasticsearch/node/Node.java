@@ -291,6 +291,11 @@ public class Node implements Closeable {
     final NamedWriteableRegistry namedWriteableRegistry;
     final NamedXContentRegistry namedXContentRegistry;
 
+    /**
+     * Constructs a node
+     *
+     * @param environment         the initial environment for this node, which will be added to by plugins
+     */
     public Node(Environment environment) {
         this(environment, PluginsService.getCreatePluginsServiceFunction(environment), true);
     }

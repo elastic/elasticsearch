@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.ClientAuthenticationType;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -116,15 +117,23 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         assertThat(plainActionFuture.get().isAuthenticated(), is(false));
     }
 
+    protected AllJwtRealms generateAllJwtRealmsConfig() {
+        final List<String> principalClaimNames = randomBoolean()
+            ? List.of("principal_" + randomAlphaOfLength(6))
+            : randomSubsetOf(randomIntBetween(1, 6), JwtRealmsSettings.DEFAULT_PRINCIPAL_CLAIMS);
+        return new AllJwtRealms(principalClaimNames);
+    }
+
     protected List<JwtIssuerAndRealm> generateJwtIssuerRealmPairs(
-        MinMax realmsRange,
-        MinMax authzRange,
-        MinMax algsRange,
-        MinMax audiencesRange,
-        MinMax usersRange,
-        MinMax rolesRange,
-        MinMax jwtCacheSizeRange,
-        boolean createHttpsServer
+        final AllJwtRealms allJwtRealms,
+        final MinMax realmsRange,
+        final MinMax authzRange,
+        final MinMax algsRange,
+        final MinMax audiencesRange,
+        final MinMax usersRange,
+        final MinMax rolesRange,
+        final MinMax jwtCacheSizeRange,
+        final boolean createHttpsServer
     ) throws Exception {
         assertThat(realmsRange.min(), is(greaterThanOrEqualTo(1)));
         assertThat(authzRange.min(), is(greaterThanOrEqualTo(0)));
@@ -146,7 +155,16 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             final int rolesCount = randomIntBetween(rolesRange.min(), rolesRange.max());
             final int jwtCacheSize = randomIntBetween(jwtCacheSizeRange.min(), jwtCacheSizeRange.max());
 
-            final JwtIssuer jwtIssuer = this.createJwtIssuer(i, algsCount, audiencesCount, usersCount, rolesCount, createHttpsServer);
+            final String principalClaimName = randomFrom(allJwtRealms.getPrincipalClaimNames());
+            final JwtIssuer jwtIssuer = this.createJwtIssuer(
+                i,
+                principalClaimName,
+                algsCount,
+                audiencesCount,
+                usersCount,
+                rolesCount,
+                createHttpsServer
+            );
             // If HTTPS server was created in JWT issuer, any exception after that point requires closing it to avoid a thread pool leak
             try {
                 final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder = this.createJwtRealmSettings(
@@ -154,7 +172,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                     authzCount,
                     jwtCacheSize
                 );
-                final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtIssuer, realmNameAndSettingsBuilder);
+                final JwtRealm jwtRealm = this.createJwtRealm(allRealms, allJwtRealms, jwtIssuer, realmNameAndSettingsBuilder);
 
                 // verify exception before initialize()
                 final Exception exception = expectThrows(IllegalStateException.class, jwtRealm::ensureInitialized);
@@ -174,6 +192,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
 
     protected JwtIssuer createJwtIssuer(
         final int i,
+        final String principalClaimName,
         final int algsCount,
         final int audiencesCount,
         final int userCount,
@@ -210,27 +229,39 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final Map<String, User> users = JwtTestCase.generateTestUsersWithRoles(userCount, roleCount);
 
         // Decide if public PKC JWKSet will be hosted in a local file or an HTTPS URL. If HTTPS URL, tell issuer to set up an HTTPS server.
-        return new JwtIssuer(issuer, audiences, algJwkPairsPkc, algJwkPairsHmac, algJwkPairHmacOidc, users, createHttpsServer);
+        return new JwtIssuer(
+            issuer,
+            audiences,
+            principalClaimName,
+            users,
+            algJwkPairsPkc,
+            algJwkPairsHmac,
+            algJwkPairHmacOidc,
+            createHttpsServer
+        );
     }
 
     protected JwtRealmNameAndSettingsBuilder createJwtRealmSettings(final JwtIssuer jwtIssuer, final int authzCount, final int jwtCacheSize)
         throws Exception {
-        final String authcRealmName = "realm_" + jwtIssuer.issuer;
+        final String authcRealmName = "realm_" + jwtIssuer.issuerClaimValue;
         final String[] authzRealmNames = IntStream.range(0, authzCount).mapToObj(z -> authcRealmName + "_authz" + z).toArray(String[]::new);
 
         final ClientAuthenticationType clientAuthenticationType = randomFrom(ClientAuthenticationType.values());
         final Settings.Builder authcSettings = Settings.builder()
             .put(this.globalSettings)
-            .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuer)
+            .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuerClaimValue)
             .put(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
                 String.join(",", jwtIssuer.algorithmsAll)
             )
-            .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_AUDIENCES), randomFrom(jwtIssuer.audiences))
             .put(
-                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()),
-                randomBoolean() ? "sub" : authcRealmName + "_sub"
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_AUDIENCES),
+                randomFrom(jwtIssuer.audiencesClaimValue)
             );
+        authcSettings.put(
+            RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()),
+            jwtIssuer.principalClaimName
+        );
         if ((ClientAuthenticationType.SHARED_SECRET != clientAuthenticationType) || (randomBoolean())) {
             // always set "None", optionally set "SharedSecret" or let it get picked by default
             authcSettings.put(
@@ -358,6 +389,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
 
     protected JwtRealm createJwtRealm(
         final List<Realm> allRealms, // JWT realms and authz realms
+        final AllJwtRealms allJwtRealms,
         final JwtIssuer jwtIssuer,
         final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder
     ) {
@@ -368,10 +400,10 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final List<String> authzRealmNames = settings.getAsList(
             RealmSettings.getFullSettingKey(authcRealmName, DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE))
         );
-        final UserRoleMapper userRoleMapper = super.buildRoleMapper(authzRealmNames.isEmpty() ? jwtIssuer.users : Map.of());
+        final UserRoleMapper userRoleMapper = super.buildRoleMapper(authzRealmNames.isEmpty() ? jwtIssuer.principals : Map.of());
 
         // If authz names is not set, register the users here in the JWT authc realm.
-        final JwtRealm jwtRealm = new JwtRealm(authcConfig, new JwtAuthenticationTokenFactory(Settings.EMPTY), sslService, userRoleMapper);
+        final JwtRealm jwtRealm = new JwtRealm(authcConfig, allJwtRealms, sslService, userRoleMapper);
         allRealms.add(jwtRealm);
 
         // If authz names is set, register the users here in one of the authz realms.
@@ -381,7 +413,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 final RealmConfig authzConfig = this.buildRealmConfig("authz", authzRealmName, Settings.EMPTY, allRealms.size() + 1);
                 final MockLookupRealm authzRealm = new MockLookupRealm(authzConfig);
                 if (authzRealmName.equals(selected)) {
-                    jwtIssuer.users.values().forEach(authzRealm::registerUser);
+                    jwtIssuer.principals.values().forEach(authzRealm::registerUser);
                 }
                 allRealms.add(authzRealm);
             }
@@ -396,8 +428,8 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomFrom(this.jwtIssuerAndRealms);
         final JwtRealm jwtRealm = jwtIssuerAndRealm.realm;
         assertThat(jwtRealm, is(notNullValue()));
-        assertThat(jwtRealm.allowedIssuer, is(equalTo(jwtIssuerAndRealm.issuer.issuer))); // assert equal, don't print both
-        assertThat(jwtIssuerAndRealm.issuer.audiences.stream().anyMatch(jwtRealm.allowedAudiences::contains), is(true));
+        assertThat(jwtRealm.allowedIssuer, is(equalTo(jwtIssuerAndRealm.issuer.issuerClaimValue))); // assert equal, don't print both
+        assertThat(jwtIssuerAndRealm.issuer.audiencesClaimValue.stream().anyMatch(jwtRealm.allowedAudiences::contains), is(true));
         LOGGER.info(
             "REALM["
                 + jwtRealm.name()
@@ -408,7 +440,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 + "], iss=["
                 + jwtIssuerAndRealm.issuer
                 + "], iss.aud="
-                + jwtIssuerAndRealm.issuer.audiences
+                + jwtIssuerAndRealm.issuer.audiencesClaimValue
                 + ", realm.aud="
                 + jwtRealm.allowedAudiences
                 + ", HMAC alg="
@@ -587,7 +619,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
     }
 
     protected User randomUser(final JwtIssuer jwtIssuer) {
-        final User user = randomFrom(jwtIssuer.users.values());
+        final User user = randomFrom(jwtIssuer.principals.values());
         LOGGER.info("USER[" + user.principal() + "]: roles=[" + String.join(",", user.roles()) + "].");
         return user;
     }
@@ -603,7 +635,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             randomAlphaOfLengthBetween(10, 20), // jwtID
             jwtIssuerAndRealm.realm.allowedIssuer, // iss
             jwtIssuerAndRealm.realm.allowedAudiences, // aud
-            randomBoolean() ? user.principal() : user.principal() + "_" + randomAlphaOfLength(8), // sub
+            null,// randomBoolean() ? null : randomBoolean() ? user.principal() : user.principal() + "_" + randomAlphaOfLength(8), // sub
             jwtIssuerAndRealm.realm.claimParserPrincipal.getClaimName(), // principal claim name
             user.principal(), // principal claim value
             jwtIssuerAndRealm.realm.claimParserGroups.getClaimName(), // group claim name

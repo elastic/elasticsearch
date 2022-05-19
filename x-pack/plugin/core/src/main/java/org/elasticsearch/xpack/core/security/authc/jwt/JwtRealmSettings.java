@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Settings for JWT realms.
+ * Settings unique to each JWT realm.
  */
 public class JwtRealmSettings {
 

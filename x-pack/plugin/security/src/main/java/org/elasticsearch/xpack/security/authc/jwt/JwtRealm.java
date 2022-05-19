@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
@@ -71,7 +72,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public static final String HEADER_END_USER_AUTHENTICATION_SCHEME = "Bearer";
     public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
 
-    private final JwtAuthenticationTokenFactory tokenFactory;
+    private final AllJwtRealms allJwtRealms;
     final UserRoleMapper userRoleMapper;
     final String allowedIssuer;
     final List<String> allowedAudiences;
@@ -94,12 +95,12 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     public JwtRealm(
         final RealmConfig realmConfig,
-        final JwtAuthenticationTokenFactory tokenFactory,
+        final AllJwtRealms allJwtRealms,
         final SSLService sslService,
         final UserRoleMapper userRoleMapper
     ) throws SettingsException {
         super(realmConfig);
-        this.tokenFactory = tokenFactory;
+        this.allJwtRealms = allJwtRealms; // common configuration settings shared by all JwtRealm instances
         this.userRoleMapper = userRoleMapper;
         this.userRoleMapper.refreshRealmOnChange(this);
         this.allowedIssuer = realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER);
@@ -116,6 +117,21 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.clientAuthenticationSharedSecret = Strings.hasText(sharedSecret) ? sharedSecret : null; // convert "" to null
         this.jwtCache = this.buildJwtCache();
         this.jwtCacheHelper = (this.jwtCache == null) ? null : new CacheIteratorHelper<>(this.jwtCache);
+
+        // Validate this realm uses a principal claim that is in the allowlist for all JWT realms
+        if (this.allJwtRealms.getPrincipalClaimNames().contains(this.claimParserPrincipal.getClaimName()) == false) {
+            throw new SettingsException(
+                "JWT Realm setting ["
+                    + realmConfig.getSetting(JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim())
+                    + "] value ["
+                    + this.claimParserPrincipal.getClaimName()
+                    + "] is not in the allow-list JWT Realms setting ["
+                    + JwtRealmsSettings.PRINCIPAL_CLAIMS_SETTING.getRawKey()
+                    + "] value ["
+                    + String.join(",", this.allJwtRealms.getPrincipalClaimNames())
+                    + "]"
+            );
+        }
 
         // Validate Client Authentication settings. Throw SettingsException there was a problem.
         JwtUtil.validateClientAuthenticationSettings(
@@ -161,6 +177,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.close();
             throw t;
         }
+        this.allJwtRealms.add(this);
     }
 
     private Cache<BytesKey, ExpiringUser> buildJwtCache() {
@@ -332,7 +349,27 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     @Override
     public AuthenticationToken token(final ThreadContext threadContext) {
         this.ensureInitialized();
-        return tokenFactory.getToken(threadContext);
+        final SecureString authenticationParameterValue = JwtUtil.getHeaderValue(
+            threadContext,
+            JwtRealm.HEADER_END_USER_AUTHENTICATION,
+            JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
+            false
+        );
+        if (authenticationParameterValue == null) {
+            return null;
+        }
+        // Get all other possible parameters. A different JWT realm may do the actual authentication.
+        final SecureString clientAuthenticationSharedSecretValue = JwtUtil.getHeaderValue(
+            threadContext,
+            JwtRealm.HEADER_CLIENT_AUTHENTICATION,
+            JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
+            true
+        );
+        return new JwtAuthenticationToken(
+            this.allJwtRealms.getPrincipalClaimNames(),
+            authenticationParameterValue,
+            clientAuthenticationSharedSecretValue
+        );
     }
 
     @Override

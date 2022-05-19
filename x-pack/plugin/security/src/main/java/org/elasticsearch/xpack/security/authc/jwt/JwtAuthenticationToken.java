@@ -36,19 +36,19 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     /**
      * Store a mandatory JWT and optional Shared Secret. Parse the JWT, and extract the header, claims set, and signature.
      * Compute a token principal, for use as a realm order cache key. Default for OIDC ID Tokens is iss/aud/sub.
-     * For other JWTs, the endUserIdClaimNames supports using other claims to replace sub.
+     * For other JWTs, the principalClaimNames supports using other claims to replace sub.
      * Throws IllegalArgumentException if endUserIfClaimNames is empty, JWT is missing, or if JWT parsing fails.
-     * @param endUserIdClaimNames Ordered list of string claims to use for endUserIdValue. The first claim in that list is used (ex: sub).
+     * @param principalClaimNames Ordered list of string claims to use for principalClaimValue. The first one found is used (ex: sub).
      * @param endUserSignedJwt Base64Url-encoded JWT for End-user authentication. Required by all JWT realms.
      * @param clientAuthenticationSharedSecret URL-safe Shared Secret for Client authentication. Required by some JWT realms.
      */
     public JwtAuthenticationToken(
-        final List<String> endUserIdClaimNames,
+        final List<String> principalClaimNames,
         final SecureString endUserSignedJwt,
         @Nullable final SecureString clientAuthenticationSharedSecret
     ) {
-        if (endUserIdClaimNames.isEmpty()) {
-            throw new IllegalArgumentException("JWT token endUserId claim names list must be non-empty");
+        if (principalClaimNames.isEmpty()) {
+            throw new IllegalArgumentException("JWT token principal claim names list must be non-empty");
         } else if (endUserSignedJwt.isEmpty()) {
             throw new IllegalArgumentException("JWT bearer token must be non-empty");
         } else if ((clientAuthenticationSharedSecret != null) && (clientAuthenticationSharedSecret.isEmpty())) {
@@ -74,25 +74,25 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         }
 
         // get and validate sub claim, or the first configured backup claim (if sub is absent)
-        final String endUserIdClaimValue = resolveEndUserId(jwtClaimsSet, endUserIdClaimNames);
-        this.principal = issuer + "/" + String.join(",", new TreeSet<>(audiences)) + "/" + endUserIdClaimValue;
+        final String principalClaimValue = resolvePrincipalClaimName(jwtClaimsSet, principalClaimNames);
+        this.principal = issuer + "/" + String.join(",", new TreeSet<>(audiences)) + "/" + principalClaimValue;
     }
 
-    private String resolveEndUserId(final JWTClaimsSet jwtClaimsSet, final List<String> endUserIdClaimNames) {
-        for (final String endUserIdClaimName : endUserIdClaimNames) {
-            final Object claimValue = jwtClaimsSet.getClaim(endUserIdClaimName);
-            if (claimValue instanceof String endUserIdClaimValue) {
-                if (endUserIdClaimValue.isEmpty()) {
+    private String resolvePrincipalClaimName(final JWTClaimsSet jwtClaimsSet, final List<String> principalClaimNames) {
+        for (final String principalClaimName : principalClaimNames) {
+            final Object claimValue = jwtClaimsSet.getClaim(principalClaimName);
+            if (claimValue instanceof String principalClaimValue) {
+                if (principalClaimValue.isEmpty()) {
                     throw new IllegalArgumentException(
-                        "User identifier claim '" + endUserIdClaimName + "' exists but cannot be used due to empty string value"
+                        "Principal claim name '" + principalClaimName + "' exists but cannot be used due to empty string value"
                     );
                 }
-                LOGGER.trace("Found endUserId claim name [{}] with value [{}]", endUserIdClaimName, endUserIdClaimValue);
-                return endUserIdClaimValue;
+                LOGGER.trace("Found principal claim name [{}] with value [{}]", principalClaimName, principalClaimValue);
+                return principalClaimValue;
             } else if (claimValue != null) {
                 throw new IllegalArgumentException(
-                    "User identifier claim '"
-                        + endUserIdClaimName
+                    "Principal claim name '"
+                        + principalClaimName
                         + "' exists but cannot be used due to non-string value type '"
                         + claimValue.getClass().getCanonicalName()
                         + "'"
@@ -100,7 +100,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
             }
         }
 
-        // at this point, none of the endUserIdClaimNames were found
+        // at this point, none of the principalClaimNames were found
         // throw an exception with a detailed log message about available claims with string values
         final String allClaimNamesWithStringValues = jwtClaimsSet.getClaims()
             .entrySet()
@@ -109,9 +109,9 @@ public class JwtAuthenticationToken implements AuthenticationToken {
             .map(Map.Entry::getKey)
             .collect(Collectors.joining(","));
         throw new IllegalArgumentException(
-            "None of these end user identifier claims were found in the JWT Claims Set ["
-                + String.join(",", endUserIdClaimNames)
-                + "] - available claims with string values are ["
+            "None of these configured principal claim names were found in the JWT Claims Set ["
+                + String.join(",", principalClaimNames)
+                + "] - available claims in the JWT with potential compatible string values are ["
                 + allClaimNamesWithStringValues
                 + "]"
         );

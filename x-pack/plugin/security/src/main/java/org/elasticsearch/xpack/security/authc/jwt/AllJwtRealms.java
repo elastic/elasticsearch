@@ -17,22 +17,22 @@ import java.util.List;
 /**
  * Common settings shared by all JwtRealm instances.
  */
-public class JwtRealms {
+public class AllJwtRealms {
 
     private final List<String> principalClaimNames;
-    private final List<JwtRealm> jwtRealms = new ArrayList<>();
+    private final List<JwtRealm> allJwtRealms = new ArrayList<>();
 
     /**
      * Parse all realm settings passed in from {@link InternalRealms#getFactories}
      * @param settings
      */
-    public JwtRealms(final Settings settings) {
+    public AllJwtRealms(final Settings settings) {
         this(JwtRealmsSettings.PRINCIPAL_CLAIMS_SETTING.get(settings));
     }
 
     // Package protected for testing
     // If multiple settings are needed in future, change method signature to accept Settings.
-    JwtRealms(final List<String> principalClaimNames) {
+    AllJwtRealms(final List<String> principalClaimNames) {
         this.principalClaimNames = Collections.unmodifiableList(principalClaimNames);
     }
 
@@ -41,10 +41,10 @@ public class JwtRealms {
     }
 
     public List<JwtRealm> list() {
-        return Collections.unmodifiableList(this.jwtRealms);
+        return Collections.unmodifiableList(this.allJwtRealms);
     }
 
     public void add(JwtRealm jwtRealm) {
-        return this.jwtRealms.add(jwtRealm);
+        this.allJwtRealms.add(jwtRealm);
     }
 }

@@ -75,7 +75,8 @@ public class MasterHistoryService {
      * updated even if the ClusterState is updated on this node or the remote node. The history is retrieved asynchronously, and only if
      * requestRemoteMasterHistory has been called for this node. If anything has gone wrong fetching it, the exception returned by the
      * remote machine will be thrown here. If the remote history has not been fetched or if something went wrong and there was no exception,
-     * the returned value will be null.
+     * the returned value will be null. If the remote history is old enough to be considered stale (that is, older than
+     * MAX_USABLE_REMOTE_HISTORY_AGE_SETTING), then the returned value will be null.
      * @return The MasterHistory from a remote node's point of view. This MasterHistory object will not be updated with future changes
      * @throws Exception the exception (if any) returned by the remote machine when fetching the history
      */

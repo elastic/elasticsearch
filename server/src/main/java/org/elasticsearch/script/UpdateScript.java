@@ -112,13 +112,19 @@ public abstract class UpdateScript {
             }
         }
 
-        public Metadata(Op op, long epochMilli, Map<String, Object> source) {
-            this.store = new MapBackedMetadata(3).setOp(op).set(TIMESTAMP, epochMilli).setSource(source);
+        /**
+         * Insert via Upsert
+         */
+        public Metadata(String index, String id, Op op, long epochMilli, Map<String, Object> source) {
+            this.store = new MapBackedMetadata(3).setIndex(index).setId(id).setOp(op).set(TIMESTAMP, epochMilli).setSource(source);
             this.timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), ZoneOffset.UTC);
             this.isInsert = true;
             this.validOps = INSERT_VALID_OPS;
         }
 
+        /**
+         * Scripted Update and Update via Upsert
+         */
         public Metadata(
             String index,
             String id,
@@ -143,16 +149,10 @@ public abstract class UpdateScript {
         }
 
         public String getIndex() {
-            if (isInsert) {
-                throw new IllegalStateException("index unavailable on insert");
-            }
             return store.getIndex();
         }
 
         public String getId() {
-            if (isInsert) {
-                throw new IllegalStateException("id unavailable for insert");
-            }
             return store.getId();
         }
 

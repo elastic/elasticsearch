@@ -87,9 +87,9 @@ public class UpdateHelper {
      * Execute a scripted upsert, where there is an existing upsert document and a script to be executed. The script is executed and a new
      * Tuple of operation and updated {@code _source} is returned.
      */
-    Tuple<Op, Map<String, Object>> executeScriptedUpsert(Map<String, Object> upsertDoc, Script script, LongSupplier nowInMillis) {
+    Tuple<Op, Map<String, Object>> executeScriptedUpsert(Script script, UpdateScript.Metadata metadata) {
         // Tell the script that this is a create and not an update
-        UpdateScript.Metadata md = executeScript(script, new UpdateScript.Metadata(Op.CREATE, nowInMillis.getAsLong(), upsertDoc));
+        UpdateScript.Metadata md = executeScript(script, metadata); // TODO(stu): this is insert from upsert
         return new Tuple<>(lenientGetOp(md, logger, script.getIdOrCode()), md.getSource());
     }
 
@@ -105,7 +105,10 @@ public class UpdateHelper {
         if (request.scriptedUpsert() && request.script() != null) {
             // Run the script to perform the create logic
             IndexRequest upsert = request.upsertRequest();
-            Tuple<Op, Map<String, Object>> upsertResult = executeScriptedUpsert(upsert.sourceAsMap(), request.script, nowInMillis);
+            Tuple<Op, Map<String, Object>> upsertResult = executeScriptedUpsert(
+                request.script,
+                new UpdateScript.Metadata(getResult.getIndex(), getResult.getId(), Op.CREATE, nowInMillis.getAsLong(), upsert.sourceAsMap())
+            );
             switch (upsertResult.v1()) {
                 case CREATE -> indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
                 case NOOP -> {
@@ -381,45 +384,6 @@ public class UpdateHelper {
 
         public XContentType updateSourceContentType() {
             return updateSourceContentType;
-        }
-    }
-
-    /**
-     * After executing the script, this is the type of operation that will be used for subsequent actions. This corresponds to the "ctx.op"
-     * variable inside of scripts.
-     */
-    enum UpdateOpType {
-        CREATE("create"),
-        INDEX("index"),
-        DELETE("delete"),
-        NONE("none");
-
-        private final String name;
-
-        UpdateOpType(String name) {
-            this.name = name;
-        }
-
-        public static UpdateOpType lenientFromString(String operation, Logger logger, String scriptId) {
-            switch (operation) {
-                case "create":
-                    return UpdateOpType.CREATE;
-                case "index":
-                    return UpdateOpType.INDEX;
-                case "delete":
-                    return UpdateOpType.DELETE;
-                case "none":
-                    return UpdateOpType.NONE;
-                default:
-                    // TODO: can we remove this leniency yet??
-                    logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", operation, scriptId);
-                    return UpdateOpType.NONE;
-            }
-        }
-
-        @Override
-        public String toString() {
-            return name;
         }
     }
 

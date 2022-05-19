@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,7 +32,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,12 +45,19 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
 
     @Before
     public void setup() {
+        authenticationService = mock(AuthenticationService.class);
         nativeRealm = mockRealm("native");
         fileRealm = mockRealm("file");
         final Realms realms = mockRealms(List.of(nativeRealm, fileRealm));
 
-        authenticationService = mock(AuthenticationService.class);
-        action = mockClearRealmCacheAction(realms, authenticationService);
+        action = new TransportClearRealmCacheAction(
+            mock(ThreadPool.class),
+            mockClusterService(),
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            realms,
+            authenticationService
+        );
     }
 
     public void testSingleUserCacheCleanupForAllRealms() {
@@ -58,7 +66,7 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
 
         // When no realm is specified we should clear all realms.
         // This is equivalent to using a wildcard (*) instead of specifying realm name in query.
-        final String[] realmsToClear = new String[] {};
+        final String[] realmsToClear = randomFrom(Strings.EMPTY_ARRAY, null);
         final String[] usersToClear = new String[] { user };
         ClearRealmCacheRequest.Node clearCacheRequest = mockClearCacheRequest(realmsToClear, usersToClear);
 
@@ -70,6 +78,11 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
         verify(fileRealm).expire(user);
         verify(nativeRealm).expire(user);
         verify(authenticationService).expire(user);
+
+        // We don't expect that expireAll methods are called.
+        verify(fileRealm, never()).expireAll();
+        verify(nativeRealm, never()).expireAll();
+        verify(authenticationService, never()).expireAll();
     }
 
     public void testSingleUserCacheCleanupForSingleRealm() {
@@ -87,15 +100,20 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
         // We expect that only native cache is cleared,
         // including last successful cache in the authentication service.
         verify(nativeRealm).expire(user);
-        verify(fileRealm, times(0)).expire(user);
+        verify(fileRealm, never()).expire(user);
         verify(authenticationService).expire(user);
+
+        // We don't expect that expireAll methods are called.
+        verify(fileRealm, never()).expireAll();
+        verify(nativeRealm, never()).expireAll();
+        verify(authenticationService, never()).expireAll();
     }
 
     public void testAllUsersCacheCleanupForSingleRealm() {
 
         // We want to clear all users from native realm cache.
         final String[] realmsToClear = new String[] { nativeRealm.name() };
-        final String[] usersToClear = new String[] {};
+        final String[] usersToClear = randomFrom(Strings.EMPTY_ARRAY, null);
         ClearRealmCacheRequest.Node clearCacheRequest = mockClearCacheRequest(realmsToClear, usersToClear);
 
         ClearRealmCacheResponse.Node response = action.nodeOperation(clearCacheRequest, mock(Task.class));
@@ -104,15 +122,15 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
         // We expect that whole native cache is cleared,
         // including last successful cache in the authentication service.
         verify(nativeRealm).expireAll();
-        verify(fileRealm, times(0)).expireAll();
+        verify(fileRealm, never()).expireAll();
         verify(authenticationService).expireAll();
     }
 
     public void testAllUsersCacheCleanupForAllRealms() {
 
         // We want to clear all users from all realms.
-        final String[] realmsToClear = new String[] {};
-        final String[] usersToClear = new String[] {};
+        final String[] realmsToClear = randomFrom(Strings.EMPTY_ARRAY, null);
+        final String[] usersToClear = randomFrom(Strings.EMPTY_ARRAY, null);
         ClearRealmCacheRequest.Node clearCacheRequest = mockClearCacheRequest(realmsToClear, usersToClear);
 
         ClearRealmCacheResponse.Node response = action.nodeOperation(clearCacheRequest, mock(Task.class));
@@ -121,17 +139,6 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
         verify(fileRealm).expireAll();
         verify(nativeRealm).expireAll();
         verify(authenticationService).expireAll();
-    }
-
-    private TransportClearRealmCacheAction mockClearRealmCacheAction(Realms realms, AuthenticationService authenticationService) {
-        return new TransportClearRealmCacheAction(
-            mock(ThreadPool.class),
-            mockClusterService(),
-            mock(TransportService.class),
-            mock(ActionFilters.class),
-            realms,
-            authenticationService
-        );
     }
 
     private TestCachingRealm mockRealm(String name) {

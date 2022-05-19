@@ -78,9 +78,8 @@ public class SecurityTestUtils {
             .add(
                 IndexRoutingTable.builder(index)
                     .addIndexShard(
-                        new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
-                            shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted()
-                        )
+                        IndexShardRoutingTable.builder(new ShardId(index, 0))
+                            .addShard(shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted())
                     )
                     .build()
             )

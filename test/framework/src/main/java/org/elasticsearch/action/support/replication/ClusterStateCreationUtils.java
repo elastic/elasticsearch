@@ -194,7 +194,7 @@ public class ClusterStateCreationUtils {
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
         for (int i = 0; i < numberOfPrimaries; i++) {
             ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
-            IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+            IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
             indexShardRoutingBuilder.addShard(
                 TestShardRouting.newShardRouting(shardId, randomFrom(nodes), true, ShardRoutingState.STARTED)
             );
@@ -241,7 +241,7 @@ public class ClusterStateCreationUtils {
             IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
             for (int i = 0; i < numberOfPrimaries; i++) {
                 ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
-                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
                 indexShardRoutingBuilder.addShard(
                     TestShardRouting.newShardRouting(shardId, nodesList.get(currentNodeToAssign++), true, ShardRoutingState.STARTED)
                 );
@@ -289,7 +289,7 @@ public class ClusterStateCreationUtils {
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
         for (int i = 0; i < numberOfShards; i++) {
             final ShardId shardId = new ShardId(index, "_na_", i);
-            IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+            IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
             indexShardRoutingBuilder.addShard(
                 TestShardRouting.newShardRouting(index, i, newNode(0).getId(), null, true, ShardRoutingState.STARTED)
             );
@@ -339,7 +339,7 @@ public class ClusterStateCreationUtils {
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
             for (int i = 0; i < numberOfShards; i++) {
                 final ShardId shardId = new ShardId(index, "_na_", i);
-                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
                 indexShardRoutingBuilder.addShard(
                     TestShardRouting.newShardRouting(index, i, newNode(0).getId(), null, true, ShardRoutingState.STARTED)
                 );

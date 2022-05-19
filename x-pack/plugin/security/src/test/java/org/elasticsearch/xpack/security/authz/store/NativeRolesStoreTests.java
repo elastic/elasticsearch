@@ -304,9 +304,10 @@ public class NativeRolesStoreTests extends ESTestCase {
             .add(
                 IndexRoutingTable.builder(index)
                     .addIndexShard(
-                        new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
-                            shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize()).moveToStarted()
-                        )
+                        IndexShardRoutingTable.builder(new ShardId(index, 0))
+                            .addShard(
+                                shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize()).moveToStarted()
+                            )
                     )
                     .build()
             )

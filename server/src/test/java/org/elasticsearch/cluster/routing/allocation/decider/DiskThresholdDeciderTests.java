@@ -923,8 +923,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         RoutingTable.Builder builder = RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(firstRouting.index())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId()).addShard(firstRouting))
-                    .addIndexShard(new IndexShardRoutingTable.Builder(secondRouting.shardId()).addShard(secondRouting))
+                    .addIndexShard(IndexShardRoutingTable.builder(firstRouting.shardId()).addShard(firstRouting))
+                    .addIndexShard(IndexShardRoutingTable.builder(secondRouting.shardId()).addShard(secondRouting))
             );
         ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         RoutingAllocation routingAllocation = new RoutingAllocation(

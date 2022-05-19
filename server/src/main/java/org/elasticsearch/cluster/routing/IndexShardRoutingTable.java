@@ -520,6 +520,10 @@ public class IndexShardRoutingTable {
         return shards;
     }
 
+    public static Builder builder(ShardId shardId) {
+        return new Builder(shardId);
+    }
+
     public static class Builder {
 
         private final ShardId shardId;

@@ -147,10 +147,11 @@ public class SecurityIndexManagerTests extends ESTestCase {
                 .add(
                     IndexRoutingTable.builder(index)
                         .addIndexShard(
-                            new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
-                                shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
-                                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
-                            )
+                            IndexShardRoutingTable.builder(new ShardId(index, 0))
+                                .addShard(
+                                    shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
+                                        .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                                )
                         )
                         .build()
                 )

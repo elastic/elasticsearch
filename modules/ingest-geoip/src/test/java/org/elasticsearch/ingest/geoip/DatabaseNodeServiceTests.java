@@ -393,7 +393,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
                 RoutingTable.builder()
                     .add(
                         IndexRoutingTable.builder(index)
-                            .addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(shardRouting))
+                            .addIndexShard(IndexShardRoutingTable.builder(new ShardId(index, 0)).addShard(shardRouting))
                     )
             )
             .build();

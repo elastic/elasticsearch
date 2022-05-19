@@ -13,7 +13,7 @@ import java.util.Locale;
 /**
  * Write operation for documents
  */
-public enum Op { // TODO(stu) replace with OpType
+public enum Op { // This is a clone of org.elasticsearch.action.DocWriteRequest.OpType
     NOOP("noop"),
     INDEX("index"),
     DELETE("delete"),

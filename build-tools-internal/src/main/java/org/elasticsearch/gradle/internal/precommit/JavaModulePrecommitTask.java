@@ -14,8 +14,8 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.SetProperty;
+import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
@@ -45,6 +45,8 @@ public class JavaModulePrecommitTask extends PrecommitTask {
 
     private FileCollection classesDirs;
 
+    private FileCollection classpath;
+
     private File resourcesDir;
 
     @Inject
@@ -52,7 +54,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
         srcDirs = objectFactory.setProperty(File.class);
     }
 
-    @Internal
+    @InputFiles
     public FileCollection getClassesDirs() {
         return this.classesDirs;
     }
@@ -62,7 +64,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
         this.classesDirs = classesDirs;
     }
 
-    @Internal
+    @InputFiles
     public File getResourcesDir() {
         return this.resourcesDir;
     }
@@ -79,10 +81,20 @@ public class JavaModulePrecommitTask extends PrecommitTask {
         return srcDirs;
     }
 
+    @Classpath
+    @InputFiles
+    public FileCollection getClasspath() {
+        return classpath;
+    }
+
+    public void setClasspath(FileCollection classpath) {
+        this.classpath = classpath;
+    }
+
     @TaskAction
     public void checkModule() {
         if (hasModuleInfoDotJava(getSrcDirs()) == false) {
-            return; // non-modular project, no validation required
+            return; // non-modular project, nothing to do
         }
         ModuleReference mod = esModuleFor(getClassesDirs().getSingleFile());
         getLogger().info("%s checking module %s".formatted(this, mod));

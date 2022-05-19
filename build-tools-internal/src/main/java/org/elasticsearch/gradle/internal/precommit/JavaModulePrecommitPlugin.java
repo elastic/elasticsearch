@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -22,11 +23,11 @@ public class JavaModulePrecommitPlugin extends PrecommitPlugin implements Intern
 
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-
         TaskProvider<JavaModulePrecommitTask> task = project.getTasks().register(TASK_NAME, JavaModulePrecommitTask.class);
         task.configure(t -> {
             SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
             t.getSrcDirs().set(project.provider(() -> mainSourceSet.getAllSource().getSrcDirs()));
+            t.setClasspath(project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME));
             t.setClassesDirs(mainSourceSet.getOutput().getClassesDirs());
             t.setResourcesDirs(mainSourceSet.getOutput().getResourcesDir());
         });

@@ -15,36 +15,43 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.apache.lucene.index.VectorValues.MAX_DIMENSIONS;
+
 /**
- * Holds enhnaced stats about a dense vector mapped field.
+ * Holds enhanced stats about a dense vector mapped field.
  */
 public final class DenseVectorFieldStats extends FieldStats {
     int indexedVectorCount; // number of times vectors with index:true are used in mappings of this cluster
-    long indexedVectorDimsSum; // sum of dims used for indexed vectors in this cluster
+    int indexedVectorDimMin; // minimum dimension of indexed vectors in this cluster
+    int indexedVectorDimMax; // maximum dimension of indexed vectors in this cluster
 
     DenseVectorFieldStats(String name) {
         super(name);
         indexedVectorCount = 0;
-        indexedVectorDimsSum = 0;
+        indexedVectorDimMin = MAX_DIMENSIONS;
+        indexedVectorDimMax = 0;
     }
 
     DenseVectorFieldStats(StreamInput in) throws IOException {
         super(in);
         indexedVectorCount = in.readVInt();
-        indexedVectorDimsSum = in.readVLong();
+        indexedVectorDimMin = in.readVInt();
+        indexedVectorDimMax = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(indexedVectorCount);
-        out.writeVLong(indexedVectorDimsSum);
+        out.writeVInt(indexedVectorDimMin);
+        out.writeVInt(indexedVectorDimMax);
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("indexed_vector_count", indexedVectorCount);
-        builder.field("indexed_vector_dims_sum", indexedVectorDimsSum);
+        builder.field("indexed_vector_dim_min", indexedVectorDimMin);
+        builder.field("indexed_vector_dim_max", indexedVectorDimMax);
     }
 
     @Override
@@ -59,11 +66,13 @@ public final class DenseVectorFieldStats extends FieldStats {
             return false;
         }
         DenseVectorFieldStats that = (DenseVectorFieldStats) o;
-        return indexedVectorCount == that.indexedVectorCount && indexedVectorDimsSum == that.indexedVectorDimsSum;
+        return indexedVectorCount == that.indexedVectorCount
+            && indexedVectorDimMin == that.indexedVectorDimMin
+            && indexedVectorDimMax == that.indexedVectorDimMax;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), indexedVectorCount, indexedVectorDimsSum);
+        return Objects.hash(super.hashCode(), indexedVectorCount, indexedVectorDimMin, indexedVectorDimMax);
     }
 }

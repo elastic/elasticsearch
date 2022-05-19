@@ -110,7 +110,8 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                     "count" : 2,
                     "index_count" : 2,
                     "indexed_vector_count" : 2,
-                    "indexed_vector_dims_sum" : 200
+                    "indexed_vector_dim_min" : 100,
+                    "indexed_vector_dim_max" : 100
                   },
                   {
                     "name" : "keyword",
@@ -216,7 +217,8 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                     "count" : 3,
                     "index_count" : 3,
                     "indexed_vector_count" : 3,
-                    "indexed_vector_dims_sum" : 300
+                    "indexed_vector_dim_min" : 100,
+                    "indexed_vector_dim_max" : 100
                   },
                   {
                     "name" : "keyword",
@@ -431,7 +433,8 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         expectedStats.count = 4 * indicesCount;
         expectedStats.indexCount = indicesCount;
         expectedStats.indexedVectorCount = 2 * indicesCount;
-        expectedStats.indexedVectorDimsSum = (768 + 1024) * indicesCount;
+        expectedStats.indexedVectorDimMin = 768;
+        expectedStats.indexedVectorDimMax = 1024;
         assertEquals(Collections.singletonList(expectedStats), mappingStats.getFieldTypeStats());
     }
 

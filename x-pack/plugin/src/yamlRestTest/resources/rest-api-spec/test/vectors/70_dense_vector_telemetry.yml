@@ -52,4 +52,5 @@ setup:
   - match: { indices.mappings.field_types.0.count: 4 }
   - match: { indices.mappings.field_types.0.index_count: 2 }
   - match: { indices.mappings.field_types.0.indexed_vector_count: 3 }
-  - match: { indices.mappings.field_types.0.indexed_vector_dims_sum: 2560 }
+  - match: { indices.mappings.field_types.0.indexed_vector_dim_min: 768 }
+  - match: { indices.mappings.field_types.0.indexed_vector_dim_max: 1024 }

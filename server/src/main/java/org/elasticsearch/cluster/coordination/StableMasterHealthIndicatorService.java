@@ -65,15 +65,14 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      */
     private final TimeValue veryRecentPast;
     /**
-     * If the master transitions from a non-null master to a null master at least this manhy timesThis is the number of times it starts
-     * impacting the health status.
+     * If the master transitions from a non-null master to a null master at least this many times it starts impacting the health status.
      */
     private final int unacceptableNullTransitions;
     /**
-     * This is the number of times that it is OK for the master history to show a transition one non-null master to a different non-null
-     * master before it starts impacting the health status.
+     * If the master transitions from one non-null master to a different non-null master at least this many times it starts impacting the
+     * health status.
      */
-    private final int acceptableIdentityChanges;
+    private final int unacceptableIdentityChanges;
 
     private static final Logger logger = LogManager.getLogger(StableMasterHealthIndicatorService.class);
 
@@ -128,7 +127,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         this.masterHistoryService = masterHistoryService;
         this.veryRecentPast = VERY_RECENT_PAST_SETTING.get(clusterService.getSettings());
         this.unacceptableNullTransitions = ACCEPTABLE_NULL_TRANSITIONS_SETTING.get(clusterService.getSettings()) + 1;
-        this.acceptableIdentityChanges = ACCEPTABLE_IDENTITY_CHANGES_SETTING.get(clusterService.getSettings());
+        this.unacceptableIdentityChanges = ACCEPTABLE_IDENTITY_CHANGES_SETTING.get(clusterService.getSettings()) + 1;
         clusterService.addListener(this);
     }
 
@@ -162,7 +161,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         int masterChanges = MasterHistory.getNumberOfMasterIdentityChanges(localMasterHistory.getNodes());
         logger.trace("Have seen a master in the last {}): {}", veryRecentPast, localMasterHistory.getMostRecentNonNullMaster());
         final HealthIndicatorResult result;
-        if (masterChanges > acceptableIdentityChanges) {
+        if (masterChanges >= unacceptableIdentityChanges) {
             result = calculateOnMasterHasChangedIdentity(localMasterHistory, masterChanges, explain);
         } else if (localMasterHistory.hasMasterGoneNullAtLeastNTimes(unacceptableNullTransitions)) {
             result = calculateOnMasterHasFlappedNull(localMasterHistory, explain);
@@ -296,7 +295,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             || remoteHistoryException != null
             || (remoteHistory != null
                 && (MasterHistory.hasMasterGoneNullAtLeastNTimes(remoteHistory, unacceptableNullTransitions)
-                    || MasterHistory.getNumberOfMasterIdentityChanges(remoteHistory) > acceptableIdentityChanges));
+                    || MasterHistory.getNumberOfMasterIdentityChanges(remoteHistory) >= unacceptableIdentityChanges));
         if (masterConfirmedUnstable) {
             logger.trace("The master node {} thinks it is unstable", master);
             final HealthStatus stableMasterStatus = HealthStatus.YELLOW;

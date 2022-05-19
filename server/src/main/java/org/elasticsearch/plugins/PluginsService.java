@@ -166,7 +166,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @return A stream of results
      * @param <T> The generic type of the result
      */
-    public <T> Stream<T> map(Function<Plugin, T> function) {
+    public final <T> Stream<T> map(Function<Plugin, T> function) {
         return this.plugins().stream().map(LoadedPlugin::instance).map(function);
     }
 
@@ -176,7 +176,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @return A stream of results
      * @param <T> The generic type of the collection
      */
-    public <T> Stream<T> flatMap(Function<Plugin, Collection<T>> function) {
+    public final <T> Stream<T> flatMap(Function<Plugin, Collection<T>> function) {
         return this.plugins().stream().map(LoadedPlugin::instance).flatMap(p -> function.apply(p).stream());
     }
 
@@ -184,7 +184,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * Apply a consumer action to each plugin
      * @param consumer An action that consumes a plugin
      */
-    public void forEach(Consumer<Plugin> consumer) {
+    public final void forEach(Consumer<Plugin> consumer) {
         this.plugins().stream().map(LoadedPlugin::instance).forEach(consumer);
     }
 
@@ -192,7 +192,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * Sometimes we want the plugin name for error handling.
      * @return A map of plugin names to plugin instances.
      */
-    public Map<String, Plugin> pluginMap() {
+    public final Map<String, Plugin> pluginMap() {
         return this.plugins().stream().collect(Collectors.toMap(p -> p.info().getName(), LoadedPlugin::instance));
     }
 
@@ -404,7 +404,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    protected static Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings, Path configPath) {
+    // package-private for testing
+    static Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings, Path configPath) {
         final Constructor<?>[] constructors = pluginClass.getConstructors();
         if (constructors.length == 0) {
             throw new IllegalStateException("no public constructor for [" + pluginClass.getName() + "]");
@@ -447,7 +448,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> List<T> filterPlugins(Class<T> type) {
+    public final <T> List<T> filterPlugins(Class<T> type) {
         return this.plugins().stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance())).toList();
     }
 

@@ -24,12 +24,14 @@ import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
@@ -45,21 +47,35 @@ public class PluginsServiceTests extends ESTestCase {
         return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile());
     }
 
-    static PluginsService newMockPluginsService(Settings settings, List<Class<? extends Plugin>> classpathPlugins) {
-        return new MockPluginsService(settings, TestEnvironment.newEnvironment(settings), classpathPlugins);
-    }
-
-    // TODO: avoid classpath plugins
-    public void testFilterPlugins() {
+    static PluginsService newMockPluginsService(List<Class<? extends Plugin>> classpathPlugins) {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put("my.setting", "test")
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
             .build();
-        PluginsService service = newMockPluginsService(settings, List.of(FakePlugin.class, FilterablePlugin.class));
+        return new MockPluginsService(settings, TestEnvironment.newEnvironment(settings), classpathPlugins);
+    }
+
+    // This test uses a mock in order to use plugins from the classpath
+    public void testFilterPlugins() {
+        PluginsService service = newMockPluginsService(List.of(FakePlugin.class, FilterablePlugin.class));
         List<ScriptPlugin> scriptPlugins = service.filterPlugins(ScriptPlugin.class);
         assertEquals(1, scriptPlugins.size());
         assertEquals(FilterablePlugin.class, scriptPlugins.get(0).getClass());
+    }
+
+    // This test uses a mock in order to use plugins from the classpath
+    public void testMapPlugins() {
+        PluginsService service = newMockPluginsService(List.of(FakePlugin.class, FilterablePlugin.class));
+        List<String> mapResult = service.map(p -> p.getClass().getSimpleName()).toList();
+        assertThat(mapResult, containsInAnyOrder("FakePlugin", "FilterablePlugin"));
+
+        List<String> flatmapResult = service.flatMap(p -> List.of(p.getClass().getSimpleName())).toList();
+        assertThat(flatmapResult, containsInAnyOrder("FakePlugin", "FilterablePlugin"));
+
+        List<String> forEachConsumer = new ArrayList<>();
+        service.forEach(p -> forEachConsumer.add(p.getClass().getSimpleName()));
+        assertThat(forEachConsumer, containsInAnyOrder("FakePlugin", "FilterablePlugin"));
     }
 
     public void testHiddenFiles() throws IOException {
@@ -138,7 +154,6 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(e, hasToString(containsString(expected)));
     }
 
-    // TODO: avoid classpath plugins
     public void testLoadPluginWithNoPublicConstructor() {
         class NoPublicConstructorPlugin extends Plugin {
 
@@ -152,12 +167,11 @@ public class PluginsServiceTests extends ESTestCase {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> newMockPluginsService(settings, List.of(NoPublicConstructorPlugin.class))
+            () -> PluginsService.loadPlugin(NoPublicConstructorPlugin.class, settings, home)
         );
         assertThat(e, hasToString(containsString("no public constructor")));
     }
 
-    // TODO: avoid classpath plugins
     public void testLoadPluginWithMultiplePublicConstructors() {
         class MultiplePublicConstructorsPlugin extends Plugin {
 
@@ -177,7 +191,7 @@ public class PluginsServiceTests extends ESTestCase {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> newMockPluginsService(settings, List.of(MultiplePublicConstructorsPlugin.class))
+            () -> PluginsService.loadPlugin(MultiplePublicConstructorsPlugin.class, settings, home)
         );
         assertThat(e, hasToString(containsString("no unique public constructor")));
     }
@@ -227,7 +241,10 @@ public class PluginsServiceTests extends ESTestCase {
         for (Class<? extends Plugin> pluginClass : classes) {
             final Path home = createTempDir();
             final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
-            final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newMockPluginsService(settings, List.of(pluginClass)));
+            final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> PluginsService.loadPlugin(pluginClass, settings, home)
+            );
             assertThat(e, hasToString(containsString("no public constructor of correct signature")));
         }
     }

@@ -244,9 +244,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
                 throw new IllegalArgumentException(
                     "Aggregation ["
                         + agg.getName()
-                        + "] "
-                        + "all fields must exist in all indices. "
-                        + "Missing fields: ["
+                        + "] all fields must exist in all indices, but some indices are missing these fields ["
                         + Strings.join(new TreeSet<>(missingFields), ", ")
                         + "]"
                 );

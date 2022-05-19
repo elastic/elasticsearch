@@ -147,4 +147,4 @@ setup:
   - match: { status: 400 }
   - match: { error.type: search_phase_execution_exception }
   - match: { error.caused_by.type: illegal_argument_exception }
-  - match: { error.caused_by.reason: "Aggregation [stats] all fields must exist in all indices. Missing fields: [value3, value4]" }
+  - match: { error.caused_by.reason: "Aggregation [stats] all fields must exist in all indices, but some indices are missing these fields [value3, value4]" }

@@ -127,8 +127,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
                 );
                 shardRouting = shardRouting.initialize("node_id", null, 0L);
                 routingTable.add(
-                    IndexRoutingTable.builder(index)
-                        .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
+                    IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting))
                 );
             }
 
@@ -350,7 +349,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
         shardRouting = shardRouting.initialize("node_id", null, 0L);
         shardRouting = shardRouting.moveToStarted();
         routingTable.add(
-            IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
+            IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting))
         );
     }
 }

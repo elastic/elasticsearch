@@ -230,7 +230,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                             .addIndexShard(
                                 new IndexShardRoutingTable.Builder(routingShardId1).addShard(
                                     TestShardRouting.newShardRouting(routingShardId1, dataNodeId, true, ShardRoutingState.STARTED)
-                                ).build()
+                                )
                             )
                     )
                     .build()
@@ -258,7 +258,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                             .addIndexShard(
                                 new IndexShardRoutingTable.Builder(routingShardId1).addShard(
                                     TestShardRouting.newShardRouting(routingShardId1, dataNodeId, true, ShardRoutingState.INITIALIZING)
-                                ).build()
+                                )
                             )
                     )
                     .build()
@@ -481,7 +481,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         final RoutingTable.Builder routingTable = RoutingTable.builder();
         for (String index : indexNames) {
             final Index idx = metaBuilder.get(index).getIndex();
-            routingTable.add(IndexRoutingTable.builder(idx).addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(idx, 0)).build()));
+            routingTable.add(IndexRoutingTable.builder(idx).addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(idx, 0))));
         }
         return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metaBuilder).routingTable(routingTable.build()).build();
     }

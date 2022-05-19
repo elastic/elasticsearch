@@ -182,7 +182,7 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         shardRouting = shardRouting.initialize("node_id", null, 0L);
         shardRouting = shardRouting.moveToStarted();
         routingTable.add(
-            IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
+            IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting))
         );
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
@@ -208,7 +208,7 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
             );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             routingTable.add(
-                IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
+                IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting))
             );
         }
 

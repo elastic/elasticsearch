@@ -464,7 +464,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(indexRoutingTable.getIndex());
                 // re-add all the shards
                 for (int i = 0; i < indexRoutingTable.size(); i++) {
-                    builder.addIndexShard(indexRoutingTable.shard(i));
+                    builder.addIndexShard(new IndexShardRoutingTable.Builder(indexRoutingTable.shard(i)));
                 }
                 if (currentNumberOfReplicas < numberOfReplicas) {
                     // now, add "empty" ones

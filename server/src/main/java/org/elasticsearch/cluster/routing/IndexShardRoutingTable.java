@@ -588,12 +588,12 @@ public class IndexShardRoutingTable {
             return true;
         }
 
-        public static IndexShardRoutingTable readFrom(StreamInput in) throws IOException {
+        public static IndexShardRoutingTable.Builder readFrom(StreamInput in) throws IOException {
             Index index = new Index(in);
             return readFromThin(in, index);
         }
 
-        public static IndexShardRoutingTable readFromThin(StreamInput in, Index index) throws IOException {
+        public static IndexShardRoutingTable.Builder readFromThin(StreamInput in, Index index) throws IOException {
             int iShardId = in.readVInt();
             ShardId shardId = new ShardId(index, iShardId);
             Builder builder = new Builder(shardId);
@@ -604,7 +604,7 @@ public class IndexShardRoutingTable {
                 builder.addShard(shard);
             }
 
-            return builder.build();
+            return builder;
         }
 
         public static void writeTo(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {

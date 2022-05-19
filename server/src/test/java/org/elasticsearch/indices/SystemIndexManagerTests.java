@@ -324,7 +324,7 @@ public class SystemIndexManagerTests extends ESTestCase {
                             )
                                 .initialize(UUIDs.randomBase64UUID(random()), null, 0L)
                                 .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
-                        ).build()
+                        )
                     )
             )
             .build();
@@ -382,10 +382,17 @@ public class SystemIndexManagerTests extends ESTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
-        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
-            shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted()
-        ).build();
-        return RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(table).build()).build();
+        return RoutingTable.builder()
+            .add(
+                IndexRoutingTable.builder(index)
+                    .addIndexShard(
+                        new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
+                            shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted()
+                        )
+                    )
+                    .build()
+            )
+            .build();
     }
 
     private ClusterChangedEvent event(ClusterState clusterState) {

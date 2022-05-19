@@ -584,8 +584,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         logger.debug(() -> "creating module layer and loader for module " + moduleName);
         var finder = ModuleFinder.of(paths);
 
-        // TODO resolve AND BIND ?
-        var configuration = Configuration.resolve(ModuleFinder.of(), parentConfigurationOrBoot(parentLayers), finder, Set.of(moduleName));
+        var configuration = Configuration.resolveAndBind(ModuleFinder.of(), parentConfigurationOrBoot(parentLayers), finder, Set.of(moduleName));
         var controller = privilegedDefineModulesWithOneLoader(configuration, parentLayersOrBoot(parentLayers), parentLoader);
         var pluginModule = controller.layer().findModule(moduleName).get();
         ensureEntryPointAccessible(controller, pluginModule, className);

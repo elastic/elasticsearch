@@ -67,7 +67,7 @@ import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMA
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
-public class Authentication implements ToXContentObject {
+public final class Authentication implements ToXContentObject {
 
     private static final Logger logger = LogManager.getLogger(Authentication.class);
 

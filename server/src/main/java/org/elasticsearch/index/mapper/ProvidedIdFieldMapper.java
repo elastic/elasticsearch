@@ -18,7 +18,6 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -258,7 +257,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     public ProvidedIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-        super(new IdFieldType(fieldDataEnabled), Lucene.KEYWORD_ANALYZER);
+        super(new IdFieldType(fieldDataEnabled));
     }
 
     @Override

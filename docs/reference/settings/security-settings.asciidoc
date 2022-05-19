@@ -33,6 +33,18 @@ information about disabling {security-features} in specific {kib} instances, see
 {kibana-ref}/security-settings-kb.html[{kib} security settings].
 --
 
+`xpack.security.autoconfiguration.enabled`::
+(<<static-cluster-setting,Static>>)
+Defaults to `true`, which enables
+<<configuring-stack-security,security auto configuration>>.
++
+--
+If set to `false`, security auto configuration is disabled, which is not 
+recommended. When disabled, security is not configured automatically when 
+starting {es} for the first time, which means that you must
+<<manually-configure-security,manually configure security>>. 
+--
+
 `xpack.security.hide_settings`::
 (<<static-cluster-setting,Static>>)
 A comma-separated list of settings that are omitted from the results of the
@@ -1770,6 +1782,7 @@ As per `claim_patterns.principal`, but for the _dn_ property.
 (<<static-cluster-setting,Static>>)
 The maximum allowed clock skew to be taken into consideration when validating
 id tokens with regards to their creation and expiration times.
+Defaults to `60s`.
 // end::oidc-allowed-clock-skew-tag[]
 
 // tag::oidc-populate-user-metadata-tag[]
@@ -1832,6 +1845,7 @@ a maximum period inactivity between two consecutive data packets). Defaults to
 Controls the behavior of the http client used for back-channel communication to
 the OpenID Connect Provider endpoints. Specifies the maximum number of
 connections allowed across all endpoints.
+Defaults to `200`.
 // end::oidc-http-max-connections-tag[]
 
 // tag::oidc-http-max-endpoint-connections-tag[]
@@ -1840,6 +1854,7 @@ connections allowed across all endpoints.
 Controls the behavior of the http client used for back-channel communication to
 the OpenID Connect Provider endpoints. Specifies the maximum number of
 connections allowed per endpoint.
+Defaults to `200`.
 // end::oidc-http-max-endpoint-connections-tag[]
 
 [discrete]
@@ -2193,8 +2208,8 @@ used in conjunction with the `hmac_key` setting. Refer to
 (<<secure-settings,Secure>>)
 Contents of a single JSON Web Key (JWK), including the secret key that the JWT
 realm uses to verify token signatures. This format only supports a single key
-without attributes, and cannot be used with the `hmac_jwkset` setting. This 
-format is compatible with OIDC. The HMAC key must be a UNICODE string, where 
+without attributes, and cannot be used with the `hmac_jwkset` setting. This
+format is compatible with OIDC. The HMAC key must be a UNICODE string, where
 the key bytes are the UTF-8 encoding of the UNICODE string.
 The `hmac_jwkset` setting is preferred. Refer to
 <<jwt-realm-configuration,Configure {es} to use a JWT realm>>.

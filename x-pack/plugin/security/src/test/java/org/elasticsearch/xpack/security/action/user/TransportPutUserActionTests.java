@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
+import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
@@ -149,6 +151,10 @@ public class TransportPutUserActionTests extends ESTestCase {
         testValidUser(new User(AuthenticationTestHelper.randomInternalUsername()));
     }
 
+    public void testValidUserWithMaxLengthUsername() {
+        testValidUser(new User(randomUsername(NativeRealmValidationUtil.MAX_NAME_LENGTH)));
+    }
+
     private void testValidUser(User user) {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(
@@ -199,7 +205,21 @@ public class TransportPutUserActionTests extends ESTestCase {
         verify(usersStore, times(1)).putUser(eq(request), anyActionListener());
     }
 
-    public void testInvalidUser() {
+    public void testInvalidUserWithSpecialChars() {
+        testInvalidUser(new User("fóóbár"));
+    }
+
+    public void testInvalidUserWithExtraLongUsername() {
+        testInvalidUser(
+            new User(
+                randomUsername(
+                    randomIntBetween(NativeRealmValidationUtil.MAX_NAME_LENGTH + 1, NativeRealmValidationUtil.MAX_NAME_LENGTH * 2)
+                )
+            )
+        );
+    }
+
+    private void testInvalidUser(User user) {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -213,7 +233,7 @@ public class TransportPutUserActionTests extends ESTestCase {
         TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ActionFilters.class), usersStore, transportService);
 
         final PutUserRequest request = new PutUserRequest();
-        request.username("fóóbár");
+        request.username(user.principal());
         request.roles("bar");
         ActionRequestValidationException validation = request.validate();
         assertNull(validation);
@@ -223,6 +243,17 @@ public class TransportPutUserActionTests extends ESTestCase {
         validation = expectThrows(ActionRequestValidationException.class, responsePlainActionFuture::actionGet);
         assertThat(validation.validationErrors(), contains(containsString("must be")));
         assertThat(validation.validationErrors().size(), is(1));
+    }
+
+    /**
+     * Generates a random username whose length is exactly as given {@code length}.
+     */
+    private String randomUsername(long length) {
+        StringBuilder username = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            username.append(randomFrom(Validation.VALID_NAME_CHARS));
+        }
+        return username.toString();
     }
 
     public void testException() {

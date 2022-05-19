@@ -459,13 +459,13 @@ public class SearchResponseMergerTests extends ESTestCase {
     // searching over multiple indexes where the field isn't mapped in all indexes.
     public void testMergeEmptyFormat() throws InterruptedException {
         DateFormatter dateFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
-        Max max1 = new Max("field1", Double.NEGATIVE_INFINITY,
-            DocValueFormat.RAW,
-            Collections.emptyMap());
-        Max max2 = new Max("field1", dateFormatter.parseMillis("2021-05-01T00:00:00.000Z"),
+        Max max1 = new Max("field1", Double.NEGATIVE_INFINITY, DocValueFormat.RAW, Collections.emptyMap());
+        Max max2 = new Max(
+            "field1",
+            dateFormatter.parseMillis("2021-05-01T00:00:00.000Z"),
             new DocValueFormat.DateTime(dateFormatter, ZoneId.of("UTC"), DateFieldMapper.Resolution.MILLISECONDS),
-            Collections.emptyMap());
-
+            Collections.emptyMap()
+        );
 
         SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
         SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
@@ -473,9 +473,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             0,
             0,
             new SearchTimeProvider(0, 0, () -> 0),
-            emptyReduceContextBuilder(
-                new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("field1"))
-            )
+            emptyReduceContextBuilder(new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("field1")))
         );
         for (Max max : Arrays.asList(max1, max2)) {
             InternalAggregations aggs = InternalAggregations.from(Arrays.asList(max));

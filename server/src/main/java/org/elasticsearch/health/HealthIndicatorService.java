@@ -49,7 +49,7 @@ public interface HealthIndicatorService {
             .limit(3)
             .collect(Collectors.toList());
         String helpURL = null;
-        if (status.indicatesHealthProblem() && userActions.isEmpty()) {
+        if (status.indicatesHealthProblem()) {
             helpURL = helpURL();
         }
         return new HealthIndicatorResult(name(), component(), status, summary, helpURL, details, impactsList, userActions);

@@ -243,10 +243,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             this.request = request;
         }
 
-        public ClusterUpdateSettingsTask(final ClusterSettings clusterSettings, ClusterUpdateSettingsRequest request) {
-            this(clusterSettings, Priority.IMMEDIATE, request, null);
-        }
-
         @Override
         public ClusterState execute(final ClusterState currentState) {
             final ClusterState clusterState = updater.updateSettings(

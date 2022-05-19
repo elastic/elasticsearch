@@ -138,7 +138,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             );
         }
 
-        if (processors != null & processorsRange != null) {
+        if (processors != null && processorsRange != null) {
             throw new IllegalArgumentException(
                 PROCESSORS_FIELD.getPreferredName()
                     + " and "

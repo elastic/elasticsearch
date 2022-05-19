@@ -14,7 +14,14 @@ in the LDAP realm, you have to run in
 <<ldap-realm-configuration,_user search_ mode>>. For Active Directory, you need
 to <<ref-ad-settings,configure a `bind_dn` and `secure_bind_password`>>.
 
+.Unsupported realms
+****
 The Kerberos, OpenID Connect, PKI, and SAML realms do not support _run as_.
+Additionally, the `run_as` privilege is supported only when authenticating with
+the `native` or JWT realms, or when using API keys. Tokens that are created with
+the <<security-api-get-token,get token API>> are incompatible with the `run_as`
+privilege because OAuth2 tokens do not support this privilege.
+****
 
 To submit requests on behalf of other users, you need to have the `run_as`
 privilege in your <<defining-roles,roles>>. For example, the following request
@@ -70,8 +77,7 @@ permissions.
 First, we'll create an admin role named `my_admin_role`. This role has `manage` 
 <<security-privileges,privileges>> on the entire cluster, and on a subset of
 indices. This role also contains the `run_as` privilege, which enables any user
-with this role to submit requests on behalf of users with the `my_analyst_role`
-role.
+with this role to submit requests on behalf of the `analyst_user`.
 
 [source,console]
 ----
@@ -91,7 +97,7 @@ POST /_security/role/my_admin_role?refresh=true
       "resources": [ "*" ]
     }
   ],
-  "run_as": [ "my_analyst_role" ],
+  "run_as": [ "analyst_user" ],
   "metadata" : {
     "version" : 1
   }
@@ -125,8 +131,8 @@ POST /_security/role/my_analyst_role?refresh=true
 }
 ----
 
-We'll create an admin user and assign them the role named `my_admin_role`, which
-allows this user to submit requests as a user with the `my_analyst_role` role.
+We'll create an administrator user and assign them the role named `my_admin_role`,
+which allows this user to submit requests as the `analyst_user`.
 
 [source,console]
 ----
@@ -153,28 +159,24 @@ POST /_security/user/analyst_user?refresh=true
 }
 ----
 
-Let's say you have a bearer token that you created using the 
-<<security-api-get-token,get token API>>. These tokens are created by the
-{es} Token Service, but you can get a bearer token from another realm such as
-the JWT realm. You include the bearer token in the `Authorization` header when
-making requests to {es}. If you make a request to {es} and also include the
-`es-security-runas-user` request header, you can specify the `run_as` user that
-you want to submit requests on behalf of. 
-
-The following request authenticates to {es} with a bearer token and submits the
-request as the `analyst_user`
+You can then authenticate to {es} as the `admin_user` and submit requests on
+behalf of the `analyst_user`. The following request authenticates to {es} with a
+`Basic` authorization token and submits the request as the `analyst_user`:
 
 [source,sh]
 ----
-curl -s -X GET -H "Authorization: Bearer g8HpAxZVcUY1X2taaVFhMkdMbzRnUGd0TjdnAAAAAAAAAAAA" -H "es-security-runas-user: analyst_user" https://localhost:9200/_security/_authenticate
+curl -s -X GET -H "Authorization: Basic YWRtaW5fdXNlcjpsMG5nLXI0bmQwbS1wQHNzdzByZA==" -H "es-security-runas-user: analyst_user" https://localhost:9200/_security/_authenticate
 ----
 
-The response indicates that the `analyst_user` submitted this request:
+The response indicates that the `analyst_user` submitted this request, using the
+`my_analyst_role` that's assigned to that user. When the `admin_user` submitted
+the request, {es} authenticated that user, discarded their roles, and then used
+the roles of the `run_as` user.
 
 [source,sh]
 ----
-{"username":"analyst_user","roles":["my_analyst_role"],"full_name":"Monday Jaffe",
-"email":null,"metadata":{"innovation":8},"enabled":true,"authentication_realm":
-{"name":"native","type":"native"},"lookup_realm":{"name":"native","type":"native"},
-"authentication_type":"token"}%   
+{"username":"analyst_user","roles":["my_analyst_role"],"full_name":"Monday Jaffe","email":null,
+"metadata":{"innovation":8},"enabled":true,"authentication_realm":{"name":"native",
+"type":"native"},"lookup_realm":{"name":"native","type":"native"},"authentication_type":"realm"}
+%  
 ----

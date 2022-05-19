@@ -148,7 +148,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         CorruptStateException corruptStateException = expectThrows(
             CorruptStateException.class,
             () -> PersistedClusterStateService.nodeMetadata(
-                allDataPaths.stream().map(PathUtils::get).map(path -> NodeEnvironment.resolveNodePath(path, 0)).toArray(Path[]::new)
+                allDataPaths.stream().map(PathUtils::get).map(path -> NodeEnvironment.resolveDataPath(path, 0)).toArray(Path[]::new)
             )
         );
 

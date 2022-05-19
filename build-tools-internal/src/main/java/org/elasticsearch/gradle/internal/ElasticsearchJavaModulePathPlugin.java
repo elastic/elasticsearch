@@ -42,8 +42,7 @@ import java.util.stream.StreamSupport;
 /**
  * The Java Module Compile Path Plugin, i.e. --module-path, ---module-version
  */
-public class ElasticsearchJavaModulePlugin implements Plugin<Project> {
-
+public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(JavaPlugin.class);

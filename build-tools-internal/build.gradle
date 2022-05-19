@@ -121,7 +121,7 @@ gradlePlugin {
     }
     javaModulePath {
       id = 'elasticsearch.java-module'
-      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaModulePlugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaModulePathPlugin'
     }
     releaseTools {
       id = 'elasticsearch.release-tools'

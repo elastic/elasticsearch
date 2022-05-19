@@ -43,7 +43,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);
-        project.getPluginManager().apply(ElasticsearchJavaModulePlugin.class);
+        project.getPluginManager().apply(ElasticsearchJavaModulePathPlugin.class);
 
         // configureConfigurations(project);
         configureJars(project);

@@ -126,26 +126,6 @@ setup:
   - close_to: { aggregations.stats.fields.0.covariance.value1: { value: 0.8, error: 0.0001 } }
   - close_to: { aggregations.stats.fields.0.correlation.value1: { value: 1.0, error: 0.0001 } }
 
-# This test is checking the error message
----
-"matrix stats field not in all indices error message":
-  - skip:
-      version: " - 8.2.99"
-      reason: bug fixed in 8.3.0
-      features: close_to
-
-  - do:
-      catch: /Aggregation \[stats\]  all fields must exist in all indices./
-      search:
-        index: test1,test2
-        body:
-          size: 0
-          aggs:
-            stats:
-              matrix_stats:
-                fields: ["value3", "value4"]
-
-# This test is checking that a 400 response is returned to the client
 ---
 "matrix stats field not in all indices bad request":
   - skip:
@@ -163,3 +143,8 @@ setup:
             stats:
               matrix_stats:
                 fields: ["value3", "value4"]
+
+  - match: { status: 400 }
+  - match: { error.type: search_phase_execution_exception }
+  - match: { error.caused_by.type: illegal_argument_exception }
+  - match: { error.caused_by.reason: "Aggregation [stats] all fields must exist in all indices. Missing fields: [value3, value4]" }

@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -206,15 +207,18 @@ public class RunningStats implements Writeable, Cloneable {
      * @param other the other {@link RunningStats} to check
      * @return true if we can merge the two {@link RunningStats} or false otherwise
      */
-    public boolean canMerge(final RunningStats other) {
+    public Set<String> missingFieldNames(final RunningStats other) {
         if (other == null || this.docCount == 0 || other.docCount == 0) {
-            return true;
+            return Collections.emptySet();
         }
-        return isEmptySymmetricDifference(this.getAllFieldNames(), other.getAllFieldNames());
+        return symmetricDifference(this.getAllFieldNames(), other.getAllFieldNames());
     }
 
-    private static <T> boolean isEmptySymmetricDifference(final Set<T> a, final Set<T> b) {
-        return Sets.difference(a, b).isEmpty() && Sets.difference(b, a).isEmpty();
+    private static <T> Set<T> symmetricDifference(final Set<T> a, final Set<T> b) {
+        final HashSet<T> result = new HashSet<>();
+        result.addAll(Sets.difference(a, b));
+        result.addAll(Sets.difference(b, a));
+        return result;
     }
 
     /**

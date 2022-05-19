@@ -8,6 +8,7 @@
 package org.elasticsearch.search.aggregations.matrix.stats;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
 public class RunningStatsTests extends BaseMatrixStatsTestCase {
@@ -41,7 +42,7 @@ public class RunningStatsTests extends BaseMatrixStatsTestCase {
         actualStats.assertNearlyEqual(results);
     }
 
-    public void testMergeRunningStats() throws Exception {
+    public void testEmptyMergeRunningStats() throws Exception {
         final List<RunningStats> runningStats = Arrays.asList(
             new RunningStats(new String[] { "b", "a", "c" }, new double[] { 10.0d, 30.0d, 25.0d }), // if moving this item change last two
                                                                                                     // assertions
@@ -55,20 +56,28 @@ public class RunningStatsTests extends BaseMatrixStatsTestCase {
         final RunningStats otherRunningStat = new RunningStats(new String[] { "a", "b", "c" }, new double[] { -12.3, 0.0, 203.56d });
         final RunningStats emptyStats = new RunningStats();
 
-        assertTrue(otherRunningStat.canMerge(null));
-        assertTrue(emptyStats.canMerge(otherRunningStat));
-        assertTrue(otherRunningStat.canMerge(emptyStats));
+        assertTrue(otherRunningStat.missingFieldNames(null).isEmpty());
+        assertTrue(emptyStats.missingFieldNames(otherRunningStat).isEmpty());
+        assertTrue(otherRunningStat.missingFieldNames(emptyStats).isEmpty());
 
         for (int i = 0; i < runningStats.size(); i++) {
             final RunningStats a = runningStats.get(i);
             for (int j = 0; j < runningStats.size(); j++) {
                 final RunningStats b = runningStats.get(j);
-                assertEquals("Error while merging running stats " + i + " and " + j, i == j, a.canMerge(b));
-                assertEquals("Error while merging running stats " + i + " and " + j, i == j, b.canMerge(a));
+                assertEquals("Error while merging running stats " + i + " and " + j, i == j, a.missingFieldNames(b).isEmpty());
+                assertEquals("Error while merging running stats " + i + " and " + j, i == j, b.missingFieldNames(a).isEmpty());
             }
-            assertEquals("Error while merging running stats " + i, i == 0, a.canMerge(otherRunningStat));
-            assertEquals("Error while merging running stats " + i, i == 0, otherRunningStat.canMerge(a));
+            assertEquals("Error while merging running stats " + i, i == 0, a.missingFieldNames(otherRunningStat).isEmpty());
+            assertEquals("Error while merging running stats " + i, i == 0, otherRunningStat.missingFieldNames(a).isEmpty());
         }
+    }
+
+    public void testMergeRunningStatsMissingFieldNames() throws Exception {
+        final RunningStats a = new RunningStats(new String[] { "x", "y", "z" }, new double[] { 11.0d, 35.0d, 20.0d });
+        final RunningStats b = new RunningStats(new String[] { "x", "a", "c" }, new double[] { 2.0d, 5.0d, 7.0d });
+
+        assertEquals(a.missingFieldNames(b), new HashSet<>(Arrays.asList("a", "c", "y", "z")));
+        assertEquals(b.missingFieldNames(a), new HashSet<>(Arrays.asList("a", "c", "y", "z")));
     }
 
     private RunningStats createRunningStats(List<Double> fieldAObs, List<Double> fieldBObs) {

@@ -62,4 +62,15 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.action.user to org.elasticsearch.server;
 
     exports org.elasticsearch.xpack.security.authc to org.elasticsearch.xcontent;
+
+    provides org.elasticsearch.cli.CliToolProvider
+        with
+            org.elasticsearch.xpack.security.enrollment.tool.CreateEnrollmentTokenToolProvider,
+            org.elasticsearch.xpack.security.authc.esnative.tool.ResetPasswordToolProvider,
+            org.elasticsearch.xpack.security.authc.esnative.tool.SetupPasswordToolProvider,
+            org.elasticsearch.xpack.security.authc.saml.SamlMetadataToolProvider,
+            org.elasticsearch.xpack.security.authc.service.FileTokensToolProvider,
+            org.elasticsearch.xpack.security.crypto.tool.SystemKeyToolProvider,
+            org.elasticsearch.xpack.security.authc.file.tool.UsersToolProvider,
+            org.elasticsearch.xpack.security.enrollment.tool.AutoConfigGenerateElasticPasswordHashToolProvider;
 }

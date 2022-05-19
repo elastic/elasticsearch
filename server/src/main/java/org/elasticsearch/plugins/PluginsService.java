@@ -671,7 +671,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         try {
             return url.toURI();
         } catch (URISyntaxException e) {
-            throw new UncheckedIOException(new IOException(e));
+            throw new AssertionError(new IOException(e));
         }
     }
 

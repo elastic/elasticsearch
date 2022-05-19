@@ -352,16 +352,16 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
                     node.disconnect();
                 }
             }
-            cluster.runFor(DEFAULT_STABILISATION_TIME, "stabilizing"); // allow for a reconfiguration
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
             for (Cluster.ClusterNode node : cluster.clusterNodes) {
                 HealthIndicatorResult healthIndicatorResult = node.stableMasterHealthIndicatorService.calculate(true);
                 if (node.getLocalNode().isMasterNode() == false) {
                     assertThat(healthIndicatorResult.status(), equalTo(HealthStatus.RED));
                 }
             }
-            while (cluster.clusterNodes.stream().filter(Cluster.ClusterNode::deliverBlackholedRequests).count() != 0L) {
+            while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
                 logger.debug("--> stabilising again after delivering blackholed requests");
-                cluster.runFor(DEFAULT_STABILISATION_TIME, "avoiding failure");
+                cluster.runFor(DEFAULT_STABILISATION_TIME, "Cannot call stabilise() because there is no master");
             }
         }
     }

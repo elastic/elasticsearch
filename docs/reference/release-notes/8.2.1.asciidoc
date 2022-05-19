@@ -11,7 +11,7 @@ Also see <<breaking-changes-8.2,Breaking changes in 8.2>>.
 
 Aggregations::
 * Fix `AdaptingAggregator` `toString` method {es-pull}86042[#86042]
-* Less jank in after-key parsing for unmapped fields {es-pull}86359[#86359] (issue: {es-issue}85928[#85928])
+* Less complexity in after-key parsing for unmapped fields {es-pull}86359[#86359] (issue: {es-issue}85928[#85928])
 
 Authentication::
 * Ensure authentication is wire compatible when setting user {es-pull}86741[#86741] (issue: {es-issue}86716[#86716])
@@ -29,10 +29,10 @@ ILM+SLM::
 
 Infra/Core::
 * Fix `assertDefaultThreadContext` enumerating allowed headers {es-pull}86262[#86262]
-* Forward port MDP deprecation info api {es-pull}86103[#86103]
+* Forward port MDP deprecation info API {es-pull}86103[#86103]
 * Make data directories work with symlinks again {es-pull}85878[#85878] (issue: {es-issue}85701[#85701])
-* Set autoexpand replicas on fleet actions data stream {es-pull}85511[#85511]
-* [DRAFT] Do not autocreate alias for non-primary system indices {es-pull}85977[#85977] (issue: {es-issue}85072[#85072])
+* Set autoexpand replicas on Fleet actions data stream {es-pull}85511[#85511]
+* Do not autocreate alias for non-primary system indices {es-pull}85977[#85977] (issue: {es-issue}85072[#85072])
 
 Ingest::
 * Don't download geoip databases if geoip system index is blocked {es-pull}86842[#86842]
@@ -55,7 +55,7 @@ Snapshot/Restore::
 * Better failure for source-only snapshots of partially/fully mounted indices {es-pull}86207[#86207]
 * Check if searchable snapshots cache pre-allocation is successful in Windows {es-pull}86192[#86192] (issue: {es-issue}85725[#85725])
 * Delay searchable snapshot allocation during shutdown {es-pull}86153[#86153] (issue: {es-issue}85052[#85052])
-* [s3-repository] Support generating AWS role session name in case it's not provided {es-pull}86255[#86255]
+* Support generating AWS role session name in case it's not provided {es-pull}86255[#86255]
 
 Stats::
 * Correctly calculate disk usage for frozen data tier telemetry {es-pull}86580[#86580] (issue: {es-issue}86055[#86055])

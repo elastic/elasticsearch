@@ -441,6 +441,11 @@ public class HealthServiceTests extends ESTestCase {
             }
 
             @Override
+            public String helpURL() {
+                return result.helpURL();
+            }
+
+            @Override
             public HealthIndicatorResult calculate(boolean explain) {
                 return result;
             }

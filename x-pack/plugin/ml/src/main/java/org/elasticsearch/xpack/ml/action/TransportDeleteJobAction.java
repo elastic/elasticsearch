@@ -127,7 +127,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        logger.debug(() -> new ParameterizedMessage("[{}] deleting job ", request.getJobId()));
+        logger.debug(() -> "[" + request.getJobId() + "] deleting job ");
 
         if (request.isForce() == false) {
             checkJobIsNotOpen(request.getJobId(), state);

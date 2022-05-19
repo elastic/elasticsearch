@@ -227,7 +227,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
             b.startObject("name");
             b.field("type", "keyword");
             b.startObject("fields");
-            b.startObject("subfield").field("type", "text").endObject();
+            b.startObject("subfield").field("type", CompletionFieldMapper.CONTENT_TYPE).endObject();
             b.endObject();
             b.endObject();
         }));
@@ -250,7 +250,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
     public void testFieldsUnderUnmappedRootField() throws Exception {
         MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
-            b.field("type", "text");
+            b.field("type", CompletionFieldMapper.CONTENT_TYPE);
             b.startObject("fields");
             b.startObject("subfield").field("type", "keyword").endObject();
             b.endObject();

@@ -281,7 +281,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.debug(new ParameterizedMessage("failure in cache fill: [{}]", request.id()), e);
+                        logger.debug(() -> "failure in cache fill: [" + request.id() + "]", e);
                         wrappedListener.onFailure(e);
                     }
                 });

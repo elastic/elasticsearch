@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -17,13 +18,13 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.ml.inference.pytorch.PriorityProcessWorkerExecutorService;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.JOB_COMMS_THREAD_POOL_NAME;
@@ -31,6 +32,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAM
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -80,8 +82,9 @@ public class DeploymentManagerTests extends ESTestCase {
             mock(PyTorchProcessFactory.class)
         );
 
-        ExecutorService executorService = mock(ExecutorService.class);
-        doThrow(new EsRejectedExecutionException("mock executor rejection")).when(executorService).execute(any(Runnable.class));
+        PriorityProcessWorkerExecutorService executorService = mock(PriorityProcessWorkerExecutorService.class);
+        doThrow(new EsRejectedExecutionException("mock executor rejection")).when(executorService)
+            .executeWithPriority(any(AbstractRunnable.class), any(), anyLong());
 
         AtomicInteger rejectedCount = new AtomicInteger();
 
@@ -96,6 +99,7 @@ public class DeploymentManagerTests extends ESTestCase {
             task,
             mock(InferenceConfig.class),
             Map.of(),
+            false,
             TimeValue.timeValueMinutes(1),
             ActionListener.wrap(result -> fail("unexpected success"), e -> assertThat(e, instanceOf(EsRejectedExecutionException.class)))
         );

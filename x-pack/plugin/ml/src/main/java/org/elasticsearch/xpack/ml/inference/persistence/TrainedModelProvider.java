@@ -449,7 +449,7 @@ public class TrainedModelProvider {
             assert r.getItems().length == trainedModelDefinitionDocs.size() + 1;
             if (r.getItems()[0].isFailed()) {
                 logger.error(
-                    new ParameterizedMessage("[{}] failed to store trained model config for inference", trainedModelConfig.getModelId()),
+                    () -> "[" + trainedModelConfig.getModelId() + "] failed to store trained model config for inference",
                     r.getItems()[0].getFailure().getCause()
                 );
 
@@ -976,7 +976,7 @@ public class TrainedModelProvider {
                             continue;
                         }
                         logger.error(
-                            new ParameterizedMessage("[{}] search failed for models", Strings.arrayToCommaDelimitedString(modelIds)),
+                            () -> "[" + Strings.arrayToCommaDelimitedString(modelIds) + "] search failed for models",
                             response.getFailure()
                         );
                         listener.onFailure(

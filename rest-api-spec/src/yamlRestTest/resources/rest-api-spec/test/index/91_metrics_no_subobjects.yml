@@ -1,0 +1,40 @@
+---
+"Metrics indexing":
+  - skip:
+      features: allowed_warnings_regex
+      version: " - 8.2.99"
+      reason: added in 8.3.0
+
+  - do:
+      indices.put_template:
+        name: test
+        body:
+          index_patterns: test-*
+          mappings:
+            dynamic_templates:
+              - no_subobjects:
+                  match: metrics
+                  mapping:
+                    type: object
+                    subobjects: false
+
+  - do:
+      allowed_warnings_regex:
+        - "index \\[test-1\\] matches multiple legacy templates \\[global, test\\], composable templates will only match a single template"
+      index:
+        index: test-1
+        id: 1
+        refresh: true
+        body:
+          { metrics.time: 10, metrics.time.max: 100, metrics.time.min: 1 }
+
+  - do:
+      field_caps:
+        index: test-1
+        fields: metrics.time*
+  - match: {fields.metrics\.time.long.searchable: true}
+  - match: {fields.metrics\.time.long.aggregatable: true}
+  - match: {fields.metrics\.time\.max.long.searchable: true}
+  - match: {fields.metrics\.time\.max.long.aggregatable: true}
+  - match: {fields.metrics\.time\.min.long.searchable: true}
+  - match: {fields.metrics\.time\.min.long.aggregatable: true}

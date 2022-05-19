@@ -148,10 +148,7 @@ public class SecurityRestFilter implements RestHandler {
             });
         } catch (Exception inner) {
             inner.addSuppressed(e);
-            logger.error(
-                (Supplier<?>) () -> new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()),
-                inner
-            );
+            logger.error((Supplier<?>) () -> "failed to send failure response for uri [" + request.uri() + "]", inner);
         }
     }
 

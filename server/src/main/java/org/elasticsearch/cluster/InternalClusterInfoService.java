@@ -177,10 +177,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     logger.trace("received node stats response");
 
                     for (final FailedNodeException failure : nodesStatsResponse.failures()) {
-                        logger.warn(
-                            new ParameterizedMessage("failed to retrieve stats for node [{}]", failure.nodeId()),
-                            failure.getCause()
-                        );
+                        logger.warn(() -> "failed to retrieve stats for node [" + failure.nodeId() + "]", failure.getCause());
                     }
 
                     ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsagesBuilder = ImmutableOpenMap.builder();

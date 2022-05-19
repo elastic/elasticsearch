@@ -1,0 +1,5 @@
+pr: 86897
+summary: Fix `max_primary_shard_size` resize factor math
+area: ILM+SLM
+type: bug
+issues: []

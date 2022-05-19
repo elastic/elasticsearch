@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -245,7 +244,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error(new ParameterizedMessage("failed to put role [{}]", request.name()), e);
+                        logger.error(() -> "failed to put role [" + request.name() + "]", e);
                         listener.onFailure(e);
                     }
                 },

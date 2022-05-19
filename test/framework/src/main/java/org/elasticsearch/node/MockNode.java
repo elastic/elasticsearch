@@ -28,8 +28,8 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -100,19 +100,7 @@ public class MockNode extends Node {
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final boolean forbidPrivateIndexSettings
     ) {
-        super(
-            environment,
-            // once we have a MockPluginsService, we will pass a creation function
-            // for that
-            settings -> new PluginsService(
-                settings,
-                environment.configFile(),
-                environment.modulesFile(),
-                environment.pluginsFile(),
-                classpathPlugins
-            ),
-            forbidPrivateIndexSettings
-        );
+        super(environment, settings -> new MockPluginsService(settings, environment, classpathPlugins), forbidPrivateIndexSettings);
         this.classpathPlugins = classpathPlugins;
     }
 

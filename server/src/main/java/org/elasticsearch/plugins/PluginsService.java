@@ -100,6 +100,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         // we need to build a List of plugins for checking mandatory plugins
         final List<String> pluginsNames = new ArrayList<>();
 
+        assert classpathPlugins.isEmpty() : "We shouldn't pass classpath plugins anymore";
         // first we load plugins that are on the classpath. this is for tests
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
@@ -207,7 +208,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param <T> The generic type of the result
      */
     public <T> Stream<T> map(Function<Plugin, T> function) {
-        return plugins.stream().map(LoadedPlugin::instance).map(function);
+        return this.plugins().stream().map(LoadedPlugin::instance).map(function);
     }
 
     /**
@@ -217,7 +218,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param <T> The generic type of the collection
      */
     public <T> Stream<T> flatMap(Function<Plugin, Collection<T>> function) {
-        return plugins.stream().map(LoadedPlugin::instance).flatMap(p -> function.apply(p).stream());
+        return this.plugins().stream().map(LoadedPlugin::instance).flatMap(p -> function.apply(p).stream());
     }
 
     /**
@@ -225,7 +226,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param consumer An action that consumes a plugin
      */
     public void forEach(Consumer<Plugin> consumer) {
-        plugins.stream().map(LoadedPlugin::instance).forEach(consumer);
+        this.plugins().stream().map(LoadedPlugin::instance).forEach(consumer);
     }
 
     /**
@@ -233,7 +234,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @return A map of plugin names to plugin instances.
      */
     public Map<String, Plugin> pluginMap() {
-        return plugins.stream().collect(Collectors.toMap(p -> p.info().getName(), LoadedPlugin::instance));
+        return this.plugins().stream().collect(Collectors.toMap(p -> p.info().getName(), LoadedPlugin::instance));
     }
 
     /**
@@ -242,6 +243,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     @Override
     public PluginsAndModules info() {
         return info;
+    }
+
+    protected List<LoadedPlugin> plugins() {
+        return this.plugins;
     }
 
     private Collection<LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
@@ -440,7 +445,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private static Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings, Path configPath) {
+    protected static Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings, Path configPath) {
         final Constructor<?>[] constructors = pluginClass.getConstructors();
         if (constructors.length == 0) {
             throw new IllegalStateException("no public constructor for [" + pluginClass.getName() + "]");
@@ -484,7 +489,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     @SuppressWarnings("unchecked")
     public <T> List<T> filterPlugins(Class<T> type) {
-        return plugins.stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance())).toList();
+        return this.plugins().stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance())).toList();
     }
 
     /**

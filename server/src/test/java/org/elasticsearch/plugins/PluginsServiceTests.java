@@ -45,7 +45,7 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin> classpathPlugin) {
-        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), List.of(classpathPlugin));
+        return new MockPluginsService(settings, TestEnvironment.newEnvironment(settings), List.of(classpathPlugin));
     }
 
     static PluginsService newPluginsService(
@@ -53,13 +53,7 @@ public class PluginsServiceTests extends ESTestCase {
         Class<? extends Plugin> classpathPlugin1,
         Class<? extends Plugin> classpathPlugin2
     ) {
-        return new PluginsService(
-            settings,
-            null,
-            null,
-            TestEnvironment.newEnvironment(settings).pluginsFile(),
-            List.of(classpathPlugin1, classpathPlugin2)
-        );
+        return new MockPluginsService(settings, TestEnvironment.newEnvironment(settings), List.of(classpathPlugin1, classpathPlugin2));
     }
 
     public void testFilterPlugins() {

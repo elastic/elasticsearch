@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.core.watcher.transform.chain;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
@@ -20,6 +18,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.watcher.transform.chain.ChainTransform.TYPE;
 
@@ -47,7 +46,7 @@ public class ExecutableChainTransform extends ExecutableTransform<ChainTransform
         try {
             return doExecute(ctx, payload, results);
         } catch (Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}] transform for [{}]", TYPE, ctx.id()), e);
+            logger.error(() -> String.format(ROOT, "failed to execute [%s] transform for [%s]", TYPE, ctx.id()), e);
             return new ChainTransform.Result(e, results);
         }
     }

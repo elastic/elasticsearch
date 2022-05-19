@@ -10,8 +10,6 @@ package org.elasticsearch.test.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +21,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 /**
  * A mock task manager that allows adding listeners for events
@@ -51,10 +52,7 @@ public class MockTaskManager extends TaskManager {
                 listener.onTaskRegistered(task);
             } catch (Exception e) {
                 logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "failed to notify task manager listener about registering the task with id {}",
-                        task.getId()
-                    ),
+                    () -> format(ROOT, "failed to notify task manager listener about registering the task with id %s", task.getId()),
                     e
                 );
             }
@@ -71,10 +69,7 @@ public class MockTaskManager extends TaskManager {
                     listener.onTaskUnregistered(task);
                 } catch (Exception e) {
                     logger.warn(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to notify task manager listener about unregistering the task with id {}",
-                            task.getId()
-                        ),
+                        () -> format(ROOT, "failed to notify task manager listener about unregistering the task with id %s", task.getId()),
                         e
                     );
                 }
@@ -92,8 +87,9 @@ public class MockTaskManager extends TaskManager {
                 listener.waitForTaskCompletion(task);
             } catch (Exception e) {
                 logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "failed to notify task manager listener about waitForTaskCompletion the task with id {}",
+                    () -> format(
+                        ROOT,
+                        "failed to notify task manager listener about waitForTaskCompletion the task with id %s",
                         task.getId()
                     ),
                     e

@@ -10,7 +10,6 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
@@ -84,8 +83,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -902,10 +903,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         try {
                             listener.actionGet();
                         } catch (Exception e) {
-                            logger.trace(
-                                (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", nodeA),
-                                e
-                            );
+                            logger.trace(() -> format(ROOT, "caught exception while sending to node %s", nodeA), e);
                         }
                     }
                 }
@@ -945,10 +943,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                             } catch (ConnectTransportException e) {
                                 // ok!
                             } catch (Exception e) {
-                                logger.error(
-                                    (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", node),
-                                    e
-                                );
+                                logger.error(() -> format(ROOT, "caught exception while sending to node %s", node), e);
                                 sendingErrors.add(e);
                             }
                         } catch (NodeNotConnectedException ex) {

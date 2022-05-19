@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.monitoring.exporter.local;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -748,7 +747,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         @Override
         public void onFailure(Exception e) {
             responseReceived(countDown, false, onComplete, setup);
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to set monitoring {} [{}]", type, name), e);
+            logger.error(() -> format(ROOT, "failed to set monitoring %s [%s]", type, name), e);
         }
     }
 

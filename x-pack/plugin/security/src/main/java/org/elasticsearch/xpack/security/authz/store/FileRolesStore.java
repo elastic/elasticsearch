@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -55,8 +54,10 @@ import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
@@ -224,13 +225,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     }
                 }
             } catch (IOException ioe) {
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "failed to read roles file [{}]. skipping all roles...",
-                        path.toAbsolutePath()
-                    ),
-                    ioe
-                );
+                logger.error(() -> format(ROOT, "failed to read roles file [%s]. skipping all roles...", path.toAbsolutePath()), ioe);
                 return emptyMap();
             }
         } else {
@@ -265,13 +260,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     }
                 }
             } catch (IOException ioe) {
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "failed to read roles file [{}]. skipping all roles...",
-                        path.toAbsolutePath()
-                    ),
-                    ioe
-                );
+                logger.error(() -> format(ROOT, "failed to read roles file [%s]. skipping all roles...", path.toAbsolutePath()), ioe);
                 return emptyMap();
             }
         }
@@ -337,11 +326,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
             if (roleName != null) {
                 final String finalRoleName = roleName;
                 logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "invalid role definition [{}] in roles file [{}]. skipping role...",
-                        finalRoleName,
-                        path
-                    ),
+                    () -> format(ROOT, "invalid role definition [%s] in roles file [%s]. skipping role...", finalRoleName, path),
                     e
                 );
             } else {
@@ -376,8 +361,9 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     DLSRoleQueryValidator.validateQueryField(descriptor.getIndicesPrivileges(), xContentRegistry);
                 } catch (ElasticsearchException | IllegalArgumentException e) {
                     logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "invalid role definition [{}] in roles file [{}]. failed to validate query field. skipping role...",
+                        () -> format(
+                            ROOT,
+                            "invalid role definition [%s] in roles file [%s]. failed to validate query field. skipping role...",
                             roleName,
                             path.toAbsolutePath()
                         ),
@@ -433,10 +419,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     permissions = parseFile(file, logger, settings, licenseState, xContentRegistry);
                 } catch (Exception e) {
                     logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "could not reload roles file [{}]. Current roles remain unmodified",
-                            file.toAbsolutePath()
-                        ),
+                        () -> format(ROOT, "could not reload roles file [%s]. Current roles remain unmodified", file.toAbsolutePath()),
                         e
                     );
                     return;

@@ -19,8 +19,6 @@ import com.amazonaws.services.ec2.model.Tag;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.SingleObjectCache;
@@ -34,7 +32,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.lang.String.format;
 import static java.util.Collections.disjoint;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_DNS;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_IP;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_DNS;
@@ -183,14 +183,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
                         }
                     } catch (final Exception e) {
                         final String finalAddress = address;
-                        logger.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "failed to add {}, address {}",
-                                instance.getInstanceId(),
-                                finalAddress
-                            ),
-                            e
-                        );
+                        logger.warn(() -> format(ROOT, "failed to add %s, address %s", instance.getInstanceId(), finalAddress), e);
                     }
                 } else {
                     logger.trace("not adding {}, address is null, host_type {}", instance.getInstanceId(), hostType);

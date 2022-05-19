@@ -13,8 +13,6 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -41,6 +39,9 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 public class JdbcHttpClientRequestTests extends ESTestCase {
 
@@ -161,14 +162,7 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
                         }
                     }
                 } catch (Exception e) {
-                    logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to respond to request [{} {}]",
-                            s.getRequestMethod(),
-                            s.getRequestURI()
-                        ),
-                        e
-                    );
+                    logger.error(() -> format(ROOT, "failed to respond to request [%s %s]", s.getRequestMethod(), s.getRequestURI()), e);
                 } finally {
                     s.close();
                 }

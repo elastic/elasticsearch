@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.security.authc.file;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
@@ -37,8 +35,10 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
+import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 
 public class FileUserRolesStore {
@@ -94,10 +94,7 @@ public class FileUserRolesStore {
             return map == null ? emptyMap() : map;
         } catch (Exception e) {
             logger.error(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "failed to parse users_roles file [{}]. skipping/removing all entries...",
-                    path.toAbsolutePath()
-                ),
+                () -> format(ROOT, "failed to parse users_roles file [%s]. skipping/removing all entries...", path.toAbsolutePath()),
                 e
             );
             return emptyMap();

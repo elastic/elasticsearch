@@ -12,7 +12,6 @@ import com.unboundid.ldap.sdk.LDAPException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
@@ -40,8 +39,10 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.dn;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.relativeName;
 
@@ -97,10 +98,7 @@ public class DnRoleMapper implements UserRoleMapper {
             return parseFile(path, logger, realmType, realmName, false);
         } catch (Exception e) {
             logger.error(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "failed to parse role mappings file [{}]. skipping/removing all mappings...",
-                    path.toAbsolutePath()
-                ),
+                () -> format(ROOT, "failed to parse role mappings file [%s]. skipping/removing all mappings...", path.toAbsolutePath()),
                 e
             );
             return emptyMap();

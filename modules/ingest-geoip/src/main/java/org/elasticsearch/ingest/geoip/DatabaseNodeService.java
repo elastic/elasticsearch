@@ -9,7 +9,6 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -60,6 +59,9 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 /**
  * A component that is responsible for making the databases maintained by {@link GeoIpDownloader}
@@ -344,8 +346,9 @@ public final class DatabaseNodeService implements Closeable {
                             );
                         } catch (Exception e) {
                             LOGGER.debug(
-                                (Supplier<?>) () -> new ParameterizedMessage(
-                                    "failed to reload pipeline [{}] after downloading of database [{}]",
+                                () -> format(
+                                    ROOT,
+                                    "failed to reload pipeline [%s] after downloading of database [%s]",
                                     id,
                                     databaseFileName
                                 ),

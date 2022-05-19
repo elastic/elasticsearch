@@ -14,8 +14,6 @@ import com.sun.net.httpserver.HttpsServer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -43,6 +41,8 @@ import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLContext;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.test.ESTestCase.terminate;
 
 /**
@@ -139,14 +139,7 @@ public class MockWebServer implements Closeable {
                     }
                 }
             } catch (Exception e) {
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "failed to respond to request [{} {}]",
-                        s.getRequestMethod(),
-                        s.getRequestURI()
-                    ),
-                    e
-                );
+                logger.error(() -> format(ROOT, "failed to respond to request [%s %s]", s.getRequestMethod(), s.getRequestURI()), e);
             } finally {
                 s.close();
             }

@@ -27,8 +27,6 @@ import com.unboundid.ldap.sdk.SearchScope;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
@@ -661,13 +659,7 @@ public final class LdapUtils {
                             searchResult
                         );
                     } catch (LDAPException e) {
-                        LOGGER.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "caught exception while trying to follow referral [{}]",
-                                referralUrl
-                            ),
-                            e
-                        );
+                        LOGGER.warn(() -> format(ROOT, "caught exception while trying to follow referral [%s]", referralUrl), e);
                         if (ignoreReferralErrors) {
                             // Needed in order for the countDown to be correct
                             referralListener.onResponse(emptyResult(searchResult));

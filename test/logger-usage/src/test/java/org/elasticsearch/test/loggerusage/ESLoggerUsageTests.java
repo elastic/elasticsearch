@@ -201,7 +201,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkOrderOfExceptionArgument1() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}", "world"), new Exception());
+        logger.info(() -> format(ROOT, "Hello %s", "world"), new Exception());
     }
 
     public void checkFailOrderOfExceptionArgument1() {
@@ -209,7 +209,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkOrderOfExceptionArgument2() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 42), new Exception());
+        logger.info(() -> format(ROOT, "Hello %s, %s", "world", 42), new Exception());
     }
 
     public void checkFailOrderOfExceptionArgument2() {
@@ -221,7 +221,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkFailNonConstantMessageWithArguments(boolean b) {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage(Boolean.toString(b), 42), new Exception());
+        logger.info(() -> format(ROOT, Boolean.toString(b), 42), new Exception());
     }
 
     public void checkComplexUsage(boolean b) {

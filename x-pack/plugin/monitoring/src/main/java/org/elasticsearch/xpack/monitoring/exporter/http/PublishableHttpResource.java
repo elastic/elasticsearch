@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.apache.http.HttpEntity;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -30,6 +28,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 /**
  * {@code PublishableHttpResource} represents an {@link HttpResource} that is a single file or object that can be checked <em>and</em>
@@ -286,12 +287,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                     }
                 } catch (Exception e) {
                     logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to parse [{}/{}] on the [{}]",
-                            resourceBasePath,
-                            resourceName,
-                            resourceOwnerName
-                        ),
+                        () -> format(ROOT, "failed to parse [%s/%s] on the [%s]", resourceBasePath, resourceName, resourceOwnerName),
                         e
                     );
 
@@ -306,8 +302,9 @@ public abstract class PublishableHttpResource extends HttpResource {
                     final int statusCode = response.getStatusLine().getStatusCode();
 
                     logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to verify {} [{}] on the [{}] {} with status code [{}]",
+                        () -> format(
+                            ROOT,
+                            "failed to verify %s [%s] on the [%s] %s with status code [%s]",
                             resourceType,
                             resourceName,
                             resourceOwnerName,
@@ -318,8 +315,9 @@ public abstract class PublishableHttpResource extends HttpResource {
                     );
                 } else {
                     logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to verify {} [{}] on the [{}] {}",
+                        () -> format(
+                            ROOT,
+                            "failed to verify %s [%s] on the [%s] %s",
                             resourceType,
                             resourceName,
                             resourceOwnerName,
@@ -397,8 +395,9 @@ public abstract class PublishableHttpResource extends HttpResource {
             @Override
             public void onFailure(final Exception exception) {
                 logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "failed to upload {} [{}] on the [{}] {}",
+                    () -> format(
+                        ROOT,
+                        "failed to upload %s [%s] on the [%s] %s",
                         resourceType,
                         resourceName,
                         resourceOwnerName,
@@ -468,8 +467,9 @@ public abstract class PublishableHttpResource extends HttpResource {
             @Override
             public void onFailure(Exception exception) {
                 logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "failed to delete {} [{}] on the [{}] {}",
+                    () -> format(
+                        ROOT,
+                        "failed to delete %s [%s] on the [%s] %s",
                         resourceType,
                         resourceName,
                         resourceOwnerName,

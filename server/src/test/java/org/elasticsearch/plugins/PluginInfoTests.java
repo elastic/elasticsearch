@@ -581,7 +581,7 @@ public class PluginInfoTests extends ESTestCase {
      * This is important because {@link PluginsUtils#getPluginBundles(Path)} will
      * use the hashcode to catch duplicate names
      */
-    public void testSameNameSameHash() {
+    public void testPluginEqualityAndHash() {
         PluginInfo info1 = new PluginInfo(
             "c",
             "foo",
@@ -596,6 +596,7 @@ public class PluginInfoTests extends ESTestCase {
             "-Dfoo=bar",
             randomBoolean()
         );
+        // everything but name is different from info1
         PluginInfo info2 = new PluginInfo(
             info1.getName(),
             randomValueOtherThan(info1.getDescription(), () -> randomAlphaOfLengthBetween(4, 12)),
@@ -612,26 +613,8 @@ public class PluginInfoTests extends ESTestCase {
             randomValueOtherThan(info1.getJavaOpts(), () -> randomAlphaOfLengthBetween(4, 12)),
             info1.isLicensed() == false
         );
-
-        assertThat(info1.hashCode(), equalTo(info2.hashCode()));
-    }
-
-    public void testDifferentNameDifferentHash() {
-        PluginInfo info1 = new PluginInfo(
-            "c",
-            "foo",
-            "dummy",
-            Version.CURRENT,
-            "1.8",
-            "dummyclass",
-            null,
-            Collections.singletonList("foo"),
-            randomBoolean(),
-            PluginType.ISOLATED,
-            "-Dfoo=bar",
-            randomBoolean()
-        );
-        PluginInfo info2 = new PluginInfo(
+        // only name is different from info1
+        PluginInfo info3 = new PluginInfo(
             randomValueOtherThan(info1.getName(), () -> randomAlphaOfLengthBetween(4, 12)),
             info1.getDescription(),
             info1.getVersion(),
@@ -646,6 +629,11 @@ public class PluginInfoTests extends ESTestCase {
             info1.isLicensed()
         );
 
-        assertThat(info1.hashCode(), not(equalTo(info2.hashCode())));
+        assertThat(info1, equalTo(info2));
+        assertThat(info1.hashCode(), equalTo(info2.hashCode()));
+
+        assertThat(info1, not(equalTo(info3)));
+        assertThat(info1.hashCode(), not(equalTo(info3.hashCode())));
     }
+
 }

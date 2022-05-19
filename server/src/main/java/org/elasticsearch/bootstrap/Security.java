@@ -9,7 +9,6 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -128,7 +127,7 @@ final class Security {
         final String[] classesThatCanExit = new String[] {
             // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
             ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
-            Command.class.getName() };
+            Elasticsearch.class.getName() };
         setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests
@@ -245,10 +244,6 @@ final class Security {
         }
         for (Path path : environment.repoFiles()) {
             addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete", false);
-        }
-        if (environment.pidFile() != null) {
-            // we just need permission to remove the file if its elsewhere.
-            addSingleFilePath(policy, environment.pidFile(), "delete");
         }
     }
 

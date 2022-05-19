@@ -77,6 +77,7 @@ public class MappingLookupTests extends ESTestCase {
             "object",
             "object",
             Explicit.EXPLICIT_TRUE,
+            Explicit.IMPLICIT_TRUE,
             ObjectMapper.Dynamic.TRUE,
             Collections.singletonMap("object.subfield", fieldMapper)
         );

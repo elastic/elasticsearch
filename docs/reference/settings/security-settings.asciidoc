@@ -33,6 +33,18 @@ information about disabling {security-features} in specific {kib} instances, see
 {kibana-ref}/security-settings-kb.html[{kib} security settings].
 --
 
+`xpack.security.autoconfiguration.enabled`::
+(<<static-cluster-setting,Static>>)
+Defaults to `true`, which enables
+<<configuring-stack-security,security auto configuration>>.
++
+--
+If set to `false`, security auto configuration is disabled, which is not 
+recommended. When disabled, security is not configured automatically when 
+starting {es} for the first time, which means that you must
+<<manually-configure-security,manually configure security>>. 
+--
+
 `xpack.security.hide_settings`::
 (<<static-cluster-setting,Static>>)
 A comma-separated list of settings that are omitted from the results of the

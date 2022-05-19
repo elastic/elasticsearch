@@ -8,6 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -48,6 +51,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
+    private static final Logger logger = LogManager.getLogger(FieldMapper.class);
+
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting(
         "index.mapping.ignore_malformed",
         false,
@@ -959,6 +964,38 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param updateable        whether the parameter can be changed by a mapping update
          * @param initializer       a function that reads the parameter value from an existing mapper
          * @param defaultAnalyzer   the default value, to be used if the parameter is undefined in a mapping
+         * @param indexCreatedVersion the version on which this index was created
+         */
+        public static Parameter<NamedAnalyzer> analyzerParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, NamedAnalyzer> initializer,
+            Supplier<NamedAnalyzer> defaultAnalyzer,
+            Version indexCreatedVersion
+        ) {
+            return new Parameter<>(name, updateable, defaultAnalyzer, (n, c, o) -> {
+                String analyzerName = o.toString();
+                NamedAnalyzer a = c.getIndexAnalyzers().get(analyzerName);
+                if (a == null) {
+                    if (indexCreatedVersion.isLegacyIndexVersion()) {
+                        logger.warn(
+                            new ParameterizedMessage("Could not find analyzer [{}] of legacy index, falling back to default", analyzerName)
+                        );
+                        a = defaultAnalyzer.get();
+                    } else {
+                        throw new IllegalArgumentException("analyzer [" + analyzerName + "] has not been configured in mappings");
+                    }
+                }
+                return a;
+            }, initializer, (b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
+        }
+
+        /**
+         * Defines a parameter that takes an analyzer name
+         * @param name              the parameter name
+         * @param updateable        whether the parameter can be changed by a mapping update
+         * @param initializer       a function that reads the parameter value from an existing mapper
+         * @param defaultAnalyzer   the default value, to be used if the parameter is undefined in a mapping
          */
         public static Parameter<NamedAnalyzer> analyzerParam(
             String name,
@@ -966,14 +1003,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, NamedAnalyzer> initializer,
             Supplier<NamedAnalyzer> defaultAnalyzer
         ) {
-            return new Parameter<>(name, updateable, defaultAnalyzer, (n, c, o) -> {
-                String analyzerName = o.toString();
-                NamedAnalyzer a = c.getIndexAnalyzers().get(analyzerName);
-                if (a == null) {
-                    throw new IllegalArgumentException("analyzer [" + analyzerName + "] has not been configured in mappings");
-                }
-                return a;
-            }, initializer, (b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
+            return analyzerParam(name, updateable, initializer, defaultAnalyzer, Version.CURRENT);
         }
 
         /**

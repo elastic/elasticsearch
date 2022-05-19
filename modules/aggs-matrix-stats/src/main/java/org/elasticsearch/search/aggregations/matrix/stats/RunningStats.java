@@ -11,13 +11,16 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Descriptive stats gathered per shard. Coordinating node computes final correlation and covariance stats
@@ -197,6 +200,24 @@ public class RunningStats implements Writeable, Cloneable {
     }
 
     /**
+     * Check if two {@link RunningStats} can be merged, which is, if they
+     * both include all fields required by the aggregation.
+     *
+     * @param other the other {@link RunningStats} to check
+     * @return true if we can merge the two {@link RunningStats} or false otherwise
+     */
+    public boolean canMerge(final RunningStats other) {
+        if (other == null || this.docCount == 0 || other.docCount == 0) {
+            return true;
+        }
+        return isEmptySymmetricDifference(this.getAllFieldNames(), other.getAllFieldNames());
+    }
+
+    private static <T> boolean isEmptySymmetricDifference(final Set<T> a, final Set<T> b) {
+        return Sets.difference(a, b).isEmpty() && Sets.difference(b, a).isEmpty();
+    }
+
+    /**
      * Merges the descriptive statistics of a second data set (e.g., per shard)
      *
      * running computations taken from: http://prod.sandia.gov/techlib/access-control.cgi/2008/086212.pdf
@@ -307,6 +328,12 @@ public class RunningStats implements Writeable, Cloneable {
         } catch (CloneNotSupportedException e) {
             throw new ElasticsearchException("Error trying to create a copy of RunningStats");
         }
+    }
+
+    public Set<String> getAllFieldNames() {
+        // NOTE: here we assume all maps used to store values hold the same set of keys (field names).
+        // As a result, we just need to read the set of keys from one of them.
+        return Collections.unmodifiableSet(this.counts.keySet());
     }
 
     @Override

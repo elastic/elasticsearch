@@ -235,6 +235,9 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
 
         RunningStats runningStats = new RunningStats();
         for (InternalAggregation agg : aggs) {
+            if (runningStats.canMerge(((InternalMatrixStats) agg).stats) == false) {
+                throw new IllegalArgumentException("Aggregation [" + agg.getName() + "] " + " all fields must exist in all indices.");
+            }
             runningStats.merge(((InternalMatrixStats) agg).stats);
         }
 

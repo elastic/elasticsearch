@@ -340,7 +340,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                     for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
                         Long timestamp = entry.getKey();
                         AggregatorFunction function = entry.getValue();
-                        if (aggCtx.getTimestamp() + downsampleRange > timestamp) {
+                        if (aggCtx.getTimestamp() + downsampleRange >= timestamp) {
                             function.collect(new TimePoint(aggCtx.getTimestamp(), value));
                         } else {
                             break;

@@ -122,7 +122,7 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
                         for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
                             Long timestamp = entry.getKey();
                             AggregatorFunction function = entry.getValue();
-                            if (aggCtx.getTimestamp() + downsampleRange > timestamp) {
+                            if (aggCtx.getTimestamp() + downsampleRange >= timestamp) {
                                 if (function instanceof ValueCountFunction) {
                                     ((ValueCountFunction) function).collectExact((long) value);
                                 } else {
@@ -163,7 +163,7 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
                 for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
                     Long timestamp = entry.getKey();
                     AggregatorFunction function = entry.getValue();
-                    if (aggCtx.getTimestamp() + downsampleRange > timestamp) {
+                    if (aggCtx.getTimestamp() + downsampleRange >= timestamp) {
                         ((AvgFunction) function).collectExact(sum, valueCount);
                     } else {
                         break;

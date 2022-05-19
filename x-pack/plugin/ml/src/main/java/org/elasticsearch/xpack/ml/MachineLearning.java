@@ -394,6 +394,7 @@ import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestMlSearchAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelDefinitionPartAction;
@@ -1249,6 +1250,7 @@ public class MachineLearning extends Plugin
             new RestPutTrainedModelDefinitionPartAction(),
             new RestPutTrainedModelVocabularyAction(),
             new RestInferTrainedModelAction(),
+            new RestMlSearchAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),

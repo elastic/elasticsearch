@@ -76,13 +76,14 @@ public class MasterHistory implements ClusterStateListener {
             int startIndex = Math.max(0, sizeAfterAddingNewMaster - MAX_HISTORY_SIZE);
             for (int i = startIndex; i < masterHistory.size(); i++) {
                 TimeAndMaster timeAndMaster = masterHistory.get(i);
-                final long endTime;
+                final long currentMasterEndTime;
                 if (i < masterHistory.size() - 1) {
-                    endTime = masterHistory.get(i + 1).startTimeMillis;
+                    // We treat the start time of the next master as the end time of this current master
+                    currentMasterEndTime = masterHistory.get(i + 1).startTimeMillis;
                 } else {
-                    endTime = Long.MAX_VALUE;
+                    currentMasterEndTime = Long.MAX_VALUE; // This current master has no end time
                 }
-                if (endTime >= oldestRelevantHistoryTime) {
+                if (currentMasterEndTime >= oldestRelevantHistoryTime) {
                     newMasterHistory.add(timeAndMaster);
                 }
             }
@@ -180,8 +181,8 @@ public class MasterHistory implements ClusterStateListener {
     }
 
     /**
-     * Returns true if a non-null master was seen at any point in the last nSeconds seconds, including if the master was non-null
-     * nSeconds ago but has transitioned to null since then.
+     * Returns true if a non-null master existed at any point in the last nSeconds seconds. Note that this could be a master whose start
+     * time was more than nSeconds ago, as long as either it is still master or the next master took over less than nSeconds ago.
      * @param nSeconds The number of seconds to look back
      * @return true if the current master is non-null or if a non-null master was seen in the last nSeconds seconds
      */

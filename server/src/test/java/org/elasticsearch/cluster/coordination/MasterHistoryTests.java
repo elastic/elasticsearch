@@ -18,12 +18,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.net.UnknownHostException;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -129,7 +131,7 @@ public class MasterHistoryTests extends ESTestCase {
          * null -> node1 -> node2 -> node3
          * Except for when only null had been master, there has been a non-null master node in the last 5 seconds all along
          */
-        long sixtyMinutesAgo = System.currentTimeMillis() - (60 * 60 * 1000);
+        long sixtyMinutesAgo = System.currentTimeMillis() - new TimeValue(60, TimeUnit.MINUTES).getMillis();
         when(threadPool.relativeTimeInMillis()).thenReturn(sixtyMinutesAgo);
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
         assertFalse(masterHistory.hasSeenMasterInLastNSeconds(5));
@@ -143,7 +145,7 @@ public class MasterHistoryTests extends ESTestCase {
          * null -> node1 -> null -> null -> node1
          * There has been a non-null master for the last 5 seconds every step at this time
          */
-        long fourtyMinutesAgo = System.currentTimeMillis() - (40 * 60 * 1000);
+        long fourtyMinutesAgo = System.currentTimeMillis() - new TimeValue(40, TimeUnit.MINUTES).getMillis();
         when(threadPool.relativeTimeInMillis()).thenReturn(fourtyMinutesAgo);
         assertTrue(masterHistory.hasSeenMasterInLastNSeconds(5));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node3MasterClusterState));
@@ -163,7 +165,7 @@ public class MasterHistoryTests extends ESTestCase {
          * than 5 seconds ago (and more than the age of history we keep, 30 minutes), the transition from it to null was just now, so we
          * still say that there has been a master recently.
          */
-        long sixSecondsAgo = System.currentTimeMillis() - (6 * 1000);
+        long sixSecondsAgo = System.currentTimeMillis() - new TimeValue(6, TimeUnit.SECONDS).getMillis();
         when(threadPool.relativeTimeInMillis()).thenReturn(sixSecondsAgo);
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         assertTrue(masterHistory.hasSeenMasterInLastNSeconds(5));

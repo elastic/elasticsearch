@@ -1419,7 +1419,7 @@ public class Security extends Plugin
                     + " ] setting."
             );
         }
-        final var cacheHashAlgoSettings = settings.filter(k -> k.endsWith("cache.hash_algo"));
+        final var cacheHashAlgoSettings = settings.filter(k -> k.endsWith(".cache.hash_algo"));
         cacheHashAlgoSettings.keySet().forEach((key) -> {
             final var setting = cacheHashAlgoSettings.get(key);
             assert setting != null;
@@ -1429,7 +1429,7 @@ public class Security extends Plugin
                     "Only SSHA256 or PBKDF2 is recommended for in-memory credential hashing in a FIPS 140 JVM. "
                         + "Please change the [{}] setting from [{}] to an appropriate value.",
                     key,
-                    hashAlgoName
+                    setting
                 );
             }
         });

@@ -10,7 +10,6 @@ package org.elasticsearch.action.support.master;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -245,8 +244,9 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                         retryOnMasterChange(clusterState, cause);
                                     } else {
                                         logger.trace(
-                                            new ParameterizedMessage(
-                                                "failure when forwarding request [{}] to master [{}]",
+                                            () -> format(
+                                                ROOT,
+                                                "failure when forwarding request [%s] to master [%s]",
                                                 actionName,
                                                 masterNode
                                             ),

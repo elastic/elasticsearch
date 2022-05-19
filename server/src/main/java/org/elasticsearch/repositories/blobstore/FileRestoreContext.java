@@ -9,7 +9,6 @@ package org.elasticsearch.repositories.blobstore;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.shard.ShardId;
@@ -29,8 +28,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static java.util.Locale.ROOT;
 
 /**
  * This context will execute a file restore of the lucene files. It is primarily designed to be used to
@@ -87,8 +88,9 @@ public abstract class FileRestoreContext {
                     recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
                 } catch (IOException e) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] [{}] Can't read metadata from store, will not reuse local files during restore",
+                        () -> format(
+                            ROOT,
+                            "[%s] [%s] Can't read metadata from store, will not reuse local files during restore",
                             shardId,
                             snapshotId
                         ),

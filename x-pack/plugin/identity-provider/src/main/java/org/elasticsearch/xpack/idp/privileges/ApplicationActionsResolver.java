@@ -24,7 +24,6 @@ package org.elasticsearch.xpack.idp.privileges;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -46,6 +45,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 public class ApplicationActionsResolver extends AbstractLifecycleComponent {
 
@@ -104,10 +106,7 @@ public class ApplicationActionsResolver extends AbstractLifecycleComponent {
                     defaults.applicationName
                 ),
                 ex -> logger.warn(
-                    new ParameterizedMessage(
-                        "Failed to load application privileges actions for application [{}]",
-                        defaults.applicationName
-                    ),
+                    () -> format(ROOT, "Failed to load application privileges actions for application [%s]", defaults.applicationName),
                     ex
                 )
             )

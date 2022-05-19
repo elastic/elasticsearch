@@ -9,7 +9,6 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -60,6 +59,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongPredicate;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit.humanReadableNanos;
 
 /**
@@ -451,8 +452,9 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             } catch (IOException ioException) {
                 exception.addSuppressed(ioException);
                 logger.warn(
-                    new ParameterizedMessage(
-                        "failure during post-failure cleanup while analysing repository [{}], you may need to manually remove [{}/{}]",
+                    () -> format(
+                        ROOT,
+                        "failure during post-failure cleanup while analysing repository [%s], you may need to manually remove [%s/%s]",
                         request.getRepositoryName(),
                         request.getBlobPath(),
                         request.getBlobName()

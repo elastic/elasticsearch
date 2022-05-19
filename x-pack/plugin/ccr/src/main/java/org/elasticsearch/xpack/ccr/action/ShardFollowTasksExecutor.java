@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -84,6 +83,8 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
 import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.extractLeaderShardHistoryUUIDs;
 
@@ -535,8 +536,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 assert cause instanceof ElasticsearchSecurityException == false : cause;
                 if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "{} background management of retention lease [{}] failed while following",
+                        () -> format(
+                            ROOT,
+                            "%s background management of retention lease [%s] failed while following",
                             params.getFollowShardId(),
                             retentionLeaseId
                         ),
@@ -580,10 +582,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             if (ShardFollowNodeTask.shouldRetry(e)) {
                 logger.debug(
-                    new ParameterizedMessage(
-                        "failed to fetch follow shard global {} checkpoint and max sequence number",
-                        shardFollowNodeTask
-                    ),
+                    () -> format(ROOT, "failed to fetch follow shard global %s checkpoint and max sequence number", shardFollowNodeTask),
                     e
                 );
                 try {

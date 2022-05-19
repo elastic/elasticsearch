@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -40,6 +39,8 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
@@ -113,7 +114,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
                     executor.execute(new AbstractRunnable() {
                         @Override
                         public void onFailure(Exception e) {
-                            logger.debug(new ParameterizedMessage("failed to compute mapping for {}", index), e);
+                            logger.debug(() -> format(ROOT, "failed to compute mapping for %s", index), e);
                             future.onResponse(null); // no need to propagate a failure to create the mapper service to searches
                         }
 

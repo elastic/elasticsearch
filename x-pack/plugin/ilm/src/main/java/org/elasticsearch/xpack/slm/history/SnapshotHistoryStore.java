@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.slm.history;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -88,17 +87,13 @@ public class SnapshotHistoryStore {
                 );
             }, exception -> {
                 logger.error(
-                    new ParameterizedMessage(
-                        "failed to index snapshot history item in data stream [{}]: [{}]",
-                        SLM_HISTORY_DATA_STREAM,
-                        item
-                    ),
+                    () -> format(ROOT, "failed to index snapshot history item in data stream [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item),
                     exception
                 );
             }));
         } catch (IOException exception) {
             logger.error(
-                new ParameterizedMessage("failed to index snapshot history item in data stream [{}]: [{}]", SLM_HISTORY_DATA_STREAM, item),
+                () -> format(ROOT, "failed to index snapshot history item in data stream [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item),
                 exception
             );
         }

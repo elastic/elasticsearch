@@ -9,7 +9,6 @@ package org.elasticsearch.persistent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -262,8 +261,9 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 public void onFailure(Exception notificationException) {
                     notificationException.addSuppressed(originalException);
                     logger.warn(
-                        new ParameterizedMessage(
-                            "notification for task [{}] with id [{}] failed",
+                        () -> format(
+                            ROOT,
+                            "notification for task [%s] with id [%s] failed",
                             taskInProgress.getTaskName(),
                             taskInProgress.getAllocationId()
                         ),

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.template;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
@@ -49,6 +48,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
@@ -136,7 +137,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @param e The exception that caused the failure.
      */
     protected void onPutTemplateFailure(String templateName, Exception e) {
-        logger.error(new ParameterizedMessage("error adding index template [{}] for [{}]", templateName, getOrigin()), e);
+        logger.error(() -> format(ROOT, "error adding index template [%s] for [%s]", templateName, getOrigin()), e);
     }
 
     /**
@@ -145,7 +146,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @param e The exception that caused the failure.
      */
     protected void onPutPolicyFailure(LifecyclePolicy policy, Exception e) {
-        logger.error(new ParameterizedMessage("error adding lifecycle policy [{}] for [{}]", policy.getName(), getOrigin()), e);
+        logger.error(() -> format(ROOT, "error adding lifecycle policy [%s] for [%s]", policy.getName(), getOrigin()), e);
     }
 
     @Override

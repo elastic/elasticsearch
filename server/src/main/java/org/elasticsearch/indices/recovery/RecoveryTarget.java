@@ -9,7 +9,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -49,6 +48,9 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
@@ -575,7 +577,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             multiFileWriter.writeFile(metadata, readSnapshotFileBufferSize, inputStream);
             listener.onResponse(null);
         } catch (Exception e) {
-            logger.debug(new ParameterizedMessage("Unable to recover snapshot file {} from repository {}", fileInfo, repository), e);
+            logger.debug(() -> format(ROOT, "Unable to recover snapshot file %s from repository %s", fileInfo, repository), e);
             listener.onFailure(e);
         }
     }

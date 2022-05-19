@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -21,6 +20,9 @@ import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask {
 
@@ -64,12 +66,7 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
     @Override
     public void handleFailure(Exception e) {
         logger.warn(
-            new ParameterizedMessage(
-                "policy [{}] for index [{}] failed trying to set step info for step [{}].",
-                policy,
-                index,
-                currentStepKey
-            ),
+            () -> format(ROOT, "policy [%s] for index [%s] failed trying to set step info for step [%s].", policy, index, currentStepKey),
             e
         );
     }

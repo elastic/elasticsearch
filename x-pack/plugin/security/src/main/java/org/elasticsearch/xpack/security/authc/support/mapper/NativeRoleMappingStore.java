@@ -56,6 +56,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
@@ -142,8 +144,9 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                         ),
                         ex -> {
                             logger.error(
-                                new ParameterizedMessage(
-                                    "failed to load role mappings from index [{}] skipping all mappings.",
+                                () -> format(
+                                    ROOT,
+                                    "failed to load role mappings from index [%s] skipping all mappings.",
                                     SECURITY_MAIN_ALIAS
                                 ),
                                 ex

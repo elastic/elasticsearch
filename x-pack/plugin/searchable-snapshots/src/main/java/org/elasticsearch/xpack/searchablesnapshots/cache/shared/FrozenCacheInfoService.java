@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -26,6 +25,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 /**
  * Keeps track of the nodes in the cluster and whether they do or do not have a frozen-tier shared cache, because we can only allocate
@@ -133,7 +135,7 @@ public class FrozenCacheInfoService {
                 shouldRetry = nodeStates.get(discoveryNode) == nodeStateHolder;
             }
             logger.debug(
-                new ParameterizedMessage("failed to retrieve node settings from node {}, shouldRetry={}", discoveryNode, shouldRetry),
+                () -> format(ROOT, "failed to retrieve node settings from node %s, shouldRetry=%s", discoveryNode, shouldRetry),
                 e
             );
             if (shouldRetry) {

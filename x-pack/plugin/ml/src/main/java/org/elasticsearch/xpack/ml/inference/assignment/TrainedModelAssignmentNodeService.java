@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -486,10 +485,11 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     )
                 ),
                 e -> logger.error(
-                    new ParameterizedMessage(
-                        "[{}] Error while updating assignment state to [{}] with reason [{}]",
+                    () -> format(
+                        ROOT,
+                        "[%s] Error while updating assignment state to [%s] with reason [%s]",
                         task.getModelId(),
-                        RoutingState.FAILED,
+                        FAILED,
                         reason
                     ),
                     e

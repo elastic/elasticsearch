@@ -426,8 +426,9 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         }
                     }, e -> {
                         logger.error(
-                            new ParameterizedMessage(
-                                "error occurred while reindexing index [{}] from feature [{}] to destination index [{}]",
+                            () -> format(
+                                ROOT,
+                                "error occurred while reindexing index [%s] from feature [%s] to destination index [%s]",
                                 oldIndexName,
                                 migrationInfo.getFeatureName(),
                                 newIndexName
@@ -440,8 +441,9 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             }, innerListener::onFailure));
         } catch (Exception ex) {
             logger.error(
-                new ParameterizedMessage(
-                    "error occurred while migrating index [{}] from feature [{}] to new index [{}]",
+                () -> format(
+                    ROOT,
+                    "error occurred while migrating index [%s] from feature [%s] to new index [%s]",
                     oldIndexName,
                     migrationInfo.getFeatureName(),
                     newIndexName

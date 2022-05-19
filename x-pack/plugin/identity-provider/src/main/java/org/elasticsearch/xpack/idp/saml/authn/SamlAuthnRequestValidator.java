@@ -52,6 +52,7 @@ import javax.xml.parsers.DocumentBuilder;
 
 import static java.lang.String.format;
 import static java.util.Locale.ROOT;
+import static java.util.Set.of;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
 import static org.opensaml.saml.saml2.core.NameIDType.UNSPECIFIED;
 
@@ -266,9 +267,10 @@ public class SamlAuthnRequestValidator {
                 );
             } catch (InvalidKeyException | SignatureException e) {
                 logger.warn(
-                    new ParameterizedMessage(
-                        "Signature verification failed for credential [{}]",
-                        samlFactory.describeCredentials(Set.of(credential))
+                    () -> format(
+                        ROOT,
+                        "Signature verification failed for credential [%s]",
+                        samlFactory.describeCredentials(of(credential))
                     ),
                     e
                 );

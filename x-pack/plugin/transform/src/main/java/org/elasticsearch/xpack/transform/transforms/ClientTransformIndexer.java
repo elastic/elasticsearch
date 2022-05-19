@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -317,8 +316,9 @@ class ClientTransformIndexer extends TransformIndexer {
                     // seqNoPrimaryTermAndIndex
                     // - for tests fail(assert), so we can debug the problem
                     logger.error(
-                        new ParameterizedMessage(
-                            "[{}] updating stats of transform failed, unexpected version conflict of internal state, resetting to recover.",
+                        () -> format(
+                            ROOT,
+                            "[%s] updating stats of transform failed, unexpected version conflict of internal state, resetting to recover.",
                             transformConfig.getId()
                         ),
                         statsExc
@@ -454,10 +454,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     disablePit = true;
                 } else {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] Failed to create a point in time reader, falling back to normal search.",
-                            getJobId()
-                        ),
+                        () -> format(ROOT, "[%s] Failed to create a point in time reader, falling back to normal search.", getJobId()),
                         e
                     );
                 }
@@ -500,11 +497,7 @@ class ClientTransformIndexer extends TransformIndexer {
                 Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
                 if (unwrappedException instanceof SearchContextMissingException) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] Search context missing, falling back to normal search; request [{}]",
-                            getJobId(),
-                            name
-                        ),
+                        () -> format(ROOT, "[%s] Search context missing, falling back to normal search; request [%s]", getJobId(), name),
                         e
                     );
                     namedPits.remove(name);

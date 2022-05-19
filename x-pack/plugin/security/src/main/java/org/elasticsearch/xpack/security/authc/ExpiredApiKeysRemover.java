@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.internal.Client;
@@ -29,6 +28,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -88,14 +89,15 @@ public final class ExpiredApiKeysRemover extends AbstractRunnable {
             );
             for (BulkItemResponse.Failure failure : response.getBulkFailures()) {
                 logger.debug(
-                    new ParameterizedMessage("deletion failed for index [{}], id [{}]", failure.getIndex(), failure.getId()),
+                    () -> format(ROOT, "deletion failed for index [%s], id [%s]", failure.getIndex(), failure.getId()),
                     failure.getCause()
                 );
             }
             for (ScrollableHitSource.SearchFailure failure : response.getSearchFailures()) {
                 logger.debug(
-                    new ParameterizedMessage(
-                        "search failed for index [{}], shard [{}] on node [{}]",
+                    () -> format(
+                        ROOT,
+                        "search failed for index [%s], shard [%s] on node [%s]",
                         failure.getIndex(),
                         failure.getShardId(),
                         failure.getNodeId()

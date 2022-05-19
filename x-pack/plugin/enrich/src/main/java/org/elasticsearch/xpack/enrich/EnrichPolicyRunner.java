@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.enrich;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -65,6 +64,8 @@ import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 public class EnrichPolicyRunner implements Runnable {
@@ -436,8 +437,9 @@ public class EnrichPolicyRunner implements Runnable {
                     if (logger.isDebugEnabled()) {
                         for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
                             logger.debug(
-                                new ParameterizedMessage(
-                                    "Policy [{}]: bulk index failed for index [{}], id [{}]",
+                                () -> format(
+                                    ROOT,
+                                    "Policy [%s]: bulk index failed for index [%s], id [%s]",
                                     policyName,
                                     failure.getIndex(),
                                     failure.getId()
@@ -456,8 +458,9 @@ public class EnrichPolicyRunner implements Runnable {
                     if (logger.isDebugEnabled()) {
                         for (ScrollableHitSource.SearchFailure failure : bulkByScrollResponse.getSearchFailures()) {
                             logger.debug(
-                                new ParameterizedMessage(
-                                    "Policy [{}]: search failed for index [{}], shard [{}] on node [{}]",
+                                () -> format(
+                                    ROOT,
+                                    "Policy [%s]: search failed for index [%s], shard [%s] on node [%s]",
                                     policyName,
                                     failure.getIndex(),
                                     failure.getShardId(),

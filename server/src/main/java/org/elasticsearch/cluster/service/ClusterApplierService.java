@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -443,8 +442,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 TimeValue executionTime = getTimeSince(startTimeMillis);
                 if (logger.isTraceEnabled()) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
+                        () -> format(
+                            ROOT,
+                            "failed to apply updated cluster state in [%s]:\nversion [%s], uuid [%s], source [%s]\n%s",
                             executionTime,
                             newClusterState.version(),
                             newClusterState.stateUUID(),
@@ -455,8 +455,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                     );
                 } else {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]",
+                        () -> format(
+                            ROOT,
+                            "failed to apply updated cluster state in [%s]:\nversion [%s], uuid [%s], source [%s]",
                             executionTime,
                             newClusterState.version(),
                             newClusterState.stateUUID(),

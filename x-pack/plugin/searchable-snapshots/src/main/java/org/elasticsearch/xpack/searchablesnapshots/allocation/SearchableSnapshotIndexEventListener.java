@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -26,6 +25,8 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory.unwrapDirectory;
@@ -70,8 +71,9 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
             final Runnable preWarmCondition = indexShard.addCleanFilesDependency();
             preWarmListener.whenComplete(v -> preWarmCondition.run(), e -> {
                 logger.warn(
-                    new ParameterizedMessage(
-                        "pre-warm operation failed for [{}] while it was the target of primary relocation [{}]",
+                    () -> format(
+                        ROOT,
+                        "pre-warm operation failed for [%s] while it was the target of primary relocation [%s]",
                         shardRouting.shardId(),
                         shardRouting
                     ),

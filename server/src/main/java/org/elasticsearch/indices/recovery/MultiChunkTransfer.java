@@ -9,7 +9,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
@@ -24,6 +23,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -90,10 +91,7 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
             items.stream()
                 .filter(item -> item.v1().failure != null)
                 .forEach(
-                    item -> logger.debug(
-                        new ParameterizedMessage("failed to transfer a chunk request {}", item.v1().source),
-                        item.v1().failure
-                    )
+                    item -> logger.debug(() -> format(ROOT, "failed to transfer a chunk request %s", item.v1().source), item.v1().failure)
                 );
             return;
         }

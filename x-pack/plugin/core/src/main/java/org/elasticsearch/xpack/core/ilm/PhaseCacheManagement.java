@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -167,7 +166,7 @@ public final class PhaseCacheManagement {
                 refreshedIndices.add(index.getIndex().getName());
             } catch (Exception e) {
                 logger.warn(
-                    new ParameterizedMessage("[{}] unable to refresh phase definition for updated policy [{}]", index, newPolicy.getName()),
+                    () -> format(ROOT, "[%s] unable to refresh phase definition for updated policy [%s]", index, newPolicy.getName()),
                     e
                 );
             }
@@ -289,10 +288,7 @@ public final class PhaseCacheManagement {
         ) {
             phaseExecutionInfo = PhaseExecutionInfo.parse(parser, currentPhase);
         } catch (Exception e) {
-            logger.trace(
-                new ParameterizedMessage("exception reading step keys checking for refreshability, phase definition: {}", phaseDef),
-                e
-            );
+            logger.trace(() -> format(ROOT, "exception reading step keys checking for refreshability, phase definition: %s", phaseDef), e);
             return null;
         }
 

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
@@ -41,8 +40,10 @@ import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
+import static java.lang.String.format;
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static java.util.Locale.ROOT;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -169,8 +170,9 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             tryConnect(trustedCert, false);
         } catch (SSLException | SocketException ex) {
             logger.warn(
-                new ParameterizedMessage(
-                    "unexpected handshake failure with certificate [{}] [{}]",
+                () -> format(
+                    ROOT,
+                    "unexpected handshake failure with certificate [%s] [%s]",
                     trustedCert.certificate.getSubjectX500Principal(),
                     trustedCert.certificate.getSubjectAlternativeNames()
                 ),

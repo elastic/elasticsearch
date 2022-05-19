@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.support.broadcast;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -223,8 +222,9 @@ public abstract class TransportBroadcastAction<
                     if (logger.isTraceEnabled()) {
                         if (TransportActions.isShardNotAvailableException(e) == false) {
                             logger.trace(
-                                new ParameterizedMessage(
-                                    "{}: failed to execute [{}]",
+                                () -> format(
+                                    ROOT,
+                                    "%s: failed to execute [%s]",
                                     shard != null ? shard.shortSummary() : shardIt.shardId(),
                                     request
                                 ),
@@ -239,8 +239,9 @@ public abstract class TransportBroadcastAction<
                     if (e != null) {
                         if (TransportActions.isShardNotAvailableException(e) == false) {
                             logger.debug(
-                                new ParameterizedMessage(
-                                    "{}: failed to execute [{}]",
+                                () -> format(
+                                    ROOT,
+                                    "%s: failed to execute [%s]",
                                     shard != null ? shard.shortSummary() : shardIt.shardId(),
                                     request
                                 ),

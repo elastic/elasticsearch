@@ -9,13 +9,15 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 class ApiKeyAuthenticator implements Authenticator {
 
@@ -61,7 +63,7 @@ class ApiKeyAuthenticator implements Authenticator {
                 if (authResult.getMessage() != null) {
                     if (authResult.getException() != null) {
                         logger.warn(
-                            new ParameterizedMessage("Authentication using apikey failed - {}", authResult.getMessage()),
+                            () -> format(ROOT, "Authentication using apikey failed - %s", authResult.getMessage()),
                             authResult.getException()
                         );
                     } else {

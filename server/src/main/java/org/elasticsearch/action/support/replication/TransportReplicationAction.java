@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
@@ -481,8 +480,9 @@ public abstract class TransportReplicationAction<
                                 if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
                                     // intentionally swallow, a missed global checkpoint sync should not fail this operation
                                     logger.info(
-                                        new ParameterizedMessage(
-                                            "{} failed to execute post-operation global checkpoint sync",
+                                        () -> format(
+                                            ROOT,
+                                            "%s failed to execute post-operation global checkpoint sync",
                                             primaryShardReference.indexShard.shardId()
                                         ),
                                         e

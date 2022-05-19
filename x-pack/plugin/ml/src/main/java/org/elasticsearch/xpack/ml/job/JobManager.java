@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
@@ -71,6 +70,9 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 /**
  * Allows interactions with jobs. The managed interactions include:
@@ -436,8 +438,9 @@ public class JobManager {
                     }
                 }, e -> {
                     logger.error(
-                        new ParameterizedMessage(
-                            "[{}] Updating autodetect failed with an exception, job update [{}] ",
+                        () -> format(
+                            ROOT,
+                            "[%s] Updating autodetect failed with an exception, job update [%s] ",
                             jobUpdate.getJobId(),
                             jobUpdate
                         ),

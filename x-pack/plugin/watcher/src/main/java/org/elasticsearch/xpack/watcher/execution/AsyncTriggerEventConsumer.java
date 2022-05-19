@@ -8,11 +8,12 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 
 import java.util.function.Consumer;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static java.util.stream.StreamSupport.stream;
 
 public class AsyncTriggerEventConsumer implements Consumer<Iterable<TriggerEvent>> {
@@ -29,8 +30,9 @@ public class AsyncTriggerEventConsumer implements Consumer<Iterable<TriggerEvent
             executionService.processEventsAsync(events);
         } catch (Exception e) {
             logger.error(
-                new ParameterizedMessage(
-                    "failed to process triggered events [{}]",
+                () -> format(
+                    ROOT,
+                    "failed to process triggered events [%s]",
                     (Object) stream(events.spliterator(), false).toArray(TriggerEvent[]::new)
                 ),
                 e

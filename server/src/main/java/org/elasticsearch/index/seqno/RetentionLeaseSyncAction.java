@@ -10,7 +10,6 @@ package org.elasticsearch.index.seqno;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -46,6 +45,9 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 /**
  * Write action responsible for syncing retention leases to replicas. This action is deliberately a write action so that if a replica misses
@@ -138,7 +140,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
                             AlreadyClosedException.class,
                             IndexShardClosedException.class
                         ) == null) {
-                            getLogger().warn(new ParameterizedMessage("{} retention lease sync failed", shardId), e);
+                            getLogger().warn(() -> format(ROOT, "%s retention lease sync failed", shardId), e);
                         }
                         task.setPhase("finished");
                         taskManager.unregister(task);

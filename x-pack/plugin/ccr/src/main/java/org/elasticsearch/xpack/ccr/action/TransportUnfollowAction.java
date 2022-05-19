@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -49,6 +48,9 @@ import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeAction<UnfollowAction.Request> {
 
@@ -158,8 +160,9 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
 
             private void onLeaseRemovalFailure(Index index, String retentionLeaseId, Exception e) {
                 logger.warn(
-                    new ParameterizedMessage(
-                        "[{}] failure while removing retention lease [{}] on leader primary shards",
+                    () -> format(
+                        ROOT,
+                        "[%s] failure while removing retention lease [%s] on leader primary shards",
                         index,
                         retentionLeaseId
                     ),
@@ -204,8 +207,9 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 if (cause instanceof RetentionLeaseNotFoundException) {
                     // treat as success
                     logger.trace(
-                        new ParameterizedMessage(
-                            "{} retention lease [{}] not found on {} while unfollowing",
+                        () -> format(
+                            ROOT,
+                            "%s retention lease [%s] not found on %s while unfollowing",
                             followerShardId,
                             retentionLeaseId,
                             leaderShardId
@@ -215,8 +219,9 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                     listener.onResponse(ActionResponse.Empty.INSTANCE);
                 } else {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "{} failed to remove retention lease [{}] on {} while unfollowing",
+                        () -> format(
+                            ROOT,
+                            "%s failed to remove retention lease [%s] on %s while unfollowing",
                             followerShardId,
                             retentionLeaseId,
                             leaderShardId

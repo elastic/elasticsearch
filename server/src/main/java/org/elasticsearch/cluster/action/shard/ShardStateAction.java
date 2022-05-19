@@ -140,8 +140,9 @@ public class ShardStateAction {
                         waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
                     } else {
                         logger.warn(
-                            new ParameterizedMessage(
-                                "unexpected failure while sending request [{}]" + " to [{}] for shard entry [{}]",
+                            () -> format(
+                                ROOT,
+                                "unexpected failure while sending request [%s]" + " to [%s] for shard entry [%s]",
                                 actionName,
                                 masterNode,
                                 request
@@ -445,7 +446,7 @@ public class ShardStateAction {
                     Priority.NORMAL,
                     ActionListener.wrap(
                         r -> logger.trace("{}, reroute completed", reason),
-                        e -> logger.debug(new ParameterizedMessage("{}, reroute failed", reason), e)
+                        e -> logger.debug(() -> format(ROOT, "%s, reroute failed", reason), e)
                     )
                 );
             }

@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -30,6 +29,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
@@ -169,7 +170,7 @@ public class PreVoteCollector {
 
                         @Override
                         public void handleException(TransportException exp) {
-                            logger.debug(new ParameterizedMessage("{} failed", this), exp);
+                            logger.debug(() -> format(ROOT, "%s failed", this), exp);
                         }
 
                         @Override

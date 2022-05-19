@@ -10,7 +10,6 @@ package org.elasticsearch.http;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -24,6 +23,7 @@ import java.util.List;
 
 import static java.lang.String.format;
 import static java.util.Locale.ROOT;
+import static org.elasticsearch.tasks.Task.X_OPAQUE_ID_HTTP_HEADER;
 
 /**
  * Http request trace logger. See {@link #maybeTraceRequest(RestRequest, Exception)} for details.
@@ -58,10 +58,11 @@ class HttpTracer {
     HttpTracer maybeTraceRequest(RestRequest restRequest, @Nullable Exception e) {
         if (logger.isTraceEnabled() && TransportService.shouldTraceAction(restRequest.uri(), tracerLogInclude, tracerLogExclude)) {
             logger.trace(
-                new ParameterizedMessage(
-                    "[{}][{}][{}][{}] received request from [{}]",
+                () -> format(
+                    ROOT,
+                    "[%s][%s][%s][%s] received request from [%s]",
                     restRequest.getRequestId(),
-                    restRequest.header(Task.X_OPAQUE_ID_HTTP_HEADER),
+                    restRequest.header(X_OPAQUE_ID_HTTP_HEADER),
                     restRequest.method(),
                     restRequest.uri(),
                     restRequest.getHttpChannel()

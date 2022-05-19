@@ -9,7 +9,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
@@ -34,6 +33,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 /**
@@ -236,9 +237,10 @@ public class LagDetector {
                     @Override
                     public void onFailure(Exception e) {
                         logger.debug(
-                            new ParameterizedMessage(
-                                "failed to get hot threads from node [{}] lagging at version {} "
-                                    + "despite commit of cluster state version [{}]",
+                            () -> format(
+                                ROOT,
+                                "failed to get hot threads from node [%s] lagging at version %s "
+                                    + "despite commit of cluster state version [%s]",
                                 discoveryNode.descriptionWithoutAttributes(),
                                 appliedVersion,
                                 expectedVersion

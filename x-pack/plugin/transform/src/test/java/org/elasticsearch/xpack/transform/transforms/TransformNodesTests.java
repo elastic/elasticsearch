@@ -221,16 +221,19 @@ public class TransformNodesTests extends ESTestCase {
 
     public void testSelectAnyNodeThatCanRunThisTransform() {
         DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
-        assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, true), isEmpty());
-        assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false), isEmpty());
+        assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, true, Metadata.EMPTY_METADATA), isEmpty());
+        assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false, Metadata.EMPTY_METADATA), isEmpty());
 
         nodes = DiscoveryNodes.builder()
             .add(newDiscoveryNode("node-1", Version.V_7_12_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
             .add(newDiscoveryNode("node-2", Version.V_7_13_0, TRANSFORM_ROLE))
             .add(newDiscoveryNode("node-3", Version.V_7_13_0, REMOTE_CLUSTER_CLIENT_ROLE))
             .build();
-        assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, true), isEmpty());
-        assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false).get().getId(), is(equalTo("node-2")));
+        assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, true, Metadata.EMPTY_METADATA), isEmpty());
+        assertThat(
+            TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false, Metadata.EMPTY_METADATA).get().getId(),
+            is(equalTo("node-2"))
+        );
 
         nodes = DiscoveryNodes.builder()
             .add(newDiscoveryNode("node-1", Version.V_7_12_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
@@ -238,8 +241,14 @@ public class TransformNodesTests extends ESTestCase {
             .add(newDiscoveryNode("node-3", Version.V_7_13_0, REMOTE_CLUSTER_CLIENT_ROLE))
             .add(newDiscoveryNode("node-4", Version.V_7_13_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
             .build();
-        assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, true).get().getId(), is(equalTo("node-4")));
-        assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false).get().getId(), is(oneOf("node-2", "node-4")));
+        assertThat(
+            TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, true, Metadata.EMPTY_METADATA).get().getId(),
+            is(equalTo("node-4"))
+        );
+        assertThat(
+            TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false, Metadata.EMPTY_METADATA).get().getId(),
+            is(oneOf("node-2", "node-4"))
+        );
     }
 
     public void testHasAnyTransformNode() {

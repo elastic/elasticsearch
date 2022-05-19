@@ -705,6 +705,10 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
             return null;
         }
 
+        public Map<String, DiscoveryNode> getNodes() {
+            return nodes;
+        }
+
         public DiscoveryNodes build() {
             ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodesBuilder = ImmutableOpenMap.builder();
             ImmutableOpenMap.Builder<String, DiscoveryNode> masterNodesBuilder = ImmutableOpenMap.builder();

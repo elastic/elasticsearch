@@ -127,13 +127,19 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         DiscoveryNode discoveryNode = selectLeastLoadedNode(
             clusterState,
             candidateNodes,
-            node -> nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), null)
+            node -> nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), null, clusterState.metadata())
         );
 
         if (discoveryNode == null) {
             Map<String, String> explainWhyAssignmentFailed = new TreeMap<>();
             for (DiscoveryNode node : clusterState.getNodes()) {
-                nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), explainWhyAssignmentFailed);
+                nodeCanRunThisTransform(
+                    node,
+                    params.getVersion(),
+                    params.requiresRemote(),
+                    explainWhyAssignmentFailed,
+                    clusterState.metadata()
+                );
             }
             String reason = "Not starting transform ["
                 + params.getId()

@@ -11,6 +11,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -169,7 +171,7 @@ public final class TransformNodes {
         final DiscoveryNodes nodes = clusterState.nodes();
 
         if ((isTransformNode == false) || (requiresRemote && (isRemoteClusterClientNode == false))) {
-            Optional<DiscoveryNode> appropriateNode = selectAnyNodeThatCanRunThisTransform(nodes, requiresRemote);
+            Optional<DiscoveryNode> appropriateNode = selectAnyNodeThatCanRunThisTransform(nodes, requiresRemote, clusterState.metadata());
             if (appropriateNode.isPresent()) {
                 // Redirect the request to an appropriate node
                 transportService.sendRequest(
@@ -181,7 +183,7 @@ public final class TransformNodes {
             } else {
                 Map<String, String> explain = new TreeMap<>();
                 for (DiscoveryNode node : nodes) {
-                    nodeCanRunThisTransform(node, Version.V_7_13_0, requiresRemote, explain);
+                    nodeCanRunThisTransform(node, Version.V_7_13_0, requiresRemote, explain, clusterState.metadata());
                 }
                 // There are no appropriate nodes in the cluster, fail
                 listener.onFailure(
@@ -206,17 +208,19 @@ public final class TransformNodes {
      *
      * @param nodes nodes to select from
      * @param requiresRemote whether this transform requires access to remote indices
+     * @param metadata
      * @return selected node or {@code Optional.empty()} if none of the nodes satisfy the conditions
      */
-    static Optional<DiscoveryNode> selectAnyNodeThatCanRunThisTransform(DiscoveryNodes nodes, boolean requiresRemote) {
-        return nodes.stream().filter(node -> nodeCanRunThisTransform(node, Version.V_7_13_0, requiresRemote, null)).findAny();
+    static Optional<DiscoveryNode> selectAnyNodeThatCanRunThisTransform(DiscoveryNodes nodes, boolean requiresRemote, Metadata metadata) {
+        return nodes.stream().filter(node -> nodeCanRunThisTransform(node, Version.V_7_13_0, requiresRemote, null, metadata)).findAny();
     }
 
     public static boolean nodeCanRunThisTransform(
         DiscoveryNode node,
         Version minRequiredVersion,
         boolean requiresRemote,
-        Map<String, String> explain
+        Map<String, String> explain,
+        Metadata metadata
     ) {
         // version of the transform run on a node that has at least the same version
         if (node.getVersion().onOrAfter(minRequiredVersion) == false) {
@@ -245,7 +249,24 @@ public final class TransformNodes {
             return false;
         }
 
+        if (isNodeShuttingDown(metadata, node.getId())) {
+            if (explain != null) {
+                explain.put(node.getId(), "node is shutting down");
+            }
+            return false;
+        }
+
         // we found no reason that the transform can not run on this node
         return true;
+    }
+
+    private static boolean isNodeShuttingDown(Metadata metadata, String nodeId) {
+        NodesShutdownMetadata nodesShutdownMetadata = metadata != null ? metadata.custom(NodesShutdownMetadata.TYPE) : null;
+        if (nodesShutdownMetadata == null || nodesShutdownMetadata.getAllNodeMetadataMap() == null) {
+            // There are no nodes in the process of shutting down, return null.
+            return false;
+        }
+
+        return nodesShutdownMetadata.getAllNodeMetadataMap().get(nodeId) != null;
     }
 }

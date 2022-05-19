@@ -15,32 +15,39 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSourceType;
 import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateDoubleMetricFieldData;
 import org.elasticsearch.xpack.aggregatemetric.fielddata.LeafAggregateDoubleMetricFieldData;
@@ -55,6 +62,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -102,7 +110,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     public static class Defaults {
-        public static final Set<Metric> METRICS = Collections.emptySet();
+        public static final EnumSet<Metric> METRICS = EnumSet.noneOf(Metric.class);
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -111,7 +119,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> ignoreMalformed;
 
-        private final Parameter<Set<Metric>> metrics = new Parameter<>(Names.METRICS, false, () -> Defaults.METRICS, (n, c, o) -> {
+        private final Parameter<EnumSet<Metric>> metrics = new Parameter<>(Names.METRICS, false, () -> Defaults.METRICS, (n, c, o) -> {
             @SuppressWarnings("unchecked")
             List<String> metricsList = (List<String>) o;
             EnumSet<Metric> parsedMetrics = EnumSet.noneOf(Metric.class);
@@ -124,11 +132,18 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
             }
             return parsedMetrics;
-        }, m -> toType(m).metrics).setValidator(v -> {
+        }, m -> toType(m).metrics, XContentBuilder::enumSet, Objects::toString).addValidator(v -> {
             if (v == null || v.isEmpty()) {
                 throw new IllegalArgumentException("Property [" + Names.METRICS + "] is required for field [" + name() + "].");
             }
         });
+
+        /**
+         * Parameter that marks this field as a time series metric defining its time series metric type.
+         * For {@link AggregateDoubleMetricFieldMapper} fields gauge, counter and summary metric types are
+         * supported.
+         */
+        private final Parameter<MetricType> timeSeriesMetric;
 
         /**
          * Set the default metric so that query operations are delegated to it.
@@ -139,9 +154,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Metric [" + o.toString() + "] is not supported.", e);
             }
-        }, m -> toType(m).defaultMetric);
+        }, m -> toType(m).defaultMetric, XContentBuilder::field, Objects::toString);
 
-        public Builder(String name, Boolean ignoreMalformedByDefault) {
+        private final Version indexCreatedVersion;
+
+        public Builder(String name, Boolean ignoreMalformedByDefault, Version indexCreatedVersion) {
             super(name);
             this.ignoreMalformed = Parameter.boolParam(
                 Names.IGNORE_MALFORMED,
@@ -149,15 +166,29 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 m -> toType(m).ignoreMalformed,
                 ignoreMalformedByDefault
             );
+
+            this.timeSeriesMetric = TimeSeriesParams.metricParam(
+                m -> toType(m).metricType,
+                MetricType.gauge,
+                MetricType.counter,
+                MetricType.summary
+            );
+
+            this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(ignoreMalformed, metrics, defaultMetric, meta);
+            return List.of(ignoreMalformed, metrics, defaultMetric, meta, timeSeriesMetric);
+        }
+
+        public Builder metric(MetricType metric) {
+            this.timeSeriesMetric.setValue(metric);
+            return this;
         }
 
         @Override
-        public AggregateDoubleMetricFieldMapper build(ContentPath context) {
+        public AggregateDoubleMetricFieldMapper build(MapperBuilderContext context) {
             if (defaultMetric.isConfigured() == false) {
                 // If a single metric is contained, this should be the default
                 if (metrics.getValue().size() == 1) {
@@ -190,7 +221,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         NumberFieldMapper.NumberType.INTEGER,
                         ScriptCompiler.NONE,
                         false,
-                        false
+                        false,
+                        indexCreatedVersion
                     );
                 } else {
                     builder = new NumberFieldMapper.Builder(
@@ -198,7 +230,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         NumberFieldMapper.NumberType.DOUBLE,
                         ScriptCompiler.NONE,
                         false,
-                        true
+                        true,
+                        indexCreatedVersion
                     );
                 }
                 NumberFieldMapper fieldMapper = builder.build(context);
@@ -216,7 +249,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     )
                 );
 
-            AggregateDoubleMetricFieldType metricFieldType = new AggregateDoubleMetricFieldType(buildFullName(context), meta.getValue());
+            AggregateDoubleMetricFieldType metricFieldType = new AggregateDoubleMetricFieldType(
+                context.buildFullName(name),
+                meta.getValue(),
+                timeSeriesMetric.getValue()
+            );
             metricFieldType.setMetricFields(metricFields);
             metricFieldType.setDefaultMetric(defaultMetric.getValue());
 
@@ -225,7 +262,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     public static final FieldMapper.TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())),
+        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated()),
         notInMultiFields(CONTENT_TYPE)
     );
 
@@ -235,12 +272,15 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         private Metric defaultMetric;
 
+        private final MetricType metricType;
+
         public AggregateDoubleMetricFieldType(String name) {
-            this(name, Collections.emptyMap());
+            this(name, Collections.emptyMap(), null);
         }
 
-        public AggregateDoubleMetricFieldType(String name, Map<String, String> meta) {
+        public AggregateDoubleMetricFieldType(String name, Map<String, String> meta, MetricType metricType) {
             super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            this.metricType = metricType;
         }
 
         /**
@@ -290,6 +330,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         Metric getDefaultMetric() {
             return defaultMetric;
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return delegateFieldType().mayExistInIndex(context);    // TODO how does searching actually work here?
         }
 
         @Override
@@ -391,9 +436,12 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public ScriptDocValues<?> getScriptValues() {
+                        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
                             // getAggregateMetricValues returns all metric as doubles, including `value_count`
-                            return new ScriptDocValues.Doubles(getAggregateMetricValues(defaultMetric));
+                            return new DelegateDocValuesField(
+                                new ScriptDocValues.Doubles(new DoublesSupplier(getAggregateMetricValues(defaultMetric))),
+                                name
+                            );
                         }
 
                         @Override
@@ -459,6 +507,14 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
             };
         }
+
+        /**
+         * If field is a time series metric field, returns its metric type
+         * @return the metric type or null
+         */
+        public MetricType getMetricType() {
+            return metricType;
+        }
     }
 
     private final EnumMap<Metric, NumberFieldMapper> metricFieldMappers;
@@ -467,11 +523,16 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     private final boolean ignoreMalformedByDefault;
 
+    private final Version indexCreatedVersion;
+
     /** A set of metrics supported */
-    private final Set<Metric> metrics;
+    private final EnumSet<Metric> metrics;
 
     /** The default metric to be when querying this field type */
     protected Metric defaultMetric;
+
+    /** The metric type (gauge, counter, summary) if  field is a time series metric */
+    private final TimeSeriesParams.MetricType metricType;
 
     private AggregateDoubleMetricFieldMapper(
         String simpleName,
@@ -485,6 +546,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         this.metrics = builder.metrics.getValue();
         this.defaultMetric = builder.defaultMetric.getValue();
         this.metricFieldMappers = metricFieldMappers;
+        this.metricType = builder.timeSeriesMetric.getValue();
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     boolean ignoreMalformed() {
@@ -611,6 +674,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault).init(this);
+        return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion).metric(metricType).init(this);
     }
 }

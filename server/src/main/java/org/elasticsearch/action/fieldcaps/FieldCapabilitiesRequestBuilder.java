@@ -9,15 +9,13 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.util.Map;
 
 public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
-    public FieldCapabilitiesRequestBuilder(ElasticsearchClient client,
-                                           FieldCapabilitiesAction action,
-                                           String... indices) {
+    public FieldCapabilitiesRequestBuilder(ElasticsearchClient client, FieldCapabilitiesAction action, String... indices) {
         super(client, action, new FieldCapabilitiesRequest().indices(indices));
     }
 

@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.BucketNormalizable;
@@ -24,9 +23,8 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-
 
 /**
  * Interface for classes that update {@linkplain Bucket Buckets}
@@ -79,7 +77,7 @@ public class JobRenormalizedResultsPersister {
         try (XContentBuilder content = toXContentBuilder(resultDoc)) {
             bulkRequest.add(new IndexRequest(index).id(id).source(content));
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] Error serialising result", jobId), e);
+            logger.error(() -> "[" + jobId + "] Error serialising result", e);
         }
         if (bulkRequest.numberOfActions() >= BULK_LIMIT) {
             executeRequest();
@@ -115,4 +113,3 @@ public class JobRenormalizedResultsPersister {
         return bulkRequest;
     }
 }
-

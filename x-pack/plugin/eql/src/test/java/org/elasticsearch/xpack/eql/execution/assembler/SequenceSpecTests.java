@@ -7,18 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonList;
-import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
@@ -28,9 +17,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -40,13 +29,26 @@ import org.elasticsearch.xpack.eql.execution.assembler.SeriesUtils.SeriesSpec;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
+import org.elasticsearch.xpack.eql.execution.search.Timestamp;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceMatcher;
 import org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow;
 import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Results;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 public class SequenceSpecTests extends ESTestCase {
 
@@ -85,8 +87,8 @@ public class SequenceSpecTests extends ESTestCase {
         static final TimestampExtractor INSTANCE = new TimestampExtractor();
 
         @Override
-        public Long extract(SearchHit hit) {
-            return (long) hit.docId();
+        public Timestamp extract(SearchHit hit) {
+            return Timestamp.of(String.valueOf(hit.docId()));
         }
     }
 
@@ -111,15 +113,25 @@ public class SequenceSpecTests extends ESTestCase {
         private boolean unused = true;
 
         TestCriterion(final int ordinal) {
-            super(ordinal,
-                  new BoxedQueryRequest(() -> SearchSourceBuilder.searchSource()
-                      // set a non-negative size
-                      .size(10)
-                      .query(matchAllQuery())
-                      // pass the ordinal through terminate after
-                      .terminateAfter(ordinal), "timestamp", emptyList()),
-                  keyExtractors,
-                  tsExtractor, tbExtractor, implicitTbExtractor, false);
+            super(
+                ordinal,
+                new BoxedQueryRequest(
+                    () -> SearchSourceBuilder.searchSource()
+                        // set a non-negative size
+                        .size(10)
+                        .query(matchAllQuery())
+                        // pass the ordinal through terminate after
+                        .terminateAfter(ordinal),
+                    "timestamp",
+                    emptyList(),
+                    emptySet()
+                ),
+                keyExtractors,
+                tsExtractor,
+                tbExtractor,
+                implicitTbExtractor,
+                false
+            );
             this.ordinal = ordinal;
         }
 
@@ -195,8 +207,11 @@ public class SequenceSpecTests extends ESTestCase {
             Map<Integer, Tuple<String, String>> evs = ordinal != Integer.MAX_VALUE ? events.get(ordinal) : emptyMap();
 
             EventsAsHits eah = new EventsAsHits(evs);
-            SearchHits searchHits = new SearchHits(eah.hits.toArray(new SearchHit[0]), new TotalHits(eah.hits.size(), Relation.EQUAL_TO),
-                    0.0f);
+            SearchHits searchHits = new SearchHits(
+                eah.hits.toArray(new SearchHit[0]),
+                new TotalHits(eah.hits.size(), Relation.EQUAL_TO),
+                0.0f
+            );
             SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
             SearchResponse s = new SearchResponse(internal, null, 0, 1, 0, 0, null, Clusters.EMPTY);
             l.onResponse(s);
@@ -249,9 +264,7 @@ public class SequenceSpecTests extends ESTestCase {
         TumblingWindow window = new TumblingWindow(testClient, criteria, null, matcher);
 
         // finally make the assertion at the end of the listener
-        window.execute(wrap(this::checkResults, ex -> {
-            throw ExceptionsHelper.convertToRuntime(ex);
-        }));
+        window.execute(wrap(this::checkResults, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
     }
 
     private void checkResults(Payload payload) {

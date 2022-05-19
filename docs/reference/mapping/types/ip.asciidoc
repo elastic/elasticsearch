@@ -43,10 +43,6 @@ NOTE: You can also store ip ranges in a single field using an <<range,ip_range d
 
 The following parameters are accepted by `ip` fields:
 
-[horizontal]
-
-include::keyword.asciidoc[tag=dimension]
-
 <<doc-values,`doc_values`>>::
 
     Should the field be stored on disk in a column-stride fashion, so that it
@@ -61,7 +57,10 @@ include::keyword.asciidoc[tag=dimension]
 
 <<mapping-index,`index`>>::
 
-    Should the field be searchable? Accepts `true` (default) and `false`.
+    Should the field be quickly searchable? Accepts `true` (default) and
+    `false`. Fields that only have <<doc-values,`doc_values`>>
+    enabled can still be queried using term or range-based queries,
+    albeit slower.
 
 <<null-value,`null_value`>>::
 
@@ -94,6 +93,19 @@ include::keyword.asciidoc[tag=dimension]
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
+
+`time_series_dimension`::
++
+--
+experimental:[]
+(Optional, Boolean)
+
+.For internal use by Elastic only.
+[%collapsible]
+====
+include::keyword.asciidoc[tag=dimension]
+====
+--
 
 [[query-ip-fields]]
 ==== Querying `ip` fields

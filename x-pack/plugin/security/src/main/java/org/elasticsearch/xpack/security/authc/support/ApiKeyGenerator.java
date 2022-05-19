@@ -10,17 +10,17 @@ package org.elasticsearch.xpack.security.authc.support;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Set;
 
 public class ApiKeyGenerator {
 
@@ -40,20 +40,31 @@ public class ApiKeyGenerator {
             return;
         }
         apiKeyService.ensureEnabled();
-        rolesStore.getRoleDescriptors(new HashSet<>(Arrays.asList(authentication.getUser().roles())),
-            ActionListener.wrap(roleDescriptors -> {
-                    for (RoleDescriptor rd : roleDescriptors) {
-                        try {
-                            DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry);
-                        } catch (ElasticsearchException | IllegalArgumentException e) {
-                            listener.onFailure(e);
-                            return;
-                        }
-                    }
-                    apiKeyService.createApiKey(authentication, request, roleDescriptors, listener);
-                },
-                listener::onFailure));
 
+        final ActionListener<Set<RoleDescriptor>> roleDescriptorsListener = ActionListener.wrap(roleDescriptors -> {
+            for (RoleDescriptor rd : roleDescriptors) {
+                try {
+                    DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry);
+                } catch (ElasticsearchException | IllegalArgumentException e) {
+                    listener.onFailure(e);
+                    return;
+                }
+            }
+            apiKeyService.createApiKey(authentication, request, roleDescriptors, listener);
+        }, listener::onFailure);
+
+        final Subject effectiveSubject = authentication.getEffectiveSubject();
+
+        // Retain current behaviour that User of an API key authentication has no roles
+        if (effectiveSubject.getType() == Subject.Type.API_KEY) {
+            roleDescriptorsListener.onResponse(Set.of());
+            return;
+        }
+
+        rolesStore.getRoleDescriptorsList(effectiveSubject, ActionListener.wrap(roleDescriptorsList -> {
+            assert roleDescriptorsList.size() == 1;
+            roleDescriptorsListener.onResponse(roleDescriptorsList.iterator().next());
+
+        }, roleDescriptorsListener::onFailure));
     }
-
 }

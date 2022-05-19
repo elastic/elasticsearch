@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.scheduler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -76,9 +75,7 @@ public class SchedulerEngine {
 
         @Override
         public String toString() {
-            return "Event[jobName=" + jobName + "," +
-                "triggeredTime=" + triggeredTime + "," +
-                "scheduledTime=" + scheduledTime + "]";
+            return "Event[jobName=" + jobName + "," + "triggeredTime=" + triggeredTime + "," + "scheduledTime=" + scheduledTime + "]";
         }
     }
 
@@ -119,7 +116,9 @@ public class SchedulerEngine {
     SchedulerEngine(final Settings settings, final Clock clock, final Logger logger) {
         this.clock = Objects.requireNonNull(clock, "clock");
         this.scheduler = Executors.newScheduledThreadPool(
-                1,  EsExecutors.daemonThreadFactory(Objects.requireNonNull(settings, "settings"), "trigger_engine_scheduler"));
+            1,
+            EsExecutors.daemonThreadFactory(Objects.requireNonNull(settings, "settings"), "trigger_engine_scheduler")
+        );
         this.logger = Objects.requireNonNull(logger, "logger");
     }
 
@@ -158,6 +157,7 @@ public class SchedulerEngine {
             if (previousSchedule != null) {
                 previousSchedule.cancel();
             }
+            logger.debug(() -> "added job [" + job.getId() + "]");
             return schedule;
         });
     }
@@ -165,6 +165,7 @@ public class SchedulerEngine {
     public boolean remove(String jobId) {
         ActiveSchedule removedSchedule = schedules.remove(jobId);
         if (removedSchedule != null) {
+            logger.debug(() -> "removed job [" + jobId + "]");
             removedSchedule.cancel();
         }
         return removedSchedule != null;
@@ -184,7 +185,7 @@ public class SchedulerEngine {
                 listener.triggered(event);
             } catch (final Exception e) {
                 // do not allow exceptions to escape this method; we should continue to notify listeners and schedule the next run
-                logger.warn(new ParameterizedMessage("listener failed while handling triggered event [{}]", name), e);
+                logger.warn(() -> "listener failed while handling triggered event [" + name + "]", e);
             }
         }
     }
@@ -214,6 +215,7 @@ public class SchedulerEngine {
         public void run() {
             final long triggeredTime = clock.millis();
             try {
+                logger.debug(() -> "job [" + name + "] triggered with triggeredTime=[" + triggeredTime + "]");
                 notifyListeners(name, triggeredTime, scheduledTime);
             } catch (final Throwable t) {
                 /*
@@ -236,6 +238,9 @@ public class SchedulerEngine {
                 try {
                     synchronized (this) {
                         if (future == null || future.isCancelled() == false) {
+                            logger.debug(
+                                () -> "schedule job [" + name + "] with scheduleTime=[" + scheduledTime + "] and delay=[" + delay + "]"
+                            );
                             future = scheduler.schedule(this, delay, TimeUnit.MILLISECONDS);
                         }
                     }

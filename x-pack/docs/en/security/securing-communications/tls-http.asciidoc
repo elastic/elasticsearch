@@ -8,7 +8,7 @@ communication between HTTP clients and the cluster is encrypted.
 Enabling TLS on the HTTP layer is strongly recommended, but is not required.
 
 IMPORTANT: In a <<dev-vs-prod-mode,production environment>>, some {es} features
-such as tokens and API keys will be disabled unless you enable TLS on the HTTP
+such as tokens will be disabled unless you enable TLS on the HTTP
 layer.
 
 If you enable TLS on the HTTP layer in {es}, you might need to make
@@ -44,11 +44,11 @@ This command generates a zip file that contains certificates and keys for use in
 --
 
 . Verify that you've copied the output files to the appropriate locations, as
-specified in the readme files. 
+specified in the readme files.
 +
 --
-For example, copy the `http.p12` file from the `elasticsearch` folder into a 
-directory within the {es} configuration directory on each node. If you chose to 
+For example, copy the `http.p12` file from the `elasticsearch` folder into a
+directory within the {es} configuration directory on each node. If you chose to
 generate one certificate per node, copy the appropriate `http.p12` file to each
 node. If you want to use {kib} to access this cluster, copy the
 `elasticsearch-ca.pem` file from the `kibana` folder into the {kib}
@@ -87,7 +87,7 @@ xpack.security.http.ssl.certificate_authorities: [ "/home/es/config/ca.crt" ] <3
     must be a location within the {es} configuration directory.
 --
 
-.. If you secured the keystore or the private key with a password, add that password to a secure 
+.. If you secured the keystore or the private key with a password, add that password to a secure
 setting in {es}.
 +
 --
@@ -119,10 +119,10 @@ therefore are not exposed via the
 <<cluster-nodes-info,nodes info API>> For more
 information about any of these settings, see <<security-settings>>.
 
-* {es} monitors all files such as certificates, keys, keystores, or truststores 
-that are configured as values of TLS-related node settings. If you update any of 
-these files (for example, when your hostnames change or your certificates are 
-due to expire), {es} reloads them. The files are polled for changes at 
-a frequency determined by the global {es} `resource.reload.interval.high` 
+* {es} monitors all files such as certificates, keys, keystores, or truststores
+that are configured as values of TLS-related node settings. If you update any of
+these files (for example, when your hostnames change or your certificates are
+due to expire), {es} reloads them. The files are polled for changes at
+a frequency determined by the global {es} `resource.reload.interval.high`
 setting, which defaults to 5 seconds.
 ===============================

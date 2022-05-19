@@ -8,67 +8,88 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.AbstractObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
-public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>>
-    extends AbstractAggregationBuilder<AB> {
+public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends AbstractAggregationBuilder<AB> {
 
     public static <T> void declareFields(
         AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
-        boolean scriptable, boolean formattable, boolean timezoneAware) {
+        boolean scriptable,
+        boolean formattable,
+        boolean timezoneAware
+    ) {
         declareFields(objectParser, scriptable, formattable, timezoneAware, true);
 
     }
 
     public static <T> void declareFields(
         AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
-        boolean scriptable, boolean formattable, boolean timezoneAware, boolean fieldRequired) {
+        boolean scriptable,
+        boolean formattable,
+        boolean timezoneAware,
+        boolean fieldRequired
+    ) {
 
+        objectParser.declareField(
+            ValuesSourceAggregationBuilder::field,
+            XContentParser::text,
+            ParseField.CommonFields.FIELD,
+            ObjectParser.ValueType.STRING
+        );
 
-        objectParser.declareField(ValuesSourceAggregationBuilder::field, XContentParser::text,
-            ParseField.CommonFields.FIELD, ObjectParser.ValueType.STRING);
-
-        objectParser.declareField(ValuesSourceAggregationBuilder::missing, XContentParser::objectText,
-            ParseField.CommonFields.MISSING, ObjectParser.ValueType.VALUE);
+        objectParser.declareField(
+            ValuesSourceAggregationBuilder::missing,
+            XContentParser::objectText,
+            ParseField.CommonFields.MISSING,
+            ObjectParser.ValueType.VALUE
+        );
 
         objectParser.declareField(ValuesSourceAggregationBuilder::userValueTypeHint, p -> {
-                ValueType type = ValueType.lenientParse(p.text());
-                if (type == null) {
-                    throw new IllegalArgumentException("Unknown value type [" + p.text() + "]");
-                }
-                return type;
-            },
-            ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);
+            ValueType type = ValueType.lenientParse(p.text());
+            if (type == null) {
+                throw new IllegalArgumentException("Unknown value type [" + p.text() + "]");
+            }
+            return type;
+        }, ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);
 
         if (formattable) {
-            objectParser.declareField(ValuesSourceAggregationBuilder::format, XContentParser::text,
-                ParseField.CommonFields.FORMAT, ObjectParser.ValueType.STRING);
+            objectParser.declareField(
+                ValuesSourceAggregationBuilder::format,
+                XContentParser::text,
+                ParseField.CommonFields.FORMAT,
+                ObjectParser.ValueType.STRING
+            );
         }
 
         if (scriptable) {
-            objectParser.declareField(ValuesSourceAggregationBuilder::script,
+            objectParser.declareField(
+                ValuesSourceAggregationBuilder::script,
                 (parser, context) -> Script.parse(parser),
-                Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+                Script.SCRIPT_PARSE_FIELD,
+                ObjectParser.ValueType.OBJECT_OR_STRING
+            );
             if (fieldRequired) {
-                String[] fields = new String[]{ParseField.CommonFields.FIELD.getPreferredName(),
-                    Script.SCRIPT_PARSE_FIELD.getPreferredName()};
+                String[] fields = new String[] {
+                    ParseField.CommonFields.FIELD.getPreferredName(),
+                    Script.SCRIPT_PARSE_FIELD.getPreferredName() };
                 objectParser.declareRequiredFieldSet(fields);
             }
         } else {
@@ -88,8 +109,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         }
     }
 
-    public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>>
-        extends ValuesSourceAggregationBuilder<AB> {
+    public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>> extends
+        ValuesSourceAggregationBuilder<AB> {
 
         protected LeafOnly(String name) {
             super(name);
@@ -98,8 +119,9 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
-                throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
-                    + getType() + "] cannot accept sub-aggregations");
+                throw new AggregationInitializationException(
+                    "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
+                );
             }
         }
 
@@ -112,13 +134,56 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
 
         @Override
         public final AB subAggregations(Builder subFactories) {
-            throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
-                + getType() + "] cannot accept sub-aggregations");
+            throw new AggregationInitializationException(
+                "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
+            );
         }
 
         @Override
         public final BucketCardinality bucketCardinality() {
             return BucketCardinality.NONE;
+        }
+    }
+
+    public abstract static class MetricsAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>> extends
+        LeafOnly<VS, AB> {
+
+        protected MetricsAggregationBuilder(String name) {
+            super(name);
+        }
+
+        protected MetricsAggregationBuilder(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+            super(clone, factoriesBuilder, metadata);
+        }
+
+        protected MetricsAggregationBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        /** Generated metrics from this aggregation that can be accessed via
+         * {@link org.elasticsearch.search.aggregations.InternalAggregation#getProperty(String)}*/
+        public abstract Set<String> metricNames();
+    }
+
+    public abstract static class SingleMetricAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>>
+        extends MetricsAggregationBuilder<VS, AB> {
+
+        private static final Set<String> METRIC_NAME = Set.of("value");
+
+        protected SingleMetricAggregationBuilder(String name) {
+            super(name);
+        }
+
+        protected SingleMetricAggregationBuilder(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+            super(clone, factoriesBuilder, metadata);
+        }
+
+        protected SingleMetricAggregationBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public Set<String> metricNames() {
+            return METRIC_NAME;
         }
     }
 
@@ -134,8 +199,11 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         super(name);
     }
 
-    protected ValuesSourceAggregationBuilder(ValuesSourceAggregationBuilder<AB> clone,
-                                             Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected ValuesSourceAggregationBuilder(
+        ValuesSourceAggregationBuilder<AB> clone,
+        Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.field = clone.field;
         this.userValueTypeHint = clone.userValueTypeHint;
@@ -149,8 +217,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     /**
      * Read from a stream.
      */
-    protected ValuesSourceAggregationBuilder(StreamInput in)
-        throws IOException {
+    protected ValuesSourceAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         if (serializeTargetValueType(in.getVersion())) {
             ValueType valueType = in.readOptionalWriteable(ValueType::readFromStream);
@@ -262,9 +329,9 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     @SuppressWarnings("unchecked")
     public AB userValueTypeHint(ValueType valueType) {
         if (valueType == null) {
-            // TODO: This is nonsense.  We allow the value to be null (via constructor), but don't allow it to be set to null.  This means
-            //       thing looking to copy settings (like RollupRequestTranslator) need to check if userValueTypeHint is not null, and then
-            //       set it if and only if it is non-null.
+            // TODO: This is nonsense. We allow the value to be null (via constructor), but don't allow it to be set to null. This means
+            // thing looking to copy settings (like RollupRequestTranslator) need to check if userValueTypeHint is not null, and then
+            // set it if and only if it is non-null.
             throw new IllegalArgumentException("[userValueTypeHint] must not be null: [" + name + "]");
         }
         this.userValueTypeHint = valueType;
@@ -335,8 +402,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
-                                                          Builder subFactoriesBuilder) throws IOException {
+    protected final ValuesSourceAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
+        throws IOException {
         ValuesSourceConfig config = resolveConfig(context);
 
         ValuesSourceAggregatorFactory factory;
@@ -375,14 +442,24 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      * @return A {@link ValuesSourceConfig} configured based on the parsed field and/or script.
      */
     protected ValuesSourceConfig resolveConfig(AggregationContext context) {
-        return ValuesSourceConfig.resolve(context,
-            this.userValueTypeHint, field, script, missing, timeZone, format, this.defaultValueSourceType());
+        return ValuesSourceConfig.resolve(
+            context,
+            this.userValueTypeHint,
+            field,
+            script,
+            missing,
+            timeZone,
+            format,
+            this.defaultValueSourceType()
+        );
     }
 
-    protected abstract ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
-                                                                ValuesSourceConfig config,
-                                                                AggregatorFactory parent,
-                                                                Builder subFactoriesBuilder) throws IOException;
+    protected abstract ValuesSourceAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        Builder subFactoriesBuilder
+    ) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

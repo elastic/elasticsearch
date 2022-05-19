@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -23,13 +22,14 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
-import org.elasticsearch.index.fielddata.IpScriptFieldData;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.ScoreScript;
@@ -53,9 +53,9 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat(null, null), sameInstance(DocValueFormat.IP));
         Exception e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat("ASDFA", null));
-        assertThat(e.getMessage(), equalTo("Runtime field [test] of type [ip] does not support custom formats"));
+        assertThat(e.getMessage(), equalTo("Field [test] of type [ip] does not support custom formats"));
         e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat(null, ZoneId.of("America/New_York")));
-        assertThat(e.getMessage(), equalTo("Runtime field [test] of type [ip] does not support custom time zones"));
+        assertThat(e.getMessage(), equalTo("Field [test] of type [ip] does not support custom time zones"));
     }
 
     @Override
@@ -145,7 +145,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
                         return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
-                                IpScriptFieldData.IpScriptDocValues bytes = (IpScriptFieldData.IpScriptDocValues) getDoc().get("test");
+                                Strings bytes = (Strings) getDoc().get("test");
                                 return Integer.parseInt(bytes.getValue().substring(bytes.getValue().lastIndexOf(".") + 1));
                             }
                         };
@@ -258,34 +258,30 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     }
 
     private static IpFieldScript.Factory factory(Script script) {
-        switch (script.getIdOrCode()) {
-            case "read_foo":
-                return (fieldName, params, lookup) -> (ctx) -> new IpFieldScript(fieldName, params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                            emit(foo.toString());
-                        }
+        return switch (script.getIdOrCode()) {
+            case "read_foo" -> (fieldName, params, lookup) -> (ctx) -> new IpFieldScript(fieldName, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                        emit(foo.toString());
                     }
-                };
-            case "append_param":
-                return (fieldName, params, lookup) -> (ctx) -> new IpFieldScript(fieldName, params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                            emit(foo.toString() + getParams().get("param"));
-                        }
+                }
+            };
+            case "append_param" -> (fieldName, params, lookup) -> (ctx) -> new IpFieldScript(fieldName, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                        emit(foo.toString() + getParams().get("param"));
                     }
-                };
-            case "loop":
-                return (fieldName, params, lookup) -> {
-                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                    lookup.forkAndTrackFieldReferences("test");
-                    throw new IllegalStateException("shoud have thrown on the line above");
-                };
-            default:
-                throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
-        }
+                }
+            };
+            case "loop" -> (fieldName, params, lookup) -> {
+                // Indicate that this script wants the field call "test", which *is* the name of this field
+                lookup.forkAndTrackFieldReferences("test");
+                throw new IllegalStateException("shoud have thrown on the line above");
+            };
+            default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
+        };
     }
 
     private static IpScriptFieldType build(Script script) {

@@ -37,9 +37,9 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             this.runs = maximumRuns;
         }
 
-        boolean reached(int runs) {
-            if (runs >= this.runs) {
-                throw new RuleExecutionException("Rule execution limit [{}] reached", runs);
+        boolean reached(int numberOfRuns) {
+            if (numberOfRuns >= this.runs) {
+                throw new RuleExecutionException("Rule execution limit [{}] reached", numberOfRuns);
             }
             return false;
         }
@@ -165,8 +165,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                         if (log.isTraceEnabled()) {
                             log.trace("Rule {} applied\n{}", rule, NodeUtils.diffString(tf.before, tf.after));
                         }
-                    }
-                    else {
+                    } else {
                         if (log.isTraceEnabled()) {
                             log.trace("Rule {} applied w/o changes", rule);
                         }
@@ -184,14 +183,17 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                     before = tfs.get(0).before;
                     after = tfs.get(tfs.size() - 1).after;
                 }
-                log.trace("Batch {} applied took {}\n{}",
-                    batch.name, TimeValue.timeValueMillis(batchDuration), NodeUtils.diffString(before, after));
+                log.trace(
+                    "Batch {} applied took {}\n{}",
+                    batch.name,
+                    TimeValue.timeValueMillis(batchDuration),
+                    NodeUtils.diffString(before, after)
+                );
             }
         }
 
         if (false == currentPlan.equals(plan) && log.isDebugEnabled()) {
-            log.debug("Tree transformation took {}\n{}",
-                TimeValue.timeValueMillis(totalDuration), NodeUtils.diffString(plan, currentPlan));
+            log.debug("Tree transformation took {}\n{}", TimeValue.timeValueMillis(totalDuration), NodeUtils.diffString(plan, currentPlan));
         }
 
         return new ExecutionInfo(plan, currentPlan, transformations);

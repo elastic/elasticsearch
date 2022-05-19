@@ -30,10 +30,19 @@ public class SFunction extends ANode {
     private final boolean isSynthetic;
     private final boolean isAutoReturnEnabled;
 
-    public SFunction(int identifier, Location location,
-            String returnCanonicalTypeName, String name, List<String> canonicalTypeNameParameters, List<String> parameterNames,
-            SBlock blockNode,
-            boolean isInternal, boolean isStatic, boolean isSynthetic, boolean isAutoReturnEnabled) {
+    public SFunction(
+        int identifier,
+        Location location,
+        String returnCanonicalTypeName,
+        String name,
+        List<String> canonicalTypeNameParameters,
+        List<String> parameterNames,
+        SBlock blockNode,
+        boolean isInternal,
+        boolean isStatic,
+        boolean isSynthetic,
+        boolean isAutoReturnEnabled
+    ) {
 
         super(identifier, location);
 

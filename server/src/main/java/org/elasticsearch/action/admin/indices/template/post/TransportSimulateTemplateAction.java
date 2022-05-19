@@ -14,24 +14,27 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasValidator;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
@@ -40,30 +43,54 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
  * Handles simulating an index template either by name (looking it up in the
  * cluster state), or by a provided template configuration
  */
-public class TransportSimulateTemplateAction
-    extends TransportMasterNodeReadAction<SimulateTemplateAction.Request, SimulateIndexTemplateResponse> {
+public class TransportSimulateTemplateAction extends TransportMasterNodeReadAction<
+    SimulateTemplateAction.Request,
+    SimulateIndexTemplateResponse> {
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final NamedXContentRegistry xContentRegistry;
     private final IndicesService indicesService;
-    private AliasValidator aliasValidator;
+    private final SystemIndices systemIndices;
+    private final Set<IndexSettingProvider> indexSettingProviders;
 
     @Inject
-    public TransportSimulateTemplateAction(TransportService transportService, ClusterService clusterService,
-                                           ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                           NamedXContentRegistry xContentRegistry, IndicesService indicesService) {
-        super(SimulateTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            SimulateTemplateAction.Request::new, indexNameExpressionResolver, SimulateIndexTemplateResponse::new, ThreadPool.Names.SAME);
+    public TransportSimulateTemplateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataIndexTemplateService indexTemplateService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        NamedXContentRegistry xContentRegistry,
+        IndicesService indicesService,
+        SystemIndices systemIndices,
+        IndexSettingProviders indexSettingProviders
+    ) {
+        super(
+            SimulateTemplateAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            SimulateTemplateAction.Request::new,
+            indexNameExpressionResolver,
+            SimulateIndexTemplateResponse::new,
+            ThreadPool.Names.SAME
+        );
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
         this.indicesService = indicesService;
-        this.aliasValidator = new AliasValidator();
+        this.systemIndices = systemIndices;
+        this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
     }
 
     @Override
-    protected void masterOperation(Task task, SimulateTemplateAction.Request request, ClusterState state,
-                                   ActionListener<SimulateIndexTemplateResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        SimulateTemplateAction.Request request,
+        ClusterState state,
+        ActionListener<SimulateIndexTemplateResponse> listener
+    ) throws Exception {
         String uuid = UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
         final String temporaryIndexName = "simulate_template_index_" + uuid;
         final ClusterState stateWithTemplate;
@@ -77,10 +104,17 @@ public class TransportSimulateTemplateAction
             // specified, to simulate replacing the existing template
             simulateTemplateToAdd = request.getTemplateName() == null ? "simulate_template_" + uuid : request.getTemplateName();
             // Perform validation for things like typos in component template names
-            MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), simulateTemplateToAdd,
-                request.getIndexTemplateRequest().indexTemplate());
-            stateWithTemplate = indexTemplateService.addIndexTemplateV2(state, request.getIndexTemplateRequest().create(),
-                simulateTemplateToAdd, request.getIndexTemplateRequest().indexTemplate());
+            MetadataIndexTemplateService.validateV2TemplateRequest(
+                state.metadata(),
+                simulateTemplateToAdd,
+                request.getIndexTemplateRequest().indexTemplate()
+            );
+            stateWithTemplate = indexTemplateService.addIndexTemplateV2(
+                state,
+                request.getIndexTemplateRequest().create(),
+                simulateTemplateToAdd,
+                request.getIndexTemplateRequest().indexTemplate()
+            );
         } else {
             simulateTemplateToAdd = null;
             stateWithTemplate = state;
@@ -107,8 +141,11 @@ public class TransportSimulateTemplateAction
             return;
         }
 
-        final ClusterState tempClusterState =
-            TransportSimulateIndexTemplateAction.resolveTemporaryState(matchingTemplate, temporaryIndexName, stateWithTemplate);
+        final ClusterState tempClusterState = TransportSimulateIndexTemplateAction.resolveTemporaryState(
+            matchingTemplate,
+            temporaryIndexName,
+            stateWithTemplate
+        );
         ComposableIndexTemplate templateV2 = tempClusterState.metadata().templatesV2().get(matchingTemplate);
         assert templateV2 != null : "the matched template must exist";
 
@@ -116,8 +153,15 @@ public class TransportSimulateTemplateAction
         overlapping.putAll(findConflictingV1Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
         overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
 
-        Template template = TransportSimulateIndexTemplateAction.resolveTemplate(matchingTemplate, temporaryIndexName,
-            stateWithTemplate, xContentRegistry, indicesService, aliasValidator);
+        Template template = TransportSimulateIndexTemplateAction.resolveTemplate(
+            matchingTemplate,
+            temporaryIndexName,
+            stateWithTemplate,
+            xContentRegistry,
+            indicesService,
+            systemIndices,
+            indexSettingProviders
+        );
         listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
     }
 

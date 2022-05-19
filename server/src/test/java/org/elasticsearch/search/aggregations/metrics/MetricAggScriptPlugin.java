@@ -8,16 +8,16 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.search.lookup.LeafDocLookup;
+import org.elasticsearch.test.ESTestCase;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-
-import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.search.lookup.LeafDocLookup;
-import org.elasticsearch.test.ESTestCase;
 
 /**
  * Provides a number of dummy scripts for tests.

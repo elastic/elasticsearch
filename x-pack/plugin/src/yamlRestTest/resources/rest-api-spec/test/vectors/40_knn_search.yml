@@ -1,0 +1,130 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: l2_norm
+
+  - do:
+      index:
+        index: test
+        body:
+          name: cow.jpg
+          vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          name: moose.jpg
+          vector: [-0.5, 100.0, -13, 14.8, -156.0]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+  - do:
+      indices.refresh: {}
+
+---
+"Basic kNN search":
+  - do:
+      knn_search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+
+  - match: {hits.hits.1._id: "3"}
+  - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
+
+---
+"kNN search with filter":
+  - do:
+      knn_search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+          filter:
+            term:
+              name: "rabbit.jpg"
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+
+  - do:
+      knn_search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+          filter:
+            - term:
+                name: "rabbit.jpg"
+            - term:
+                _id: 2
+
+  - match: {hits.total.value: 0}
+
+---
+"Test nonexistent field":
+  - do:
+      catch: bad_request
+      knn_search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: nonexistent
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            k: 2
+            num_candidates: 3
+  - match: { error.root_cause.0.type: "query_shard_exception" }
+  - match: { error.root_cause.0.reason: "failed to create query: field [nonexistent] does not exist in the mapping" }
+
+---
+"Direct kNN queries are disallowed":
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          query:
+            knn:
+              field: vector
+              query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+              num_candidates: 1
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "[knn] queries cannot be provided directly, use the [_knn_search] endpoint instead" }

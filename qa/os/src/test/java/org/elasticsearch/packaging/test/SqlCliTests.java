@@ -20,6 +20,6 @@ public class SqlCliTests extends PackagingTestCase {
 
     public void test020Help() throws Exception {
         Shell.Result result = installation.executables().sqlCli.run("--help");
-        assertThat(result.stdout, containsString("Elasticsearch SQL CLI"));
+        assertThat(result.stdout(), containsString("Elasticsearch SQL CLI"));
     }
 }

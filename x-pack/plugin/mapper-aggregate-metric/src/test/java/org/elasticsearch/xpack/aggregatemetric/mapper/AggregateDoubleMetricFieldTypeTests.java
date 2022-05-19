@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -38,14 +38,14 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.subfieldName;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
     protected AggregateDoubleMetricFieldType createDefaultFieldType(String name, Map<String, String> meta, Metric defaultMetric) {
-        AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(name, meta);
+        AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(name, meta, null);
         for (AggregateDoubleMetricFieldMapper.Metric m : List.of(
             AggregateDoubleMetricFieldMapper.Metric.min,
             AggregateDoubleMetricFieldMapper.Metric.max
@@ -63,19 +63,19 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
-        Query query = fieldType.termQuery(55.2, null);
+        Query query = fieldType.termQuery(55.2, MOCK_CONTEXT);
         assertThat(query, equalTo(DoublePoint.newRangeQuery("foo.max", 55.2, 55.2)));
     }
 
     public void testTermsQuery() {
         final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
-        Query query = fieldType.termsQuery(asList(55.2, 500.3), null);
+        Query query = fieldType.termsQuery(asList(55.2, 500.3), MOCK_CONTEXT);
         assertThat(query, equalTo(DoublePoint.newSetQuery("foo.max", 55.2, 500.3)));
     }
 
     public void testRangeQuery() {
         final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
-        Query query = fieldType.rangeQuery(10.1, 100.1, true, true, null, null, null, null);
+        Query query = fieldType.rangeQuery(10.1, 100.1, true, true, null, null, null, MOCK_CONTEXT);
         assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
     }
 

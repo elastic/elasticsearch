@@ -1,0 +1,26 @@
+{
+  "properties" : {
+    "language" : {
+      "en" : {
+        "lang" : "English",
+        "available" : true,
+        "distributors" : [
+          {
+            "name" : "The Book Shop",
+            "addresses" : [
+              {
+                "city" : "London"
+              },
+              {
+                "city" : "Stornoway"
+              }
+            ]
+          },
+          {
+            "name" : "Sussex Books House"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -60,23 +60,35 @@ public final class DomainSplitFunction {
         entry("pg", "i"),
         entry("ni", "i"),
         entry("kawasaki.jp", "i"),
-        entry("zw", "i"));
+        entry("zw", "i")
+    );
 
-    private static final Map<String, String> excluded =
-        Map.of(
-            "city.yokohama.jp", "i",
-            "teledata.mz", "i",
-            "city.kobe.jp", "i",
-            "city.sapporo.jp", "i",
-            "city.kawasaki.jp", "i",
-            "city.nagoya.jp", "i",
-            "www.ck", "i",
-            "city.sendai.jp", "i",
-            "city.kitakyushu.jp", "i");
+    private static final Map<String, String> excluded = Map.of(
+        "city.yokohama.jp",
+        "i",
+        "teledata.mz",
+        "i",
+        "city.kobe.jp",
+        "i",
+        "city.sapporo.jp",
+        "i",
+        "city.kawasaki.jp",
+        "i",
+        "city.nagoya.jp",
+        "i",
+        "www.ck",
+        "i",
+        "city.sendai.jp",
+        "i",
+        "city.kitakyushu.jp",
+        "i"
+    );
 
     static {
-        try (var stream =
-                 DomainSplitFunction.class.getClassLoader().getResourceAsStream("org/elasticsearch/xpack/ml/transforms/exact.properties")) {
+        try (
+            var stream = DomainSplitFunction.class.getClassLoader()
+                .getResourceAsStream("org/elasticsearch/xpack/ml/transforms/exact.properties")
+        ) {
             exact = Streams.readAllLines(stream)
                 .stream()
                 .map(line -> line.split("="))
@@ -124,7 +136,7 @@ public final class DomainSplitFunction {
             if (excluded.containsKey(ancestorName)) {
                 return i + 1;
             }
-            String [] pieces = ancestorName.split("\\.");
+            String[] pieces = ancestorName.split("\\.");
             if (pieces.length >= 2 && under.containsKey(pieces[1])) {
                 return i;
             }
@@ -157,8 +169,11 @@ public final class DomainSplitFunction {
     public static List<String> domainSplit(String host, Map<String, Object> params) {
         // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            deprecationLogger.deprecate(DeprecationCategory.API, "domainSplit",
-                "Method [domainSplit] taking params is deprecated. Remove the params argument.");
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                "domainSplit",
+                "Method [domainSplit] taking params is deprecated. Remove the params argument."
+            );
             return null;
         });
         return domainSplit(host);
@@ -178,7 +193,7 @@ public final class DomainSplitFunction {
             return Arrays.asList("", host);
         }
         boolean tentativeIP = true;
-        for(int i = 0; i < host.length(); i++) {
+        for (int i = 0; i < host.length(); i++) {
             if ((Character.isDigit(host.charAt(i)) || host.charAt(i) == '.') == false) {
                 tentativeIP = false;
                 break;
@@ -187,7 +202,7 @@ public final class DomainSplitFunction {
         if (tentativeIP) {
             /* special-snowflake rules now... */
             if (host.equals(".")) {
-                return Arrays.asList("","");
+                return Arrays.asList("", "");
             }
             return Arrays.asList("", host);
         }

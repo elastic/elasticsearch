@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;

@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.explain;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,7 +33,8 @@ public class FieldSelection implements ToXContentObject, Writeable {
     private static final ParseField REASON = new ParseField("reason");
 
     public enum FeatureType {
-        CATEGORICAL, NUMERICAL;
+        CATEGORICAL,
+        NUMERICAL;
 
         public static FeatureType fromString(String value) {
             return FeatureType.valueOf(value.toUpperCase(Locale.ROOT));
@@ -46,9 +47,17 @@ public class FieldSelection implements ToXContentObject, Writeable {
     }
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<FieldSelection, Void> PARSER = new ConstructingObjectParser<>("field_selection",
-        a -> new FieldSelection((String) a[0], new HashSet<>((List<String>) a[1]), (boolean) a[2], (boolean) a[3], (FeatureType) a[4],
-            (String) a[5]));
+    public static final ConstructingObjectParser<FieldSelection, Void> PARSER = new ConstructingObjectParser<>(
+        "field_selection",
+        a -> new FieldSelection(
+            (String) a[0],
+            new HashSet<>((List<String>) a[1]),
+            (boolean) a[2],
+            (boolean) a[3],
+            (FeatureType) a[4],
+            (String) a[5]
+        )
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
@@ -74,8 +83,14 @@ public class FieldSelection implements ToXContentObject, Writeable {
         return new FieldSelection(name, mappingTypes, false, false, null, reason);
     }
 
-    FieldSelection(String name, Set<String> mappingTypes, boolean isIncluded, boolean isRequired, @Nullable FeatureType featureType,
-                           @Nullable String reason) {
+    FieldSelection(
+        String name,
+        Set<String> mappingTypes,
+        boolean isIncluded,
+        boolean isRequired,
+        @Nullable FeatureType featureType,
+        @Nullable String reason
+    ) {
         this.name = Objects.requireNonNull(name);
         this.mappingTypes = Collections.unmodifiableSet(mappingTypes);
         this.isIncluded = isIncluded;

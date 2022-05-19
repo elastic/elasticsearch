@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 
 public class PostDataActionRequestTests extends AbstractWireSerializingTestCase<PostDataAction.Request> {

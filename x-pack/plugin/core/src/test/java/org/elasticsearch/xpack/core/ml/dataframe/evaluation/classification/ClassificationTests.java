@@ -10,14 +10,11 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHits;
@@ -26,6 +23,9 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
@@ -63,21 +63,23 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public static Classification createRandom() {
-        List<EvaluationMetric> metrics =
-            randomSubsetOf(
-                Arrays.asList(
-                    AccuracyTests.createRandom(),
-                    AucRocTests.createRandom(),
-                    PrecisionTests.createRandom(),
-                    RecallTests.createRandom(),
-                    MulticlassConfusionMatrixTests.createRandom()));
+        List<EvaluationMetric> metrics = randomSubsetOf(
+            Arrays.asList(
+                AccuracyTests.createRandom(),
+                AucRocTests.createRandom(),
+                PrecisionTests.createRandom(),
+                RecallTests.createRandom(),
+                MulticlassConfusionMatrixTests.createRandom()
+            )
+        );
         boolean usesAucRoc = metrics.stream().map(EvaluationMetric::getName).anyMatch(n -> AucRoc.NAME.getPreferredName().equals(n));
         return new Classification(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             // If AucRoc is to be calculated, the top_classes field is required
             (usesAucRoc || randomBoolean()) ? randomAlphaOfLength(10) : null,
-            metrics.isEmpty() ? null : metrics);
+            metrics.isEmpty() ? null : metrics
+        );
     }
 
     @Override
@@ -97,18 +99,21 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
 
     public void testConstructor_GivenMissingField() {
         FakeClassificationMetric metric = new FakeClassificationMetric("fake");
-        ElasticsearchStatusException e =
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> new Classification("foo", null, null, Collections.singletonList(metric)));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new Classification("foo", null, null, Collections.singletonList(metric))
+        );
         assertThat(
             e.getMessage(),
-            is(equalTo("[classification] must define [predicted_field] as required by the following metrics [fake]")));
+            is(equalTo("[classification] must define [predicted_field] as required by the following metrics [fake]"))
+        );
     }
 
     public void testConstructor_GivenEmptyMetrics() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo", "bar", "results", Collections.emptyList()));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new Classification("foo", "bar", "results", Collections.emptyList())
+        );
         assertThat(e.getMessage(), equalTo("[classification] must have one or more metrics"));
     }
 
@@ -132,17 +137,17 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public void testBuildSearch_WithDefaultNonRequiredNestedFields() {
-        QueryBuilder userProvidedQuery =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("field_A", "some-value"))
-                .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
-        QueryBuilder expectedSearchQuery =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.existsQuery("act"))
-                .filter(QueryBuilders.existsQuery("pred"))
-                .filter(QueryBuilders.boolQuery()
+        QueryBuilder userProvidedQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery("field_A", "some-value"))
+            .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.existsQuery("act"))
+            .filter(QueryBuilders.existsQuery("pred"))
+            .filter(
+                QueryBuilders.boolQuery()
                     .filter(QueryBuilders.termQuery("field_A", "some-value"))
-                    .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value"))
+            );
 
         Classification evaluation = new Classification("act", "pred", null, Arrays.asList(new MulticlassConfusionMatrix()));
 
@@ -152,17 +157,17 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public void testBuildSearch_WithExplicitNonRequiredNestedFields() {
-        QueryBuilder userProvidedQuery =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("field_A", "some-value"))
-                .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
-        QueryBuilder expectedSearchQuery =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.existsQuery("act"))
-                .filter(QueryBuilders.existsQuery("pred"))
-                .filter(QueryBuilders.boolQuery()
+        QueryBuilder userProvidedQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery("field_A", "some-value"))
+            .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.existsQuery("act"))
+            .filter(QueryBuilders.existsQuery("pred"))
+            .filter(
+                QueryBuilders.boolQuery()
                     .filter(QueryBuilders.termQuery("field_A", "some-value"))
-                    .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value"))
+            );
 
         Classification evaluation = new Classification("act", "pred", "results", Arrays.asList(new MulticlassConfusionMatrix()));
 
@@ -172,23 +177,24 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public void testBuildSearch_WithDefaultRequiredNestedFields() {
-        QueryBuilder userProvidedQuery =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("field_A", "some-value"))
-                .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
-        QueryBuilder expectedSearchQuery =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.existsQuery("act"))
-                .filter(
-                    QueryBuilders.nestedQuery("ml.top_classes", QueryBuilders.existsQuery("ml.top_classes.class_name"), ScoreMode.None)
-                        .ignoreUnmapped(true))
-                .filter(
-                    QueryBuilders.nestedQuery(
-                            "ml.top_classes", QueryBuilders.existsQuery("ml.top_classes.class_probability"), ScoreMode.None)
-                        .ignoreUnmapped(true))
-                .filter(QueryBuilders.boolQuery()
+        QueryBuilder userProvidedQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery("field_A", "some-value"))
+            .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.existsQuery("act"))
+            .filter(
+                QueryBuilders.nestedQuery("ml.top_classes", QueryBuilders.existsQuery("ml.top_classes.class_name"), ScoreMode.None)
+                    .ignoreUnmapped(true)
+            )
+            .filter(
+                QueryBuilders.nestedQuery("ml.top_classes", QueryBuilders.existsQuery("ml.top_classes.class_probability"), ScoreMode.None)
+                    .ignoreUnmapped(true)
+            )
+            .filter(
+                QueryBuilders.boolQuery()
                     .filter(QueryBuilders.termQuery("field_A", "some-value"))
-                    .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value"))
+            );
 
         Classification evaluation = new Classification("act", "pred", null, Arrays.asList(new AucRoc(false, "some-value")));
 
@@ -198,22 +204,23 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public void testBuildSearch_WithExplicitRequiredNestedFields() {
-        QueryBuilder userProvidedQuery =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("field_A", "some-value"))
-                .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
-        QueryBuilder expectedSearchQuery =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.existsQuery("act"))
-                .filter(
-                    QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results.class_name"), ScoreMode.None)
-                        .ignoreUnmapped(true))
-                .filter(
-                    QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results.class_probability"), ScoreMode.None)
-                        .ignoreUnmapped(true))
-                .filter(QueryBuilders.boolQuery()
+        QueryBuilder userProvidedQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery("field_A", "some-value"))
+            .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.existsQuery("act"))
+            .filter(
+                QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results.class_name"), ScoreMode.None).ignoreUnmapped(true)
+            )
+            .filter(
+                QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results.class_probability"), ScoreMode.None)
+                    .ignoreUnmapped(true)
+            )
+            .filter(
+                QueryBuilders.boolQuery()
                     .filter(QueryBuilders.termQuery("field_A", "some-value"))
-                    .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value"))
+            );
 
         Classification evaluation = new Classification("act", "pred", "results", Arrays.asList(new AucRoc(false, "some-value")));
 
@@ -322,8 +329,10 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         }
 
         @Override
-        public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
-                                                                                      EvaluationFields fields) {
+        public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(
+            EvaluationParameters parameters,
+            EvaluationFields fields
+        ) {
             return Tuple.tuple(List.of(), List.of());
         }
 
@@ -350,7 +359,6 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
     }
 }

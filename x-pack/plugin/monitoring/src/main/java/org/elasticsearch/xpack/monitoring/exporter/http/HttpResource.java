@@ -103,9 +103,7 @@ public abstract class HttpResource {
                 return false;
             }
             ResourcePublishResult that = (ResourcePublishResult) o;
-            return success == that.success &&
-                Objects.equals(reason, that.reason) &&
-                resourceState == that.resourceState;
+            return success == that.success && Objects.equals(reason, that.reason) && resourceState == that.resourceState;
         }
 
         @Override
@@ -115,11 +113,15 @@ public abstract class HttpResource {
 
         @Override
         public String toString() {
-            return "ResourcePublishResult{" +
-                "success=" + success +
-                ", reason='" + reason + '\'' +
-                ", resourceState=" + resourceState +
-                '}';
+            return "ResourcePublishResult{"
+                + "success="
+                + success
+                + ", reason='"
+                + reason
+                + '\''
+                + ", resourceState="
+                + resourceState
+                + '}';
         }
     }
 

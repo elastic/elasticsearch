@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
+
 public class SearchableSnapshotsInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     private final XPackLicenseState licenseState;
@@ -36,7 +38,7 @@ public class SearchableSnapshotsInfoTransportAction extends XPackInfoFeatureTran
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS);
+        return SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override

@@ -23,7 +23,8 @@ public class CountingInputStreamTests extends ESTestCase {
         InputStream source = new ByteArrayInputStream(TEXT.getBytes(StandardCharsets.UTF_8));
 
         try (CountingInputStream counting = new CountingInputStream(source, dataCountsReporter)) {
-            while (counting.read() >= 0) {}
+            while (counting.read() >= 0) {
+            }
             assertEquals(TEXT.length(), dataCountsReporter.incrementalStats().getInputBytes());
         }
     }
@@ -37,7 +38,8 @@ public class CountingInputStreamTests extends ESTestCase {
 
         try (CountingInputStream counting = new CountingInputStream(source, dataCountsReporter)) {
             byte buf[] = new byte[256];
-            while (counting.read(buf) >= 0) {}
+            while (counting.read(buf) >= 0) {
+            }
             assertEquals(TEXT.length(), dataCountsReporter.incrementalStats().getInputBytes());
         }
     }
@@ -51,7 +53,8 @@ public class CountingInputStreamTests extends ESTestCase {
 
         try (CountingInputStream counting = new CountingInputStream(source, dataCountsReporter)) {
             byte buf[] = new byte[8];
-            while (counting.read(buf, 0, 8) >= 0) {}
+            while (counting.read(buf, 0, 8) >= 0) {
+            }
             assertEquals(TEXT.length(), dataCountsReporter.incrementalStats().getInputBytes());
         }
     }

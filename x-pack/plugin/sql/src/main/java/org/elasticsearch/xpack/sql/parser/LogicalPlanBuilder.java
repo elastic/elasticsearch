@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.sql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -58,15 +61,26 @@ import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 abstract class LogicalPlanBuilder extends ExpressionBuilder {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(CommandBuilder.class);
+
+    private static final String FROZEN_DEPRECATION_WARNING = "[{}] syntax is deprecated because frozen indices have been deprecated. "
+        + "Consider cold or frozen tiers in place of frozen indices.";
+
+    protected void maybeWarnDeprecatedFrozenSyntax(boolean includeFrozen, String syntax) {
+        if (includeFrozen) {
+            DEPRECATION_LOGGER.warn(DeprecationCategory.PARSING, "include_frozen_syntax", format(null, FROZEN_DEPRECATION_WARNING, syntax));
+        }
+    }
 
     protected LogicalPlanBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
         super(params, zoneId);
@@ -79,7 +93,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         List<SubQueryAlias> namedQueries = visitList(this, ctx.namedQuery(), SubQueryAlias.class);
 
         // unwrap query (and validate while at it)
-        Map<String, SubQueryAlias> cteRelations = new LinkedHashMap<>(namedQueries.size());
+        Map<String, SubQueryAlias> cteRelations = Maps.newLinkedHashMapWithExpectedSize(namedQueries.size());
         for (SubQueryAlias namedQuery : namedQueries) {
             if (cteRelations.put(namedQuery.alias(), namedQuery) != null) {
                 throw new ParsingException(namedQuery.source(), "Duplicate alias {}", namedQuery.alias());
@@ -105,9 +119,8 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             Source source = source(ctx.ORDER(), endContext);
             List<Order> order = visitList(this, ctx.orderBy(), Order.class);
 
-            if (plan instanceof Limit) {
+            if (plan instanceof Limit limit) {
                 // Limit from TOP clauses must be the parent of the OrderBy clause
-                Limit limit = (Limit) plan;
                 plan = limit.replaceChild(new OrderBy(source, limit.child(), order));
             } else {
                 plan = new OrderBy(source, plan, order);
@@ -119,8 +132,10 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             Token limit = limitClause.limit;
             if (limit != null && limitClause.INTEGER_VALUE() != null) {
                 if (plan instanceof Limit) {
-                    throw new ParsingException(source(limitClause),
-                        "TOP and LIMIT are not allowed in the same query - use one or the other");
+                    throw new ParsingException(
+                        source(limitClause),
+                        "TOP and LIMIT are not allowed in the same query - use one or the other"
+                    );
                 } else {
                     plan = limit(plan, source(limitClause), limit);
                 }
@@ -160,8 +175,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             List<Expression> groupBy = expressions(groupingElement);
             ParserRuleContext endSource = groupingElement.isEmpty() ? groupByCtx : groupingElement.get(groupingElement.size() - 1);
             query = new Aggregate(source(ctx.GROUP(), endSource), query, groupBy, selectTarget);
-        }
-        else if (selectTarget.isEmpty() == false) {
+        } else if (selectTarget.isEmpty() == false) {
             query = new Project(source(ctx.selectItems()), query, selectTarget);
         }
 
@@ -187,9 +201,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitFromClause(FromClauseContext ctx) {
         // if there are multiple FROM clauses, convert each pair in a inner join
         List<LogicalPlan> plans = plans(ctx.relation());
-        LogicalPlan plan = plans.stream()
-                .reduce((left, right) -> new Join(source(ctx), left, right, Join.JoinType.IMPLICIT, null))
-                .get();
+        LogicalPlan plan = plans.stream().reduce((left, right) -> new Join(source(ctx), left, right, Join.JoinType.IMPLICIT, null)).get();
 
         // PIVOT
         if (ctx.pivotClause() != null) {
@@ -197,8 +209,11 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             UnresolvedAttribute column = new UnresolvedAttribute(source(pivotClause.column), visitQualifiedName(pivotClause.column));
             List<NamedExpression> values = namedValues(pivotClause.aggs);
             if (values.size() > 1) {
-                throw new ParsingException(source(pivotClause.aggs), "PIVOT currently supports only one aggregation, found [{}]",
-                        values.size());
+                throw new ParsingException(
+                    source(pivotClause.aggs),
+                    "PIVOT currently supports only one aggregation, found [{}]",
+                    values.size()
+                );
             }
             plan = new Pivot(source(pivotClause), plan, column, namedValues(pivotClause.vals), namedValues(pivotClause.aggs));
         }
@@ -266,7 +281,9 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitTableName(TableNameContext ctx) {
         String alias = visitQualifiedName(ctx.qualifiedName());
         TableIdentifier tableIdentifier = visitTableIdentifier(ctx.tableIdentifier());
-        return new UnresolvedRelation(source(ctx), tableIdentifier, alias, ctx.FROZEN() != null);
+        boolean includeFrozen = ctx.FROZEN() != null;
+        maybeWarnDeprecatedFrozenSyntax(includeFrozen, "FROZEN");
+        return new UnresolvedRelation(source(ctx), tableIdentifier, alias, includeFrozen);
     }
 
     private Limit limit(LogicalPlan plan, Source source, Token limit) {

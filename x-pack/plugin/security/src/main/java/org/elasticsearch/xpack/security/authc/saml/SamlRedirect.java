@@ -14,7 +14,6 @@ import org.opensaml.saml.saml2.core.StatusResponseType;
 import org.opensaml.xmlsec.signature.support.SignatureConstants;
 
 import java.io.ByteArrayOutputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -79,15 +78,16 @@ public class SamlRedirect {
         return Base64.getEncoder().encodeToString(bytes);
     }
 
-    private String urlEncode(String param) throws UnsupportedEncodingException {
-        return URLEncoder.encode(param, StandardCharsets.US_ASCII.name());
+    private String urlEncode(String param) {
+        return URLEncoder.encode(param, StandardCharsets.US_ASCII);
     }
 
-    protected String deflateAndBase64Encode(SAMLObject message)
-            throws Exception {
+    protected String deflateAndBase64Encode(SAMLObject message) throws Exception {
         Deflater deflater = new Deflater(Deflater.DEFLATED, true);
-        try (ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
-             DeflaterOutputStream deflaterStream = new DeflaterOutputStream(bytesOut, deflater)) {
+        try (
+            ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
+            DeflaterOutputStream deflaterStream = new DeflaterOutputStream(bytesOut, deflater)
+        ) {
             String messageStr = SamlUtils.toString(XMLObjectSupport.marshall(message));
             deflaterStream.write(messageStr.getBytes(StandardCharsets.UTF_8));
             deflaterStream.finish();

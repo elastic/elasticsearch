@@ -12,6 +12,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -40,13 +41,28 @@ import java.util.List;
 public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<IndicesStatsRequest, IndicesStatsResponse, ShardStats> {
 
     private final IndicesService indicesService;
+    private final StatsRequestLimiter statsRequestLimiter;
 
     @Inject
-    public TransportIndicesStatsAction(ClusterService clusterService, TransportService transportService, IndicesService indicesService,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(IndicesStatsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                IndicesStatsRequest::new, ThreadPool.Names.MANAGEMENT);
+    public TransportIndicesStatsAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        StatsRequestLimiter statsRequestLimiter
+    ) {
+        super(
+            IndicesStatsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            IndicesStatsRequest::new,
+            ThreadPool.Names.MANAGEMENT
+        );
         this.indicesService = indicesService;
+        this.statsRequestLimiter = statsRequestLimiter;
     }
 
     /**
@@ -73,11 +89,23 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected IndicesStatsResponse newResponse(IndicesStatsRequest request, int totalShards, int successfulShards, int failedShards,
-                                               List<ShardStats> responses, List<DefaultShardOperationFailedException> shardFailures,
-                                               ClusterState clusterState) {
-        return new IndicesStatsResponse(responses.toArray(new ShardStats[responses.size()]), totalShards, successfulShards, failedShards,
-            shardFailures);
+    protected IndicesStatsResponse newResponse(
+        IndicesStatsRequest request,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<ShardStats> responses,
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
+    ) {
+        return new IndicesStatsResponse(
+            responses.toArray(new ShardStats[responses.size()]),
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures,
+            clusterState
+        );
     }
 
     @Override
@@ -86,8 +114,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected void shardOperation(IndicesStatsRequest request, ShardRouting shardRouting, Task task,
-                                  ActionListener<ShardStats> listener) {
+    protected void shardOperation(IndicesStatsRequest request, ShardRouting shardRouting, Task task, ActionListener<ShardStats> listener) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
@@ -117,7 +144,13 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
                 commonStats,
                 commitStats,
                 seqNoStats,
-                retentionLeaseStats);
+                retentionLeaseStats
+            );
         });
+    }
+
+    @Override
+    protected void doExecute(Task task, IndicesStatsRequest request, ActionListener<IndicesStatsResponse> listener) {
+        statsRequestLimiter.tryToExecute(task, request, listener, super::doExecute);
     }
 }

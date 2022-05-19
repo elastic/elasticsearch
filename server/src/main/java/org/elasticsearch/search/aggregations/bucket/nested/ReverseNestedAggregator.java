@@ -7,13 +7,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import com.carrotsearch.hppc.LongIntHashMap;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -25,8 +23,10 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 public class ReverseNestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
@@ -36,9 +36,15 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
     private final Query parentFilter;
     private final BitSetProducer parentBitsetProducer;
 
-    public ReverseNestedAggregator(String name, AggregatorFactories factories, NestedObjectMapper objectMapper,
-            AggregationContext context, Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
-            throws IOException {
+    public ReverseNestedAggregator(
+        String name,
+        AggregatorFactories factories,
+        NestedObjectMapper objectMapper,
+        AggregationContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
         if (objectMapper == null) {
             parentFilter = Queries.newNonNestedFilter();
@@ -56,7 +62,7 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
         if (parentDocs == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final LongIntHashMap bucketOrdToLastCollectedParentDoc = new LongIntHashMap(32);
+        final Map<Long, Integer> bucketOrdToLastCollectedParentDoc = new HashMap<>(32);
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int childDoc, long bucket) throws IOException {
@@ -64,16 +70,15 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
                 final int parentDoc = parentDocs.nextSetBit(childDoc);
                 assert childDoc <= parentDoc && parentDoc != DocIdSetIterator.NO_MORE_DOCS;
 
-                int keySlot = bucketOrdToLastCollectedParentDoc.indexOf(bucket);
-                if (bucketOrdToLastCollectedParentDoc.indexExists(keySlot)) {
-                    int lastCollectedParentDoc = bucketOrdToLastCollectedParentDoc.indexGet(keySlot);
+                Integer lastCollectedParentDoc = bucketOrdToLastCollectedParentDoc.get(bucket);
+                if (lastCollectedParentDoc != null) {
                     if (parentDoc > lastCollectedParentDoc) {
                         collectBucket(sub, parentDoc, bucket);
-                        bucketOrdToLastCollectedParentDoc.indexReplace(keySlot, parentDoc);
+                        bucketOrdToLastCollectedParentDoc.put(bucket, parentDoc);
                     }
                 } else {
                     collectBucket(sub, parentDoc, bucket);
-                    bucketOrdToLastCollectedParentDoc.indexInsert(keySlot, bucket, parentDoc);
+                    bucketOrdToLastCollectedParentDoc.put(bucket, parentDoc);
                 }
             }
         };
@@ -81,8 +86,15 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
-            new InternalReverseNested(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
+        return buildAggregationsForSingleBucket(
+            owningBucketOrds,
+            (owningBucketOrd, subAggregationResults) -> new InternalReverseNested(
+                name,
+                bucketDocCount(owningBucketOrd),
+                subAggregationResults,
+                metadata()
+            )
+        );
     }
 
     @Override

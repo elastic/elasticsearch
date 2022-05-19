@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.ack;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * A ack watch action request builder.

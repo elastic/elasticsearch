@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser.EmailAttachment;
 
 import java.io.IOException;

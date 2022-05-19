@@ -34,10 +34,11 @@ public final class TransformInternalIndexConstants {
     public static final Version INDEX_VERSION_LAST_CHANGED = Version.V_7_13_0;
     public static final String INDEX_VERSION = "007";
     public static final String INDEX_PATTERN = TRANSFORM_PREFIX + "internal-";
+    public static final String INDEX_PATTERN_DEPRECATED = TRANSFORM_PREFIX_DEPRECATED + "internal-";
     public static final String LATEST_INDEX_VERSIONED_NAME = INDEX_PATTERN + INDEX_VERSION;
     public static final String LATEST_INDEX_NAME = LATEST_INDEX_VERSIONED_NAME;
     public static final String INDEX_NAME_PATTERN = INDEX_PATTERN + "*";
-    public static final String INDEX_NAME_PATTERN_DEPRECATED = TRANSFORM_PREFIX_DEPRECATED + "internal-*";
+    public static final String INDEX_NAME_PATTERN_DEPRECATED = INDEX_PATTERN_DEPRECATED + "*";
 
     // audit index
     // gh #49730: upped version of audit index to 000002

@@ -4,6 +4,14 @@
 <titleabbrev>cat plugins</titleabbrev>
 ++++
 
+
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<cluster-nodes-info,nodes info API>>.
+====
+
 Returns a list of plugins running on each node of a cluster.
 
 
@@ -64,6 +72,5 @@ U7321H6 mapper-annotated-text   {version_qualified} The Mapper Annotated_text pl
 U7321H6 mapper-murmur3          {version_qualified} The Mapper Murmur3 plugin allows to compute hashes of a field's values at index-time and to store them in the index.
 U7321H6 mapper-size             {version_qualified} The Mapper Size plugin allows document to record their uncompressed size at index time.
 U7321H6 store-smb               {version_qualified} The Store SMB plugin adds support for SMB stores.
-U7321H6 transport-nio           {version_qualified} The nio transport.
 ------------------------------------------------------------------------------
 // TESTRESPONSE[s/([.()])/\\$1/ s/U7321H6/.+/ non_json]

@@ -12,7 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -20,21 +19,21 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Set;
 
 public class IndicesQueryCacheTests extends ESTestCase {
 
@@ -57,13 +56,17 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
 
         @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
         public String toString(String field) {
             return "dummy";
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost)
-                throws IOException {
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
             return new ConstantScoreWeight(this, boost) {
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
@@ -79,19 +82,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
     }
 
-    private static QueryCachingPolicy alwaysCachePolicy() {
-        return new QueryCachingPolicy() {
-            @Override
-            public void onUse(Query query) {
-
-            }
-            @Override
-            public boolean shouldCache(Query query) {
-                return true;
-            }
-        };
-    }
-
     public void testBasics() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
@@ -101,12 +91,12 @@ public class IndicesQueryCacheTests extends ESTestCase {
         ShardId shard = new ShardId("index", "_na_", 0);
         r = ElasticsearchDirectoryReader.wrap(r, shard);
         IndexSearcher s = new IndexSearcher(r);
-        s.setQueryCachingPolicy(alwaysCachePolicy());
+        s.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
 
         Settings settings = Settings.builder()
-                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
-                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
-                .build();
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s.setQueryCache(cache);
 
@@ -172,7 +162,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         ShardId shard1 = new ShardId("index", "_na_", 0);
         r1 = ElasticsearchDirectoryReader.wrap(r1, shard1);
         IndexSearcher s1 = new IndexSearcher(r1);
-        s1.setQueryCachingPolicy(alwaysCachePolicy());
+        s1.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
 
         Directory dir2 = newDirectory();
         IndexWriter w2 = new IndexWriter(dir2, newIndexWriterConfig());
@@ -182,12 +172,12 @@ public class IndicesQueryCacheTests extends ESTestCase {
         ShardId shard2 = new ShardId("index", "_na_", 1);
         r2 = ElasticsearchDirectoryReader.wrap(r2, shard2);
         IndexSearcher s2 = new IndexSearcher(r2);
-        s2.setQueryCachingPolicy(alwaysCachePolicy());
+        s2.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
 
         Settings settings = Settings.builder()
-                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
-                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
-                .build();
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s1.setQueryCache(cache);
         s2.setQueryCache(cache);
@@ -300,7 +290,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         ShardId shard1 = new ShardId("index", "_na_", 0);
         r1 = ElasticsearchDirectoryReader.wrap(r1, shard1);
         IndexSearcher s1 = new IndexSearcher(r1);
-        s1.setQueryCachingPolicy(alwaysCachePolicy());
+        s1.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
 
         Directory dir2 = newDirectory();
         IndexWriter w2 = new IndexWriter(dir2, newIndexWriterConfig());
@@ -310,12 +300,12 @@ public class IndicesQueryCacheTests extends ESTestCase {
         ShardId shard2 = new ShardId("index", "_na_", 1);
         r2 = ElasticsearchDirectoryReader.wrap(r2, shard2);
         IndexSearcher s2 = new IndexSearcher(r2);
-        s2.setQueryCachingPolicy(alwaysCachePolicy());
+        s2.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
 
         Settings settings = Settings.builder()
-                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
-                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
-                .build();
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s1.setQueryCache(cache);
         s2.setQueryCache(cache);
@@ -353,11 +343,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
 
         @Override
-        public void extractTerms(Set<Term> terms) {
-            weight.extractTerms(terms);
-        }
-
-        @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return weight.explain(context, doc);
         }
@@ -390,19 +375,12 @@ public class IndicesQueryCacheTests extends ESTestCase {
         ShardId shard = new ShardId("index", "_na_", 0);
         r = ElasticsearchDirectoryReader.wrap(r, shard);
         IndexSearcher s = new IndexSearcher(r);
-        s.setQueryCachingPolicy(new QueryCachingPolicy() {
-            @Override
-            public boolean shouldCache(Query query) throws IOException {
-                return false; // never cache
-            }
-            @Override
-            public void onUse(Query query) {}
-        });
+        s.setQueryCachingPolicy(TrivialQueryCachingPolicy.NEVER);
 
         Settings settings = Settings.builder()
-                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
-                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
-                .build();
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s.setQueryCache(cache);
         Query query = new MatchAllDocsQuery();

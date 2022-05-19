@@ -24,7 +24,6 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class TimingStatsReporterTests extends ESTestCase {
 
@@ -44,7 +43,7 @@ public class TimingStatsReporterTests extends ESTestCase {
         TimingStatsReporter reporter = createReporter(stats);
         assertThat(reporter.getCurrentTimingStats(), equalTo(stats));
 
-        verifyZeroInteractions(bulkResultsPersister);
+        verifyNoMoreInteractions(bulkResultsPersister);
     }
 
     public void testReporting() {
@@ -92,7 +91,7 @@ public class TimingStatsReporterTests extends ESTestCase {
         TimingStatsReporter reporter = createReporter(new TimingStats(JOB_ID));
         reporter.finishReporting();
 
-        verifyZeroInteractions(bulkResultsPersister);
+        verifyNoMoreInteractions(bulkResultsPersister);
     }
 
     public void testFinishReporting_WithChange() {
@@ -107,16 +106,25 @@ public class TimingStatsReporterTests extends ESTestCase {
     public void testTimingStatsDifferSignificantly() {
         assertThat(
             TimingStatsReporter.differSignificantly(
-                createTimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0), createTimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0)),
-            is(false));
+                createTimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0),
+                createTimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0)
+            ),
+            is(false)
+        );
         assertThat(
             TimingStatsReporter.differSignificantly(
-                createTimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0), createTimingStats(JOB_ID, 10, 10.0, 11.0, 1.0, 10.0)),
-            is(false));
+                createTimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0),
+                createTimingStats(JOB_ID, 10, 10.0, 11.0, 1.0, 10.0)
+            ),
+            is(false)
+        );
         assertThat(
             TimingStatsReporter.differSignificantly(
-                createTimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0), createTimingStats(JOB_ID, 10, 10.0, 12.0, 1.0, 10.0)),
-            is(true));
+                createTimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0),
+                createTimingStats(JOB_ID, 10, 10.0, 12.0, 1.0, 10.0)
+            ),
+            is(true)
+        );
     }
 
     public void testValuesDifferSignificantly() {
@@ -141,7 +149,8 @@ public class TimingStatsReporterTests extends ESTestCase {
         @Nullable Double minBucketProcessingTimeMs,
         @Nullable Double maxBucketProcessingTimeMs,
         @Nullable Double avgBucketProcessingTimeMs,
-        @Nullable Double exponentialAvgBucketProcessingTimeMs) {
+        @Nullable Double exponentialAvgBucketProcessingTimeMs
+    ) {
         return createTimingStats(
             jobId,
             bucketCount,
@@ -149,19 +158,24 @@ public class TimingStatsReporterTests extends ESTestCase {
             maxBucketProcessingTimeMs,
             avgBucketProcessingTimeMs,
             exponentialAvgBucketProcessingTimeMs,
-            0.0);
+            0.0
+        );
     }
 
     private static TimingStats createTimingStats(
-            String jobId,
-            long bucketCount,
-            @Nullable Double minBucketProcessingTimeMs,
-            @Nullable Double maxBucketProcessingTimeMs,
-            @Nullable Double avgBucketProcessingTimeMs,
-            @Nullable Double exponentialAvgBucketProcessingTimeMs,
-            double incrementalBucketProcessingTimeMs) {
-        ExponentialAverageCalculationContext context =
-            new ExponentialAverageCalculationContext(incrementalBucketProcessingTimeMs, TIMESTAMP.plus(BUCKET_SPAN), null);
+        String jobId,
+        long bucketCount,
+        @Nullable Double minBucketProcessingTimeMs,
+        @Nullable Double maxBucketProcessingTimeMs,
+        @Nullable Double avgBucketProcessingTimeMs,
+        @Nullable Double exponentialAvgBucketProcessingTimeMs,
+        double incrementalBucketProcessingTimeMs
+    ) {
+        ExponentialAverageCalculationContext context = new ExponentialAverageCalculationContext(
+            incrementalBucketProcessingTimeMs,
+            TIMESTAMP.plus(BUCKET_SPAN),
+            null
+        );
         return new TimingStats(
             jobId,
             bucketCount,
@@ -169,7 +183,8 @@ public class TimingStatsReporterTests extends ESTestCase {
             maxBucketProcessingTimeMs,
             avgBucketProcessingTimeMs,
             exponentialAvgBucketProcessingTimeMs,
-            context);
+            context
+        );
     }
 
     private static Bucket createBucket(long processingTimeMs) {

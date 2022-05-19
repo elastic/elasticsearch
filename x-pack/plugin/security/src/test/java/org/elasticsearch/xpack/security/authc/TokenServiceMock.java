@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 
 import java.io.IOException;
@@ -65,7 +65,11 @@ public class TokenServiceMock {
         final Map<String, Object> document = new HashMap<>();
         document.put("access_token", Map.of("user_token", userToken, "invalidated", valid == false));
 
-        SecurityMocks.mockGetRequest(client, RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, "token_" + token.hashedToken,
-            XContentTestUtils.convertToXContent(document, XContentType.JSON));
+        SecurityMocks.mockGetRequest(
+            client,
+            SecuritySystemIndices.SECURITY_TOKENS_ALIAS,
+            "token_" + token.hashedToken,
+            XContentTestUtils.convertToXContent(document, XContentType.JSON)
+        );
     }
 }

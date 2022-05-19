@@ -96,16 +96,11 @@ faster.
 [discrete]
 === Use faster hardware
 
-If indexing is I/O bound, you should investigate giving more memory to the
-filesystem cache (see above) or buying faster drives. In particular SSD drives
-are known to perform better than spinning disks. Always use local storage,
-remote filesystems such as `NFS` or `SMB` should be avoided. Also beware of
-virtualized storage such as Amazon's `Elastic Block Storage`. Virtualized
-storage works very well with Elasticsearch, and it is appealing since it is so
-fast and simple to set up, but it is also unfortunately inherently slower on an
-ongoing basis when compared to dedicated local storage. If you put an index on
-`EBS`, be sure to use provisioned IOPS otherwise operations could be quickly
-throttled.
+If indexing is I/O-bound, consider increasing the size of the filesystem cache
+(see above) or using faster storage. Elasticsearch generally creates individual
+files with sequential writes. However, indexing involves writing multiple files
+concurrently, and a mix of random and sequential reads too, so SSD drives tend
+to perform better than spinning disks.
 
 Stripe your index across multiple SSDs by configuring a RAID 0 array. Remember
 that it will increase the risk of failure since the failure of any one SSD
@@ -114,6 +109,14 @@ optimize single shards for maximum performance, and then add replicas across
 different nodes so there's redundancy for any node failures. You can also use
 <<modules-snapshots,snapshot and restore>> to backup the index for further
 insurance.
+
+Directly-attached (local) storage generally performs better than remote storage
+because it is simpler to configure well and avoids communications overheads.
+With careful tuning it is sometimes possible to achieve acceptable performance
+using remote storage too. Benchmark your system with a realistic workload to
+determine the effects of any tuning parameters. If you cannot achieve the
+performance you expect, work with the vendor of your storage system to identify
+the problem.
 
 [discrete]
 === Indexing buffer size

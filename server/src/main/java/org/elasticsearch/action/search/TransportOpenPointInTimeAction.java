@@ -75,14 +75,14 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             .allowPartialSearchResults(false);
         searchRequest.setCcsMinimizeRoundtrips(false);
         transportSearchAction.executeRequest(
-            task,
+            (SearchTask) task,
             searchRequest,
             "open_search_context",
             true,
-            (searchTask, shardTarget, connection, phaseListener) -> {
+            (searchTask, shardIt, connection, phaseListener) -> {
                 final ShardOpenReaderRequest shardRequest = new ShardOpenReaderRequest(
-                    shardTarget.getShardId(),
-                    shardTarget.getOriginalIndices(),
+                    shardIt.shardId(),
+                    shardIt.getOriginalIndices(),
                     request.keepAlive()
                 );
                 transportService.sendChildRequest(

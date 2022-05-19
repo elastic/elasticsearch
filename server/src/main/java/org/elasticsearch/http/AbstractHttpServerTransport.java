@@ -8,11 +8,11 @@
 
 package org.elasticsearch.http;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -21,6 +21,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -28,9 +29,8 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestChannel;
@@ -39,6 +39,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -47,6 +49,7 @@ import java.nio.channels.CancelledKeyException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -61,16 +64,15 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_
 
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
-    private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
 
     protected final Settings settings;
     public final HttpHandlingSettings handlingSettings;
     protected final NetworkService networkService;
-    protected final BigArrays bigArrays;
+    protected final Recycler<BytesRef> recycler;
     protected final ThreadPool threadPool;
     protected final Dispatcher dispatcher;
     protected final CorsHandler corsHandler;
-    private final NamedXContentRegistry xContentRegistry;
+    private final XContentParserConfiguration parserConfig;
 
     protected final PortsRange port;
     protected final ByteSizeValue maxContentLength;
@@ -81,12 +83,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final AtomicLong totalChannelsAccepted = new AtomicLong();
     private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final PlainActionFuture<Void> allClientsClosedListener = PlainActionFuture.newFuture();
-    private final RefCounted refCounted = new AbstractRefCounted("abstract-http-server-transport") {
-        @Override
-        protected void closeInternal() {
-            allClientsClosedListener.onResponse(null);
-        }
-    };
+    private final RefCounted refCounted = AbstractRefCounted.of(() -> allClientsClosedListener.onResponse(null));
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final HttpClientStatsTracker httpClientStatsTracker;
 
@@ -94,21 +91,30 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     private volatile long slowLogThresholdMs;
 
-    protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
-                                          NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings) {
+    protected AbstractHttpServerTransport(
+        Settings settings,
+        NetworkService networkService,
+        Recycler<BytesRef> recycler,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        Dispatcher dispatcher,
+        ClusterSettings clusterSettings
+    ) {
         this.settings = settings;
         this.networkService = networkService;
-        this.bigArrays = bigArrays;
+        this.recycler = recycler;
         this.threadPool = threadPool;
-        this.xContentRegistry = xContentRegistry;
+        this.parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         this.dispatcher = dispatcher;
         this.handlingSettings = HttpHandlingSettings.fromSettings(settings);
         this.corsHandler = CorsHandler.fromSettings(settings);
 
         // we can't make the network.bind_host a fallback since we already fall back to http.host hence the extra conditional here
         List<String> httpBindHost = SETTING_HTTP_BIND_HOST.get(settings);
-        this.bindHosts = (httpBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : httpBindHost)
-            .toArray(Strings.EMPTY_ARRAY);
+        this.bindHosts = (httpBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : httpBindHost).toArray(
+            Strings.EMPTY_ARRAY
+        );
         // we can't make the network.publish_host a fallback since we already fall back to http.host hence the extra conditional here
         List<String> httpPublishHost = SETTING_HTTP_PUBLISH_HOST.get(settings);
         this.publishHosts = (httpPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings) : httpPublishHost)
@@ -118,8 +124,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
         this.tracer = new HttpTracer(settings, clusterSettings);
-        clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
-                slowLogThreshold -> this.slowLogThresholdMs = slowLogThreshold.getMillis());
+        clusterSettings.addSettingsUpdateConsumer(
+            TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
+            slowLogThreshold -> this.slowLogThresholdMs = slowLogThreshold.getMillis()
+        );
         slowLogThresholdMs = TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings).getMillis();
         httpClientStatsTracker = new HttpClientStatsTracker(settings, clusterSettings, threadPool);
     }
@@ -187,10 +195,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             return true;
         });
         if (success == false) {
-            throw new BindHttpException(
-                "Failed to bind to " + NetworkAddress.format(hostAddress, port),
-                lastException.get()
-            );
+            throw new BindHttpException("Failed to bind to " + NetworkAddress.format(hostAddress, port), lastException.get());
         }
 
         if (logger.isDebugEnabled()) {
@@ -231,8 +236,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     /**
      * Called to tear down internal resources
@@ -255,53 +259,76 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         // if no matching boundAddress found, check if there is a unique port for all bound addresses
         if (publishPort < 0) {
-            final IntSet ports = new IntHashSet();
+            final Set<Integer> ports = new HashSet<>();
             for (TransportAddress boundAddress : boundAddresses) {
                 ports.add(boundAddress.getPort());
             }
             if (ports.size() == 1) {
-                publishPort = ports.iterator().next().value;
+                publishPort = ports.iterator().next();
             }
         }
 
         if (publishPort < 0) {
-            throw new BindHttpException("Failed to auto-resolve http publish port, multiple bound addresses " + boundAddresses +
-                " with distinct ports and none of them matched the publish address (" + publishInetAddress + "). " +
-                "Please specify a unique port by setting " + SETTING_HTTP_PORT.getKey() + " or " + SETTING_HTTP_PUBLISH_PORT.getKey());
+            throw new BindHttpException(
+                "Failed to auto-resolve http publish port, multiple bound addresses "
+                    + boundAddresses
+                    + " with distinct ports and none of them matched the publish address ("
+                    + publishInetAddress
+                    + "). "
+                    + "Please specify a unique port by setting "
+                    + SETTING_HTTP_PORT.getKey()
+                    + " or "
+                    + SETTING_HTTP_PUBLISH_PORT.getKey()
+            );
         }
         return publishPort;
     }
 
     public void onException(HttpChannel channel, Exception e) {
-        if (lifecycle.started() == false) {
-            // just close and ignore - we are already stopped and just need to make sure we release all resources
-            CloseableChannel.closeChannel(channel);
-            return;
-        }
-        if (NetworkExceptionHelper.isCloseConnectionException(e)) {
-            logger.trace(() -> new ParameterizedMessage(
-                "close connection exception caught while handling client http traffic, closing connection {}", channel), e);
-            CloseableChannel.closeChannel(channel);
-        } else if (NetworkExceptionHelper.isConnectException(e)) {
-            logger.trace(() -> new ParameterizedMessage(
-                "connect exception caught while handling client http traffic, closing connection {}", channel), e);
-            CloseableChannel.closeChannel(channel);
-        } else if (e instanceof HttpReadTimeoutException) {
-            logger.trace(() -> new ParameterizedMessage("http read timeout, closing connection {}", channel), e);
-            CloseableChannel.closeChannel(channel);
-        } else if (e instanceof CancelledKeyException) {
-            logger.trace(() -> new ParameterizedMessage(
-                "cancelled key exception caught while handling client http traffic, closing connection {}", channel), e);
-            CloseableChannel.closeChannel(channel);
-        } else {
-            logger.warn(() -> new ParameterizedMessage(
-                "caught exception while handling client http traffic, closing connection {}", channel), e);
+        try {
+            if (lifecycle.started() == false) {
+                // just close and ignore - we are already stopped and just need to make sure we release all resources
+                return;
+            }
+            if (NetworkExceptionHelper.getCloseConnectionExceptionLevel(e, false) != Level.OFF) {
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "close connection exception caught while handling client http traffic, closing connection {}",
+                        channel
+                    ),
+                    e
+                );
+            } else if (NetworkExceptionHelper.isConnectException(e)) {
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "connect exception caught while handling client http traffic, closing connection {}",
+                        channel
+                    ),
+                    e
+                );
+            } else if (e instanceof HttpReadTimeoutException) {
+                logger.trace(() -> new ParameterizedMessage("http read timeout, closing connection {}", channel), e);
+            } else if (e instanceof CancelledKeyException) {
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "cancelled key exception caught while handling client http traffic, closing connection {}",
+                        channel
+                    ),
+                    e
+                );
+            } else {
+                logger.warn(
+                    () -> new ParameterizedMessage("caught exception while handling client http traffic, closing connection {}", channel),
+                    e
+                );
+            }
+        } finally {
             CloseableChannel.closeChannel(channel);
         }
     }
 
-    protected void onServerException(HttpServerChannel channel, Exception e) {
-        logger.error(new ParameterizedMessage("exception from http server channel caught on transport layer [channel={}]", channel), e);
+    protected static void onServerException(HttpServerChannel channel, Exception e) {
+        logger.error(() -> "exception from http server channel caught on transport layer [channel=" + channel + "]", e);
     }
 
     protected void serverAcceptedChannel(HttpChannel httpChannel) {
@@ -325,15 +352,23 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
         httpClientStatsTracker.updateClientStats(httpRequest, httpChannel);
-        final long startTime = threadPool.relativeTimeInMillis();
+        final long startTime = threadPool.rawRelativeTimeInMillis();
         try {
             handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
         } finally {
-            final long took = threadPool.relativeTimeInMillis() - startTime;
+            final long took = threadPool.rawRelativeTimeInMillis() - startTime;
+            networkService.getHandlingTimeTracker().addHandlingTime(took);
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
-                logger.warn("handling request [{}][{}][{}][{}] took [{}ms] which is above the warn threshold of [{}ms]",
-                    httpRequest.header(Task.X_OPAQUE_ID), httpRequest.method(), httpRequest.uri(), httpChannel, took, logThreshold);
+                logger.warn(
+                    "handling request [{}][{}][{}][{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                    httpRequest.header(Task.X_OPAQUE_ID_HTTP_HEADER),
+                    httpRequest.method(),
+                    httpRequest.uri(),
+                    httpChannel,
+                    took,
+                    logThreshold
+                );
             }
         }
     }
@@ -373,13 +408,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         {
             RestRequest innerRestRequest;
             try {
-                innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel);
+                innerRestRequest = RestRequest.request(parserConfig, httpRequest, httpChannel);
             } catch (final RestRequest.MediaTypeHeaderException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                innerRestRequest = requestWithoutFailedHeader(httpRequest, httpChannel, badRequestCause, e.getFailedHeaderName());
+                innerRestRequest = requestWithoutFailedHeader(httpRequest, httpChannel, badRequestCause, e.getFailedHeaderNames());
             } catch (final RestRequest.BadParameterException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                innerRestRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
+                innerRestRequest = RestRequest.requestWithoutParameters(parserConfig, httpRequest, httpChannel);
             }
             restRequest = innerRestRequest;
         }
@@ -397,15 +432,29 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             RestChannel innerChannel;
             ThreadContext threadContext = threadPool.getThreadContext();
             try {
-                innerChannel =
-                    new DefaultRestChannel(httpChannel, httpRequest, restRequest, bigArrays, handlingSettings, threadContext, corsHandler,
-                        trace);
+                innerChannel = new DefaultRestChannel(
+                    httpChannel,
+                    httpRequest,
+                    restRequest,
+                    recycler,
+                    handlingSettings,
+                    threadContext,
+                    corsHandler,
+                    trace
+                );
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
-                innerChannel =
-                    new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext, corsHandler,
-                        trace);
+                final RestRequest innerRequest = RestRequest.requestWithoutParameters(parserConfig, httpRequest, httpChannel);
+                innerChannel = new DefaultRestChannel(
+                    httpChannel,
+                    httpRequest,
+                    innerRequest,
+                    recycler,
+                    handlingSettings,
+                    threadContext,
+                    corsHandler,
+                    trace
+                );
             }
             channel = innerChannel;
         }
@@ -413,16 +462,25 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         dispatchRequest(restRequest, channel, badRequestCause);
     }
 
-    private RestRequest requestWithoutFailedHeader(HttpRequest httpRequest,
-                                                   HttpChannel httpChannel,
-                                                   Exception badRequestCause,
-                                                   String failedHeaderName) {
-        HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader(failedHeaderName);
+    private RestRequest requestWithoutFailedHeader(
+        HttpRequest httpRequest,
+        HttpChannel httpChannel,
+        Exception badRequestCause,
+        Set<String> failedHeaderNames
+    ) {
+        assert failedHeaderNames.size() > 0;
+        HttpRequest httpRequestWithoutHeader = httpRequest;
+        for (String failedHeaderName : failedHeaderNames) {
+            httpRequestWithoutHeader = httpRequestWithoutHeader.removeHeader(failedHeaderName);
+        }
         try {
-            return RestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+            return RestRequest.request(parserConfig, httpRequestWithoutHeader, httpChannel);
+        } catch (final RestRequest.MediaTypeHeaderException e) {
+            badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
+            return requestWithoutFailedHeader(httpRequestWithoutHeader, httpChannel, badRequestCause, e.getFailedHeaderNames());
         } catch (final RestRequest.BadParameterException e) {
             badRequestCause.addSuppressed(e);
-            return RestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+            return RestRequest.requestWithoutParameters(parserConfig, httpRequestWithoutHeader, httpChannel);
         }
     }
 
@@ -430,7 +488,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         if (HttpUtils.shouldCloseConnection(request)) {
             return ActionListener.wrap(() -> CloseableChannel.closeChannel(httpChannel));
         } else {
-            return NO_OP;
+            return ActionListener.noop();
         }
+    }
+
+    public ThreadPool getThreadPool() {
+        return threadPool;
     }
 }

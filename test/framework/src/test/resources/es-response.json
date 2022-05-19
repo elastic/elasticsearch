@@ -1,0 +1,49 @@
+{
+  "took" : 57,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 10000,
+      "relation" : "gte"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "nyc_taxis",
+        "_id" : "SIjZyXcBsaR104_0ECjx",
+        "_score" : 1.0,
+        "_source" : {
+          "extra" : 0.5,
+          "tolls_amount" : 0.0,
+          "passenger_count" : 1,
+          "store_and_fwd_flag" : "N",
+          "tip_amount" : 1.76,
+          "mta_tax" : 0.5,
+          "improvement_surcharge" : 0.3,
+          "fare_amount" : 7.5,
+          "dropoff_datetime" : "2015-07-23 21:45:16",
+          "total_amount" : 10.56,
+          "rate_code_id" : "1",
+          "payment_type" : "1",
+          "vendor_id" : "2",
+          "pickup_datetime" : "2015-07-23 21:37:38",
+          "trip_distance" : 1.59,
+          "pickup_location" : [
+            -73.9778823852539,
+            40.75482177734375
+          ],
+          "dropoff_location" : [
+            -73.9590835571289,
+            40.763450622558594
+          ]
+        }
+      }
+    ]
+  }
+}

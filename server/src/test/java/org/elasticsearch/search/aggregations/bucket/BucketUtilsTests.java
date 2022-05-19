@@ -15,15 +15,14 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class BucketUtilsTests extends ESTestCase {
 
     public void testBadInput() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> BucketUtils.suggestShardSideQueueSize(0));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> BucketUtils.suggestShardSideQueueSize(0));
         assertEquals(e.getMessage(), "size must be positive, got 0");
     }
 
     public void testOverFlow() {
         for (int iter = 0; iter < 10; ++iter) {
             final int size = Integer.MAX_VALUE - randomInt(10);
-            final int shardSize = BucketUtils.suggestShardSideQueueSize( size);
+            final int shardSize = BucketUtils.suggestShardSideQueueSize(size);
             assertThat(shardSize, greaterThanOrEqualTo(shardSize));
         }
     }
@@ -31,12 +30,12 @@ public class BucketUtilsTests extends ESTestCase {
     public void testShardSizeIsGreaterThanGlobalSize() {
         for (int iter = 0; iter < 10; ++iter) {
             final int size = randomIntBetween(1, Integer.MAX_VALUE);
-            final int shardSize = BucketUtils.suggestShardSideQueueSize( size);
+            final int shardSize = BucketUtils.suggestShardSideQueueSize(size);
             assertThat(shardSize, greaterThanOrEqualTo(size));
         }
     }
 
-  /*// You may use the code below to evaluate the impact of the BucketUtils.suggestShardSideQueueSize
+    /*// You may use the code below to evaluate the impact of the BucketUtils.suggestShardSideQueueSize
     // heuristic
     public static void main(String[] args) {
         final int numberOfUniqueTerms = 10000;

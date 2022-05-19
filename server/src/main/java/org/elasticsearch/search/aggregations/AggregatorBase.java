@@ -14,7 +14,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregator;
 import org.elasticsearch.search.aggregations.metrics.MinAggregator;
 import org.elasticsearch.search.aggregations.metrics.SumAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -23,7 +25,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -57,8 +58,14 @@ public abstract class AggregatorBase extends Aggregator {
      * @param subAggregatorCardinality Upper bound of the number of buckets that sub aggregations will collect
      * @param metadata              The metadata associated with this aggregator
      */
-    protected AggregatorBase(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
-            CardinalityUpperBound subAggregatorCardinality, Map<String, Object> metadata) throws IOException {
+    protected AggregatorBase(
+        String name,
+        AggregatorFactories factories,
+        AggregationContext context,
+        Aggregator parent,
+        CardinalityUpperBound subAggregatorCardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         this.name = name;
         this.metadata = metadata;
         this.parent = parent;
@@ -68,11 +75,12 @@ public abstract class AggregatorBase extends Aggregator {
         context.addReleasable(this);
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
-            void badState(){
+            static void badState() {
                 throw new IllegalStateException("preCollection not called on new Aggregator before use");
             }
+
             @Override
-            public LeafBucketCollector getLeafCollector(LeafReaderContext reader) {
+            public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) {
                 badState();
                 assert false;
                 return null; // unreachable but compiler does not agree
@@ -87,6 +95,7 @@ public abstract class AggregatorBase extends Aggregator {
             public void postCollection() throws IOException {
                 badState();
             }
+
             @Override
             public ScoreMode scoreMode() {
                 badState();
@@ -101,6 +110,9 @@ public abstract class AggregatorBase extends Aggregator {
      * doc values.  Generally, this means that the query has no filters or scripts, the aggregation is
      * top level, and the underlying field is indexed, and the index is sorted in the right order.
      *
+     * Also, using the pointReader is acceptable if within a sampling context and all other requirements are satisfied.
+     * But, this means that the numbers gathered from the point reader must not be scaled when gathered within a sampling context.
+     *
      * If those conditions aren't met, return <code>null</code> to indicate a point reader cannot
      * be used in this case.
      *
@@ -110,7 +122,7 @@ public abstract class AggregatorBase extends Aggregator {
         if (topLevelQuery() != null && topLevelQuery().getClass() != MatchAllDocsQuery.class) {
             return null;
         }
-        if (parent != null) {
+        if (parent != null && parent instanceof RandomSamplerAggregator == false) {
             return null;
         }
         return config.getPointReaderOrNull();
@@ -138,6 +150,7 @@ public abstract class AggregatorBase extends Aggregator {
         this.requestBytesUsed += bytes;
         return requestBytesUsed;
     }
+
     /**
      * Most aggregators don't need scores, make sure to extend this method if
      * your aggregator needs them.
@@ -192,6 +205,12 @@ public abstract class AggregatorBase extends Aggregator {
      */
     protected abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException;
 
+    // TODO: Remove this method in refactoring
+    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
+        throws IOException {
+        return getLeafCollector(ctx, sub);
+    }
+
     /**
      * Collect results for this leaf.
      * <p>
@@ -201,24 +220,22 @@ public abstract class AggregatorBase extends Aggregator {
      * for more details on what this does.
      */
     @Override
-    public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        preGetSubLeafCollectors(ctx);
-        final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
-        return getLeafCollector(ctx, sub);
+    public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+        preGetSubLeafCollectors(aggCtx.getLeafReaderContext());
+        final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(aggCtx);
+        return getLeafCollector(aggCtx.getLeafReaderContext(), sub, aggCtx);
     }
 
     /**
      * Can be overridden by aggregator implementations that like the perform an operation before the leaf collectors
      * of children aggregators are instantiated for the next segment.
      */
-    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {
-    }
+    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {}
 
     /**
      * Can be overridden by aggregator implementation to be called back when the collection phase starts.
      */
-    protected void doPreCollection() throws IOException {
-    }
+    protected void doPreCollection() throws IOException {}
 
     @Override
     public final void preCollection() throws IOException {
@@ -254,7 +271,7 @@ public abstract class AggregatorBase extends Aggregator {
     @Override
     public Aggregator subAggregator(String aggName) {
         if (subAggregatorbyName == null) {
-            subAggregatorbyName = new HashMap<>(subAggregators.length);
+            subAggregatorbyName = Maps.newMapWithExpectedSize(subAggregators.length);
             for (int i = 0; i < subAggregators.length; i++) {
                 subAggregatorbyName.put(subAggregators[i].name(), subAggregators[i]);
             }
@@ -291,8 +308,7 @@ public abstract class AggregatorBase extends Aggregator {
     /**
      * Can be overridden by aggregator implementation to be called back when the collection phase ends.
      */
-    protected void doPostCollection() throws IOException {
-    }
+    protected void doPostCollection() throws IOException {}
 
     protected final InternalAggregations buildEmptySubAggregations() {
         List<InternalAggregation> aggs = new ArrayList<>();

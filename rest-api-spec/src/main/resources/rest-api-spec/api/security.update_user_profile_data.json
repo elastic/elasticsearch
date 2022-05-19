@@ -1,0 +1,55 @@
+{
+  "security.update_user_profile_data":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-update-user-profile-data.html",
+      "description":"Update application specific data for the user profile of the given unique ID."
+    },
+    "stability":"experimental",
+    "visibility":"feature_flag",
+    "feature_flag": "es.user_profile_feature_flag_enabled",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/profile/{uid}/_data",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "parts":{
+            "uid":{
+              "type":"string",
+              "description":"An unique identifier of the user profile"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "if_seq_no":{
+        "type":"number",
+        "description":"only perform the update operation if the last operation that has changed the document has the specified sequence number"
+      },
+      "if_primary_term":{
+        "type":"number",
+        "description":"only perform the update operation if the last operation that has changed the document has the specified primary term"
+      },
+      "refresh":{
+        "type":"enum",
+        "options":[
+          "true",
+          "false",
+          "wait_for"
+        ],
+        "description":"If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
+      }
+    },
+    "body":{
+      "description":"The application data to update",
+      "required":true
+    }
+  }
+}

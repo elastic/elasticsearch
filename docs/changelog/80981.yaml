@@ -1,0 +1,5 @@
+pr: 80981
+summary: Rollover add max_primary_shard_docs condition
+area: ILM+SLM
+type: enhancement
+issues: []

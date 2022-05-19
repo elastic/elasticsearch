@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -17,11 +15,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class SegmentsStats implements Writeable, ToXContentFragment {
 
@@ -32,19 +31,18 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     private long bitsetMemoryInBytes;
     private ImmutableOpenMap<String, FileStats> files = ImmutableOpenMap.of();
 
-    public SegmentsStats() {
-    }
+    public SegmentsStats() {}
 
     public SegmentsStats(StreamInput in) throws IOException {
         count = in.readVLong();
         if (in.getVersion().before(Version.V_8_0_0)) {
-          in.readLong(); // memoryInBytes
-          in.readLong(); // termsMemoryInBytes
-          in.readLong(); // storedFieldsMemoryInBytes
-          in.readLong(); // termVectorsMemoryInBytes
-          in.readLong(); // normsMemoryInBytes
-          in.readLong(); // pointsMemoryInBytes
-          in.readLong(); // docValuesMemoryInBytes
+            in.readLong(); // memoryInBytes
+            in.readLong(); // termsMemoryInBytes
+            in.readLong(); // storedFieldsMemoryInBytes
+            in.readLong(); // termVectorsMemoryInBytes
+            in.readLong(); // normsMemoryInBytes
+            in.readLong(); // pointsMemoryInBytes
+            in.readLong(); // docValuesMemoryInBytes
         }
         indexWriterMemoryInBytes = in.readLong();
         versionMapMemoryInBytes = in.readLong();
@@ -82,13 +80,13 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
 
     public void addFiles(ImmutableOpenMap<String, FileStats> files) {
         final ImmutableOpenMap.Builder<String, FileStats> map = ImmutableOpenMap.builder(this.files);
-        for (ObjectObjectCursor<String, FileStats> entry : files) {
-            final String extension = entry.key;
+        for (Map.Entry<String, FileStats> entry : files.entrySet()) {
+            final String extension = entry.getKey();
             if (map.containsKey(extension)) {
                 FileStats previous = map.get(extension);
-                map.put(extension, FileStats.merge(previous, entry.value));
+                map.put(extension, FileStats.merge(previous, entry.getValue()));
             } else {
-                map.put(extension, entry.value);
+                map.put(extension, entry.getValue());
             }
         }
         this.files = map.build();
@@ -162,21 +160,20 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.SEGMENTS);
         builder.field(Fields.COUNT, count);
-        final ByteSizeValue zeroBytes = new ByteSizeValue(0);
-        builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, zeroBytes);
-        builder.humanReadableField(Fields.TERMS_MEMORY_IN_BYTES, Fields.TERMS_MEMORY, zeroBytes);
-        builder.humanReadableField(Fields.STORED_FIELDS_MEMORY_IN_BYTES, Fields.STORED_FIELDS_MEMORY, zeroBytes);
-        builder.humanReadableField(Fields.TERM_VECTORS_MEMORY_IN_BYTES, Fields.TERM_VECTORS_MEMORY, zeroBytes);
-        builder.humanReadableField(Fields.NORMS_MEMORY_IN_BYTES, Fields.NORMS_MEMORY, zeroBytes);
-        builder.humanReadableField(Fields.POINTS_MEMORY_IN_BYTES, Fields.POINTS_MEMORY, zeroBytes);
-        builder.humanReadableField(Fields.DOC_VALUES_MEMORY_IN_BYTES, Fields.DOC_VALUES_MEMORY, zeroBytes);
+        builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, ByteSizeValue.ZERO);
+        builder.humanReadableField(Fields.TERMS_MEMORY_IN_BYTES, Fields.TERMS_MEMORY, ByteSizeValue.ZERO);
+        builder.humanReadableField(Fields.STORED_FIELDS_MEMORY_IN_BYTES, Fields.STORED_FIELDS_MEMORY, ByteSizeValue.ZERO);
+        builder.humanReadableField(Fields.TERM_VECTORS_MEMORY_IN_BYTES, Fields.TERM_VECTORS_MEMORY, ByteSizeValue.ZERO);
+        builder.humanReadableField(Fields.NORMS_MEMORY_IN_BYTES, Fields.NORMS_MEMORY, ByteSizeValue.ZERO);
+        builder.humanReadableField(Fields.POINTS_MEMORY_IN_BYTES, Fields.POINTS_MEMORY, ByteSizeValue.ZERO);
+        builder.humanReadableField(Fields.DOC_VALUES_MEMORY_IN_BYTES, Fields.DOC_VALUES_MEMORY, ByteSizeValue.ZERO);
         builder.humanReadableField(Fields.INDEX_WRITER_MEMORY_IN_BYTES, Fields.INDEX_WRITER_MEMORY, getIndexWriterMemory());
         builder.humanReadableField(Fields.VERSION_MAP_MEMORY_IN_BYTES, Fields.VERSION_MAP_MEMORY, getVersionMapMemory());
         builder.humanReadableField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, getBitsetMemory());
         builder.field(Fields.MAX_UNSAFE_AUTO_ID_TIMESTAMP, maxUnsafeAutoIdTimestamp);
         builder.startObject(Fields.FILE_SIZES);
-        for (ObjectObjectCursor<String, FileStats> entry : files) {
-            entry.value.toXContent(builder, params);
+        for (Map.Entry<String, FileStats> entry : files.entrySet()) {
+            entry.getValue().toXContent(builder, params);
         }
         builder.endObject();
         builder.endObject();
@@ -228,8 +225,8 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         out.writeLong(maxUnsafeAutoIdTimestamp);
 
         out.writeVInt(files.size());
-        for (ObjectCursor<FileStats> file : files.values()) {
-            file.value.writeTo(out);
+        for (FileStats file : files.values()) {
+            file.writeTo(out);
         }
     }
 

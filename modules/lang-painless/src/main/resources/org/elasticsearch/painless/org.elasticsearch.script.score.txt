@@ -24,8 +24,8 @@ static_import {
     double decayNumericLinear(double, double, double, double, double)bound_to org.elasticsearch.script.ScoreScriptUtils$DecayNumericLinear
     double decayNumericExp(double, double, double, double, double) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayNumericExp
     double decayNumericGauss(double, double, double, double, double) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayNumericGauss
-    double decayDateLinear(String, String, String, double, JodaCompatibleZonedDateTime) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayDateLinear
-    double decayDateExp(String, String, String, double, JodaCompatibleZonedDateTime) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayDateExp
-    double decayDateGauss(String, String, String, double, JodaCompatibleZonedDateTime) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayDateGauss
+    double decayDateLinear(String, String, String, double, ZonedDateTime) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayDateLinear
+    double decayDateExp(String, String, String, double, ZonedDateTime) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayDateExp
+    double decayDateGauss(String, String, String, double, ZonedDateTime) bound_to org.elasticsearch.script.ScoreScriptUtils$DecayDateGauss
 }
 

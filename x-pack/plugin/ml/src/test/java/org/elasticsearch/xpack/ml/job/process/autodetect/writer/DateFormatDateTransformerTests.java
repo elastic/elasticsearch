@@ -19,8 +19,10 @@ public class DateFormatDateTransformerTests extends ESTestCase {
     public void testTransform_GivenInvalidTimestamp() throws CannotParseTimestampException {
         DateFormatDateTransformer transformer = new DateFormatDateTransformer("yyyy-MM-dd HH:mm:ssXXX");
 
-        CannotParseTimestampException e = ESTestCase.expectThrows(CannotParseTimestampException.class,
-                () -> transformer.transform("invalid"));
+        CannotParseTimestampException e = ESTestCase.expectThrows(
+            CannotParseTimestampException.class,
+            () -> transformer.transform("invalid")
+        );
         assertEquals("Cannot parse date 'invalid' with format string 'yyyy-MM-dd HH:mm:ssXXX'", e.getMessage());
     }
 }

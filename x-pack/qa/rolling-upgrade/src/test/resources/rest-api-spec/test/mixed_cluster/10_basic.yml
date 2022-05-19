@@ -15,13 +15,13 @@
   - do:
       index:
         index:  upgraded_scroll
-        id:     42
+        id:     "42"
         body:   { foo: 1 }
 
   - do:
       index:
         index:  upgraded_scroll
-        id:     43
+        id:     "43"
         body:   { foo: 2 }
 
   - do:
@@ -46,5 +46,5 @@
   - do:
       index:
         index: scroll_index
-        id: 1
+        id: "1"
         body: { value: $scroll_id }

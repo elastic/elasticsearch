@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
+
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.LoggingAwareMultiCommand;
+import org.elasticsearch.cli.MultiCommand;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -30,13 +32,9 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 
-public class FileTokensTool extends LoggingAwareMultiCommand {
+class FileTokensTool extends MultiCommand {
 
-    public static void main(String[] args) throws Exception {
-        exit(new FileTokensTool().main(args, Terminal.DEFAULT));
-    }
-
-    public FileTokensTool() {
+    FileTokensTool() {
         super("Manages elasticsearch service account file-tokens");
         subcommands.put("create", newCreateFileTokenCommand());
         subcommands.put("delete", newDeleteFileTokenCommand());
@@ -65,7 +63,7 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             final ServiceAccountTokenId accountTokenId = parsePrincipalAndTokenName(arguments.values(options), env.settings());
             final Hasher hasher = Hasher.resolve(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(env.settings()));
             final Path serviceTokensFile = FileServiceAccountTokenStore.resolveFile(env);
@@ -97,7 +95,7 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             final ServiceAccountTokenId accountTokenId = parsePrincipalAndTokenName(arguments.values(options), env.settings());
             final String qualifiedName = accountTokenId.getQualifiedName();
             final Path serviceTokensFile = FileServiceAccountTokenStore.resolveFile(env);
@@ -124,20 +122,28 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             final List<String> args = arguments.values(options);
             if (args.size() > 1) {
                 throw new UserException(
                     ExitCodes.USAGE,
                     "Expected at most one argument, service-account-principal, found extra: ["
-                        + Strings.collectionToCommaDelimitedString(args) + "]");
+                        + Strings.collectionToCommaDelimitedString(args)
+                        + "]"
+                );
             }
             Predicate<String> filter = k -> true;
             if (args.size() == 1) {
                 final String principal = args.get(0);
                 if (false == ServiceAccountService.isServiceAccountPrincipal(principal)) {
-                    throw new UserException(ExitCodes.NO_USER, "Unknown service account principal: [" + principal + "]. Must be one of ["
-                        + Strings.collectionToDelimitedString(ServiceAccountService.getServiceAccountPrincipals(), ",") + "]");
+                    throw new UserException(
+                        ExitCodes.NO_USER,
+                        "Unknown service account principal: ["
+                            + principal
+                            + "]. Must be one of ["
+                            + Strings.collectionToDelimitedString(ServiceAccountService.getServiceAccountPrincipals(), ",")
+                            + "]"
+                    );
                 }
                 filter = filter.and(k -> k.startsWith(principal + "/"));
             }
@@ -160,13 +166,21 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
             throw new UserException(
                 ExitCodes.USAGE,
                 "Expected two arguments, service-account-principal and token-name, found extra: ["
-                    + Strings.collectionToCommaDelimitedString(arguments) + "]");
+                    + Strings.collectionToCommaDelimitedString(arguments)
+                    + "]"
+            );
         }
         final String principal = arguments.get(0);
         final String tokenName = arguments.get(1);
         if (false == ServiceAccountService.isServiceAccountPrincipal(principal)) {
-            throw new UserException(ExitCodes.NO_USER, "Unknown service account principal: [" + principal + "]. Must be one of ["
-                + Strings.collectionToDelimitedString(ServiceAccountService.getServiceAccountPrincipals(), ",") + "]");
+            throw new UserException(
+                ExitCodes.NO_USER,
+                "Unknown service account principal: ["
+                    + principal
+                    + "]. Must be one of ["
+                    + Strings.collectionToDelimitedString(ServiceAccountService.getServiceAccountPrincipals(), ",")
+                    + "]"
+            );
         }
         if (false == Validation.isValidServiceAccountTokenName(tokenName)) {
             throw new UserException(ExitCodes.CODE_ERROR, Validation.formatInvalidServiceTokenNameErrorMessage(tokenName));

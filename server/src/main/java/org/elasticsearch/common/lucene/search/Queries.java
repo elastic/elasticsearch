@@ -35,7 +35,6 @@ public class Queries {
         return new MatchNoDocsQuery(reason);
     }
 
-
     public static Query newUnmappedFieldQuery(String field) {
         return newUnmappedFieldsQuery(Collections.singletonList(field));
     }
@@ -73,10 +72,7 @@ public class Queries {
 
     /** Return a query that matches all documents but those that match the given query. */
     public static Query not(Query q) {
-        return new BooleanQuery.Builder()
-            .add(new MatchAllDocsQuery(), Occur.MUST)
-            .add(q, Occur.MUST_NOT)
-            .build();
+        return new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.MUST).add(q, Occur.MUST_NOT).build();
     }
 
     static boolean isNegativeQuery(Query q) {
@@ -84,8 +80,7 @@ public class Queries {
             return false;
         }
         List<BooleanClause> clauses = ((BooleanQuery) q).clauses();
-        return clauses.isEmpty() == false &&
-                clauses.stream().allMatch(BooleanClause::isProhibited);
+        return clauses.isEmpty() == false && clauses.stream().allMatch(BooleanClause::isProhibited);
     }
 
     public static Query fixNegativeQueryIfNeeded(Query q) {
@@ -136,15 +131,15 @@ public class Queries {
         return query;
     }
 
-    private static Pattern spaceAroundLessThanPattern = Pattern.compile("(\\s+<\\s*)|(\\s*<\\s+)");
-    private static Pattern spacePattern = Pattern.compile(" ");
-    private static Pattern lessThanPattern = Pattern.compile("<");
+    private static final Pattern spaceAroundLessThanPattern = Pattern.compile("(\\s+<\\s*)|(\\s*<\\s+)");
+    private static final Pattern spacePattern = Pattern.compile(" ");
+    private static final Pattern lessThanPattern = Pattern.compile("<");
 
     public static int calculateMinShouldMatch(int optionalClauseCount, String spec) {
         int result = optionalClauseCount;
         spec = spec.trim();
 
-        if (-1 < spec.indexOf("<")) {
+        if (spec.contains("<")) {
             /* we have conditional spec(s) */
             spec = spaceAroundLessThanPattern.matcher(spec).replaceAll("<");
             for (String s : spacePattern.split(spec)) {
@@ -153,8 +148,7 @@ public class Queries {
                 if (optionalClauseCount <= upperBound) {
                     return result;
                 } else {
-                    result = calculateMinShouldMatch
-                            (optionalClauseCount, parts[1]);
+                    result = calculateMinShouldMatch(optionalClauseCount, parts[1]);
                 }
             }
             return result;
@@ -173,6 +167,6 @@ public class Queries {
             result = calc < 0 ? result + calc : calc;
         }
 
-        return result < 0 ? 0 : result;
+        return Math.max(result, 0);
     }
 }

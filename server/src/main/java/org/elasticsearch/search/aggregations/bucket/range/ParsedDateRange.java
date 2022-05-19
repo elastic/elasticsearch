@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -23,12 +23,17 @@ public class ParsedDateRange extends ParsedRange {
         return DateRangeAggregationBuilder.NAME;
     }
 
-    private static final ObjectParser<ParsedDateRange, Void> PARSER =
-            new ObjectParser<>(ParsedDateRange.class.getSimpleName(), true, ParsedDateRange::new);
+    private static final ObjectParser<ParsedDateRange, Void> PARSER = new ObjectParser<>(
+        ParsedDateRange.class.getSimpleName(),
+        true,
+        ParsedDateRange::new
+    );
     static {
-        declareParsedRangeFields(PARSER,
-                parser -> ParsedBucket.fromXContent(parser, false),
-                parser -> ParsedBucket.fromXContent(parser, true));
+        declareParsedRangeFields(
+            PARSER,
+            parser -> ParsedBucket.fromXContent(parser, false),
+            parser -> ParsedBucket.fromXContent(parser, true)
+        );
     }
 
     public static ParsedDateRange fromXContent(XContentParser parser, String name) throws IOException {

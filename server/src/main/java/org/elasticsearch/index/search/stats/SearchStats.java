@@ -8,19 +8,19 @@
 
 package org.elasticsearch.index.search.stats;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 public class SearchStats implements Writeable, ToXContentFragment {
@@ -48,10 +48,18 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         public Stats(
-                long queryCount, long queryTimeInMillis, long queryCurrent,
-                long fetchCount, long fetchTimeInMillis, long fetchCurrent,
-                long scrollCount, long scrollTimeInMillis, long scrollCurrent,
-                long suggestCount, long suggestTimeInMillis, long suggestCurrent
+            long queryCount,
+            long queryTimeInMillis,
+            long queryCurrent,
+            long fetchCount,
+            long fetchTimeInMillis,
+            long fetchCurrent,
+            long scrollCount,
+            long scrollTimeInMillis,
+            long scrollCurrent,
+            long suggestCount,
+            long suggestTimeInMillis,
+            long suggestCurrent
         ) {
             this.queryCount = queryCount;
             this.queryTimeInMillis = queryTimeInMillis;
@@ -263,7 +271,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         openContexts += searchStats.openContexts;
         if (searchStats.groupStats != null && searchStats.groupStats.isEmpty() == false) {
             if (groupStats == null) {
-                groupStats = new HashMap<>(searchStats.groupStats.size());
+                groupStats = Maps.newMapWithExpectedSize(searchStats.groupStats.size());
             }
             for (Map.Entry<String, Stats> entry : searchStats.groupStats.entrySet()) {
                 groupStats.putIfAbsent(entry.getKey(), new Stats());

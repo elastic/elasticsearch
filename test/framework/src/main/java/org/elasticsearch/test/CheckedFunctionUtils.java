@@ -11,7 +11,7 @@ package org.elasticsearch.test;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedFunction;
 
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 
 /**
  * Test utilities for working with {@link CheckedFunction}s and {@link CheckedSupplier}s.

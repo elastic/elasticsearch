@@ -46,14 +46,19 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
     @BeforeClass
     public static void disableInFips() {
         // Reload secure settings with a password protected keystore is tested in ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT
-        assumeFalse("Cannot run in FIPS mode since the keystore will be password protected and sending a password in the reload" +
-            "settings api call, require TLS to be configured for the transport layer", inFipsJvm());
+        assumeFalse(
+            "Cannot run in FIPS mode since the keystore will be password protected and sending a password in the reload"
+                + "settings api call, require TLS to be configured for the transport layer",
+            inFipsJvm()
+        );
     }
 
     public void testMissingKeystoreFile() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
         final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-            .stream().findFirst().get();
+            .stream()
+            .findFirst()
+            .get();
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         // keystore file should be missing for this test case
@@ -61,9 +66,12 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
-        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(emptyPassword)
-            .setNodesIds(Strings.EMPTY_ARRAY).execute(
-            new ActionListener<NodesReloadSecureSettingsResponse>() {
+        client().admin()
+            .cluster()
+            .prepareReloadSecureSettings()
+            .setSecureStorePassword(emptyPassword)
+            .setNodesIds(Strings.EMPTY_ARRAY)
+            .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
                 @Override
                 public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
                     try {
@@ -99,7 +107,9 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
     public void testInvalidKeystoreFile() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
         final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-            .stream().findFirst().get();
+            .stream()
+            .findFirst()
+            .get();
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
@@ -112,9 +122,12 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         }
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
-        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(emptyPassword)
-            .setNodesIds(Strings.EMPTY_ARRAY).execute(
-            new ActionListener<NodesReloadSecureSettingsResponse>() {
+        client().admin()
+            .cluster()
+            .prepareReloadSecureSettings()
+            .setSecureStorePassword(emptyPassword)
+            .setNodesIds(Strings.EMPTY_ARRAY)
+            .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
                 @Override
                 public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
                     try {
@@ -148,7 +161,9 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
     public void testReloadAllNodesWithPasswordWithoutTLSFails() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
         final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-            .stream().findFirst().get();
+            .stream()
+            .findFirst()
+            .get();
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
@@ -172,9 +187,12 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
                 public void onFailure(Exception e) {
                     try {
                         assertThat(e, instanceOf(ElasticsearchException.class));
-                        assertThat(e.getMessage(),
-                            containsString("Secure settings cannot be updated cluster wide when TLS for the " +
-                                           "transport layer is not enabled"));
+                        assertThat(
+                            e.getMessage(),
+                            containsString(
+                                "Secure settings cannot be updated cluster wide when TLS for the " + "transport layer is not enabled"
+                            )
+                        );
                     } finally {
                         latch.countDown();
                     }
@@ -184,7 +202,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         if (reloadSettingsError.get() != null) {
             throw reloadSettingsError.get();
         }
-        //no reload should be triggered
+        // no reload should be triggered
         assertThat(mockReloadablePlugin.getReloadCount(), equalTo(initialReloadCount));
     }
 
@@ -231,7 +249,9 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
     public void testWrongKeystorePassword() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
         final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-            .stream().findFirst().get();
+            .stream()
+            .findFirst()
+            .get();
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
@@ -242,7 +262,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
             .cluster()
             .prepareReloadSecureSettings()
             .setNodesIds("_local")
-            .setSecureStorePassword(new SecureString(new char[]{'W', 'r', 'o', 'n', 'g'}))
+            .setSecureStorePassword(new SecureString(new char[] { 'W', 'r', 'o', 'n', 'g' }))
             .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
                 @Override
                 public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
@@ -279,26 +299,34 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final Environment environment = internalCluster().getInstance(Environment.class);
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
         final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-            .stream().findFirst().get();
+            .stream()
+            .findFirst()
+            .get();
         // make plugins throw on reload
         for (final String nodeName : internalCluster().getNodeNames()) {
             internalCluster().getInstance(PluginsService.class, nodeName)
                 .filterPlugins(MisbehavingReloadablePlugin.class)
-                .stream().findFirst().get().setShouldThrow(true);
+                .stream()
+                .findFirst()
+                .get()
+                .setShouldThrow(true);
         }
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         // "some" keystore should be present
         final SecureSettings secureSettings = writeEmptyKeystore(environment, new char[0]);
         // read seed setting value from the test case (not from the node)
-        final String seedValue = KeyStoreWrapper.SEED_SETTING
-            .get(Settings.builder().put(environment.settings()).setSecureSettings(secureSettings).build())
-            .toString();
+        final String seedValue = KeyStoreWrapper.SEED_SETTING.get(
+            Settings.builder().put(environment.settings()).setSecureSettings(secureSettings).build()
+        ).toString();
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
-        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(emptyPassword)
-            .setNodesIds(Strings.EMPTY_ARRAY).execute(
-            new ActionListener<NodesReloadSecureSettingsResponse>() {
+        client().admin()
+            .cluster()
+            .prepareReloadSecureSettings()
+            .setSecureStorePassword(emptyPassword)
+            .setNodesIds(Strings.EMPTY_ARRAY)
+            .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
                 @Override
                 public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
                     try {
@@ -336,16 +364,18 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
     public void testReloadWhileKeystoreChanged() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
         final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-            .stream().findFirst().get();
+            .stream()
+            .findFirst()
+            .get();
         final Environment environment = internalCluster().getInstance(Environment.class);
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         for (int i = 0; i < randomIntBetween(4, 8); i++) {
             // write keystore
             final SecureSettings secureSettings = writeEmptyKeystore(environment, new char[0]);
             // read seed setting value from the test case (not from the node)
-            final String seedValue = KeyStoreWrapper.SEED_SETTING
-                .get(Settings.builder().put(environment.settings()).setSecureSettings(secureSettings).build())
-                .toString();
+            final String seedValue = KeyStoreWrapper.SEED_SETTING.get(
+                Settings.builder().put(environment.settings()).setSecureSettings(secureSettings).build()
+            ).toString();
             // reload call
             successfulReloadCall();
             assertThat(mockReloadablePlugin.getSeedValue(), equalTo(seedValue));
@@ -365,9 +395,12 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
-        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(emptyPassword)
-            .setNodesIds(Strings.EMPTY_ARRAY).execute(
-            new ActionListener<NodesReloadSecureSettingsResponse>() {
+        client().admin()
+            .cluster()
+            .prepareReloadSecureSettings()
+            .setSecureStorePassword(emptyPassword)
+            .setNodesIds(Strings.EMPTY_ARRAY)
+            .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
                 @Override
                 public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
                     try {
@@ -406,8 +439,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
         private volatile int reloadCount;
 
-        public CountingReloadablePlugin() {
-        }
+        public CountingReloadablePlugin() {}
 
         @Override
         public void reload(Settings settings) throws Exception {
@@ -424,8 +456,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
         private volatile String seedValue;
 
-        public MockReloadablePlugin() {
-        }
+        public MockReloadablePlugin() {}
 
         @Override
         public void reload(Settings settings) throws Exception {
@@ -443,8 +474,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
         private boolean shouldThrow = false;
 
-        public MisbehavingReloadablePlugin() {
-        }
+        public MisbehavingReloadablePlugin() {}
 
         @Override
         public synchronized void reload(Settings settings) throws Exception {

@@ -39,20 +39,12 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
                 assert leakReleased : "leak should not have been released already";
                 final T ref = v();
                 if (ref instanceof Object[]) {
-                    Arrays.fill((Object[])ref, 0, Array.getLength(ref), null);
+                    Arrays.fill((Object[]) ref, 0, Array.getLength(ref), null);
                 } else if (ref instanceof byte[]) {
-                    Arrays.fill((byte[])ref, 0, Array.getLength(ref), (byte) random.nextInt(256));
-                } else if (ref instanceof long[]) {
-                    Arrays.fill((long[])ref, 0, Array.getLength(ref), random.nextLong());
-                } else if (ref instanceof int[]) {
-                    Arrays.fill((int[])ref, 0, Array.getLength(ref), random.nextInt());
-                } else if (ref instanceof double[]) {
-                    Arrays.fill((double[])ref, 0, Array.getLength(ref), random.nextDouble() - 0.5);
-                } else if (ref instanceof float[]) {
-                    Arrays.fill((float[])ref, 0, Array.getLength(ref), random.nextFloat() - 0.5f);
+                    Arrays.fill((byte[]) ref, 0, Array.getLength(ref), (byte) random.nextInt(256));
                 } else {
                     for (int i = 0; i < Array.getLength(ref); ++i) {
-                            Array.set(ref, i, (byte) random.nextInt(256));
+                        Array.set(ref, i, (byte) random.nextInt(256));
                     }
                 }
                 v.close();
@@ -75,25 +67,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     public V<byte[]> bytePage(boolean clear) {
         final V<byte[]> page = super.bytePage(clear);
         if (clear == false) {
-            Arrays.fill(page.v(), 0, page.v().length, (byte)random.nextInt(1<<8));
-        }
-        return wrap(page);
-    }
-
-    @Override
-    public V<int[]> intPage(boolean clear) {
-        final V<int[]> page = super.intPage(clear);
-        if (clear == false) {
-            Arrays.fill(page.v(), 0, page.v().length, random.nextInt());
-        }
-        return wrap(page);
-    }
-
-    @Override
-    public V<long[]> longPage(boolean clear) {
-        final V<long[]> page = super.longPage(clear);
-        if (clear == false) {
-            Arrays.fill(page.v(), 0, page.v().length, random.nextLong());
+            Arrays.fill(page.v(), 0, page.v().length, (byte) random.nextInt(1 << 8));
         }
         return wrap(page);
     }

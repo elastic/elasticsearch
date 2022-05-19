@@ -8,19 +8,19 @@ package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -30,8 +30,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This class holds the configuration details of a rollup job, such as the groupings, metrics, what
@@ -56,6 +56,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
     private final TimeValue timeout;
     private final String cron;
     private final int pageSize;
+    private final String[] indices;
 
     private static final ConstructingObjectParser<RollupJobConfig, String> PARSER;
     static {
@@ -76,37 +77,48 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         PARSER.declareString(constructorArg(), new ParseField(ROLLUP_INDEX));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> GroupConfig.fromXContent(p), new ParseField(GroupConfig.NAME));
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> MetricConfig.fromXContent(p), new ParseField(MetricConfig.NAME));
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), TIMEOUT),
-            new ParseField(TIMEOUT), ObjectParser.ValueType.STRING_OR_NULL);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), TIMEOUT),
+            new ParseField(TIMEOUT),
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
         PARSER.declareString(constructorArg(), new ParseField(CRON));
         PARSER.declareInt(constructorArg(), new ParseField(PAGE_SIZE));
     }
 
-    public RollupJobConfig(final String id,
-                           final String indexPattern,
-                           final String rollupIndex,
-                           final String cron,
-                           final int pageSize,
-                           final GroupConfig groupConfig,
-                           final List<MetricConfig> metricsConfig,
-                           final @Nullable TimeValue timeout) {
+    public RollupJobConfig(
+        final String id,
+        final String indexPattern,
+        final String rollupIndex,
+        final String cron,
+        final int pageSize,
+        final GroupConfig groupConfig,
+        final List<MetricConfig> metricsConfig,
+        final @Nullable TimeValue timeout
+    ) {
         if (id == null || id.isEmpty()) {
             throw new IllegalArgumentException("Id must be a non-null, non-empty string");
         }
         if (indexPattern == null || indexPattern.isEmpty()) {
             throw new IllegalArgumentException("Index pattern must be a non-null, non-empty string");
         }
-        if (Regex.isMatchAllPattern(indexPattern)) {
-            throw new IllegalArgumentException("Index pattern must not match all indices (as it would match it's own rollup index");
-        }
-        if (Regex.isSimpleMatchPattern(indexPattern)) {
-            if (Regex.simpleMatch(indexPattern, rollupIndex)) {
-                throw new IllegalArgumentException("Index pattern would match rollup index name which is not allowed");
+
+        this.indices = Strings.splitStringByCommaToArray(indexPattern);
+        for (String index : this.indices) {
+            if (Regex.isMatchAllPattern(index)) {
+                throw new IllegalArgumentException("Index pattern must not match all indices (as it would match it's own rollup index");
+            }
+            if (Regex.isSimpleMatchPattern(index)) {
+                if (Regex.simpleMatch(index, rollupIndex)) {
+                    throw new IllegalArgumentException("Index pattern would match rollup index name which is not allowed");
+                }
+            }
+            if (index.equals(rollupIndex)) {
+                throw new IllegalArgumentException("Rollup index may not be the same as the index pattern");
             }
         }
-        if (indexPattern.equals(rollupIndex)) {
-            throw new IllegalArgumentException("Rollup index may not be the same as the index pattern");
-        }
+
         if (rollupIndex == null || rollupIndex.isEmpty()) {
             throw new IllegalArgumentException("Rollup index must be a non-null, non-empty string");
         }
@@ -139,6 +151,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         metricsConfig = in.readList(MetricConfig::new);
         timeout = in.readTimeValue();
         pageSize = in.readInt();
+        indices = Strings.splitStringByCommaToArray(indexPattern);
     }
 
     public String getId() {
@@ -191,8 +204,14 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         return Collections.unmodifiableSet(fields);
     }
 
-    public void validateMappings(final Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
-                                 final ActionRequestValidationException validationException) {
+    public String[] indices() {
+        return indices;
+    }
+
+    public void validateMappings(
+        final Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+        final ActionRequestValidationException validationException
+    ) {
         groupConfig.validateMappings(fieldCapsResponse, validationException);
         for (MetricConfig m : metricsConfig) {
             m.validateMappings(fieldCapsResponse, validationException);
@@ -249,13 +268,13 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
 
         final RollupJobConfig that = (RollupJobConfig) other;
         return Objects.equals(this.id, that.id)
-                && Objects.equals(this.indexPattern, that.indexPattern)
-                && Objects.equals(this.rollupIndex, that.rollupIndex)
-                && Objects.equals(this.cron, that.cron)
-                && Objects.equals(this.groupConfig, that.groupConfig)
-                && Objects.equals(this.metricsConfig, that.metricsConfig)
-                && Objects.equals(this.timeout, that.timeout)
-                && Objects.equals(this.pageSize, that.pageSize);
+            && Objects.equals(this.indexPattern, that.indexPattern)
+            && Objects.equals(this.rollupIndex, that.rollupIndex)
+            && Objects.equals(this.cron, that.cron)
+            && Objects.equals(this.groupConfig, that.groupConfig)
+            && Objects.equals(this.metricsConfig, that.metricsConfig)
+            && Objects.equals(this.timeout, that.timeout)
+            && Objects.equals(this.pageSize, that.pageSize);
     }
 
     @Override
@@ -266,13 +285,6 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
-    }
-
-    /**
-     * Same as toString() but more explicitly named so the caller knows this is turned into JSON
-     */
-    public String toJSONString() {
-        return toString();
     }
 
     public static RollupJobConfig fromXContent(final XContentParser parser, @Nullable final String optionalJobId) throws IOException {

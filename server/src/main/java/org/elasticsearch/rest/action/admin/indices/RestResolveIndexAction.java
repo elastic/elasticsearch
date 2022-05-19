@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -30,17 +30,16 @@ public class RestResolveIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_resolve/index/{name}")
-        );
+        return List.of(new Route(GET, "/_resolve/index/{name}"));
     }
 
     @Override
     protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("name"));
-        ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(indices,
-            IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS));
+        ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
+            indices,
+            IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS)
+        );
         return channel -> client.admin().indices().resolveIndex(resolveRequest, new RestToXContentListener<>(channel));
     }
 }
-

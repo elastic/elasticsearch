@@ -12,12 +12,12 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -43,60 +43,72 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
                 d.add(String.valueOf(i));
             }
         }
-        dataset  = d;
+        dataset = d;
     }
 
     public void testMatchNoDocs() throws IOException {
-        testSearchCase(new MatchNoDocsQuery(), dataset,
+        testSearchCase(
+            new MatchNoDocsQuery(),
+            dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
-            agg -> assertEquals(0, agg.getBuckets().size()), null // without type hint
+            agg -> assertEquals(0, agg.getBuckets().size()),
+            null // without type hint
         );
 
-        testSearchCase(new MatchNoDocsQuery(), dataset,
+        testSearchCase(
+            new MatchNoDocsQuery(),
+            dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
-            agg -> assertEquals(0, agg.getBuckets().size()), ValueType.STRING // with type hint
+            agg -> assertEquals(0, agg.getBuckets().size()),
+            ValueType.STRING // with type hint
         );
     }
 
     public void testMatchAllDocs() throws IOException {
         Query query = new MatchAllDocsQuery();
 
-        testSearchCase(query, dataset,
-            aggregation -> aggregation.field(KEYWORD_FIELD),
-            agg -> {
-                assertEquals(9, agg.getBuckets().size());
-                for (int i = 0; i < 9; i++) {
-                    StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(i);
-                    assertThat(bucket.getKey(), equalTo(String.valueOf(9L - i)));
-                    assertThat(bucket.getDocCount(), equalTo(9L - i));
-                }
-            }, null // without type hint
+        testSearchCase(query, dataset, aggregation -> aggregation.field(KEYWORD_FIELD), agg -> {
+            assertEquals(9, agg.getBuckets().size());
+            for (int i = 0; i < 9; i++) {
+                StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(i);
+                assertThat(bucket.getKey(), equalTo(String.valueOf(9L - i)));
+                assertThat(bucket.getDocCount(), equalTo(9L - i));
+            }
+        },
+            null // without type hint
         );
 
-        testSearchCase(query, dataset,
-            aggregation -> aggregation.field(KEYWORD_FIELD),
-            agg -> {
-                assertEquals(9, agg.getBuckets().size());
-                for (int i = 0; i < 9; i++) {
-                    StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(i);
-                    assertThat(bucket.getKey(), equalTo(String.valueOf(9L - i)));
-                    assertThat(bucket.getDocCount(), equalTo(9L - i));
-                }
-            }, ValueType.STRING // with type hint
+        testSearchCase(query, dataset, aggregation -> aggregation.field(KEYWORD_FIELD), agg -> {
+            assertEquals(9, agg.getBuckets().size());
+            for (int i = 0; i < 9; i++) {
+                StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(i);
+                assertThat(bucket.getKey(), equalTo(String.valueOf(9L - i)));
+                assertThat(bucket.getDocCount(), equalTo(9L - i));
+            }
+        },
+            ValueType.STRING // with type hint
         );
     }
 
-    private void testSearchCase(Query query, List<String> dataset,
-                                Consumer<TermsAggregationBuilder> configure,
-                                Consumer<InternalMappedTerms<?, ?>> verify, ValueType valueType) throws IOException {
-        MappedFieldType keywordFieldType
-            = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD, randomBoolean(), true, Collections.emptyMap());
+    private void testSearchCase(
+        Query query,
+        List<String> dataset,
+        Consumer<TermsAggregationBuilder> configure,
+        Consumer<InternalMappedTerms<?, ?>> verify,
+        ValueType valueType
+    ) throws IOException {
+        MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(
+            KEYWORD_FIELD,
+            randomBoolean(),
+            true,
+            Collections.emptyMap()
+        );
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 for (String value : dataset) {
                     document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(value)));
-                    if (keywordFieldType.isSearchable()) {
+                    if (keywordFieldType.isIndexed()) {
                         document.add(new Field(KEYWORD_FIELD, new BytesRef(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
                     }
                     indexWriter.addDocument(document);
@@ -114,7 +126,6 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
                 if (configure != null) {
                     configure.accept(aggregationBuilder);
                 }
-
 
                 InternalMappedTerms<?, ?> rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, keywordFieldType);
                 verify.accept(rareTerms);

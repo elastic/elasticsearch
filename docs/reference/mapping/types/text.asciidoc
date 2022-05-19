@@ -1,4 +1,3 @@
-[testenv="basic"]
 [[text]]
 === Text type family
 ++++

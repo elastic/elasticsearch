@@ -22,6 +22,8 @@
           status-context: elasticsearch-ci/packaging-tests-windows
           cancel-builds-on-update: true
           black-list-target-branches:
+            - 7.17
+            - 7.16
             - 6.8
           excluded-regions:
             - ^docs/.*
@@ -37,12 +39,12 @@
             - "windows-2012-r2"
             - "windows-2016"
             - "windows-2019"
+            - "windows-2022"
       - axis:
           type: user-defined
           name: PACKAGING_TASK
           values:
             - 'default-windows-archive'
-            - 'default-windows-archive-no-jdk'
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

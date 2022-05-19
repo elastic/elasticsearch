@@ -8,15 +8,16 @@
 package org.elasticsearch.xpack.analytics.stringstats;
 
 import org.elasticsearch.client.analytics.ParsedStringStats;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
@@ -30,6 +31,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class InternalStringStatsTests extends InternalAggregationTestCase<InternalStringStats> {
 
@@ -40,8 +42,14 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(Aggregation.class,
-                new ParseField(StringStatsAggregationBuilder.NAME), (p, c) -> ParsedStringStats.PARSER.parse(p, (String) c)));
+        return CollectionUtils.appendToCopy(
+            super.getNamedXContents(),
+            new NamedXContentRegistry.Entry(
+                Aggregation.class,
+                new ParseField(StringStatsAggregationBuilder.NAME),
+                (p, c) -> ParsedStringStats.PARSER.parse(p, (String) c)
+            )
+        );
     }
 
     @Override
@@ -50,16 +58,19 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
     }
 
     @Override
-    protected List<InternalStringStats> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalStringStats> randomResultsToReduce(String name, int size) {
         /*
          * Pick random count and length that are less than
          * Long.MAX_VALUE because reduction adds them together and sometimes
          * serializes them and that serialization would fail if the sum has
          * wrapped to a negative number.
          */
-        return Stream.generate(() -> createTestInstance(name, null, Long.MAX_VALUE / size, Long.MAX_VALUE / size))
-            .limit(size)
-            .collect(toList());
+        return new BuilderAndToReduce<>(
+            mock(AggregationBuilder.class),
+            Stream.generate(() -> createTestInstance(name, null, Long.MAX_VALUE / size, Long.MAX_VALUE / size))
+                .limit(size)
+                .collect(toList())
+        );
     }
 
     private InternalStringStats createTestInstance(String name, Map<String, Object> metadata, long maxCount, long maxTotalLength) {
@@ -68,45 +79,48 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
         }
         long count = randomLongBetween(1, maxCount);
         long totalLength = randomLongBetween(0, maxTotalLength);
-        return new InternalStringStats(name, count, totalLength,
-                between(0, Integer.MAX_VALUE), between(0, Integer.MAX_VALUE), randomCharOccurrences(),
-                randomBoolean(), DocValueFormat.RAW, metadata);
+        return new InternalStringStats(
+            name,
+            count,
+            totalLength,
+            between(0, Integer.MAX_VALUE),
+            between(0, Integer.MAX_VALUE),
+            randomCharOccurrences(),
+            randomBoolean(),
+            DocValueFormat.RAW,
+            metadata
+        );
     }
 
     @Override
     protected InternalStringStats mutateInstance(InternalStringStats instance) throws IOException {
-         String name = instance.getName();
-         long count = instance.getCount();
-         long totalLength = instance.getTotalLength();
-         int minLength = instance.getMinLength();
-         int maxLength = instance.getMaxLength();
-         Map<String, Long> charOccurrences = instance.getCharOccurrences();
-         boolean showDistribution = instance.getShowDistribution();
-         switch (between(0, 6)) {
-         case 0:
-             name = name + "a";
-             break;
-         case 1:
-             count = randomValueOtherThan(count, () -> randomLongBetween(1, Long.MAX_VALUE));
-             break;
-         case 2:
-             totalLength = randomValueOtherThan(totalLength, ESTestCase::randomNonNegativeLong);
-             break;
-         case 3:
-             minLength = randomValueOtherThan(minLength, () -> between(0, Integer.MAX_VALUE));
-             break;
-         case 4:
-             maxLength = randomValueOtherThan(maxLength, () -> between(0, Integer.MAX_VALUE));
-             break;
-         case 5:
-             charOccurrences = randomValueOtherThan(charOccurrences, this::randomCharOccurrences);
-             break;
-         case 6:
-             showDistribution = showDistribution == false;
-             break;
-         }
-        return new InternalStringStats(name, count, totalLength, minLength, maxLength, charOccurrences, showDistribution,
-                DocValueFormat.RAW, instance.getMetadata());
+        String name = instance.getName();
+        long count = instance.getCount();
+        long totalLength = instance.getTotalLength();
+        int minLength = instance.getMinLength();
+        int maxLength = instance.getMaxLength();
+        Map<String, Long> charOccurrences = instance.getCharOccurrences();
+        boolean showDistribution = instance.getShowDistribution();
+        switch (between(0, 6)) {
+            case 0 -> name = name + "a";
+            case 1 -> count = randomValueOtherThan(count, () -> randomLongBetween(1, Long.MAX_VALUE));
+            case 2 -> totalLength = randomValueOtherThan(totalLength, ESTestCase::randomNonNegativeLong);
+            case 3 -> minLength = randomValueOtherThan(minLength, () -> between(0, Integer.MAX_VALUE));
+            case 4 -> maxLength = randomValueOtherThan(maxLength, () -> between(0, Integer.MAX_VALUE));
+            case 5 -> charOccurrences = randomValueOtherThan(charOccurrences, this::randomCharOccurrences);
+            case 6 -> showDistribution = showDistribution == false;
+        }
+        return new InternalStringStats(
+            name,
+            count,
+            totalLength,
+            minLength,
+            maxLength,
+            charOccurrences,
+            showDistribution,
+            DocValueFormat.RAW,
+            instance.getMetadata()
+        );
     }
 
     @Override

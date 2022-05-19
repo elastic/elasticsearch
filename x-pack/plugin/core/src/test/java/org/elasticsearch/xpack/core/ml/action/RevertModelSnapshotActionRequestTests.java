@@ -7,16 +7,18 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction.Request;
 
 public class RevertModelSnapshotActionRequestTests extends AbstractSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        RevertModelSnapshotAction.Request request =
-                new RevertModelSnapshotAction.Request(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        RevertModelSnapshotAction.Request request = new RevertModelSnapshotAction.Request(
+            randomAlphaOfLengthBetween(1, 20),
+            randomAlphaOfLengthBetween(1, 20)
+        );
         if (randomBoolean()) {
             request.setDeleteInterveningResults(randomBoolean());
         }

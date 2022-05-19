@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -25,11 +25,13 @@ public interface PersistentTaskPlugin {
     /**
      * Returns additional persistent tasks executors added by this plugin.
      */
-    default List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                        ThreadPool threadPool,
-                                                                        Client client,
-                                                                        SettingsModule settingsModule,
-                                                                        IndexNameExpressionResolver expressionResolver) {
+    default List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        SettingsModule settingsModule,
+        IndexNameExpressionResolver expressionResolver
+    ) {
         return Collections.emptyList();
     }
 

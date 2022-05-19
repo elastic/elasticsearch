@@ -9,20 +9,25 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -94,6 +99,30 @@ public abstract class AggregationContext implements Releasable {
         }
         return new FieldContext(field, buildFieldData(ft), ft);
     }
+
+    /**
+     * Returns an existing registered analyzer that should NOT be closed when finished being used.
+     * @param analyzer The custom analyzer name
+     * @return The existing named analyzer.
+     */
+    public abstract Analyzer getNamedAnalyzer(String analyzer) throws IOException;
+
+    /**
+     * Creates a new custom analyzer that should be closed when finished being used.
+     * @param indexSettings The current index settings or null
+     * @param normalizer Is a normalizer
+     * @param tokenizer The tokenizer name or definition to use
+     * @param charFilters The char filter name or definition to use
+     * @param tokenFilters The token filter name or definition to use
+     * @return A new custom analyzer
+     */
+    public abstract Analyzer buildCustomAnalyzer(
+        IndexSettings indexSettings,
+        boolean normalizer,
+        NameOrDefinition tokenizer,
+        List<NameOrDefinition> charFilters,
+        List<NameOrDefinition> tokenFilters
+    ) throws IOException;
 
     /**
      * Lookup the context for an already resolved field type.
@@ -179,9 +208,9 @@ public abstract class AggregationContext implements Releasable {
     public abstract Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException;
 
     /**
-     * Find an {@link ObjectMapper}.
+     * Get the {@link NestedLookup} of this index
      */
-    public abstract ObjectMapper getObjectMapper(String path);
+    public abstract NestedLookup nestedLookup();
 
     /**
      * Access the nested scope. Stay away from this unless you are dealing with nested.
@@ -257,6 +286,36 @@ public abstract class AggregationContext implements Releasable {
     public abstract boolean enableRewriteToFilterByFilter();
 
     /**
+     * Return true if any of the aggregations in this context is a time-series aggregation that requires an in-sort order execution.
+     *
+     * A side-effect of such execution is that all leaves are walked simultaneously and therefore we can no longer rely on
+     * {@link org.elasticsearch.search.aggregations.BucketCollector#getLeafCollector(LeafReaderContext)} to be called only after the
+     * previous leaf was fully collected.
+     */
+    public abstract boolean isInSortOrderExecutionRequired();
+
+    public abstract Set<String> sourcePath(String fullName);
+
+    /**
+     * Does this index have a {@code _doc_count} field in any segment?
+     */
+    public final boolean hasDocCountField() throws IOException {
+        /*
+         * When we add the second filter we check if there are any _doc_count
+         * fields and bail out of filter-by filter mode if there are. _doc_count
+         * fields are expensive to decode and the overhead of iterating per
+         * filter causes us to decode doc counts over and over again.
+         */
+        Term term = new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME);
+        for (LeafReaderContext c : searcher().getLeafContexts()) {
+            if (c.reader().docFreq(term) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Implementation of {@linkplain AggregationContext} for production usage
      * that wraps our ubiquitous {@link SearchExecutionContext} and anything else
      * specific to aggregations. Unit tests should generally avoid using this
@@ -277,10 +336,13 @@ public abstract class AggregationContext implements Releasable {
         private final Supplier<Boolean> isCancelled;
         private final Function<Query, Query> filterQuery;
         private final boolean enableRewriteToFilterByFilter;
+        private final boolean inSortOrderExecutionRequired;
+        private final AnalysisRegistry analysisRegistry;
 
         private final List<Aggregator> releaseMe = new ArrayList<>();
 
         public ProductionAggregationContext(
+            AnalysisRegistry analysisRegistry,
             SearchExecutionContext context,
             BigArrays bigArrays,
             long bytesToPreallocate,
@@ -293,8 +355,10 @@ public abstract class AggregationContext implements Releasable {
             LongSupplier relativeTimeInMillis,
             Supplier<Boolean> isCancelled,
             Function<Query, Query> filterQuery,
-            boolean enableRewriteToFilterByFilter
+            boolean enableRewriteToFilterByFilter,
+            boolean inSortOrderExecutionRequired
         ) {
+            this.analysisRegistry = analysisRegistry;
             this.context = context;
             if (bytesToPreallocate == 0) {
                 /*
@@ -325,6 +389,7 @@ public abstract class AggregationContext implements Releasable {
             this.isCancelled = isCancelled;
             this.filterQuery = filterQuery;
             this.enableRewriteToFilterByFilter = enableRewriteToFilterByFilter;
+            this.inSortOrderExecutionRequired = inSortOrderExecutionRequired;
         }
 
         @Override
@@ -348,6 +413,22 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public long nowInMillis() {
             return context.nowInMillis();
+        }
+
+        @Override
+        public Analyzer getNamedAnalyzer(String analyzer) throws IOException {
+            return analysisRegistry.getAnalyzer(analyzer);
+        }
+
+        @Override
+        public Analyzer buildCustomAnalyzer(
+            IndexSettings indexSettings,
+            boolean normalizer,
+            NameOrDefinition tokenizer,
+            List<NameOrDefinition> charFilters,
+            List<NameOrDefinition> tokenFilters
+        ) throws IOException {
+            return analysisRegistry.buildCustomAnalyzer(indexSettings, normalizer, tokenizer, charFilters, tokenFilters);
         }
 
         @Override
@@ -416,8 +497,8 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public ObjectMapper getObjectMapper(String path) {
-            return context.getObjectMapper(path);
+        public NestedLookup nestedLookup() {
+            return context.nestedLookup();
         }
 
         @Override
@@ -484,6 +565,16 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public boolean enableRewriteToFilterByFilter() {
             return enableRewriteToFilterByFilter;
+        }
+
+        @Override
+        public boolean isInSortOrderExecutionRequired() {
+            return inSortOrderExecutionRequired;
+        }
+
+        @Override
+        public Set<String> sourcePath(String fullName) {
+            return context.sourcePath(fullName);
         }
 
         @Override

@@ -1,21 +1,21 @@
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('security'))
-  testImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(path: xpackModule('security'))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-tasks.named("integTest").configure {
-  nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
+tasks.named("javaRestTest").configure {
+  nonInputProperties.systemProperty 'tests.config.dir', testClusters.named("javaRestTest").map(c -> c.singleNode().getConfigDir())
   systemProperty 'tests.security.manager', 'false'
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
+  // Setup passwords doesn't work when there is a password auto-configured on first start
+  setting 'xpack.security.autoconfiguration.enabled', 'false'
 
   user username: "test_admin", password: "x-pack-test-password"
 }

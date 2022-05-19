@@ -8,19 +8,18 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -33,16 +32,18 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
     private final ImmutableOpenMap<String, Settings> indexToSettings;
     private final ImmutableOpenMap<String, Settings> indexToDefaultSettings;
 
-    public GetSettingsResponse(ImmutableOpenMap<String, Settings> indexToSettings,
-                               ImmutableOpenMap<String, Settings> indexToDefaultSettings) {
+    public GetSettingsResponse(
+        ImmutableOpenMap<String, Settings> indexToSettings,
+        ImmutableOpenMap<String, Settings> indexToDefaultSettings
+    ) {
         this.indexToSettings = indexToSettings;
         this.indexToDefaultSettings = indexToDefaultSettings;
     }
 
     public GetSettingsResponse(StreamInput in) throws IOException {
         super(in);
-        indexToSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
-        indexToDefaultSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
+        indexToSettings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
+        indexToDefaultSettings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
     }
 
     /**
@@ -97,34 +98,37 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         out.writeMap(indexToDefaultSettings, StreamOutput::writeString, (o, s) -> Settings.writeSettingsToStream(s, o));
     }
 
-    private static void parseSettingsField(XContentParser parser, String currentIndexName, Map<String, Settings> indexToSettings,
-                                           Map<String, Settings> indexToDefaultSettings) throws IOException {
+    private static void parseSettingsField(
+        XContentParser parser,
+        String currentIndexName,
+        Map<String, Settings> indexToSettings,
+        Map<String, Settings> indexToDefaultSettings
+    ) throws IOException {
 
-            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                switch (parser.currentName()) {
-                    case "settings":
-                        indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
-                        break;
-                    case "defaults":
-                        indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
-                        break;
-                    default:
-                        parser.skipChildren();
-                }
-            } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                parser.skipChildren();
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            switch (parser.currentName()) {
+                case "settings" -> indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
+                case "defaults" -> indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
+                default -> parser.skipChildren();
             }
-            parser.nextToken();
+        } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+            parser.skipChildren();
+        }
+        parser.nextToken();
     }
 
-    private static void parseIndexEntry(XContentParser parser, Map<String, Settings> indexToSettings,
-    Map<String, Settings> indexToDefaultSettings) throws IOException {
+    private static void parseIndexEntry(
+        XContentParser parser,
+        Map<String, Settings> indexToSettings,
+        Map<String, Settings> indexToDefaultSettings
+    ) throws IOException {
         String indexName = parser.currentName();
         parser.nextToken();
         while (parser.isClosed() == false && parser.currentToken() != XContentParser.Token.END_OBJECT) {
             parseSettingsField(parser, indexName, indexToSettings, indexToDefaultSettings);
         }
     }
+
     public static GetSettingsResponse fromXContent(XContentParser parser) throws IOException {
         HashMap<String, Settings> indexToSettings = new HashMap<>();
         HashMap<String, Settings> indexToDefaultSettings = new HashMap<>();
@@ -137,7 +141,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
         while (parser.isClosed() == false) {
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                //we must assume this is an index entry
+                // we must assume this is an index entry
                 parseIndexEntry(parser, indexToSettings, indexToDefaultSettings);
             } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 parser.skipChildren();
@@ -146,9 +150,12 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
             }
         }
 
-        ImmutableOpenMap<String, Settings> settingsMap = ImmutableOpenMap.<String, Settings>builder().putAll(indexToSettings).build();
-        ImmutableOpenMap<String, Settings> defaultSettingsMap =
-            ImmutableOpenMap.<String, Settings>builder().putAll(indexToDefaultSettings).build();
+        ImmutableOpenMap<String, Settings> settingsMap = ImmutableOpenMap.<String, Settings>builder()
+            .putAllFromMap(indexToSettings)
+            .build();
+        ImmutableOpenMap<String, Settings> defaultSettingsMap = ImmutableOpenMap.<String, Settings>builder()
+            .putAllFromMap(indexToDefaultSettings)
+            .build();
 
         return new GetSettingsResponse(settingsMap, defaultSettingsMap);
     }
@@ -161,7 +168,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
             toXContent(builder, ToXContent.EMPTY_PARAMS, false);
             return Strings.toString(builder);
         } catch (IOException e) {
-            throw new IllegalStateException(e); //should not be possible here
+            throw new IllegalStateException(e); // should not be possible here
         }
     }
 
@@ -172,18 +179,18 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     private XContentBuilder toXContent(XContentBuilder builder, Params params, boolean omitEmptySettings) throws IOException {
         builder.startObject();
-        for (ObjectObjectCursor<String, Settings> cursor : getIndexToSettings()) {
+        for (Map.Entry<String, Settings> cursor : getIndexToSettings().entrySet()) {
             // no settings, jump over it to shorten the response data
-            if (omitEmptySettings && cursor.value.isEmpty()) {
+            if (omitEmptySettings && cursor.getValue().isEmpty()) {
                 continue;
             }
-            builder.startObject(cursor.key);
+            builder.startObject(cursor.getKey());
             builder.startObject("settings");
-            cursor.value.toXContent(builder, params);
+            cursor.getValue().toXContent(builder, params);
             builder.endObject();
             if (indexToDefaultSettings.isEmpty() == false) {
                 builder.startObject("defaults");
-                indexToDefaultSettings.get(cursor.key).toXContent(builder, params);
+                indexToDefaultSettings.get(cursor.getKey()).toXContent(builder, params);
                 builder.endObject();
             }
             builder.endObject();
@@ -197,8 +204,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetSettingsResponse that = (GetSettingsResponse) o;
-        return Objects.equals(indexToSettings, that.indexToSettings) &&
-            Objects.equals(indexToDefaultSettings, that.indexToDefaultSettings);
+        return Objects.equals(indexToSettings, that.indexToSettings) && Objects.equals(indexToDefaultSettings, that.indexToDefaultSettings);
     }
 
     @Override

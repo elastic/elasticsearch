@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotId;
 
@@ -110,11 +111,11 @@ public final class IndexMetaDataGenerations {
         final Map<String, String> updatedIndexMetaIdentifiers = new HashMap<>(identifiers);
         updatedIndexMetaIdentifiers.putAll(newIdentifiers);
         if (newLookup.isEmpty() == false) {
-            final Map<String, String> identifierDeduplicator = new HashMap<>(this.identifiers.size());
+            final Map<String, String> identifierDeduplicator = Maps.newMapWithExpectedSize(this.identifiers.size());
             for (String identifier : identifiers.keySet()) {
                 identifierDeduplicator.put(identifier, identifier);
             }
-            final Map<IndexId, String> fixedLookup = new HashMap<>(newLookup.size());
+            final Map<IndexId, String> fixedLookup = Maps.newMapWithExpectedSize(newLookup.size());
             for (Map.Entry<IndexId, String> entry : newLookup.entrySet()) {
                 final String generation = entry.getValue();
                 fixedLookup.put(entry.getKey(), identifierDeduplicator.getOrDefault(generation, generation));

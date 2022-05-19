@@ -24,18 +24,18 @@ import java.util.Map;
 
 public class TransportGetFeatureUsageAction extends HandledTransportAction<GetFeatureUsageRequest, GetFeatureUsageResponse> {
 
-    public static final ActionType<GetFeatureUsageResponse> TYPE =
-        new ActionType<>("cluster:admin/xpack/license/feature_usage", GetFeatureUsageResponse::new);
+    public static final ActionType<GetFeatureUsageResponse> TYPE = new ActionType<>(
+        "cluster:admin/xpack/license/feature_usage",
+        GetFeatureUsageResponse::new
+    );
 
     private final XPackLicenseState licenseState;
 
     @Inject
-    public TransportGetFeatureUsageAction(TransportService transportService, ActionFilters actionFilters,
-                                          XPackLicenseState licenseState) {
+    public TransportGetFeatureUsageAction(TransportService transportService, ActionFilters actionFilters, XPackLicenseState licenseState) {
         super(TYPE.name(), transportService, actionFilters, GetFeatureUsageRequest::new);
         this.licenseState = licenseState;
     }
-
 
     @Override
     protected void doExecute(Task task, GetFeatureUsageRequest request, ActionListener<GetFeatureUsageResponse> listener) {
@@ -45,10 +45,11 @@ public class TransportGetFeatureUsageAction extends HandledTransportAction<GetFe
             ZonedDateTime lastUsedTime = Instant.ofEpochMilli(lastUsed).atZone(ZoneOffset.UTC);
             usageInfos.add(
                 new GetFeatureUsageResponse.FeatureUsageInfo(
-                    usage.featureName(),
+                    usage.feature().getFamily(),
+                    usage.feature().getName(),
                     lastUsedTime,
                     usage.contextName(),
-                    usage.minimumOperationMode().description()
+                    usage.feature().getMinimumOperationMode().description()
                 )
             );
         });

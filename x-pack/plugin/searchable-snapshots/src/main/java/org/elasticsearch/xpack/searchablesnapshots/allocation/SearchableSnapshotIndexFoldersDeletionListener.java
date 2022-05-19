@@ -20,7 +20,6 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 
@@ -33,20 +32,20 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexEventListener.class);
 
-    private final Supplier<CacheService> cacheService;
-    private final Supplier<FrozenCacheService> frozenCacheService;
+    private final Supplier<CacheService> cacheServiceSupplier;
+    private final Supplier<FrozenCacheService> frozenCacheServiceSupplier;
 
     public SearchableSnapshotIndexFoldersDeletionListener(
-        Supplier<CacheService> cacheService,
-        Supplier<FrozenCacheService> frozenCacheService
+        Supplier<CacheService> cacheServiceSupplier,
+        Supplier<FrozenCacheService> frozenCacheServiceSupplier
     ) {
-        this.cacheService = Objects.requireNonNull(cacheService);
-        this.frozenCacheService = Objects.requireNonNull(frozenCacheService);
+        this.cacheServiceSupplier = Objects.requireNonNull(cacheServiceSupplier);
+        this.frozenCacheServiceSupplier = Objects.requireNonNull(frozenCacheServiceSupplier);
     }
 
     @Override
-    public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path indexPath) {
-        if (isSearchableSnapshotStore(indexSettings.getSettings())) {
+    public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths) {
+        if (indexSettings.getIndexMetadata().isSearchableSnapshot()) {
             for (int shard = 0; shard < indexSettings.getNumberOfShards(); shard++) {
                 markShardAsEvictedInCache(new ShardId(index, shard), indexSettings);
             }
@@ -54,14 +53,14 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
     }
 
     @Override
-    public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path shardPath) {
-        if (isSearchableSnapshotStore(indexSettings.getSettings())) {
+    public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {
+        if (indexSettings.getIndexMetadata().isSearchableSnapshot()) {
             markShardAsEvictedInCache(shardId, indexSettings);
         }
     }
 
     private void markShardAsEvictedInCache(ShardId shardId, IndexSettings indexSettings) {
-        final CacheService cacheService = this.cacheService.get();
+        final CacheService cacheService = this.cacheServiceSupplier.get();
         assert cacheService != null : "cache service not initialized";
 
         logger.debug("{} marking shard as evicted in searchable snapshots cache (reason: cache files deleted from disk)", shardId);
@@ -71,7 +70,7 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
             shardId
         );
 
-        final FrozenCacheService frozenCacheService = this.frozenCacheService.get();
+        final FrozenCacheService frozenCacheService = this.frozenCacheServiceSupplier.get();
         assert frozenCacheService != null : "frozen cache service not initialized";
         frozenCacheService.markShardAsEvictedInCache(
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),

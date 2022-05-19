@@ -47,20 +47,11 @@ public class IpScriptFieldRangeQueryTests extends AbstractIpScriptFieldQueryTest
         InetAddress lower = orig.lowerAddress();
         InetAddress upper = orig.upperAddress();
         switch (randomInt(3)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
-                lower = randomIp(randomBoolean());
-                break;
-            case 3:
-                upper = randomIp(randomBoolean());
-                break;
-            default:
-                fail();
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> lower = randomIp(randomBoolean());
+            case 3 -> upper = randomIp(randomBoolean());
+            default -> fail();
         }
         if (mustFlip(lower, upper)) {
             InetAddress tmp = lower;

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -18,10 +17,12 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.SystemIndices;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A service responsible for updating the metadata used by system indices.
@@ -53,20 +54,27 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
             final ImmutableOpenMap<String, IndexMetadata> indexMetadataMap = event.state().metadata().indices();
 
             if (lastIndexMetadataMap != indexMetadataMap) {
-                for (ObjectObjectCursor<String, IndexMetadata> cursor : indexMetadataMap) {
-                    if (cursor.value != lastIndexMetadataMap.get(cursor.key)) {
-                        final boolean isSystem = systemIndices.isSystemIndex(cursor.value.getIndex()) ||
-                            systemIndices.isSystemIndexBackingDataStream(cursor.value.getIndex().getName());
-                        if (isSystem != cursor.value.isSystem()) {
+                for (Map.Entry<String, IndexMetadata> cursor : indexMetadataMap.entrySet()) {
+                    if (cursor.getValue() != lastIndexMetadataMap.get(cursor.getKey())) {
+                        final boolean isSystem = systemIndices.isSystemIndex(cursor.getValue().getIndex())
+                            || systemIndices.isSystemIndexBackingDataStream(cursor.getValue().getIndex().getName());
+                        if (isSystem != cursor.getValue().isSystem()) {
                             updateTaskPending = true;
-                            clusterService.submitStateUpdateTask("system_index_metadata_upgrade_service {system metadata change}",
-                                new SystemIndexMetadataUpdateTask());
+                            submitUnbatchedTask(
+                                "system_index_metadata_upgrade_service {system metadata change}",
+                                new SystemIndexMetadataUpdateTask()
+                            );
                             break;
                         }
                     }
                 }
             }
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     // visible for testing
@@ -80,21 +88,37 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         public ClusterState execute(ClusterState currentState) throws Exception {
             final ImmutableOpenMap<String, IndexMetadata> indexMetadataMap = currentState.metadata().indices();
             final List<IndexMetadata> updatedMetadata = new ArrayList<>();
-            for (ObjectObjectCursor<String, IndexMetadata> cursor : indexMetadataMap) {
-                if (cursor.value != lastIndexMetadataMap.get(cursor.key)) {
-                    final boolean isSystem = systemIndices.isSystemIndex(cursor.value.getIndex()) ||
-                        systemIndices.isSystemIndexBackingDataStream(cursor.value.getIndex().getName());
-                    IndexMetadata.Builder builder = IndexMetadata.builder(cursor.value);
+            for (Map.Entry<String, IndexMetadata> cursor : indexMetadataMap.entrySet()) {
+                final IndexMetadata indexMetadata = cursor.getValue();
+                if (indexMetadata != lastIndexMetadataMap.get(cursor.getKey())) {
+                    final boolean isSystem = systemIndices.isSystemIndex(indexMetadata.getIndex())
+                        || systemIndices.isSystemIndexBackingDataStream(indexMetadata.getIndex().getName());
+                    IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
                     boolean updated = false;
-                    if (isSystem != cursor.value.isSystem()) {
-                        builder.system(cursor.value.isSystem() == false);
+                    if (isSystem != indexMetadata.isSystem()) {
+                        builder.system(indexMetadata.isSystem() == false);
                         updated = true;
                     }
-                    if (isSystem && cursor.value.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
-                        builder.settings(Settings.builder()
-                            .put(cursor.value.getSettings())
-                            .put(IndexMetadata.SETTING_INDEX_HIDDEN, false));
+                    boolean isHidden = indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false);
+                    if (isSystem && isHidden == false) {
+                        builder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
+                        builder.settingsVersion(builder.settingsVersion() + 1);
                         updated = true;
+                    }
+                    if (isSystem && indexMetadata.getAliases().values().stream().anyMatch(a -> Boolean.FALSE.equals(a.isHidden()))) {
+                        for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
+                            if (Boolean.FALSE.equals(aliasMetadata.isHidden())) {
+                                builder.removeAlias(aliasMetadata.alias());
+                                builder.putAlias(
+                                    AliasMetadata.builder(aliasMetadata.alias())
+                                        .filter(aliasMetadata.filter())
+                                        .indexRouting(aliasMetadata.indexRouting())
+                                        .isHidden(true)
+                                        .searchRouting(aliasMetadata.searchRouting())
+                                        .writeIndex(aliasMetadata.writeIndex())
+                                );
+                            }
+                        }
                     }
                     if (updated) {
                         updatedMetadata.add(builder.build());
@@ -111,13 +135,13 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             updateTaskPending = false;
             logger.error("failed to update system index metadata", e);
         }
 
         @Override
-        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             lastIndexMetadataMap = newState.metadata().indices();
             updateTaskPending = false;
         }

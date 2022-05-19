@@ -10,9 +10,9 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
+public class NodesShutdownMetadataTests extends SimpleDiffableSerializationTestCase<Metadata.Custom> {
 
     public void testInsertNewNodeShutdownMetadata() {
         NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
@@ -87,8 +87,10 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
             .setStartedAtMillis(randomNonNegativeLong());
         if (type.equals(SingleNodeShutdownMetadata.Type.RESTART) && randomBoolean()) {
             builder.setAllocationDelay(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
+        } else if (type.equals(SingleNodeShutdownMetadata.Type.REPLACE)) {
+            builder.setTargetNodeName(randomAlphaOfLengthBetween(5, 10));
         }
-        return builder.build();
+        return builder.setNodeSeen(randomBoolean()).build();
     }
 
     @Override

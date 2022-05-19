@@ -19,17 +19,20 @@ import java.util.function.Function;
 public abstract class DoubleFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("double_field", Factory.class);
 
-    public static final DoubleFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (DoubleFieldScript.LeafFactory) ctx -> new DoubleFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
+    public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public void execute() {
-            emitFromSource();
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
+            return ctx -> new DoubleFieldScript(field, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    emitFromSource();
+                }
+            };
+        }
+
+        @Override
+        public boolean isResultDeterministic() {
+            return true;
         }
     };
 

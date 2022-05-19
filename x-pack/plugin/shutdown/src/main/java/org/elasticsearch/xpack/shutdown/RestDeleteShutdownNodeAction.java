@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -27,12 +27,15 @@ public class RestDeleteShutdownNodeAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String nodeId = request.param("nodeId");
-        return channel -> client.execute(
-            DeleteShutdownNodeAction.INSTANCE,
-            new DeleteShutdownNodeAction.Request(nodeId),
-            new RestToXContentListener<>(channel)
-        );
+        final var parsedRequest = new DeleteShutdownNodeAction.Request(nodeId);
+        parsedRequest.masterNodeTimeout(request.paramAsTime("master_timeout", parsedRequest.masterNodeTimeout()));
+        return channel -> client.execute(DeleteShutdownNodeAction.INSTANCE, parsedRequest, new RestToXContentListener<>(channel));
     }
 }

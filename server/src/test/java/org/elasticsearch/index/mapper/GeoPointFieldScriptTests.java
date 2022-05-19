@@ -10,8 +10,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
@@ -45,6 +45,11 @@ public class GeoPointFieldScriptTests extends FieldScriptTestCase<GeoPointFieldS
     @Override
     protected GeoPointFieldScript.Factory dummyScript() {
         return DUMMY;
+    }
+
+    @Override
+    protected GeoPointFieldScript.Factory fromSource() {
+        return GeoPointFieldScript.PARSE_FROM_SOURCE;
     }
 
     public void testTooManyValues() throws IOException {

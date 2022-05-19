@@ -39,8 +39,12 @@ public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketS
                 params.put("foo", "bar");
             }
             ScriptType type = randomFrom(ScriptType.values());
-            script =
-                new Script(type, type == ScriptType.STORED ? null : randomFrom("my_lang", Script.DEFAULT_SCRIPT_LANG), "script", params);
+            script = new Script(
+                type,
+                type == ScriptType.STORED ? null : randomFrom("my_lang", Script.DEFAULT_SCRIPT_LANG),
+                "script",
+                params
+            );
         }
         BucketSelectorPipelineAggregationBuilder factory = new BucketSelectorPipelineAggregationBuilder(name, bucketsPaths, script);
         if (randomBoolean()) {
@@ -50,7 +54,9 @@ public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketS
     }
 
     public void testNoParent() {
-        assertThat(validate(emptyList(), new BucketSelectorPipelineAggregationBuilder("foo", emptyMap(), new Script("foo"))),
-            equalTo("Validation Failed: 1: bucket_selector aggregation [foo] must be declared inside of another aggregation;"));
+        assertThat(
+            validate(emptyList(), new BucketSelectorPipelineAggregationBuilder("foo", emptyMap(), new Script("foo"))),
+            equalTo("Validation Failed: 1: bucket_selector aggregation [foo] must be declared inside of another aggregation;")
+        );
     }
 }

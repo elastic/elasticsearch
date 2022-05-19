@@ -17,12 +17,14 @@ import java.util.Map;
 
 @FunctionalInterface
 public interface BoxplotAggregatorSupplier {
-    Aggregator build(String name,
-                     ValuesSource valuesSource,
-                     DocValueFormat formatter,
-                     double compression,
-                     AggregationContext context,
-                     Aggregator parent,
-                     Map<String, Object> metadata) throws IOException;
+    Aggregator build(
+        String name,
+        ValuesSource valuesSource,
+        DocValueFormat formatter,
+        double compression,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException;
 
 }

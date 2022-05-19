@@ -23,8 +23,7 @@ public class MethodHandlersTests extends ESTestCase {
     public void testLookupForDifferentMethodsSameVersion() {
         RestHandler putHandler = (request, channel, client) -> {};
         RestHandler postHandler = (request, channel, client) -> {};
-        MethodHandlers methodHandlers = new MethodHandlers("path")
-            .addMethod(PUT, current, putHandler)
+        MethodHandlers methodHandlers = new MethodHandlers("path").addMethod(PUT, current, putHandler)
             .addMethod(POST, current, postHandler);
 
         RestHandler found = methodHandlers.getHandler(PUT, current);
@@ -33,9 +32,7 @@ public class MethodHandlersTests extends ESTestCase {
 
     public void testLookupForHandlerUnderMultipleMethods() {
         RestHandler handler = (request, channel, client) -> {};
-        MethodHandlers methodHandlers = new MethodHandlers("path")
-            .addMethod(PUT, current, handler)
-            .addMethod(POST, current, handler);
+        MethodHandlers methodHandlers = new MethodHandlers("path").addMethod(PUT, current, handler).addMethod(POST, current, handler);
 
         RestHandler found = methodHandlers.getHandler(PUT, current);
         assertThat(found, sameInstance(handler));
@@ -46,9 +43,7 @@ public class MethodHandlersTests extends ESTestCase {
 
     public void testLookupForHandlersUnderDifferentVersions() {
         RestHandler handler = (request, channel, client) -> {};
-        MethodHandlers methodHandlers = new MethodHandlers("path")
-            .addMethod(PUT, current, handler)
-            .addMethod(PUT, previous, handler);
+        MethodHandlers methodHandlers = new MethodHandlers("path").addMethod(PUT, current, handler).addMethod(PUT, previous, handler);
 
         RestHandler found = methodHandlers.getHandler(PUT, current);
         assertThat(found, sameInstance(handler));
@@ -59,17 +54,14 @@ public class MethodHandlersTests extends ESTestCase {
 
     public void testExceptionOnOverride() {
         RestHandler handler = (request, channel, client) -> {};
-        MethodHandlers methodHandlers = new MethodHandlers("path")
-            .addMethod(PUT, current, handler);
+        MethodHandlers methodHandlers = new MethodHandlers("path").addMethod(PUT, current, handler);
 
         expectThrows(IllegalArgumentException.class, () -> methodHandlers.addMethod(PUT, current, handler));
     }
 
     public void testMissingCurrentHandler() {
         RestHandler handler = (request, channel, client) -> {};
-        MethodHandlers methodHandlers = new MethodHandlers("path")
-            .addMethod(PUT, previous, handler)
-            .addMethod(POST, previous, handler);
+        MethodHandlers methodHandlers = new MethodHandlers("path").addMethod(PUT, previous, handler).addMethod(POST, previous, handler);
 
         RestHandler found = methodHandlers.getHandler(PUT, current);
         assertNull(found);
@@ -77,9 +69,7 @@ public class MethodHandlersTests extends ESTestCase {
 
     public void testMissingPriorHandlerReturnsCurrentHandler() {
         RestHandler handler = (request, channel, client) -> {};
-        MethodHandlers methodHandlers = new MethodHandlers("path")
-            .addMethod(PUT, current, handler)
-            .addMethod(POST, current, handler);
+        MethodHandlers methodHandlers = new MethodHandlers("path").addMethod(PUT, current, handler).addMethod(POST, current, handler);
 
         RestHandler found = methodHandlers.getHandler(PUT, previous);
         assertThat(found, sameInstance(handler));

@@ -11,18 +11,16 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 
@@ -37,31 +35,29 @@ import java.util.stream.Collectors;
  */
 public class TransportHasPrivilegesAction extends HandledTransportAction<HasPrivilegesRequest, HasPrivilegesResponse> {
 
-    private final ThreadPool threadPool;
     private final AuthorizationService authorizationService;
     private final NativePrivilegeStore privilegeStore;
     private final SecurityContext securityContext;
-    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public TransportHasPrivilegesAction(ThreadPool threadPool, TransportService transportService,
-                                        ActionFilters actionFilters, AuthorizationService authorizationService,
-                                        NativePrivilegeStore privilegeStore, SecurityContext context,
-                                        NamedXContentRegistry xContentRegistry) {
+    public TransportHasPrivilegesAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        AuthorizationService authorizationService,
+        NativePrivilegeStore privilegeStore,
+        SecurityContext context
+    ) {
         super(HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new);
-        this.threadPool = threadPool;
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
-        this.xContentRegistry = xContentRegistry;
         this.securityContext = context;
     }
 
     @Override
     protected void doExecute(Task task, HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
         final String username = request.username();
-        final Authentication authentication = securityContext.getAuthentication();
-        final User user = authentication.getUser();
-        if (user.principal().equals(username) == false) {
+        final Subject subject = securityContext.getAuthentication().getEffectiveSubject();
+        if (subject.getUser().principal().equals(username) == false) {
             listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));
             return;
         }
@@ -72,19 +68,43 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
                 BytesReference query = indicesPrivileges[i].getQuery();
                 if (query != null) {
                     listener.onFailure(
-                        new IllegalArgumentException("users may only check the index privileges without any DLS role query"));
+                        new IllegalArgumentException("users may only check the index privileges without any DLS role query")
+                    );
                     return;
                 }
             }
         }
 
-        resolveApplicationPrivileges(request, ActionListener.wrap(applicationPrivilegeDescriptors ->
-                authorizationService.checkPrivileges(authentication, request, applicationPrivilegeDescriptors, listener),
-            listener::onFailure));
+        resolveApplicationPrivileges(
+            request,
+            ActionListener.wrap(
+                applicationPrivilegeDescriptors -> authorizationService.checkPrivileges(
+                    subject,
+                    new AuthorizationEngine.PrivilegesToCheck(
+                        request.clusterPrivileges(),
+                        request.indexPrivileges(),
+                        request.applicationPrivileges()
+                    ),
+                    applicationPrivilegeDescriptors,
+                    listener.map(
+                        privilegesCheckResult -> new HasPrivilegesResponse(
+                            request.username(),
+                            privilegesCheckResult.allMatch(),
+                            privilegesCheckResult.cluster(),
+                            privilegesCheckResult.index().values(),
+                            privilegesCheckResult.application()
+                        )
+                    )
+                ),
+                listener::onFailure
+            )
+        );
     }
 
-    private void resolveApplicationPrivileges(HasPrivilegesRequest request,
-                                              ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
+    private void resolveApplicationPrivileges(
+        HasPrivilegesRequest request,
+        ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
+    ) {
         final Set<String> applications = getApplicationNames(request);
         privilegeStore.getPrivileges(applications, null, listener);
     }

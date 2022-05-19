@@ -16,25 +16,25 @@ import java.util.Optional;
 
 public class RequestValidators<T extends ActionRequest> {
 
-        private final Collection<RequestValidator<T>> validators;
+    private final Collection<RequestValidator<T>> validators;
 
-        public RequestValidators(Collection<RequestValidator<T>> validators) {
-            this.validators = validators;
-        }
+    public RequestValidators(Collection<RequestValidator<T>> validators) {
+        this.validators = validators;
+    }
 
-        public Optional<Exception> validateRequest(final T request, final ClusterState state, final Index[] indices) {
-            Exception exception = null;
-            for (final var validator : validators) {
-                final Optional<Exception> maybeException = validator.validateRequest(request, state, indices);
-                if (maybeException.isEmpty()) continue;
-                if (exception == null) {
-                    exception = maybeException.get();
-                } else {
-                    exception.addSuppressed(maybeException.get());
-                }
+    public Optional<Exception> validateRequest(final T request, final ClusterState state, final Index[] indices) {
+        Exception exception = null;
+        for (final var validator : validators) {
+            final Optional<Exception> maybeException = validator.validateRequest(request, state, indices);
+            if (maybeException.isEmpty()) continue;
+            if (exception == null) {
+                exception = maybeException.get();
+            } else {
+                exception.addSuppressed(maybeException.get());
             }
-            return Optional.ofNullable(exception);
         }
+        return Optional.ofNullable(exception);
+    }
 
     /**
      * A validator that validates an request associated with indices before executing it.

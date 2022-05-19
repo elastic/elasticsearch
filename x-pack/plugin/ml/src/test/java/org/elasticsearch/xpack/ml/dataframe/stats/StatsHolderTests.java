@@ -38,8 +38,10 @@ public class StatsHolderTests extends ESTestCase {
         List<PhaseProgress> phaseProgresses = statsHolder.getProgressTracker().report();
 
         assertThat(phaseProgresses.size(), equalTo(5));
-        assertThat(phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
-            contains("reindexing", "loading_data", "a", "b", "writing_results"));
+        assertThat(
+            phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "a", "b", "writing_results")
+        );
         assertThat(phaseProgresses.get(0).getProgressPercent(), equalTo(0));
         assertThat(phaseProgresses.get(1).getProgressPercent(), equalTo(0));
         assertThat(phaseProgresses.get(2).getProgressPercent(), equalTo(0));
@@ -64,8 +66,10 @@ public class StatsHolderTests extends ESTestCase {
         List<PhaseProgress> phaseProgresses = statsHolder.getProgressTracker().report();
 
         assertThat(phaseProgresses.size(), equalTo(5));
-        assertThat(phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
-            contains("reindexing", "loading_data", "a", "b", "writing_results"));
+        assertThat(
+            phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "a", "b", "writing_results")
+        );
         assertThat(phaseProgresses.get(0).getProgressPercent(), equalTo(100));
         assertThat(phaseProgresses.get(1).getProgressPercent(), equalTo(0));
         assertThat(phaseProgresses.get(2).getProgressPercent(), equalTo(0));
@@ -90,8 +94,10 @@ public class StatsHolderTests extends ESTestCase {
         List<PhaseProgress> phaseProgresses = statsHolder.getProgressTracker().report();
 
         assertThat(phaseProgresses.size(), equalTo(5));
-        assertThat(phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
-            contains("reindexing", "loading_data", "c", "d", "writing_results"));
+        assertThat(
+            phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "c", "d", "writing_results")
+        );
         assertThat(phaseProgresses.get(0).getProgressPercent(), equalTo(100));
         assertThat(phaseProgresses.get(1).getProgressPercent(), equalTo(0));
         assertThat(phaseProgresses.get(2).getProgressPercent(), equalTo(0));
@@ -116,8 +122,10 @@ public class StatsHolderTests extends ESTestCase {
         List<PhaseProgress> phaseProgresses = statsHolder.getProgressTracker().report();
 
         assertThat(phaseProgresses.size(), equalTo(5));
-        assertThat(phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
-            contains("reindexing", "loading_data", "a", "b", "writing_results"));
+        assertThat(
+            phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "a", "b", "writing_results")
+        );
         assertThat(phaseProgresses.get(0).getProgressPercent(), equalTo(1));
         assertThat(phaseProgresses.get(1).getProgressPercent(), equalTo(0));
         assertThat(phaseProgresses.get(2).getProgressPercent(), equalTo(0));
@@ -141,14 +149,17 @@ public class StatsHolderTests extends ESTestCase {
 
         List<PhaseProgress> phaseProgresses = statsHolder.getProgressTracker().report();
 
-        assertThat(phaseProgresses, contains(
-            new PhaseProgress("reindexing", 100),
-            new PhaseProgress("loading_data", 100),
-            new PhaseProgress("a", 100),
-            new PhaseProgress("b", 100),
-            new PhaseProgress("writing_results", 100),
-            new PhaseProgress("inference", 0)
-        ));
+        assertThat(
+            phaseProgresses,
+            contains(
+                new PhaseProgress("reindexing", 100),
+                new PhaseProgress("loading_data", 100),
+                new PhaseProgress("a", 100),
+                new PhaseProgress("b", 100),
+                new PhaseProgress("writing_results", 100),
+                new PhaseProgress("inference", 0)
+            )
+        );
     }
 
     public void testResetProgressTracker() {
@@ -168,8 +179,10 @@ public class StatsHolderTests extends ESTestCase {
         List<PhaseProgress> phaseProgresses = statsHolder.getProgressTracker().report();
 
         assertThat(phaseProgresses.size(), equalTo(5));
-        assertThat(phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
-            contains("reindexing", "loading_data", "a", "b", "writing_results"));
+        assertThat(
+            phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "a", "b", "writing_results")
+        );
         assertThat(phaseProgresses.get(0).getProgressPercent(), equalTo(1));
         assertThat(phaseProgresses.get(1).getProgressPercent(), equalTo(0));
         assertThat(phaseProgresses.get(2).getProgressPercent(), equalTo(0));

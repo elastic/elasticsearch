@@ -8,15 +8,22 @@
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 public class UnsignedLongIndexFieldData extends IndexNumericFieldData {
     private final IndexNumericFieldData signedLongIFD;
+    protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
 
-    UnsignedLongIndexFieldData(IndexNumericFieldData signedLongFieldData) {
+    UnsignedLongIndexFieldData(
+        IndexNumericFieldData signedLongFieldData,
+        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+    ) {
         this.signedLongIFD = signedLongFieldData;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -31,12 +38,12 @@ public class UnsignedLongIndexFieldData extends IndexNumericFieldData {
 
     @Override
     public LeafNumericFieldData load(LeafReaderContext context) {
-        return new UnsignedLongLeafFieldData(signedLongIFD.load(context));
+        return new UnsignedLongLeafFieldData(signedLongIFD.load(context), toScriptFieldFactory);
     }
 
     @Override
     public LeafNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
-        return new UnsignedLongLeafFieldData(signedLongIFD.loadDirect(context));
+        return new UnsignedLongLeafFieldData(signedLongIFD.loadDirect(context), toScriptFieldFactory);
     }
 
     @Override

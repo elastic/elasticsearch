@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
@@ -109,7 +109,7 @@ public class FrozenCacheInfoService {
                     @Override
                     public void onResponse(FrozenCacheInfoResponse response) {
                         updateEntry(response.hasFrozenCache() ? NodeState.HAS_CACHE : NodeState.NO_CACHE);
-                        rerouteService.reroute("frozen cache state retrieved", Priority.LOW, ActionListener.wrap(() -> {}));
+                        rerouteService.reroute("frozen cache state retrieved", Priority.LOW, ActionListener.noop());
                     }
 
                     @Override
@@ -122,7 +122,7 @@ public class FrozenCacheInfoService {
 
         @Override
         public void onFailure(Exception e) {
-            logger.debug(new ParameterizedMessage("--> failed fetching frozen cache info from [{}]", discoveryNode), e);
+            logger.debug(() -> "--> failed fetching frozen cache info from [" + discoveryNode + "]", e);
             // Failed even to execute the nodes info action, just give up
             updateEntry(NodeState.FAILED);
         }

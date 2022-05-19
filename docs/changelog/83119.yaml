@@ -1,0 +1,5 @@
+pr: 83119
+summary: Add elasticsearch health API
+area: Distributed
+type: enhancement
+issues: []

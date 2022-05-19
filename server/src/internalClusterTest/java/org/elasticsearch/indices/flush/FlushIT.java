@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexingMemoryController;
@@ -22,6 +21,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -61,8 +61,11 @@ public class FlushIT extends ESIntegTestCase {
                     public void onResponse(FlushResponse flushResponse) {
                         try {
                             // don't use assertAllSuccessful it uses a randomized context that belongs to a different thread
-                            assertThat("Unexpected ShardFailures: " + Arrays.toString(flushResponse.getShardFailures()),
-                                flushResponse.getFailedShards(), equalTo(0));
+                            assertThat(
+                                "Unexpected ShardFailures: " + Arrays.toString(flushResponse.getShardFailures()),
+                                flushResponse.getFailedShards(),
+                                equalTo(0)
+                            );
                             latch.countDown();
                         } catch (Exception ex) {
                             onFailure(ex);
@@ -88,13 +91,21 @@ public class FlushIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
         }
-        assertThat(expectThrows(ValidationException.class,
-            () -> client().admin().indices().flush(new FlushRequest().force(true).waitIfOngoing(false)).actionGet()).getMessage(),
-            containsString("wait_if_ongoing must be true for a force flush"));
-        assertThat(client().admin().indices().flush(new FlushRequest().force(true).waitIfOngoing(true)).actionGet()
-            .getShardFailures(), emptyArray());
-        assertThat(client().admin().indices().flush(new FlushRequest().force(false).waitIfOngoing(randomBoolean()))
-            .actionGet().getShardFailures(), emptyArray());
+        assertThat(
+            expectThrows(
+                ValidationException.class,
+                () -> client().admin().indices().flush(new FlushRequest().force(true).waitIfOngoing(false)).actionGet()
+            ).getMessage(),
+            containsString("wait_if_ongoing must be true for a force flush")
+        );
+        assertThat(
+            client().admin().indices().flush(new FlushRequest().force(true).waitIfOngoing(true)).actionGet().getShardFailures(),
+            emptyArray()
+        );
+        assertThat(
+            client().admin().indices().flush(new FlushRequest().force(false).waitIfOngoing(randomBoolean())).actionGet().getShardFailures(),
+            emptyArray()
+        );
     }
 
     public void testFlushOnInactive() throws Exception {
@@ -106,12 +117,20 @@ public class FlushIT extends ESIntegTestCase {
                 .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), randomTimeValue(10, 1000, "ms"))
                 .build()
         );
-        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(200, 500, "ms"))
-            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(50, 200, "ms"))
-            .put("index.routing.allocation.include._name", String.join(",", dataNodes))
-            .build()));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(200, 500, "ms"))
+                        .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(50, 200, "ms"))
+                        .put("index.routing.allocation.include._name", String.join(",", dataNodes))
+                        .build()
+                )
+        );
         ensureGreen(indexName);
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {

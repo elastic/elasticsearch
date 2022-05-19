@@ -22,16 +22,33 @@ import org.elasticsearch.transport.TransportService;
 public class TransportGetBasicStatusAction extends TransportMasterNodeReadAction<GetBasicStatusRequest, GetBasicStatusResponse> {
 
     @Inject
-    public TransportGetBasicStatusAction(TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetBasicStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                GetBasicStatusRequest::new, indexNameExpressionResolver, GetBasicStatusResponse::new, ThreadPool.Names.SAME);
+    public TransportGetBasicStatusAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetBasicStatusAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetBasicStatusRequest::new,
+            indexNameExpressionResolver,
+            GetBasicStatusResponse::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
-    protected void masterOperation(Task task, GetBasicStatusRequest request, ClusterState state,
-                                   ActionListener<GetBasicStatusResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        GetBasicStatusRequest request,
+        ClusterState state,
+        ActionListener<GetBasicStatusResponse> listener
+    ) throws Exception {
         LicensesMetadata licensesMetadata = state.metadata().custom(LicensesMetadata.TYPE);
         if (licensesMetadata == null) {
             listener.onResponse(new GetBasicStatusResponse(true));

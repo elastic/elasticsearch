@@ -10,6 +10,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -17,8 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
-
-import org.elasticsearch.script.ScriptService;
 
 /**
  * A pipeline is a list of {@link Processor} instances grouped under a unique id.
@@ -42,14 +41,25 @@ public final class Pipeline {
     private final IngestMetric metrics;
     private final LongSupplier relativeTimeProvider;
 
-    public Pipeline(String id, @Nullable String description, @Nullable Integer version,
-                    @Nullable Map<String, Object> metadata, CompoundProcessor compoundProcessor) {
+    public Pipeline(
+        String id,
+        @Nullable String description,
+        @Nullable Integer version,
+        @Nullable Map<String, Object> metadata,
+        CompoundProcessor compoundProcessor
+    ) {
         this(id, description, version, metadata, compoundProcessor, System::nanoTime);
     }
 
-    //package private for testing
-    Pipeline(String id, @Nullable String description, @Nullable Integer version, @Nullable Map<String, Object> metadata,
-             CompoundProcessor compoundProcessor, LongSupplier relativeTimeProvider) {
+    // package private for testing
+    Pipeline(
+        String id,
+        @Nullable String description,
+        @Nullable Integer version,
+        @Nullable Map<String, Object> metadata,
+        CompoundProcessor compoundProcessor,
+        LongSupplier relativeTimeProvider
+    ) {
         this.id = id;
         this.description = description;
         this.metadata = metadata;
@@ -59,26 +69,39 @@ public final class Pipeline {
         this.relativeTimeProvider = relativeTimeProvider;
     }
 
-    public static Pipeline create(String id, Map<String, Object> config,
-        Map<String, Processor.Factory> processorFactories, ScriptService scriptService) throws Exception {
+    public static Pipeline create(
+        String id,
+        Map<String, Object> config,
+        Map<String, Processor.Factory> processorFactories,
+        ScriptService scriptService
+    ) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
         Map<String, Object> metadata = ConfigurationUtils.readOptionalMap(null, null, config, META_KEY);
         List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
         List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, scriptService, processorFactories);
-        List<Map<String, Object>> onFailureProcessorConfigs =
-                ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
-        List<Processor> onFailureProcessors =
-            ConfigurationUtils.readProcessorConfigs(onFailureProcessorConfigs, scriptService, processorFactories);
+        List<Map<String, Object>> onFailureProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
+        List<Processor> onFailureProcessors = ConfigurationUtils.readProcessorConfigs(
+            onFailureProcessorConfigs,
+            scriptService,
+            processorFactories
+        );
         if (config.isEmpty() == false) {
-            throw new ElasticsearchParseException("pipeline [" + id +
-                    "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
+            throw new ElasticsearchParseException(
+                "pipeline ["
+                    + id
+                    + "] doesn't support one or more provided configuration parameters "
+                    + Arrays.toString(config.keySet().toArray())
+            );
         }
         if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
             throw new ElasticsearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
         }
-        CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.unmodifiableList(processors),
-                Collections.unmodifiableList(onFailureProcessors));
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            false,
+            Collections.unmodifiableList(processors),
+            Collections.unmodifiableList(onFailureProcessors)
+        );
         return new Pipeline(id, description, version, metadata, compoundProcessor);
     }
 

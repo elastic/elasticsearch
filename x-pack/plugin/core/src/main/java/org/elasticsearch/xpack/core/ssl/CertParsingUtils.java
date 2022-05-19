@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.core.ssl;
 
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.ssl.SslKeyConfig;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -31,15 +31,11 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import javax.net.ssl.KeyManager;
+
 import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 
@@ -53,41 +49,26 @@ public class CertParsingUtils {
         throw new IllegalStateException("Utility class should not be instantiated");
     }
 
-    static Path resolvePath(String path, Environment environment) {
-        return environment.configFile().resolve(path);
-    }
-
-    static List<Path> resolvePaths(List<String> certPaths, Environment environment) {
-        return certPaths.stream().map(p -> environment.configFile().resolve(p)).collect(Collectors.toList());
-    }
-
-    /**
-     * Reads the provided paths and parses them into {@link Certificate} objects
-     *
-     * @param certPaths   the paths to the PEM encoded certificates
-     * @param environment the environment to resolve files against. May be not be {@code null}
-     * @return an array of {@link Certificate} objects
-     */
-    public static Certificate[] readCertificates(List<String> certPaths, Environment environment)
-        throws CertificateException, IOException {
-        final List<Path> resolvedPaths = resolvePaths(certPaths, environment);
-        return readX509Certificates(resolvedPaths);
-    }
-
     public static X509Certificate readX509Certificate(Path path) throws CertificateException, IOException {
         List<Certificate> certificates = PemUtils.readCertificates(List.of(path));
         if (certificates.size() != 1) {
-            throw new IllegalArgumentException("expected a single certificate in file [" + path.toAbsolutePath() + "] but found [" +
-                certificates.size() + "]");
+            throw new IllegalArgumentException(
+                "expected a single certificate in file [" + path.toAbsolutePath() + "] but found [" + certificates.size() + "]"
+            );
         }
         final Certificate cert = certificates.get(0);
         if (cert instanceof X509Certificate) {
             return (X509Certificate) cert;
         } else {
-            throw new IllegalArgumentException("the certificate in " + path.toAbsolutePath() + " is not an X.509 certificate ("
-                + cert.getType()
-                + " : "
-                + cert.getClass() + ")");
+            throw new IllegalArgumentException(
+                "the certificate in "
+                    + path.toAbsolutePath()
+                    + " is not an X.509 certificate ("
+                    + cert.getType()
+                    + " : "
+                    + cert.getClass()
+                    + ")"
+            );
         }
     }
 
@@ -115,9 +96,12 @@ public class CertParsingUtils {
         return readKeyPairsFromKeystore(path, "PKCS12", password, keyPassword);
     }
 
-    public static Map<Certificate, Key> readKeyPairsFromKeystore(Path path, String storeType, char[] password,
-                                                                  Function<String, char[]> keyPassword)
-        throws IOException, GeneralSecurityException {
+    public static Map<Certificate, Key> readKeyPairsFromKeystore(
+        Path path,
+        String storeType,
+        char[] password,
+        Function<String, char[]> keyPassword
+    ) throws IOException, GeneralSecurityException {
         final KeyStore store = KeyStoreUtil.readKeyStore(path, storeType, password);
         return readKeyPairsFromKeystore(store, keyPassword);
     }
@@ -125,7 +109,7 @@ public class CertParsingUtils {
     private static Map<Certificate, Key> readKeyPairsFromKeystore(KeyStore store, Function<String, char[]> keyPassword)
         throws KeyStoreException, NoSuchAlgorithmException, UnrecoverableKeyException {
         final Enumeration<String> enumeration = store.aliases();
-        final Map<Certificate, Key> map = new HashMap<>(store.size());
+        final Map<Certificate, Key> map = Maps.newMapWithExpectedSize(store.size());
         while (enumeration.hasMoreElements()) {
             final String alias = enumeration.nextElement();
             if (store.isKeyEntry(alias)) {
@@ -149,86 +133,18 @@ public class CertParsingUtils {
     /**
      * Creates a {@link X509ExtendedKeyManager} from a PEM encoded certificate and key file
      */
-    public static X509ExtendedKeyManager getKeyManagerFromPEM(Path certificatePath, Path keyPath, char[] keyPassword)
-        throws IOException, GeneralSecurityException {
+    public static X509ExtendedKeyManager getKeyManagerFromPEM(Path certificatePath, Path keyPath, char[] keyPassword) throws IOException,
+        GeneralSecurityException {
         final KeyStore keyStore = getKeyStoreFromPEM(certificatePath, keyPath, keyPassword);
         return KeyStoreUtil.createKeyManager(keyStore, keyPassword, KeyManagerFactory.getDefaultAlgorithm());
     }
 
-    /**
-     * Returns a {@link X509ExtendedKeyManager} that is built from the provided private key and certificate chain
-     */
-    public static X509ExtendedKeyManager keyManager(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
-        throws NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException, IOException, CertificateException {
-        KeyStore keyStore = getKeyStore(certificateChain, privateKey, password);
-        return keyManager(keyStore, password, KeyManagerFactory.getDefaultAlgorithm());
-    }
-
-    public static KeyStore getKeyStore(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
-        throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
-        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-        keyStore.load(null, null);
-        // password must be non-null for keystore...
-        keyStore.setKeyEntry("key", privateKey, password, certificateChain);
-        return keyStore;
-    }
-
-    /**
-     * Returns a {@link X509ExtendedKeyManager} that is built from the provided keystore
-     */
-    public static X509ExtendedKeyManager keyManager(KeyStore keyStore, char[] password, String algorithm)
-        throws NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException {
-        KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
-        kmf.init(keyStore, password);
-        KeyManager[] keyManagers = kmf.getKeyManagers();
-        for (KeyManager keyManager : keyManagers) {
-            if (keyManager instanceof X509ExtendedKeyManager) {
-                return (X509ExtendedKeyManager) keyManager;
-            }
-        }
-        throw new IllegalStateException("failed to find a X509ExtendedKeyManager");
-    }
-
-    static KeyConfig createKeyConfig(X509KeyPairSettings keyPair, Settings settings, String trustStoreAlgorithm) {
-        String keyPath = keyPair.keyPath.get(settings).orElse(null);
-        String keyStorePath = keyPair.keystorePath.get(settings).orElse(null);
-        String keyStoreType = SSLConfigurationSettings.getKeyStoreType(keyPair.keystoreType, settings, keyStorePath);
-
-        if (keyPath != null && keyStorePath != null) {
-            throw new IllegalArgumentException("you cannot specify a keystore and key file");
-        }
-
-        if (keyPath != null) {
-            SecureString keyPassword = keyPair.keyPassword.get(settings);
-            String certPath = keyPair.certificatePath.get(settings).orElse(null);
-            if (certPath == null) {
-                throw new IllegalArgumentException("you must specify the certificates [" + keyPair.certificatePath.getKey()
-                    + "] to use with the key [" + keyPair.keyPath.getKey() + "]");
-            }
-            return new PEMKeyConfig(keyPath, keyPassword, certPath);
-        }
-
-        if (keyStorePath != null) {
-            SecureString keyStorePassword = keyPair.keystorePassword.get(settings);
-            String keyStoreAlgorithm = keyPair.keystoreAlgorithm.get(settings);
-            SecureString keyStoreKeyPassword = keyPair.keystoreKeyPassword.get(settings);
-            if (keyStoreKeyPassword.length() == 0) {
-                keyStoreKeyPassword = keyStorePassword;
-            }
-            return new StoreKeyConfig(
-                keyStorePath,
-                keyStoreType,
-                keyStorePassword,
-                keyStoreKeyPassword,
-                keyStoreAlgorithm,
-                trustStoreAlgorithm
-            );
-        }
-        return null;
-    }
-
-    public static SslKeyConfig createKeyConfig(Settings settings, String prefix, Environment environment,
-                                               boolean acceptNonSecurePasswords) {
+    public static SslKeyConfig createKeyConfig(
+        Settings settings,
+        String prefix,
+        Environment environment,
+        boolean acceptNonSecurePasswords
+    ) {
         final SslSettingsLoader settingsLoader = new SslSettingsLoader(settings, prefix, acceptNonSecurePasswords);
         return settingsLoader.buildKeyConfig(environment.configFile());
     }
@@ -239,47 +155,6 @@ public class CertParsingUtils {
     public static X509ExtendedTrustManager getTrustManagerFromPEM(List<Path> caPaths) throws GeneralSecurityException, IOException {
         final List<Certificate> certificates = PemUtils.readCertificates(caPaths);
         return KeyStoreUtil.createTrustManager(certificates);
-    }
-
-    /**
-     * Creates a {@link X509ExtendedTrustManager} based on the provided certificates
-     *
-     * @param certificates the certificates to trust
-     * @return a trust manager that trusts the provided certificates
-     */
-    public static X509ExtendedTrustManager trustManager(Certificate[] certificates)
-        throws NoSuchAlgorithmException, KeyStoreException, IOException, CertificateException {
-        KeyStore store = trustStore(certificates);
-        return trustManager(store, TrustManagerFactory.getDefaultAlgorithm());
-    }
-
-    public static KeyStore trustStore(Certificate[] certificates)
-        throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
-        assert certificates != null : "Cannot create trust store with null certificates";
-        KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());
-        store.load(null, null);
-        int counter = 0;
-        for (Certificate certificate : certificates) {
-            store.setCertificateEntry("cert" + counter, certificate);
-            counter++;
-        }
-        return store;
-    }
-
-    /**
-     * Creates a {@link X509ExtendedTrustManager} based on the trust material in the provided {@link KeyStore}
-     */
-    public static X509ExtendedTrustManager trustManager(KeyStore keyStore, String algorithm)
-        throws NoSuchAlgorithmException, KeyStoreException {
-        TrustManagerFactory tmf = TrustManagerFactory.getInstance(algorithm);
-        tmf.init(keyStore);
-        TrustManager[] trustManagers = tmf.getTrustManagers();
-        for (TrustManager trustManager : trustManagers) {
-            if (trustManager instanceof X509ExtendedTrustManager) {
-                return (X509ExtendedTrustManager) trustManager;
-            }
-        }
-        throw new IllegalStateException("failed to find a X509ExtendedTrustManager");
     }
 
     /**

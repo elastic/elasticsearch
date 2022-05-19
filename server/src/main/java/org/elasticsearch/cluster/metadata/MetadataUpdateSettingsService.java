@@ -16,13 +16,13 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsCluster
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.index.IndexSettings.same;
@@ -49,38 +50,60 @@ public class MetadataUpdateSettingsService {
     private static final Logger logger = LogManager.getLogger(MetadataUpdateSettingsService.class);
 
     private final ClusterService clusterService;
-
     private final AllocationService allocationService;
-
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesService indicesService;
     private final ShardLimitValidator shardLimitValidator;
     private final ThreadPool threadPool;
+    private final ClusterStateTaskExecutor<AckedClusterStateUpdateTask> executor;
 
-    @Inject
-    public MetadataUpdateSettingsService(ClusterService clusterService, AllocationService allocationService,
-                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService,
-                                         ShardLimitValidator shardLimitValidator, ThreadPool threadPool) {
+    public MetadataUpdateSettingsService(
+        ClusterService clusterService,
+        AllocationService allocationService,
+        IndexScopedSettings indexScopedSettings,
+        IndicesService indicesService,
+        ShardLimitValidator shardLimitValidator,
+        ThreadPool threadPool
+    ) {
         this.clusterService = clusterService;
-        this.threadPool = threadPool;
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
+        this.threadPool = threadPool;
+        this.executor = (currentState, taskContexts) -> {
+            ClusterState state = currentState;
+            for (final var taskContext : taskContexts) {
+                try {
+                    final var task = taskContext.getTask();
+                    state = task.execute(state);
+                    taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState), task);
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
+                }
+            }
+            if (state != currentState) {
+                // reroute in case things change that require it (like number of replicas)
+                state = allocationService.reroute(state, "settings update");
+            }
+            return state;
+        };
     }
 
-    public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request,
-                               final ActionListener<AcknowledgedResponse> listener) {
-        final Settings normalizedSettings =
-            Settings.builder().put(request.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
+    public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
+        final Settings normalizedSettings = Settings.builder()
+            .put(request.settings())
+            .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
+            .build();
         Settings.Builder settingsForClosedIndices = Settings.builder();
         Settings.Builder settingsForOpenIndices = Settings.builder();
         final Set<String> skippedSettings = new HashSet<>();
 
         indexScopedSettings.validate(
-                normalizedSettings.filter(s -> Regex.isSimpleMatchPattern(s) == false), // don't validate wildcards
-                false, // don't validate values here we check it below never allow to change the number of shards
-                true); // validate internal or private index settings
+            normalizedSettings.filter(s -> Regex.isSimpleMatchPattern(s) == false), // don't validate wildcards
+            false, // don't validate values here we check it below never allow to change the number of shards
+            true
+        ); // validate internal or private index settings
         for (String key : normalizedSettings.keySet()) {
             Setting<?> setting = indexScopedSettings.get(key);
             boolean isWildcard = setting == null && Regex.isSimpleMatchPattern(key);
@@ -98,20 +121,21 @@ public class MetadataUpdateSettingsService {
         final Settings openSettings = settingsForOpenIndices.build();
         final boolean preserveExisting = request.isPreserveExisting();
 
-        clusterService.submitStateUpdateTask("update-settings " + Arrays.toString(request.indices()),
-                new AckedClusterStateUpdateTask(Priority.URGENT, request,
-                    wrapPreservingContext(listener, threadPool.getThreadContext())) {
-
+        // TODO: move this to custom class instead of AckedClusterStateUpdateTask
+        AckedClusterStateUpdateTask clusterTask = new AckedClusterStateUpdateTask(
+            Priority.URGENT,
+            request,
+            wrapPreservingContext(listener, threadPool.getThreadContext())
+        ) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-
-                RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
+                RoutingTable.Builder routingTableBuilder = null;
                 Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
 
-                // allow to change any settings to a close index, and only allow dynamic settings to be changed
+                // allow to change any settings to a closed index, and only allow dynamic settings to be changed
                 // on an open index
                 Set<Index> openIndices = new HashSet<>();
-                Set<Index> closeIndices = new HashSet<>();
+                Set<Index> closedIndices = new HashSet<>();
                 final String[] actualIndices = new String[request.indices().length];
                 for (int i = 0; i < request.indices().length; i++) {
                     Index index = request.indices()[i];
@@ -120,13 +144,19 @@ public class MetadataUpdateSettingsService {
                     if (metadata.getState() == IndexMetadata.State.OPEN) {
                         openIndices.add(index);
                     } else {
-                        closeIndices.add(index);
+                        closedIndices.add(index);
                     }
                 }
 
                 if (skippedSettings.isEmpty() == false && openIndices.isEmpty() == false) {
-                    throw new IllegalArgumentException(String.format(Locale.ROOT,
-                            "Can't update non dynamic settings [%s] for open indices %s", skippedSettings, openIndices));
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "Can't update non dynamic settings [%s] for open indices %s",
+                            skippedSettings,
+                            openIndices
+                        )
+                    );
                 }
 
                 if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(openSettings)) {
@@ -136,77 +166,46 @@ public class MetadataUpdateSettingsService {
                         shardLimitValidator.validateShardLimitOnReplicaUpdate(currentState, request.indices(), updatedNumberOfReplicas);
 
                         /*
-                         * We do not update the in-sync allocation IDs as they will be removed upon the first index operation which makes
-                         * these copies stale.
+                         * We do not update the in-sync allocation IDs as they will be removed upon the first index operation
+                         * which makes these copies stale.
                          *
                          * TODO: should we update the in-sync allocation IDs once the data is deleted by the node?
                          */
+                        routingTableBuilder = RoutingTable.builder(currentState.routingTable());
                         routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                         metadataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                         logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
                     }
                 }
 
-                if (openIndices.isEmpty() == false) {
-                    for (Index index : openIndices) {
-                        IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
-                        Settings.Builder updates = Settings.builder();
-                        Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
-                        if (indexScopedSettings.updateDynamicSettings(openSettings, indexSettings, updates, index.getName())) {
-                            if (preserveExisting) {
-                                indexSettings.put(indexMetadata.getSettings());
-                            }
-                            /*
-                             * The setting index.number_of_replicas is special; we require that this setting has a value in the index. When
-                             * creating the index, we ensure this by explicitly providing a value for the setting to the default (one) if
-                             * there is a not value provided on the source of the index creation. A user can update this setting though,
-                             * including updating it to null, indicating that they want to use the default value. In this case, we again
-                             * have to provide an explicit value for the setting to the default (one).
-                             */
-                            if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettings) == false) {
-                                indexSettings.put(
-                                    IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-                                    IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(Settings.EMPTY));
-                            }
-                            Settings finalSettings = indexSettings.build();
-                            indexScopedSettings.validate(
-                                finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
-                            metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));
-                        }
-                    }
-                }
+                updateIndexSettings(
+                    openIndices,
+                    metadataBuilder,
+                    (index, indexSettings) -> indexScopedSettings.updateDynamicSettings(
+                        openSettings,
+                        indexSettings,
+                        Settings.builder(),
+                        index.getName()
+                    ),
+                    preserveExisting,
+                    indexScopedSettings
+                );
 
-                if (closeIndices.isEmpty() == false) {
-                    for (Index index : closeIndices) {
-                        IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
-                        Settings.Builder updates = Settings.builder();
-                        Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
-                        if (indexScopedSettings.updateSettings(closedSettings, indexSettings, updates, index.getName())) {
-                            if (preserveExisting) {
-                                indexSettings.put(indexMetadata.getSettings());
-                            }
-                            /*
-                             * The setting index.number_of_replicas is special; we require that this setting has a value in the index. When
-                             * creating the index, we ensure this by explicitly providing a value for the setting to the default (one) if
-                             * there is a not value provided on the source of the index creation. A user can update this setting though,
-                             * including updating it to null, indicating that they want to use the default value. In this case, we again
-                             * have to provide an explicit value for the setting to the default (one).
-                             */
-                            if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettings) == false) {
-                                indexSettings.put(
-                                    IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-                                    IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(Settings.EMPTY));
-                            }
-                            Settings finalSettings = indexSettings.build();
-                            indexScopedSettings.validate(
-                                finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
-                            metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));
-                        }
-                    }
-                }
+                updateIndexSettings(
+                    closedIndices,
+                    metadataBuilder,
+                    (index, indexSettings) -> indexScopedSettings.updateSettings(
+                        closedSettings,
+                        indexSettings,
+                        Settings.builder(),
+                        index.getName()
+                    ),
+                    preserveExisting,
+                    indexScopedSettings
+                );
 
-                if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(normalizedSettings) ||
-                    IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(normalizedSettings)) {
+                if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(normalizedSettings)
+                    || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(normalizedSettings)) {
                     for (String index : actualIndices) {
                         final Settings settings = metadataBuilder.get(index).getSettings();
                         MetadataCreateIndexService.validateTranslogRetentionSettings(settings);
@@ -225,27 +224,30 @@ public class MetadataUpdateSettingsService {
                 }
 
                 final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+                boolean changedBlocks = false;
                 for (IndexMetadata.APIBlock block : IndexMetadata.APIBlock.values()) {
-                    changed |= maybeUpdateClusterBlock(actualIndices, blocks, block.block, block.setting, openSettings);
+                    changedBlocks |= maybeUpdateClusterBlock(actualIndices, blocks, block.block, block.setting, openSettings);
                 }
+                changed |= changedBlocks;
 
                 if (changed == false) {
                     return currentState;
                 }
 
-                ClusterState updatedState = ClusterState.builder(currentState).metadata(metadataBuilder)
-                    .routingTable(routingTableBuilder.build()).blocks(blocks).build();
+                ClusterState updatedState = ClusterState.builder(currentState)
+                    .metadata(metadataBuilder)
+                    .routingTable(routingTableBuilder == null ? currentState.routingTable() : routingTableBuilder.build())
+                    .blocks(changedBlocks ? blocks.build() : currentState.blocks())
+                    .build();
 
-                // now, reroute in case things change that require it (like number of replicas)
-                updatedState = allocationService.reroute(updatedState, "settings update");
                 try {
                     for (Index index : openIndices) {
-                        final IndexMetadata currentMetadata = currentState.getMetadata().getIndexSafe(index);
+                        final IndexMetadata currentMetadata = currentState.metadata().getIndexSafe(index);
                         final IndexMetadata updatedMetadata = updatedState.metadata().getIndexSafe(index);
                         indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata);
                     }
-                    for (Index index : closeIndices) {
-                        final IndexMetadata currentMetadata = currentState.getMetadata().getIndexSafe(index);
+                    for (Index index : closedIndices) {
+                        final IndexMetadata currentMetadata = currentState.metadata().getIndexSafe(index);
                         final IndexMetadata updatedMetadata = updatedState.metadata().getIndexSafe(index);
                         // Verifies that the current index settings can be updated with the updated dynamic settings.
                         indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata);
@@ -256,16 +258,64 @@ public class MetadataUpdateSettingsService {
                 } catch (IOException ex) {
                     throw ExceptionsHelper.convertToElastic(ex);
                 }
+
                 return updatedState;
             }
-        });
+        };
+
+        clusterService.submitStateUpdateTask(
+            "update-settings " + Arrays.toString(request.indices()),
+            clusterTask,
+            clusterTask,
+            this.executor
+        );
+    }
+
+    public static void updateIndexSettings(
+        Set<Index> indices,
+        Metadata.Builder metadataBuilder,
+        BiFunction<Index, Settings.Builder, Boolean> settingUpdater,
+        Boolean preserveExisting,
+        IndexScopedSettings indexScopedSettings
+    ) {
+        for (Index index : indices) {
+            IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
+            Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
+            if (settingUpdater.apply(index, indexSettings)) {
+                if (preserveExisting) {
+                    indexSettings.put(indexMetadata.getSettings());
+                }
+                /*
+                 * The setting index.number_of_replicas is special; we require that this setting has a value
+                 * in the index. When creating the index, we ensure this by explicitly providing a value for
+                 * the setting to the default (one) if there is a not value provided on the source of the
+                 * index creation. A user can update this setting though, including updating it to null,
+                 * indicating that they want to use the default value. In this case, we again have to
+                 * provide an explicit value for the setting to the default (one).
+                 */
+                if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettings) == false) {
+                    indexSettings.put(
+                        IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+                        IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(Settings.EMPTY)
+                    );
+                }
+                Settings finalSettings = indexSettings.build();
+                indexScopedSettings.validate(finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
+                metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));
+            }
+        }
     }
 
     /**
      * Updates the cluster block only iff the setting exists in the given settings
      */
-    private static boolean maybeUpdateClusterBlock(String[] actualIndices, ClusterBlocks.Builder blocks, ClusterBlock block,
-                                                Setting<Boolean> setting, Settings openSettings) {
+    private static boolean maybeUpdateClusterBlock(
+        String[] actualIndices,
+        ClusterBlocks.Builder blocks,
+        ClusterBlock block,
+        Setting<Boolean> setting,
+        Settings openSettings
+    ) {
         boolean changed = false;
         if (setting.exists(openSettings)) {
             final boolean updateBlock = setting.get(openSettings);

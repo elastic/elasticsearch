@@ -36,12 +36,14 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 public class ConditionalProcessor extends AbstractProcessor implements WrappingProcessor {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of(
-            "_type", value -> {
-                deprecationLogger.deprecate(DeprecationCategory.INDICES, "conditional-processor__type",
-                        "[types removal] Looking up doc types [_type] in scripts is deprecated.");
-                return value;
-            });
+    private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of("_type", value -> {
+        deprecationLogger.warn(
+            DeprecationCategory.INDICES,
+            "conditional-processor__type",
+            "[types removal] Looking up doc types [_type] in scripts is deprecated."
+        );
+        return value;
+    });
 
     static final String TYPE = "conditional";
 
@@ -56,8 +58,14 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         this(tag, description, script, scriptService, processor, System::nanoTime);
     }
 
-    ConditionalProcessor(String tag, String description, Script script, ScriptService scriptService, Processor processor,
-                         LongSupplier relativeTimeProvider) {
+    ConditionalProcessor(
+        String tag,
+        String description,
+        Script script,
+        ScriptService scriptService,
+        Processor processor,
+        LongSupplier relativeTimeProvider
+    ) {
         super(tag, description);
         this.condition = script;
         this.scriptService = scriptService;
@@ -79,7 +87,29 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     }
 
     @Override
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+        assert isAsync() == false;
+
+        final boolean matches = evaluate(ingestDocument);
+        if (matches) {
+            long startTimeInNanos = relativeTimeProvider.getAsLong();
+            try {
+                metric.preIngest();
+                return processor.execute(ingestDocument);
+            } catch (Exception e) {
+                metric.ingestFailed();
+                throw e;
+            } finally {
+                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                metric.postIngest(ingestTimeInNanos);
+            }
+        }
+        return ingestDocument;
+    }
+
+    @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        assert isAsync();
         final boolean matches;
         try {
             matches = evaluate(ingestDocument);
@@ -106,11 +136,6 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         }
     }
 
-    @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        throw new UnsupportedOperationException("this method should not get executed");
-    }
-
     boolean evaluate(IngestDocument ingestDocument) {
         IngestConditionalScript script = precompiledConditionScript;
         if (script == null) {
@@ -133,7 +158,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         return TYPE;
     }
 
-    public String getCondition(){
+    public String getCondition() {
         return condition.getIdOrCode();
     }
 
@@ -145,8 +170,8 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
             return new UnmodifiableIngestData((Map<String, Object>) raw);
         } else if (raw instanceof List) {
             return new UnmodifiableIngestList((List<Object>) raw);
-        } else if (raw instanceof byte[]) {
-            return ((byte[]) raw).clone();
+        } else if (raw instanceof byte[] bytes) {
+            return bytes.clone();
         }
         return raw;
     }
@@ -220,33 +245,32 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
 
         @Override
         public Set<Entry<String, Object>> entrySet() {
-            return data.entrySet().stream().map(entry ->
-                new Entry<String, Object>() {
-                    @Override
-                    public String getKey() {
-                        return entry.getKey();
-                    }
+            return data.entrySet().stream().map(entry -> new Entry<String, Object>() {
+                @Override
+                public String getKey() {
+                    return entry.getKey();
+                }
 
-                    @Override
-                    public Object getValue() {
-                        return wrapUnmodifiable(entry.getValue());
-                    }
+                @Override
+                public Object getValue() {
+                    return wrapUnmodifiable(entry.getValue());
+                }
 
-                    @Override
-                    public Object setValue(final Object value) {
-                        throw unmodifiableException();
-                    }
+                @Override
+                public Object setValue(final Object value) {
+                    throw unmodifiableException();
+                }
 
-                    @Override
-                    public boolean equals(final Object o) {
-                        return entry.equals(o);
-                    }
+                @Override
+                public boolean equals(final Object o) {
+                    return entry.equals(o);
+                }
 
-                    @Override
-                    public int hashCode() {
-                        return entry.hashCode();
-                    }
-                }).collect(Collectors.toSet());
+                @Override
+                public int hashCode() {
+                    return entry.hashCode();
+                }
+            }).collect(Collectors.toSet());
         }
     }
 

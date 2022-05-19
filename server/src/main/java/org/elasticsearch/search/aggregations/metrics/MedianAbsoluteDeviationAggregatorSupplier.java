@@ -16,11 +16,13 @@ import java.io.IOException;
 import java.util.Map;
 
 public interface MedianAbsoluteDeviationAggregatorSupplier {
-    Aggregator build(String name,
-                     ValuesSource valuesSource,
-                     DocValueFormat format,
-                     AggregationContext context,
-                     Aggregator parent,
-                     Map<String, Object> metadata,
-                     double compression) throws IOException;
+    Aggregator build(
+        String name,
+        ValuesSource valuesSource,
+        DocValueFormat format,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata,
+        double compression
+    ) throws IOException;
 }

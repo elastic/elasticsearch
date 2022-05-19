@@ -11,11 +11,9 @@ import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 public class PyTorchBuilder {
 
@@ -23,18 +21,19 @@ public class PyTorchBuilder {
     private static final String PROCESS_PATH = "./" + PROCESS_NAME;
 
     private static final String LICENSE_KEY_VALIDATED_ARG = "--validElasticLicenseKeyConfirmed=";
+    private static final String NUM_THREADS_PER_ALLOCATION_ARG = "--numThreadsPerAllocation=";
+    private static final String NUM_ALLOCATIONS_ARG = "--numAllocations=";
 
-    private final Supplier<Path> tempDirPathSupplier;
     private final NativeController nativeController;
     private final ProcessPipes processPipes;
-    private final List<Path> filesToDelete;
+    private final int threadsPerAllocation;
+    private final int numberOfAllocations;
 
-    public PyTorchBuilder(Supplier<Path> tempDirPathSupplier, NativeController nativeController, ProcessPipes processPipes,
-                          List<Path> filesToDelete) {
-        this.tempDirPathSupplier = Objects.requireNonNull(tempDirPathSupplier);
+    public PyTorchBuilder(NativeController nativeController, ProcessPipes processPipes, int threadPerAllocation, int numberOfAllocations) {
         this.nativeController = Objects.requireNonNull(nativeController);
         this.processPipes = Objects.requireNonNull(processPipes);
-        this.filesToDelete = Objects.requireNonNull(filesToDelete);
+        this.threadsPerAllocation = threadPerAllocation;
+        this.numberOfAllocations = numberOfAllocations;
     }
 
     public void build() throws IOException, InterruptedException {
@@ -49,6 +48,9 @@ public class PyTorchBuilder {
 
         // License was validated when the trained model was started
         command.add(LICENSE_KEY_VALIDATED_ARG + true);
+
+        command.add(NUM_THREADS_PER_ALLOCATION_ARG + threadsPerAllocation);
+        command.add(NUM_ALLOCATIONS_ARG + numberOfAllocations);
 
         return command;
     }

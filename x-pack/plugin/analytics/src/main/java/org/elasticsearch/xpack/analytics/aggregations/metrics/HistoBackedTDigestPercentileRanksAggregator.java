@@ -20,15 +20,17 @@ import java.util.Map;
 
 public class HistoBackedTDigestPercentileRanksAggregator extends AbstractHistoBackedTDigestPercentilesAggregator {
 
-    public HistoBackedTDigestPercentileRanksAggregator(String name,
-                                     ValuesSource valuesSource,
-                                     AggregationContext context,
-                                     Aggregator parent,
-                                     double[] percents,
-                                     double compression,
-                                     boolean keyed,
-                                     DocValueFormat formatter,
-                                     Map<String, Object> metadata) throws IOException {
+    public HistoBackedTDigestPercentileRanksAggregator(
+        String name,
+        ValuesSource valuesSource,
+        AggregationContext context,
+        Aggregator parent,
+        double[] percents,
+        double compression,
+        boolean keyed,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, valuesSource, context, parent, percents, compression, keyed, formatter, metadata);
     }
 

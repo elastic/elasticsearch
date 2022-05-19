@@ -28,7 +28,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -57,8 +57,8 @@ public class BitSetFilterCacheTests extends ESTestCase {
 
     public void testInvalidateEntries() throws Exception {
         IndexWriter writer = new IndexWriter(
-                new ByteBuffersDirectory(),
-                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
+            new ByteBuffersDirectory(),
+            new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
         );
         Document document = new Document();
         document.add(new StringField("field", "value", Field.Store.NO));
@@ -117,8 +117,8 @@ public class BitSetFilterCacheTests extends ESTestCase {
 
     public void testListener() throws IOException {
         IndexWriter writer = new IndexWriter(
-                new ByteBuffersDirectory(),
-                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
+            new ByteBuffersDirectory(),
+            new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
         );
         Document document = new Document();
         document.add(new StringField("field", "value", Field.Store.NO));
@@ -192,10 +192,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         });
 
         Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(
-                dir,
-                newIndexWriterConfig()
-        );
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
         writer.addDocument(new Document());
         DirectoryReader reader = DirectoryReader.open(writer);
         writer.close();

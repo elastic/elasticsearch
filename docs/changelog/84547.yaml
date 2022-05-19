@@ -1,0 +1,5 @@
+pr: 84547
+summary: User Profile - capture domain when creating API keys and tokens
+area: Security
+type: enhancement
+issues: []

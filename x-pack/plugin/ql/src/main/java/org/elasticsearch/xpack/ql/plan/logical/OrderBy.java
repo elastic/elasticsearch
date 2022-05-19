@@ -58,7 +58,6 @@ public class OrderBy extends UnaryPlan {
         }
 
         OrderBy other = (OrderBy) obj;
-        return Objects.equals(order, other.order)
-                && Objects.equals(child(), other.child());
+        return Objects.equals(order, other.order) && Objects.equals(child(), other.child());
     }
 }

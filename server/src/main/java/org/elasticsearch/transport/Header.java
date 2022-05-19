@@ -9,9 +9,9 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.util.Map;
@@ -110,7 +110,22 @@ public class Header {
 
     @Override
     public String toString() {
-        return "Header{" + networkMessageSize + "}{" + version + "}{" + requestId + "}{" + isRequest() + "}{" + isError() + "}{"
-                + isHandshake() + "}{" + isCompressed() + "}{" + actionName + "}";
+        return "Header{"
+            + networkMessageSize
+            + "}{"
+            + version
+            + "}{"
+            + requestId
+            + "}{"
+            + isRequest()
+            + "}{"
+            + isError()
+            + "}{"
+            + isHandshake()
+            + "}{"
+            + isCompressed()
+            + "}{"
+            + actionName
+            + "}";
     }
 }

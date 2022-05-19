@@ -6,14 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
-
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -41,7 +40,8 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
         ConstructingObjectParser<WeightedMode, Void> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            a -> new WeightedMode((Integer) a[0], (List<Double>)a[1]));
+            a -> new WeightedMode((Integer) a[0], (List<Double>) a[1])
+        );
         parser.declareInt(ConstructingObjectParser.constructorArg(), NUM_CLASSES);
         parser.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);
         return parser;
@@ -101,7 +101,7 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
             for (int j = 0; j < values.length; j++) {
                 double[] value = values[j];
                 double weight = weights == null ? 1.0 : weights[j];
-                for(int i = 0; i < value.length; i++) {
+                for (int i = 0; i < value.length; i++) {
                     if (i >= sumOnAxis1.length) {
                         throw new IllegalArgumentException("value entries must have the same dimensions");
                     }

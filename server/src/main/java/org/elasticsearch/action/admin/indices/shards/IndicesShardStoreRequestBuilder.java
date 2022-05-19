@@ -11,16 +11,16 @@ package org.elasticsearch.action.admin.indices.shards;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 
 /**
  * Request builder for {@link IndicesShardStoresRequest}
  */
 public class IndicesShardStoreRequestBuilder extends MasterNodeReadOperationRequestBuilder<
-        IndicesShardStoresRequest,
-        IndicesShardStoresResponse,
-        IndicesShardStoreRequestBuilder> {
+    IndicesShardStoresRequest,
+    IndicesShardStoresResponse,
+    IndicesShardStoreRequestBuilder> {
 
     public IndicesShardStoreRequestBuilder(ElasticsearchClient client, ActionType<IndicesShardStoresResponse> action, String... indices) {
         super(client, action, new IndicesShardStoresRequest(indices));

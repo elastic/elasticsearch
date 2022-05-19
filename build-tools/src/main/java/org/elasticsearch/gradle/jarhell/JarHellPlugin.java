@@ -22,10 +22,11 @@ public class JarHellPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         TaskProvider<? extends Task> jarHellTask = createTask(project);
-        project.getPluginManager().withPlugin(
+        project.getPluginManager()
+            .withPlugin(
                 "lifecycle-base",
-            p -> project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(jarHellTask))
-        );
+                p -> project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(jarHellTask))
+            );
     }
 
     private TaskProvider<? extends Task> createTask(Project project) {

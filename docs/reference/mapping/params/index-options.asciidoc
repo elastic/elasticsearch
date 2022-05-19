@@ -2,13 +2,9 @@
 === `index_options`
 
 The `index_options` parameter controls what information is added to the
-inverted index for search and highlighting purposes.
-
-[WARNING]
-====
-The `index_options` parameter is intended for use with <<text,`text`>> fields
-only. Avoid using `index_options` with other field data types.
-====
+inverted index for search and highlighting purposes. Only term-based field
+types like <<text,`text`>> and <<keyword,`keyword`>> support this
+configuration.
 
 The parameter accepts one of the following values. Each value retrieves
 information from the previous listed values. For example, `freqs` contains

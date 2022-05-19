@@ -7,19 +7,19 @@
 
 package org.elasticsearch.xpack.transform.notifications;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.core.common.notifications.Level;
-import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.AUDIT_INDEX;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.mock;
@@ -38,10 +38,9 @@ public class MockTransformAuditor extends TransformAuditor {
 
     @SuppressWarnings("unchecked")
     public static MockTransformAuditor createMockAuditor() {
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates = ImmutableOpenMap.builder(1);
-        templates.put(TransformInternalIndexConstants.AUDIT_INDEX, mock(IndexTemplateMetadata.class));
+        Map<String, IndexTemplateMetadata> templates = Map.of(AUDIT_INDEX, mock(IndexTemplateMetadata.class));
         Metadata metadata = mock(Metadata.class);
-        when(metadata.getTemplates()).thenReturn(templates.build());
+        when(metadata.getTemplates()).thenReturn(templates);
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(metadata);
         ClusterService clusterService = mock(ClusterService.class);
@@ -155,7 +154,6 @@ public class MockTransformAuditor extends TransformAuditor {
             assertThat("expected not to see " + expectedName + " but did", saw, equalTo(false));
         }
     }
-
 
     private void audit(Level level, String resourceId, String message) {
         for (AuditExpectation expectation : expectations) {

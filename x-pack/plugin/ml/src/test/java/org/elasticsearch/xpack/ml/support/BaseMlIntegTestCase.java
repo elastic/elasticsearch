@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.support;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -22,20 +21,22 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.MockDeterministicScript;
 import org.elasticsearch.script.MockScriptEngine;
@@ -74,7 +75,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -89,6 +89,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -100,7 +101,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -113,6 +114,10 @@ import static org.mockito.Mockito.when;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, supportsDedicatedMasters = false)
 public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
+
+    // The ML jobs can trigger many tasks that are not easily tracked. For this reason, here we list
+    // all the tasks that should be excluded from the cleanup jobs because they are not related to the tests.
+    private static final Set<String> UNRELATED_TASKS = Set.of(ListTasksAction.NAME);
 
     @Override
     protected boolean ignoreExternalCluster() {
@@ -131,10 +136,6 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         settings.put(MonitoringService.ENABLED.getKey(), false);
         settings.put(MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED.getKey(), false);
         settings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
-        // TODO: put this setting unconditionally once the shutdown API is not protected by a feature flag
-        if (Build.CURRENT.isSnapshot()) {
-            settings.put(ShutdownPlugin.SHUTDOWN_FEATURE_ENABLED_FLAG, true);
-        }
         return settings.build();
     }
 
@@ -151,7 +152,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class,
             // Deprecation warnings go to a data stream, if we ever cause a deprecation warning the data streams plugin is required
-            DataStreamsPlugin.class);
+            DataStreamsPlugin.class,
+            // To remove errors from parsing build in templates that contain scaled_float
+            MapperExtrasPlugin.class
+        );
     }
 
     @Override
@@ -163,8 +167,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     public void ensureTemplatesArePresent() throws Exception {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            assertTrue("Timed out waiting for the ML templates to be installed",
-                    MachineLearning.allTemplatesInstalled(state));
+            assertTrue("Timed out waiting for the ML templates to be installed", MachineLearning.criticalTemplatesInstalled(state));
         }, 20, TimeUnit.SECONDS);
     }
 
@@ -268,9 +271,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         deleteAllDataFrameAnalytics(client());
         waitForPendingTasks(client());
         assertBusy(() -> {
-            RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries()
-                    .setActiveOnly(true)
-                    .get();
+            RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries().setActiveOnly(true).get();
             for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
                 assertThat(recoveryStates.size(), equalTo(0));
             }
@@ -288,15 +289,17 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
             return null;
-        }).when(tp).schedule(
-            any(Runnable.class), any(TimeValue.class), any(String.class)
-        );
+        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(String.class));
         return tp;
     }
 
     public static void indexDocs(Logger logger, String index, long numDocs, long start, long end) {
+        indexDocs(client(), logger, index, numDocs, start, end);
+    }
+
+    public static void indexDocs(Client client, Logger logger, String index, long numDocs, long start, long end) {
         int maxDelta = (int) (end - start - 1);
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             IndexRequest indexRequest = new IndexRequest(index);
             long timestamp = start + randomIntBetween(0, maxDelta);
@@ -304,9 +307,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             indexRequest.source("time", timestamp, "@timestamp", timestamp).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }
-        BulkResponse bulkResponse = bulkRequestBuilder
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         if (bulkResponse.hasFailures()) {
             int failures = 0;
             for (BulkItemResponse itemResponse : bulkResponse) {
@@ -350,20 +351,20 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static void deleteAllDatafeeds(Logger logger, Client client) throws Exception {
-        final QueryPage<DatafeedConfig> datafeeds =
-            client.execute(GetDatafeedsAction.INSTANCE, new GetDatafeedsAction.Request(GetDatafeedsAction.ALL)).actionGet().getResponse();
+        final QueryPage<DatafeedConfig> datafeeds = client.execute(
+            GetDatafeedsAction.INSTANCE,
+            new GetDatafeedsAction.Request(GetDatafeedsAction.ALL)
+        ).actionGet().getResponse();
         try {
             logger.info("Stopping all datafeeds (using _all)");
-            StopDatafeedAction.Response stopResponse = client
-                    .execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request("_all"))
-                    .get();
+            StopDatafeedAction.Response stopResponse = client.execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request("_all"))
+                .get();
             assertTrue(stopResponse.isStopped());
         } catch (ExecutionException e1) {
             try {
                 StopDatafeedAction.Request request = new StopDatafeedAction.Request("_all");
                 request.setForce(true);
-                StopDatafeedAction.Response stopResponse = client
-                        .execute(StopDatafeedAction.INSTANCE, request).get();
+                StopDatafeedAction.Response stopResponse = client.execute(StopDatafeedAction.INSTANCE, request).get();
                 assertTrue(stopResponse.isStopped());
             } catch (ExecutionException e2) {
                 logger.warn("Force-stopping datafeed with _all failed.", e2);
@@ -381,15 +382,18 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                     throw new RuntimeException(e);
                 }
             });
-            AcknowledgedResponse deleteResponse =
-                    client.execute(DeleteDatafeedAction.INSTANCE, new DeleteDatafeedAction.Request(datafeed.getId())).get();
+            AcknowledgedResponse deleteResponse = client.execute(
+                DeleteDatafeedAction.INSTANCE,
+                new DeleteDatafeedAction.Request(datafeed.getId())
+            ).get();
             assertTrue(deleteResponse.isAcknowledged());
         }
     }
 
     public static void deleteAllJobs(Logger logger, Client client) throws Exception {
-        final QueryPage<Job> jobs =
-            client.execute(GetJobsAction.INSTANCE, new GetJobsAction.Request(Metadata.ALL)).actionGet().getResponse();
+        final QueryPage<Job> jobs = client.execute(GetJobsAction.INSTANCE, new GetJobsAction.Request(Metadata.ALL))
+            .actionGet()
+            .getResponse();
 
         try {
             CloseJobAction.Request closeRequest = new CloseJobAction.Request(Metadata.ALL);
@@ -415,24 +419,28 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
         for (final Job job : jobs.results()) {
             assertBusy(() -> {
-                GetJobsStatsAction.Response statsResponse =
-                        client.execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
+                GetJobsStatsAction.Response statsResponse = client.execute(
+                    GetJobsStatsAction.INSTANCE,
+                    new GetJobsStatsAction.Request(job.getId())
+                ).actionGet();
                 assertEquals(JobState.CLOSED, statsResponse.getResponse().results().get(0).getState());
             });
-            AcknowledgedResponse response =
-                    client.execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(job.getId())).get();
+            AcknowledgedResponse response = client.execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(job.getId())).get();
             assertTrue(response.isAcknowledged());
         }
     }
 
     public static void deleteAllDataFrameAnalytics(Client client) throws Exception {
-        final QueryPage<DataFrameAnalyticsConfig> analytics =
-            client.execute(GetDataFrameAnalyticsAction.INSTANCE,
-                new GetDataFrameAnalyticsAction.Request("_all")).get().getResources();
+        final QueryPage<DataFrameAnalyticsConfig> analytics = client.execute(
+            GetDataFrameAnalyticsAction.INSTANCE,
+            new GetDataFrameAnalyticsAction.Request("_all")
+        ).get().getResources();
 
         assertBusy(() -> {
-            GetDataFrameAnalyticsStatsAction.Response statsResponse =
-                client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, new GetDataFrameAnalyticsStatsAction.Request("_all")).get();
+            GetDataFrameAnalyticsStatsAction.Response statsResponse = client.execute(
+                GetDataFrameAnalyticsStatsAction.INSTANCE,
+                new GetDataFrameAnalyticsStatsAction.Request("_all")
+            ).get();
             assertTrue(statsResponse.getResponse().results().stream().allMatch(s -> s.getState().equals(DataFrameAnalyticsState.STOPPED)));
         });
         for (final DataFrameAnalyticsConfig config : analytics.results()) {
@@ -445,28 +453,28 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
         assertBusy(() -> {
             ListTasksResponse response = client.execute(ListTasksAction.INSTANCE, request).get();
-            List<String> activeTasks = response.getTasks().stream()
-                .filter(t -> t.getAction().startsWith(ListTasksAction.NAME) == false)
+            List<String> activeTasks = response.getTasks()
+                .stream()
+                .filter(t -> UNRELATED_TASKS.stream().noneMatch(name -> t.action().startsWith(name)))
                 .map(TaskInfo::toString)
                 .collect(Collectors.toList());
             assertThat(activeTasks, empty());
         });
     }
 
-    protected static <T> void blockingCall(Consumer<ActionListener<T>> function,
-                                           AtomicReference<T> response,
-                                           AtomicReference<Exception> error) throws InterruptedException {
+    protected static <T> void blockingCall(
+        Consumer<ActionListener<T>> function,
+        AtomicReference<T> response,
+        AtomicReference<Exception> error
+    ) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<T> listener = ActionListener.wrap(
-            r -> {
-                response.set(r);
-                latch.countDown();
-            },
-            e -> {
-                error.set(e);
-                latch.countDown();
-            }
-        );
+        ActionListener<T> listener = ActionListener.wrap(r -> {
+            response.set(r);
+            latch.countDown();
+        }, e -> {
+            error.set(e);
+            latch.countDown();
+        });
 
         function.accept(listener);
         latch.await();
@@ -474,8 +482,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     protected String awaitJobOpenedAndAssigned(String jobId, String queryNode) throws Exception {
 
-        PersistentTasksClusterService persistentTasksClusterService =
-            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName(queryNode));
+        PersistentTasksClusterService persistentTasksClusterService = internalCluster().getInstance(
+            PersistentTasksClusterService.class,
+            internalCluster().getMasterName(queryNode)
+        );
         // Speed up rechecks to a rate that is quicker than what settings would allow.
         // The check would work eventually without doing this, but the assertBusy() below
         // would need to wait 30 seconds, which would make the test run very slowly.
@@ -486,8 +496,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
         AtomicReference<String> jobNode = new AtomicReference<>();
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                    client(queryNode).execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId)).actionGet();
+            GetJobsStatsAction.Response statsResponse = client(queryNode).execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(jobId)
+            ).actionGet();
             GetJobsStatsAction.Response.JobStats jobStats = statsResponse.getResponse().results().get(0);
             assertEquals(JobState.OPENED, jobStats.getState());
             assertNotNull(jobStats.getNode());
@@ -501,10 +513,17 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
      */
     protected void setMlIndicesDelayedNodeLeftTimeoutToZero() {
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
-        originSettingClient.admin().indices().updateSettings(new UpdateSettingsRequest(".ml-*")
-            .origin(ClientHelper.ML_ORIGIN)
-            .settings(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0).build()))
+        originSettingClient.admin()
+            .indices()
+            .updateSettings(
+                new UpdateSettingsRequest(".ml-*").origin(ClientHelper.ML_ORIGIN)
+                    .settings(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0).build())
+            )
             .actionGet();
+    }
+
+    protected void ensureStableCluster() {
+        ensureStableCluster(internalCluster().getNodeNames().length, TimeValue.timeValueSeconds(60));
     }
 
     public static class MockPainlessScriptEngine extends MockScriptEngine {
@@ -536,8 +555,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             if (context.name.equals("ingest")) {
                 IngestScript.Factory factory = vars -> new IngestScript(vars) {
                     @Override
-                    public void execute(Map<String, Object> ctx) {
-                    }
+                    public void execute(Map<String, Object> ctx) {}
                 };
                 return context.factoryClazz.cast(factory);
             }

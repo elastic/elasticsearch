@@ -135,19 +135,19 @@ teardown:
   - do:
       index:
         index:  index_to_monitor
-        id:     0
+        id:     "0"
         body:   { foo: bar }
 
   - do:
       index:
         index:  index_to_monitor
-        id:     1
+        id:     "1"
         body:   { foo: bar }
 
   - do:
       index:
         index:  index_to_monitor
-        id:     2
+        id:     "2"
         body:   { foo: bar }
 
   - do:

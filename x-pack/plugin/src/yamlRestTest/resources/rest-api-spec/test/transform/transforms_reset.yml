@@ -1,0 +1,179 @@
+setup:
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-start-reset"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-start-reset" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
+            }
+          }
+
+---
+teardown:
+  - do:
+      transform.stop_transform:
+        transform_id: "airline-transform-start-reset"
+        wait_for_completion: true
+        wait_for_checkpoint: false
+        ignore: 404
+  - do:
+      transform.delete_transform:
+        transform_id: "airline-transform-start-reset"
+        ignore: 404
+
+---
+"Test reset transform when it does not exist":
+  - do:
+      catch: missing
+      transform.reset_transform:
+        transform_id: "missing transform"
+
+---
+"Test reset new transform":
+  - do:
+      transform.get_transform_stats:
+        transform_id: "airline-transform-start-reset"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-reset" }
+  - match: { transforms.0.state: "stopped" }
+
+  - do:
+      indices.exists:
+        index: airline-data-by-airline-start-reset
+  - is_false: ''
+
+  - do:
+      transform.reset_transform:
+        transform_id: "airline-transform-start-reset"
+  - match: { acknowledged: true }
+
+  - do:
+      indices.exists:
+        index: airline-data-by-airline-start-reset
+  - is_false: ''
+
+---
+"Test reset running transform":
+  - do:
+      transform.start_transform:
+        transform_id: "airline-transform-start-reset"
+  - match: { acknowledged: true }
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "airline-transform-start-reset"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-reset" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      indices.exists:
+        index: airline-data-by-airline-start-reset
+  - is_true: ''
+
+  - do:
+      catch: /Cannot reset transform \[airline-transform-start-reset\] as the task is running/
+      transform.reset_transform:
+        transform_id: "airline-transform-start-reset"
+
+  - do:
+      indices.exists:
+        index: airline-data-by-airline-start-reset
+  - is_true: ''
+
+---
+"Test reset stopped transform":
+  - do:
+      transform.start_transform:
+        transform_id: "airline-transform-start-reset"
+  - match: { acknowledged: true }
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "airline-transform-start-reset"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-reset" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      transform.stop_transform:
+        transform_id: "airline-transform-start-reset"
+        wait_for_completion: true
+        wait_for_checkpoint: false
+        ignore: 404
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "airline-transform-start-reset"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-reset" }
+  - match: { transforms.0.state: "stopped" }
+
+  - do:
+      indices.exists:
+        index: airline-data-by-airline-start-reset
+  - is_true: ''
+
+  - do:
+      transform.reset_transform:
+        transform_id: "airline-transform-start-reset"
+  - match: { acknowledged: true }
+
+  - do:
+      indices.exists:
+        index: airline-data-by-airline-start-reset
+  - is_false: ''
+
+---
+"Test force reseting a running transform":
+  - do:
+      transform.start_transform:
+        transform_id: "airline-transform-start-reset"
+  - match: { acknowledged: true }
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "airline-transform-start-reset"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-reset" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      indices.exists:
+        index: airline-data-by-airline-start-reset
+  - is_true: ''
+
+  - do:
+      transform.reset_transform:
+        transform_id: "airline-transform-start-reset"
+        force: true
+  - match: { acknowledged: true }
+
+  - do:
+      indices.exists:
+        index: airline-data-by-airline-start-reset
+  - is_false: ''

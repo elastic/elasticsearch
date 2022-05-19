@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -29,8 +29,7 @@ public final class SamlLogoutRequest extends ActionRequest {
         super(in);
     }
 
-    public SamlLogoutRequest() {
-    }
+    public SamlLogoutRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {

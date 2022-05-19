@@ -10,8 +10,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.IpFieldScript;
@@ -45,6 +45,11 @@ public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factor
     @Override
     protected IpFieldScript.Factory dummyScript() {
         return DUMMY;
+    }
+
+    @Override
+    protected IpFieldScript.Factory fromSource() {
+        return IpFieldScript.PARSE_FROM_SOURCE;
     }
 
     public void testTooManyValues() throws IOException {

@@ -13,11 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.painless.action.PainlessExecuteAction.Request.ContextSetup;
@@ -26,6 +21,11 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -62,8 +62,7 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()
-        ).getNamedWriteables());
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
     }
 
     @Override
@@ -92,7 +91,7 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
         assertEquals("Validation Failed: 1: only inline scripts are supported;", e.getMessage());
     }
 
-    private static ContextSetup randomContextSetup()  {
+    private static ContextSetup randomContextSetup() {
         String index = randomBoolean() ? randomAlphaOfLength(4) : null;
         QueryBuilder query = randomBoolean() ? new MatchAllQueryBuilder() : null;
         BytesReference doc = null;

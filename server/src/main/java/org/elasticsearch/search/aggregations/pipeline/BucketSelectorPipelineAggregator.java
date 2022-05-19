@@ -10,8 +10,8 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.script.BucketAggregationSelectorScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
@@ -27,8 +27,13 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
     private Script script;
     private Map<String, String> bucketsPathsMap;
 
-    BucketSelectorPipelineAggregator(String name, Map<String, String> bucketsPathsMap, Script script, GapPolicy gapPolicy,
-            Map<String, Object> metadata) {
+    BucketSelectorPipelineAggregator(
+        String name,
+        Map<String, String> bucketsPathsMap,
+        Script script,
+        GapPolicy gapPolicy,
+        Map<String, Object> metadata
+    ) {
         super(name, bucketsPathsMap.values().toArray(new String[0]), metadata);
         this.bucketsPathsMap = bucketsPathsMap;
         this.script = script;
@@ -36,14 +41,14 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
     }
 
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        @SuppressWarnings({"rawtypes", "unchecked"})
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
-                (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+            (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
-        BucketAggregationSelectorScript.Factory factory =
-            reduceContext.scriptService().compile(script, BucketAggregationSelectorScript.CONTEXT);
+        BucketAggregationSelectorScript.Factory factory = reduceContext.scriptService()
+            .compile(script, BucketAggregationSelectorScript.CONTEXT);
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();

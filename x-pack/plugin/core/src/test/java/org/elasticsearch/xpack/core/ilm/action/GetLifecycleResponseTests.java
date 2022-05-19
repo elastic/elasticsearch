@@ -31,8 +31,14 @@ public class GetLifecycleResponseTests extends AbstractWireSerializingTestCase<R
         String randomPrefix = randomAlphaOfLength(5);
         List<LifecyclePolicyResponseItem> responseItems = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(0, 2); i++) {
-            responseItems.add(new LifecyclePolicyResponseItem(randomTestLifecyclePolicy(randomPrefix + i),
-                randomNonNegativeLong(), randomAlphaOfLength(8), randomUsage()));
+            responseItems.add(
+                new LifecyclePolicyResponseItem(
+                    randomTestLifecyclePolicy(randomPrefix + i),
+                    randomNonNegativeLong(),
+                    randomAlphaOfLength(8),
+                    randomUsage()
+                )
+            );
         }
         return new Response(responseItems);
     }
@@ -44,8 +50,11 @@ public class GetLifecycleResponseTests extends AbstractWireSerializingTestCase<R
 
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
-                        new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, in -> TestLifecycleType.INSTANCE)));
+            Arrays.asList(
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, in -> TestLifecycleType.INSTANCE)
+            )
+        );
     }
 
     @Override
@@ -53,14 +62,26 @@ public class GetLifecycleResponseTests extends AbstractWireSerializingTestCase<R
         List<LifecyclePolicyResponseItem> responseItems = new ArrayList<>(response.getPolicies());
         if (responseItems.size() > 0) {
             if (randomBoolean()) {
-                responseItems.add(new LifecyclePolicyResponseItem(randomTestLifecyclePolicy(randomAlphaOfLength(5)),
-                    randomNonNegativeLong(), randomAlphaOfLength(4), randomUsage()));
+                responseItems.add(
+                    new LifecyclePolicyResponseItem(
+                        randomTestLifecyclePolicy(randomAlphaOfLength(5)),
+                        randomNonNegativeLong(),
+                        randomAlphaOfLength(4),
+                        randomUsage()
+                    )
+                );
             } else {
                 responseItems.remove(0);
             }
         } else {
-            responseItems.add(new LifecyclePolicyResponseItem(randomTestLifecyclePolicy(randomAlphaOfLength(2)),
-                randomNonNegativeLong(), randomAlphaOfLength(4), randomUsage()));
+            responseItems.add(
+                new LifecyclePolicyResponseItem(
+                    randomTestLifecyclePolicy(randomAlphaOfLength(2)),
+                    randomNonNegativeLong(),
+                    randomAlphaOfLength(4),
+                    randomUsage()
+                )
+            );
         }
         return new Response(responseItems);
     }

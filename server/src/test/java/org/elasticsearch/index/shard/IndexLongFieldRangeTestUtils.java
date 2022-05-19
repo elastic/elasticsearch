@@ -16,16 +16,12 @@ import static org.junit.Assert.assertSame;
 public class IndexLongFieldRangeTestUtils {
 
     static IndexLongFieldRange randomRange() {
-        switch (ESTestCase.between(1, 3)) {
-            case 1:
-                return IndexLongFieldRange.UNKNOWN;
-            case 2:
-                return IndexLongFieldRange.EMPTY;
-            case 3:
-                return randomSpecificRange();
-            default:
-                throw new AssertionError("impossible");
-        }
+        return switch (ESTestCase.between(1, 3)) {
+            case 1 -> IndexLongFieldRange.UNKNOWN;
+            case 2 -> IndexLongFieldRange.EMPTY;
+            case 3 -> randomSpecificRange();
+            default -> throw new AssertionError("impossible");
+        };
     }
 
     static IndexLongFieldRange randomSpecificRange() {
@@ -42,9 +38,10 @@ public class IndexLongFieldRangeTestUtils {
                 break;
             } else if (Boolean.TRUE.equals(complete) || randomBoolean()) {
                 range = range.extendWithShardRange(
-                        i,
-                        shardCount,
-                        randomBoolean() ? ShardLongFieldRange.EMPTY : ShardLongFieldRangeWireTests.randomSpecificRange());
+                    i,
+                    shardCount,
+                    randomBoolean() ? ShardLongFieldRange.EMPTY : ShardLongFieldRangeWireTests.randomSpecificRange()
+                );
             }
         }
 
@@ -55,8 +52,8 @@ public class IndexLongFieldRangeTestUtils {
 
     static boolean checkForSameInstances(IndexLongFieldRange expected, IndexLongFieldRange actual) {
         final boolean expectSame = expected == IndexLongFieldRange.UNKNOWN
-                || expected == IndexLongFieldRange.EMPTY
-                || expected == IndexLongFieldRange.NO_SHARDS;
+            || expected == IndexLongFieldRange.EMPTY
+            || expected == IndexLongFieldRange.NO_SHARDS;
         if (expectSame) {
             assertSame(expected, actual);
         }

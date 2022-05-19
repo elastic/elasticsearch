@@ -26,7 +26,6 @@ import java.util.List;
  * Specifying {@code "docvalue_fields": ["field1", "field2"]}
  */
 public final class FetchDocValuesPhase implements FetchSubPhase {
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
         FetchDocValuesContext dvContext = context.docValuesContext();
@@ -70,7 +69,10 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                         // docValues fields will still be document fields, and put under "fields" section of a hit.
                         hit.hit().setDocumentField(f.field, hitField);
                     }
-                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.sourceLookup()));
+                    List<Object> ignoredValues = new ArrayList<>();
+                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.sourceLookup(), ignoredValues));
+                    // Doc value fetches should not return any ignored values
+                    assert ignoredValues.isEmpty();
                 }
             }
         };

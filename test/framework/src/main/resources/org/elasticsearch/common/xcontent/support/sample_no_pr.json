@@ -1,0 +1,22 @@
+{
+  "title" : "My awesome book",
+  "pages" : 456,
+  "timestamp" : 1428582942867,
+  "default" : null,
+  "tags" : [
+    "elasticsearch",
+    "java"
+  ],
+  "authors" : [
+    {
+      "name" : "John Doe",
+      "lastname" : "John",
+      "firstname" : "Doe"
+    },
+    {
+      "name" : "William Smith",
+      "lastname" : "William",
+      "firstname" : "Smith"
+    }
+  ]
+}

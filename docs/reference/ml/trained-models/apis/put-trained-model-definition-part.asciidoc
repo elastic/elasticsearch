@@ -1,0 +1,83 @@
+[role="xpack"]
+[[put-trained-model-definition-part]]
+= Create trained model definition part API
+[subs="attributes"]
+++++
+<titleabbrev>Create part of a trained model</titleabbrev>
+++++
+
+Creates part of a trained model definition.
+
+preview::[]
+
+[[ml-put-trained-model-definition-part-request]]
+== {api-request-title}
+
+`PUT _ml/trained_models/<model_id>/definition/<part_num>`
+
+
+[[ml-put-trained-model-definition-part-prereq]]
+== {api-prereq-title}
+
+Requires the `manage_ml` cluster privilege. This privilege is included in the
+`machine_learning_admin` built-in role.
+
+
+[[ml-put-trained-model-definition-part-path-params]]
+== {api-path-parms-title}
+
+`<model_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+`<part>`::
+(Required, number)
+The definition part number. When the definition is loaded for inference
+the definition parts will be streamed in order of their `part_num`.
+The first part must be `0` and the final part must be `total_parts - 1`.
+
+[[ml-put-trained-model-definition-part-request-body]]
+== {api-request-body-title}
+
+`definition`::
+(Required, string)
+The definition part for the model. Must be a base64 encoded string.
+
+`total_definition_length`::
+(Required, number)
+The total uncompressed definition length in bytes. Not base64 encoded.
+
+`total_parts`::
+(Required, number)
+The total number of parts that will be uploaded. Must be greater than 0.
+
+[[ml-put-trained-model-definition-part-example]]
+== {api-examples-title}
+
+The following example creates a model definition part for a previously
+stored model configuration. The definition part is stored in the index
+that is configured by the `location.index.name`.
+
+
+NOTE: The value of the `definition` object is elided from the example
+as it is a very large base64 encoded string.
+
+[source,console]
+--------------------------------------------------
+PUT _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/definition/0
+{
+    "definition": "...",
+    "total_definition_length": 265632637,
+    "total_parts": 64
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+    "acknowledged": true
+}
+----

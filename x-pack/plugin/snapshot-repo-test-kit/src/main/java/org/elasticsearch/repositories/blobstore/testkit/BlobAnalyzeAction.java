@@ -33,9 +33,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -48,6 +45,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -438,13 +438,13 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         }
 
         private void cancelReadsCleanUpAndReturnFailure(Exception exception) {
-            transportService.getTaskManager().cancelTaskAndDescendants(task, "task failed", false, ActionListener.wrap(() -> {}));
+            transportService.getTaskManager().cancelTaskAndDescendants(task, "task failed", false, ActionListener.noop());
             cleanUpAndReturnFailure(exception);
         }
 
         private void cleanUpAndReturnFailure(Exception exception) {
             if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("analysis failed [{}] cleaning up", request.getDescription()), exception);
+                logger.trace(() -> "analysis failed [" + request.getDescription() + "] cleaning up", exception);
             }
             try {
                 blobContainer.deleteBlobsIgnoringIfNotExists(Iterators.single(request.blobName));

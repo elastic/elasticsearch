@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.test.ESTestCase;
@@ -44,7 +44,8 @@ public class EvilKeyStoreWrapperTests extends ESTestCase {
                 Locale.ROOT,
                 "unable to create temporary keystore at [%s], write permissions required for [%s] or run [elasticsearch-keystore upgrade]",
                 configDir.resolve("elasticsearch.keystore.tmp"),
-                configDir);
+                configDir
+            );
             assertThat(e, hasToString(containsString(expected)));
             assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
             assertThat(e.getCause(), instanceOf(AccessDeniedException.class));

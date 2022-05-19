@@ -11,6 +11,9 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
@@ -23,15 +26,17 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
 
     private static final BigIntArray ESTIMATOR = new BigIntArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    private int[][] pages;
+    static final VarHandle VH_PLATFORM_NATIVE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
+
+    private byte[][] pages;
 
     /** Constructor. */
     BigIntArray(long size, BigArrays bigArrays, boolean clearOnResize) {
         super(INT_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
-        pages = new int[numPages(size)][];
+        pages = new byte[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newIntPage(i);
+            pages[i] = newBytePage(i);
         }
     }
 
@@ -39,16 +44,16 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
     public int get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return pages[pageIndex][indexInPage];
+        return (int) VH_PLATFORM_NATIVE_INT.get(pages[pageIndex], indexInPage << 2);
     }
 
     @Override
     public int set(long index, int value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final int[] page = pages[pageIndex];
-        final int ret = page[indexInPage];
-        page[indexInPage] = value;
+        final byte[] page = pages[pageIndex];
+        final int ret = (int) VH_PLATFORM_NATIVE_INT.get(page, indexInPage << 2);
+        VH_PLATFORM_NATIVE_INT.set(page, indexInPage << 2, value);
         return ret;
     }
 
@@ -56,7 +61,10 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
     public int increment(long index, int inc) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return pages[pageIndex][indexInPage] += inc;
+        final byte[] page = pages[pageIndex];
+        final int newVal = (int) VH_PLATFORM_NATIVE_INT.get(page, indexInPage << 2) + inc;
+        VH_PLATFORM_NATIVE_INT.set(page, indexInPage << 2, newVal);
+        return newVal;
     }
 
     @Override
@@ -67,13 +75,20 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);
         if (fromPage == toPage) {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
+            fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
         } else {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), pages[fromPage].length, value);
+            fill(pages[fromPage], indexInPage(fromIndex), pageSize(), value);
             for (int i = fromPage + 1; i < toPage; ++i) {
-                Arrays.fill(pages[i], value);
+                fill(pages[i], 0, pageSize(), value);
             }
-            Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
+            fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
+        }
+    }
+
+    public static void fill(byte[] page, int from, int to, int value) {
+        if (from < to) {
+            VH_PLATFORM_NATIVE_INT.set(page, from << 2, value);
+            fillBySelfCopy(page, from << 2, to << 2, Integer.BYTES);
         }
     }
 
@@ -90,7 +105,7 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
             pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newIntPage(i);
+            pages[i] = newBytePage(i);
         }
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;
@@ -104,4 +119,8 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
         return ESTIMATOR.ramBytesEstimated(size);
     }
 
+    @Override
+    public void set(long index, byte[] buf, int offset, int len) {
+        set(index, buf, offset, len, pages, 2);
+    }
 }

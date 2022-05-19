@@ -28,7 +28,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
@@ -41,6 +41,7 @@ import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,6 +59,8 @@ import java.util.function.Supplier;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+
+import static org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin.ENCRYPTED_SNAPSHOT_FEATURE;
 
 public class EncryptedRepository extends BlobStoreRepository {
     static final Logger logger = LogManager.getLogger(EncryptedRepository.class);
@@ -177,7 +180,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     public Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
         // because populating the snapshot metadata must be done before the actual snapshot is first initialized,
         // we take the opportunity to validate the license and abort if non-compliant
-        if (false == licenseStateSupplier.get().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
+        if (false == ENCRYPTED_SNAPSHOT_FEATURE.checkWithoutTracking(licenseStateSupplier.get())) {
             throw LicenseUtils.newComplianceException("encrypted snapshots");
         }
         Map<String, Object> snapshotUserMetadata = new HashMap<>();
@@ -294,6 +297,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         this.delegatedRepository.close();
     }
 
+    @SuppressWarnings("HiddenField")
     private Supplier<Tuple<BytesReference, SecretKey>> createDEKGenerator() throws GeneralSecurityException {
         // DEK and DEK Ids MUST be generated randomly (with independent random instances)
         // the rand algo is not pinned so that it goes well with various providers (eg FIPS)
@@ -624,7 +628,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 )
             ) {
                 try (InputStream encryptedInputStream = encryptedInput(bytes.streamInput(), singleUseNonceAndDEK, dekIdBytes)) {
-                    org.elasticsearch.core.internal.io.Streams.copy(encryptedInputStream, tmp, false);
+                    org.elasticsearch.core.Streams.copy(encryptedInputStream, tmp, false);
                 }
                 delegatedBlobContainer.writeBlob(blobName, tmp.bytes(), failIfAlreadyExists);
             }
@@ -703,7 +707,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         @Override
         public Map<String, BlobContainer> children() throws IOException {
             final Map<String, BlobContainer> childEncryptedBlobContainers = delegatedBlobContainer.children();
-            final Map<String, BlobContainer> resultBuilder = new HashMap<>(childEncryptedBlobContainers.size());
+            final Map<String, BlobContainer> resultBuilder = Maps.newMapWithExpectedSize(childEncryptedBlobContainers.size());
             for (Map.Entry<String, BlobContainer> childBlobContainer : childEncryptedBlobContainers.entrySet()) {
                 if (childBlobContainer.getKey().equals(DEK_ROOT_CONTAINER) && path().parts().isEmpty()) {
                     // do not descend into the DEK blob container

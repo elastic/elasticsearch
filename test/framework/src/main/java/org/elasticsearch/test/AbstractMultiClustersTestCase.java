@@ -10,16 +10,15 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -93,13 +92,28 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         for (String clusterAlias : clusterAliases) {
             final String clusterName = clusterAlias.equals(LOCAL_CLUSTER) ? "main-cluster" : clusterAlias;
             final int numberOfNodes = randomIntBetween(1, 3);
-            final List<Class<? extends Plugin>> mockPlugins =
-                List.of(MockHttpTransport.TestPlugin.class, MockTransportService.TestPlugin.class, MockNioTransportPlugin.class);
+            final List<Class<? extends Plugin>> mockPlugins = List.of(
+                MockHttpTransport.TestPlugin.class,
+                MockTransportService.TestPlugin.class,
+                getTestTransportPlugin()
+            );
             final Collection<Class<? extends Plugin>> nodePlugins = nodePlugins(clusterAlias);
 
             final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings(), nodePlugins);
-            final InternalTestCluster cluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodes,
-                numberOfNodes, clusterName, nodeConfigurationSource, 0, clusterName + "-", mockPlugins, Function.identity());
+            final InternalTestCluster cluster = new InternalTestCluster(
+                randomLong(),
+                createTempDir(),
+                true,
+                true,
+                numberOfNodes,
+                numberOfNodes,
+                clusterName,
+                nodeConfigurationSource,
+                0,
+                clusterName + "-",
+                mockPlugins,
+                Function.identity()
+            );
             cluster.beforeTest(random());
             clusters.put(clusterAlias, cluster);
         }
@@ -109,9 +123,13 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
     @Override
     public List<String> filteredWarnings() {
-        return Stream.concat(super.filteredWarnings().stream(),
-            List.of("Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
-            "multiple disks. This feature will be removed in 8.0.").stream()).collect(Collectors.toList());
+        return Stream.concat(
+            super.filteredWarnings().stream(),
+            List.of(
+                "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing "
+                    + "multiple disks. This feature will be removed in a future release."
+            ).stream()
+        ).collect(Collectors.toList());
     }
 
     @After
@@ -120,6 +138,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             cluster.wipe(Set.of());
             cluster.assertAfterTest();
         }
+        ESIntegTestCase.awaitGlobalNettyThreadsFinish();
     }
 
     @AfterClass
@@ -134,6 +153,8 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         for (String clusterAlias : clusterAliases) {
             if (clusterAlias.equals(LOCAL_CLUSTER) == false) {
                 settings.putNull("cluster.remote." + clusterAlias + ".seeds");
+                settings.putNull("cluster.remote." + clusterAlias + ".mode");
+                settings.putNull("cluster.remote." + clusterAlias + ".proxy_address");
             }
         }
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
@@ -157,18 +178,18 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
     protected void configureRemoteCluster(String clusterAlias, Collection<String> seedNodes) throws Exception {
         Settings.Builder settings = Settings.builder();
-        final String seed = seedNodes.stream()
-            .map(node -> {
-                final TransportService transportService = cluster(clusterAlias).getInstance(TransportService.class, node);
-                return transportService.boundAddress().publishAddress().toString();
-            })
-            .collect(Collectors.joining(","));
+        final String seed = seedNodes.stream().map(node -> {
+            final TransportService transportService = cluster(clusterAlias).getInstance(TransportService.class, node);
+            return transportService.boundAddress().publishAddress().toString();
+        }).collect(Collectors.joining(","));
         settings.put("cluster.remote." + clusterAlias + ".seeds", seed);
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
         assertBusy(() -> {
-            List<RemoteConnectionInfo> remoteConnectionInfos = client()
-                .execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).actionGet().getInfos()
-                .stream().filter(c -> c.isConnected() && c.getClusterAlias().equals(clusterAlias))
+            List<RemoteConnectionInfo> remoteConnectionInfos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest())
+                .actionGet()
+                .getInfos()
+                .stream()
+                .filter(c -> c.isConnected() && c.getClusterAlias().equals(clusterAlias))
                 .collect(Collectors.toList());
             assertThat(remoteConnectionInfos, not(empty()));
         });

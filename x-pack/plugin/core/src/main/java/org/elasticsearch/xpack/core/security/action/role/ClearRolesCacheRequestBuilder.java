@@ -7,13 +7,15 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * Request builder for the {@link ClearRolesCacheRequest}
  */
-public class ClearRolesCacheRequestBuilder extends NodesOperationRequestBuilder<ClearRolesCacheRequest, ClearRolesCacheResponse,
-        ClearRolesCacheRequestBuilder> {
+public class ClearRolesCacheRequestBuilder extends NodesOperationRequestBuilder<
+    ClearRolesCacheRequest,
+    ClearRolesCacheResponse,
+    ClearRolesCacheRequestBuilder> {
 
     public ClearRolesCacheRequestBuilder(ElasticsearchClient client) {
         this(client, ClearRolesCacheAction.INSTANCE, new ClearRolesCacheRequest());

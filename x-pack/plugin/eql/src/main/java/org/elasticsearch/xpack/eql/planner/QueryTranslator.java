@@ -78,9 +78,9 @@ final class QueryTranslator {
             if (translation instanceof ScriptQuery) {
                 // check the operators and the expressions involved in these operations so that all can be used
                 // in a doc-values multi-valued context
-                boolean multiValuedIncompatible = e.anyMatch(exp -> {
-                    return false == (exp instanceof Literal || exp instanceof FieldAttribute || exp instanceof Function);
-                });
+                boolean multiValuedIncompatible = e.anyMatch(
+                    exp -> { return false == (exp instanceof Literal || exp instanceof FieldAttribute || exp instanceof Function); }
+                );
                 if (multiValuedIncompatible == false) {
                     ScriptQuery query = (ScriptQuery) translation;
                     return new MultiValueAwareScriptQuery(query.source(), Scripts.multiValueDocValuesRewrite(query.script()));
@@ -105,32 +105,33 @@ final class QueryTranslator {
         }
 
         public static void checkInsensitiveComparison(InsensitiveBinaryComparison bc) {
-            Check.isTrue(bc.right().foldable(),
+            Check.isTrue(
+                bc.right().foldable(),
                 "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
-                bc.right().sourceLocation().getLineNumber(), bc.right().sourceLocation().getColumnNumber(),
-                Expressions.name(bc.right()), bc.symbol());
+                bc.right().sourceLocation().getLineNumber(),
+                bc.right().sourceLocation().getColumnNumber(),
+                Expressions.name(bc.right()),
+                bc.symbol()
+            );
         }
 
         private static Query translate(InsensitiveBinaryComparison bc, TranslatorHandler handler) {
+            FieldAttribute field = checkIsFieldAttribute(bc.left());
             Source source = bc.source();
-            String name = handler.nameOf(bc.left());
             Object value = valueOf(bc.right());
 
             if (bc instanceof InsensitiveEquals || bc instanceof InsensitiveNotEquals) {
-                if (bc.left() instanceof FieldAttribute) {
-                    // equality should always be against an exact match
-                    // (which is important for strings)
-                    name = ((FieldAttribute) bc.left()).exactAttribute().name();
-                }
+                // equality should always be against an exact match
+                // (which is important for strings)
+                String name = field.exactAttribute().name();
+
                 Query query = new TermQuery(source, name, value, true);
 
                 if (bc instanceof InsensitiveNotEquals) {
                     query = new NotQuery(source, query);
                 }
-
                 return query;
             }
-
             throw new QlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(), bc);
         }
     }
@@ -165,8 +166,7 @@ final class QueryTranslator {
         }
 
         public static Query doTranslate(ScalarFunction f, TranslatorHandler handler) {
-            if (f instanceof CIDRMatch) {
-                CIDRMatch cm = (CIDRMatch) f;
+            if (f instanceof CIDRMatch cm) {
                 if (cm.input() instanceof FieldAttribute && Expressions.foldable(cm.addresses())) {
                     String targetFieldName = handler.nameOf(((FieldAttribute) cm.input()).exactAttribute());
 
@@ -197,8 +197,7 @@ final class QueryTranslator {
                 return q;
             }
 
-            if (f instanceof BinaryComparisonCaseInsensitiveFunction) {
-                BinaryComparisonCaseInsensitiveFunction bccif = (BinaryComparisonCaseInsensitiveFunction) f;
+            if (f instanceof BinaryComparisonCaseInsensitiveFunction bccif) {
 
                 String targetFieldName = null;
                 String wildcardQuery = null;

@@ -16,9 +16,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -27,6 +24,9 @@ import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -64,7 +64,8 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             builder.field("ip", nodeInfo.getNode().getHostAddress());
 
             builder.field("version", nodeInfo.getVersion());
-            builder.field("build_flavor", nodeInfo.getBuild().flavor().displayName());
+            // flavor no longer exists, but we keep it here for backcompat
+            builder.field("build_flavor", "default");
             builder.field("build_type", nodeInfo.getBuild().type().displayName());
             builder.field("build_hash", nodeInfo.getBuild().hash());
             if (nodeInfo.getTotalIndexingBuffer() != null) {

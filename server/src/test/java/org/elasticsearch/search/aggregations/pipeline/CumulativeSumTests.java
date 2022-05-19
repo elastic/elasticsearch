@@ -10,14 +10,13 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 
 import java.io.IOException;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class CumulativeSumTests extends BasePipelineAggregationTestCase<CumulativeSumPipelineAggregationBuilder> {
     @Override
@@ -32,22 +31,33 @@ public class CumulativeSumTests extends BasePipelineAggregationTestCase<Cumulati
     }
 
     public void testValidate() throws IOException {
-        assertThat(validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(),
-                new CumulativeSumPipelineAggregationBuilder("name", "valid")), nullValue());
+        assertThat(
+            validate(
+                PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(),
+                new CumulativeSumPipelineAggregationBuilder("name", "valid")
+            ),
+            nullValue()
+        );
     }
 
     public void testInvalidParent() throws IOException {
-        AggregationBuilder parent = mock(AggregationBuilder.class);
-        when(parent.getName()).thenReturn("name");
-
-        assertThat(validate(parent, new CumulativeSumPipelineAggregationBuilder("name", "invalid_agg>metric")), equalTo(
+        AggregationBuilder parent = new TermsAggregationBuilder("name");
+        assertThat(
+            validate(parent, new CumulativeSumPipelineAggregationBuilder("name", "invalid_agg>metric")),
+            equalTo(
                 "Validation Failed: 1: cumulative_sum aggregation [name] must have a histogram, date_histogram "
-                + "or auto_date_histogram as parent;"));
+                    + "or auto_date_histogram as parent;"
+            )
+        );
     }
 
     public void testNoParent() throws IOException {
-        assertThat(validate(emptyList(), new CumulativeSumPipelineAggregationBuilder("name", "invalid_agg>metric")), equalTo(
+        assertThat(
+            validate(emptyList(), new CumulativeSumPipelineAggregationBuilder("name", "invalid_agg>metric")),
+            equalTo(
                 "Validation Failed: 1: cumulative_sum aggregation [name] must have a histogram, date_histogram "
-                + "or auto_date_histogram as parent but doesn't have a parent;"));
+                    + "or auto_date_histogram as parent but doesn't have a parent;"
+            )
+        );
     }
 }

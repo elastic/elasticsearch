@@ -76,6 +76,21 @@ null           |48396.28571428572|62140.666666666664
 // end::averageWithTwoValuesAndAlias
 ;
 
+averageWithTwoValuesAndAlias-DuplicateDropAndReorderColumns
+schema::c1:d|c2:d|languages:bt|c3:d
+SELECT XY as c1, XY as c2, languages, XY as c3 FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M' AS "XY", 'F' "XX"));
+
+       c1        |       c2        |   languages   |       c3
+-----------------+-----------------+---------------+-----------------
+48396.28571428572|48396.28571428572|null           |48396.28571428572
+49767.22222222222|49767.22222222222|1              |49767.22222222222
+44103.90909090909|44103.90909090909|2              |44103.90909090909
+51741.90909090909|51741.90909090909|3              |51741.90909090909
+47058.90909090909|47058.90909090909|4              |47058.90909090909
+39052.875        |39052.875        |5              |39052.875
+
+;
+
 averageWithThreeValuesIncludingNull
 schema::languages:bt|'M':d|'F':d
 SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M', 'F'));

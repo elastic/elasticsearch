@@ -8,10 +8,11 @@ package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class DeleteUserRequestBuilder extends ActionRequestBuilder<DeleteUserRequest, DeleteUserResponse>
-        implements WriteRequestBuilder<DeleteUserRequestBuilder> {
+    implements
+        WriteRequestBuilder<DeleteUserRequestBuilder> {
 
     public DeleteUserRequestBuilder(ElasticsearchClient client) {
         this(client, DeleteUserAction.INSTANCE);

@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.security;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.document.DocumentField;
@@ -29,6 +32,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+
+@SuppressWarnings("removal")
 public class PermissionsIT extends ESRestTestCase {
 
     private static HighLevelClient highLevelClient;
@@ -64,34 +70,46 @@ public class PermissionsIT extends ESRestTestCase {
 
     public void testDLS() throws IOException {
         Request createIndex = new Request("PUT", "/dls");
-        createIndex.setJsonEntity(
-            "{\n"
-                + "    \"mappings\" : {\n"
-                + "        \"runtime\" : {\n"
-                + "            \"year\" : {\n"
-                + "              \"type\" : \"keyword\", \n"
-                + "              \"script\" : \"emit(doc['date'].value.substring(0,4))\"\n"
-                + "            }\n"
-                + "        },\n"
-                + "        \"properties\" : {\n"
-                + "            \"date\" : {\"type\" : \"keyword\"}\n"
-                + "        }\n"
-                + "    }\n"
-                + "}\n"
-        );
+        createIndex.setJsonEntity("""
+            {
+                "mappings" : {
+                    "runtime" : {
+                        "year" : {
+                          "type" : "keyword",\s
+                          "script" : "emit(doc['date'].value.substring(0,4))"
+                        }
+                    },
+                    "properties" : {
+                        "date" : {"type" : "keyword"}
+                    }
+                }
+            }
+            """);
         assertOK(adminClient().performRequest(createIndex));
 
         Request indexDoc1 = new Request("PUT", "/dls/_doc/1");
-        indexDoc1.setJsonEntity("{\n" + "    \"date\" : \"2009-11-15T14:12:12\"\n" + "}\n");
+        indexDoc1.setJsonEntity("""
+            {
+                "date" : "2009-11-15T14:12:12"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc1));
 
         Request indexDoc2 = new Request("PUT", "/dls/_doc/2");
-        indexDoc2.setJsonEntity("{\n" + "    \"date\" : \"2016-11-15T14:12:12\"\n" + "}\n");
+        indexDoc2.setJsonEntity("""
+            {
+                "date" : "2016-11-15T14:12:12"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc2));
 
         Request indexDoc3 = new Request("PUT", "/dls/_doc/3");
         indexDoc3.addParameter("refresh", "true");
-        indexDoc3.setJsonEntity("{\n" + "    \"date\" : \"2018-11-15T14:12:12\"\n" + "}\n");
+        indexDoc3.setJsonEntity("""
+            {
+                "date" : "2018-11-15T14:12:12"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc3));
 
         SearchRequest searchRequest = new SearchRequest("dls");
@@ -107,34 +125,46 @@ public class PermissionsIT extends ESRestTestCase {
 
     public void testFLSProtectsData() throws IOException {
         Request createIndex = new Request("PUT", "/fls");
-        createIndex.setJsonEntity(
-            "{\n"
-                + "    \"mappings\" : {\n"
-                + "        \"runtime\" : {\n"
-                + "            \"hidden_values_count\" : {\n"
-                + "              \"type\" : \"long\", \n"
-                + "              \"script\" : \"emit(doc['hidden'].size())\"\n"
-                + "            }\n"
-                + "        },\n"
-                + "        \"properties\" : {\n"
-                + "            \"hidden\" : {\"type\" : \"keyword\"}\n"
-                + "        }\n"
-                + "    }\n"
-                + "}\n"
-        );
+        createIndex.setJsonEntity("""
+            {
+                "mappings" : {
+                    "runtime" : {
+                        "hidden_values_count" : {
+                          "type" : "long",\s
+                          "script" : "emit(doc['hidden'].size())"
+                        }
+                    },
+                    "properties" : {
+                        "hidden" : {"type" : "keyword"}
+                    }
+                }
+            }
+            """);
         assertOK(adminClient().performRequest(createIndex));
 
         Request indexDoc1 = new Request("PUT", "/fls/_doc/1");
-        indexDoc1.setJsonEntity("{\n" + "    \"hidden\" : \"should not be read\"\n" + "}\n");
+        indexDoc1.setJsonEntity("""
+            {
+                "hidden" : "should not be read"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc1));
 
         Request indexDoc2 = new Request("PUT", "/fls/_doc/2");
-        indexDoc2.setJsonEntity("{\n" + "    \"hidden\" : \"should not be read\"\n" + "}\n");
+        indexDoc2.setJsonEntity("""
+            {
+                "hidden" : "should not be read"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc2));
 
         Request indexDoc3 = new Request("PUT", "/fls/_doc/3");
         indexDoc3.addParameter("refresh", "true");
-        indexDoc3.setJsonEntity("{\n" + "    \"hidden\" : \"should not be read\"\n" + "}\n");
+        indexDoc3.setJsonEntity("""
+            {
+                "hidden" : "should not be read"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc3));
 
         SearchRequest searchRequest = new SearchRequest("fls").source(new SearchSourceBuilder().docValueField("hidden_values_count"));
@@ -157,34 +187,46 @@ public class PermissionsIT extends ESRestTestCase {
 
     public void testFLSOnRuntimeField() throws IOException {
         Request createIndex = new Request("PUT", "/fls");
-        createIndex.setJsonEntity(
-            "{\n"
-                + "    \"mappings\" : {\n"
-                + "        \"runtime\" : {\n"
-                + "            \"year\" : {\n"
-                + "              \"type\" : \"keyword\", \n"
-                + "              \"script\" : \"emit(doc['date'].value.substring(0,4))\"\n"
-                + "            }\n"
-                + "        },\n"
-                + "        \"properties\" : {\n"
-                + "            \"date\" : {\"type\" : \"keyword\"}\n"
-                + "        }\n"
-                + "    }\n"
-                + "}\n"
-        );
+        createIndex.setJsonEntity("""
+            {
+                "mappings" : {
+                    "runtime" : {
+                        "year" : {
+                          "type" : "keyword",\s
+                          "script" : "emit(doc['date'].value.substring(0,4))"
+                        }
+                    },
+                    "properties" : {
+                        "date" : {"type" : "keyword"}
+                    }
+                }
+            }
+            """);
         assertOK(adminClient().performRequest(createIndex));
 
         Request indexDoc1 = new Request("PUT", "/fls/_doc/1");
-        indexDoc1.setJsonEntity("{\n" + "    \"date\" : \"2009-11-15T14:12:12\"\n" + "}\n");
+        indexDoc1.setJsonEntity("""
+            {
+                "date" : "2009-11-15T14:12:12"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc1));
 
         Request indexDoc2 = new Request("PUT", "/fls/_doc/2");
-        indexDoc2.setJsonEntity("{\n" + "    \"date\" : \"2016-11-15T14:12:12\"\n" + "}\n");
+        indexDoc2.setJsonEntity("""
+            {
+                "date" : "2016-11-15T14:12:12"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc2));
 
         Request indexDoc3 = new Request("PUT", "/fls/_doc/3");
         indexDoc3.addParameter("refresh", "true");
-        indexDoc3.setJsonEntity("{\n" + "    \"date\" : \"2018-11-15T14:12:12\"\n" + "}\n");
+        indexDoc3.setJsonEntity("""
+            {
+                "date" : "2018-11-15T14:12:12"
+            }
+            """);
         assertOK(adminClient().performRequest(indexDoc3));
 
         // There is no FLS directly on runtime fields
@@ -195,17 +237,10 @@ public class PermissionsIT extends ESRestTestCase {
             Map<String, DocumentField> fields = hit.getFields();
             assertEquals(1, fields.size());
             switch (hit.getId()) {
-                case "1":
-                    assertEquals("2009", fields.get("year").getValue().toString());
-                    break;
-                case "2":
-                    assertEquals("2016", fields.get("year").getValue().toString());
-                    break;
-                case "3":
-                    assertEquals("2018", fields.get("year").getValue().toString());
-                    break;
-                default:
-                    throw new UnsupportedOperationException();
+                case "1" -> assertEquals("2009", fields.get("year").getValue().toString());
+                case "2" -> assertEquals("2016", fields.get("year").getValue().toString());
+                case "3" -> assertEquals("2018", fields.get("year").getValue().toString());
+                default -> throw new UnsupportedOperationException();
             }
         }
 
@@ -220,6 +255,63 @@ public class PermissionsIT extends ESRestTestCase {
             FieldCapabilitiesResponse fieldCapabilitiesResponse = highLevelClient.fieldCaps(fieldCapsRequest, RequestOptions.DEFAULT);
             assertEquals(0, fieldCapabilitiesResponse.get().size());
         }
+    }
+
+    public void testPainlessExecuteWithIndexRequiresReadPrivileges() throws IOException {
+        Request createIndex = new Request("PUT", "/fls");
+        createIndex.setJsonEntity("""
+            {
+                "mappings" : {
+                    "properties" : {
+                        "@timestamp" : {"type" : "date"}
+                    }
+                }
+            }
+            """);
+        assertOK(adminClient().performRequest(createIndex));
+
+        Request painlessExecute = new Request("POST", "/_scripts/painless/_execute");
+        painlessExecute.setJsonEntity("""
+            {
+              "script": {
+                "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));"
+              },
+              "context": "keyword_field",
+              "context_setup": {
+                "index": "fls",
+                "document": {
+                  "@timestamp": "2020-04-30T14:31:43-05:00"
+                }
+              }
+            }
+            """);
+        Response response = client().performRequest(painlessExecute);
+        assertOK(response);
+        assertThat(EntityUtils.toString(response.getEntity()), containsString("Thursday"));
+    }
+
+    public void testPainlessExecuteWithoutIndexRequiresClusterPrivileges() {
+        Request painlessExecute = new Request("POST", "/_scripts/painless/_execute");
+        painlessExecute.setJsonEntity("""
+            {
+              "script": {
+                "source": "params.count / params.total",
+                "params": {
+                  "count": 100.0,
+                  "total": 1000.0
+                }
+              }
+            }
+            """);
+        ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(painlessExecute));
+        assertEquals(403, responseException.getResponse().getStatusLine().getStatusCode());
+        assertThat(
+            responseException.getMessage(),
+            containsString(
+                "action [cluster:admin/scripts/painless/execute] is "
+                    + "unauthorized for user [test] with roles [test], this action is granted by the cluster privileges [manage,all]\"}]"
+            )
+        );
     }
 
     private static class HighLevelClient extends RestHighLevelClient {

@@ -10,8 +10,8 @@ package org.elasticsearch.common.io;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
@@ -93,7 +93,6 @@ public final class FileSystemUtils {
             }
         }
     }
-
 
     /**
      * Check that a directory exists, is a directory and is readable

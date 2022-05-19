@@ -27,9 +27,7 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
             int dayOfWeek = zdt.get(ChronoField.DAY_OF_WEEK) + 1;
             return dayOfWeek == 8 ? 1 : dayOfWeek;
         }),
-        WEEK_OF_YEAR(zdt -> {
-            return zdt.get(WeekFields.SUNDAY_START.weekOfYear());
-        });
+        WEEK_OF_YEAR(zdt -> { return zdt.get(WeekFields.SUNDAY_START.weekOfYear()); });
 
         private final Function<ZonedDateTime, Integer> apply;
 
@@ -90,8 +88,7 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
             return false;
         }
         NonIsoDateTimeProcessor other = (NonIsoDateTimeProcessor) obj;
-        return Objects.equals(extractor, other.extractor)
-                && Objects.equals(zoneId(), other.zoneId());
+        return Objects.equals(extractor, other.extractor) && Objects.equals(zoneId(), other.zoneId());
     }
 
     @Override

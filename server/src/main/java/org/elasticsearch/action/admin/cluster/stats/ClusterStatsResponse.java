@@ -16,9 +16,9 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,14 +52,16 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         indicesStats = new ClusterStatsIndices(getNodes(), mappingStats, analysisStats, versionStats);
     }
 
-    public ClusterStatsResponse(long timestamp,
-                                String clusterUUID,
-                                ClusterName clusterName,
-                                List<ClusterStatsNodeResponse> nodes,
-                                List<FailedNodeException> failures,
-                                MappingStats mappingStats,
-                                AnalysisStats analysisStats,
-                                VersionStats versionStats) {
+    public ClusterStatsResponse(
+        long timestamp,
+        String clusterUUID,
+        ClusterName clusterName,
+        List<ClusterStatsNodeResponse> nodes,
+        List<FailedNodeException> failures,
+        MappingStats mappingStats,
+        AnalysisStats analysisStats,
+        VersionStats versionStats
+    ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;

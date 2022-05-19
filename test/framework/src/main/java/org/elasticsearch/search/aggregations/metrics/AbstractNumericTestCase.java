@@ -13,7 +13,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public abstract class AbstractNumericTestCase extends ESIntegTestCase {
@@ -28,11 +28,19 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
 
         final int numDocs = 10;
         for (int i = 0; i < numDocs; i++) { // TODO randomize the size and the params in here?
-            builders.add(client().prepareIndex("idx").setId(String.valueOf(i)).setSource(jsonBuilder()
-                    .startObject()
-                    .field("value", i+1)
-                    .startArray("values").value(i+2).value(i+3).endArray()
-                    .endObject()));
+            builders.add(
+                client().prepareIndex("idx")
+                    .setId(String.valueOf(i))
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field("value", i + 1)
+                            .startArray("values")
+                            .value(i + 2)
+                            .value(i + 3)
+                            .endArray()
+                            .endObject()
+                    )
+            );
         }
         minValue = 1;
         minValues = 2;
@@ -47,10 +55,11 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
         prepareCreate("empty_bucket_idx").setMapping("value", "type=integer").execute().actionGet();
         builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx").setId(String.valueOf(i)).setSource(jsonBuilder()
-                    .startObject()
-                    .field("value", i*2)
-                    .endObject()));
+            builders.add(
+                client().prepareIndex("empty_bucket_idx")
+                    .setId(String.valueOf(i))
+                    .setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
+            );
         }
         indexRandom(true, builders);
         ensureSearchable();

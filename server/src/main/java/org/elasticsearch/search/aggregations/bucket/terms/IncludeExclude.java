@@ -7,10 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import com.carrotsearch.hppc.BitMixer;
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -24,16 +20,18 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -69,15 +67,20 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             throw new IllegalArgumentException("Cannot specify any excludes when using a partition-based include");
         }
 
-        return new IncludeExclude(include.include, exclude.exclude, include.includeValues, exclude.excludeValues);
+        return new IncludeExclude(
+            include.include == null ? null : include.include.getOriginalString(),
+            exclude.exclude == null ? null : exclude.exclude.getOriginalString(),
+            include.includeValues,
+            exclude.excludeValues
+        );
     }
 
     public static IncludeExclude parseInclude(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
-            return new IncludeExclude(parser.text(), null);
+            return new IncludeExclude(parser.text(), null, null, null);
         } else if (token == XContentParser.Token.START_ARRAY) {
-            return new IncludeExclude(new TreeSet<>(parseArrayToSet(parser)), null);
+            return new IncludeExclude(null, null, new TreeSet<>(parseArrayToSet(parser)), null);
         } else if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
             Integer partition = null, numPartitions = null;
@@ -89,17 +92,18 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
                 } else if (PARTITION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     partition = parser.intValue();
                 } else {
-                    throw new ElasticsearchParseException(
-                            "Unknown parameter in Include/Exclude clause: " + currentFieldName);
+                    throw new ElasticsearchParseException("Unknown parameter in Include/Exclude clause: " + currentFieldName);
                 }
             }
             if (partition == null) {
-                throw new IllegalArgumentException("Missing [" + PARTITION_FIELD.getPreferredName()
-                    + "] parameter for partition-based include");
+                throw new IllegalArgumentException(
+                    "Missing [" + PARTITION_FIELD.getPreferredName() + "] parameter for partition-based include"
+                );
             }
             if (numPartitions == null) {
-                throw new IllegalArgumentException("Missing [" + NUM_PARTITIONS_FIELD.getPreferredName()
-                    + "] parameter for partition-based include");
+                throw new IllegalArgumentException(
+                    "Missing [" + NUM_PARTITIONS_FIELD.getPreferredName() + "] parameter for partition-based include"
+                );
             }
             return new IncludeExclude(partition, numPartitions);
         } else {
@@ -110,9 +114,9 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     public static IncludeExclude parseExclude(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
-            return new IncludeExclude(null, parser.text());
+            return new IncludeExclude(null, parser.text(), null, null);
         } else if (token == XContentParser.Token.START_ARRAY) {
-            return new IncludeExclude(null, new TreeSet<>(parseArrayToSet(parser)));
+            return new IncludeExclude(null, null, null, new TreeSet<>(parseArrayToSet(parser)));
         } else {
             throw new IllegalArgumentException("Unrecognized token for an exclude [" + token + "]");
         }
@@ -137,31 +141,57 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
-
     public static class SetBackedLongFilter extends LongFilter {
-        private LongSet valids;
-        private LongSet invalids;
+        // Autoboxing long could cause allocations when doing Set.contains, so
+        // this alternative to java.lang.Long is not final so that a preallocated instance
+        // can be used in accept (note that none of this is threadsafe!)
+        private static class Long {
+            private long value;
+
+            private Long(long value) {
+                this.value = value;
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                Long that = (Long) o;
+                return value == that.value;
+            }
+
+            @Override
+            public int hashCode() {
+                return java.lang.Long.hashCode(value);
+            }
+        }
+
+        private Set<Long> valids;
+        private Set<Long> invalids;
+
+        private Long spare = new Long(0);
 
         private SetBackedLongFilter(int numValids, int numInvalids) {
             if (numValids > 0) {
-                valids = new LongHashSet(numValids);
+                valids = new HashSet<>(numValids);
             }
             if (numInvalids > 0) {
-                invalids = new LongHashSet(numInvalids);
+                invalids = new HashSet<>(numInvalids);
             }
         }
 
         @Override
         public boolean accept(long value) {
-            return (valids == null || valids.contains(value)) && (invalids == null || invalids.contains(value) == false);
+            spare.value = value;
+            return (valids == null || valids.contains(spare)) && (invalids == null || invalids.contains(spare) == false);
         }
 
         private void addAccept(long val) {
-            valids.add(val);
+            valids.add(new Long(val));
         }
 
         private void addReject(long val) {
-            invalids.add(val);
+            invalids.add(new Long(val));
         }
     }
 
@@ -185,7 +215,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
         private SetAndRegexStringFilter(DocValueFormat format) {
             Automaton automaton = toAutomaton();
-            this.runAutomaton = automaton == null ?  null : new ByteRunAutomaton(automaton);
+            this.runAutomaton = automaton == null ? null : new ByteRunAutomaton(automaton);
             this.valids = parseForDocValues(includeValues, format);
             this.invalids = parseForDocValues(excludeValues, format);
         }
@@ -222,8 +252,10 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
             BytesRef term = termEnum.next();
             while (term != null) {
-                if (Math.floorMod(StringHelper.murmurhash3_x86_32(term, HASH_PARTITIONING_SEED),
-                        incNumPartitions) == incZeroBasedPartition) {
+                if (Math.floorMod(
+                    StringHelper.murmurhash3_x86_32(term, HASH_PARTITIONING_SEED),
+                    incNumPartitions
+                ) == incZeroBasedPartition) {
                     acceptedGlobalOrdinals.set(termEnum.ord());
                 }
                 term = termEnum.next();
@@ -240,7 +272,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
         private SetAndRegexOrdinalsFilter(DocValueFormat format) {
             Automaton automaton = toAutomaton();
-            this.compiled = automaton == null ?  null : new CompiledAutomaton(automaton);
+            this.compiled = automaton == null ? null : new CompiledAutomaton(automaton);
             this.valids = parseForDocValues(includeValues, format);
             this.invalids = parseForDocValues(excludeValues, format);
         }
@@ -300,7 +332,6 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
-
     private final RegExp include, exclude;
     private final SortedSet<BytesRef> includeValues, excludeValues;
     private final int incZeroBasedPartition;
@@ -310,11 +341,12 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
      * @param include   The regular expression pattern for the terms to be included
      * @param exclude   The regular expression pattern for the terms to be excluded
      */
-    public IncludeExclude(RegExp include, RegExp exclude) {
-        this(include, exclude, null, null);
-    }
-
-    public IncludeExclude(RegExp include, RegExp exclude, SortedSet<BytesRef> includeValues, SortedSet<BytesRef> excludeValues) {
+    public IncludeExclude(
+        @Nullable String include,
+        @Nullable String exclude,
+        @Nullable SortedSet<BytesRef> includeValues,
+        @Nullable SortedSet<BytesRef> excludeValues
+    ) {
         if (include == null && exclude == null && includeValues == null && excludeValues == null) {
             throw new IllegalArgumentException();
         }
@@ -324,50 +356,17 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (exclude != null && excludeValues != null) {
             throw new IllegalArgumentException();
         }
-        this.include = include;
-        this.exclude = exclude;
+        this.include = include == null ? null : new RegExp(include);
+        this.exclude = exclude == null ? null : new RegExp(exclude);
         this.includeValues = includeValues;
         this.excludeValues = excludeValues;
         this.incZeroBasedPartition = 0;
         this.incNumPartitions = 0;
     }
 
-    public IncludeExclude(String include, String exclude, String[] includeValues, String[] excludeValues) {
-        this(
-            include == null ? null : new RegExp(include),
-            exclude == null ? null : new RegExp(exclude),
-            convertToBytesRefSet(includeValues),
-            convertToBytesRefSet(excludeValues)
-        );
-    }
-
-    public IncludeExclude(String include, String exclude) {
-        this(include == null ? null : new RegExp(include), exclude == null ? null : new RegExp(exclude));
-    }
-
-    /**
-     * @param includeValues   The terms to be included
-     * @param excludeValues   The terms to be excluded
-     */
-    public IncludeExclude(SortedSet<BytesRef> includeValues, SortedSet<BytesRef> excludeValues) {
-        this(null, null, includeValues, excludeValues);
-    }
-
-    public IncludeExclude(String[] includeValues, String[] excludeValues) {
-        this(convertToBytesRefSet(includeValues), convertToBytesRefSet(excludeValues));
-    }
-
-    public IncludeExclude(double[] includeValues, double[] excludeValues) {
-        this(convertToBytesRefSet(includeValues), convertToBytesRefSet(excludeValues));
-    }
-
-    public IncludeExclude(long[] includeValues, long[] excludeValues) {
-        this(convertToBytesRefSet(includeValues), convertToBytesRefSet(excludeValues));
-    }
-
     public IncludeExclude(int partition, int numPartitions) {
         if (partition < 0 || partition >= numPartitions) {
-            throw new IllegalArgumentException("Partition must be >=0 and < numPartition which is "+numPartitions);
+            throw new IllegalArgumentException("Partition must be >=0 and < numPartition which is " + numPartitions);
         }
         this.incZeroBasedPartition = partition;
         this.incNumPartitions = numPartitions;
@@ -377,8 +376,6 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         this.excludeValues = null;
 
     }
-
-
 
     /**
      * Read from a stream.
@@ -451,39 +448,6 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
         out.writeVInt(incNumPartitions);
         out.writeVInt(incZeroBasedPartition);
-    }
-
-    private static SortedSet<BytesRef> convertToBytesRefSet(String[] values) {
-        SortedSet<BytesRef> returnSet = null;
-        if (values != null) {
-            returnSet = new TreeSet<>();
-            for (String value : values) {
-                returnSet.add(new BytesRef(value));
-            }
-        }
-        return returnSet;
-    }
-
-    private static SortedSet<BytesRef> convertToBytesRefSet(double[] values) {
-        SortedSet<BytesRef> returnSet = null;
-        if (values != null) {
-            returnSet = new TreeSet<>();
-            for (double value : values) {
-                returnSet.add(new BytesRef(String.valueOf(value)));
-            }
-        }
-        return returnSet;
-    }
-
-    private static SortedSet<BytesRef> convertToBytesRefSet(long[] values) {
-        SortedSet<BytesRef> returnSet = null;
-        if (values != null) {
-            returnSet = new TreeSet<>();
-            for (long value : values) {
-                returnSet.add(new BytesRef(String.valueOf(value)));
-            }
-        }
-        return returnSet;
     }
 
     /**
@@ -577,13 +541,13 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             a = Automata.makeAnyString();
         }
         if (exclude != null) {
-            a = Operations.minus(a, exclude.toAutomaton(), Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+            a = Operations.minus(a, exclude.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         }
         return a;
     }
 
     public StringFilter convertToStringFilter(DocValueFormat format) {
-        if (isPartitionBased()){
+        if (isPartitionBased()) {
             return new PartitionedStringFilter();
         }
         return new SetAndRegexStringFilter(format);
@@ -603,7 +567,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     }
 
     public OrdinalsFilter convertToOrdinalsFilter(DocValueFormat format) {
-        if (isPartitionBased()){
+        if (isPartitionBased()) {
             return new PartitionedOrdinalsFilter();
         }
 
@@ -612,7 +576,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
     public LongFilter convertToLongFilter(DocValueFormat format) {
 
-        if(isPartitionBased()){
+        if (isPartitionBased()) {
             return new PartitionedLongFilter();
         }
 
@@ -633,7 +597,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     }
 
     public LongFilter convertToDoubleFilter() {
-        if(isPartitionBased()){
+        if (isPartitionBased()) {
             return new PartitionedLongFilter();
         }
 
@@ -686,26 +650,36 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     @Override
     public int hashCode() {
         return Objects.hash(
-                include == null ? null : include.getOriginalString(),
-                exclude == null ? null : exclude.getOriginalString(),
-                includeValues, excludeValues, incZeroBasedPartition, incNumPartitions);
+            include == null ? null : include.getOriginalString(),
+            exclude == null ? null : exclude.getOriginalString(),
+            includeValues,
+            excludeValues,
+            incZeroBasedPartition,
+            incNumPartitions
+        );
     }
 
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
             return false;
-        } if (getClass() != obj.getClass()) {
+        }
+        if (getClass() != obj.getClass()) {
             return false;
         }
         IncludeExclude other = (IncludeExclude) obj;
-        return Objects.equals(include == null ? null : include.getOriginalString(),
-                other.include == null ? null : other.include.getOriginalString())
-                && Objects.equals(exclude == null ? null : exclude.getOriginalString(),
-                        other.exclude == null ? null : other.exclude.getOriginalString())
-                && Objects.equals(includeValues, other.includeValues) && Objects.equals(excludeValues, other.excludeValues)
-                && Objects.equals(incZeroBasedPartition, other.incZeroBasedPartition)
-                && Objects.equals(incNumPartitions, other.incNumPartitions);
+        return Objects.equals(
+            include == null ? null : include.getOriginalString(),
+            other.include == null ? null : other.include.getOriginalString()
+        )
+            && Objects.equals(
+                exclude == null ? null : exclude.getOriginalString(),
+                other.exclude == null ? null : other.exclude.getOriginalString()
+            )
+            && Objects.equals(includeValues, other.includeValues)
+            && Objects.equals(excludeValues, other.excludeValues)
+            && Objects.equals(incZeroBasedPartition, other.incZeroBasedPartition)
+            && Objects.equals(incNumPartitions, other.incNumPartitions);
     }
 
 }

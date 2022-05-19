@@ -8,7 +8,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 public interface SimulateDocumentResult extends Writeable, ToXContentObject {
 

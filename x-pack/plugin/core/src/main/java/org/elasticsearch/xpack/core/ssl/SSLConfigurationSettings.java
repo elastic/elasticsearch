@@ -11,14 +11,12 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 
-import javax.net.ssl.TrustManagerFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -27,6 +25,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.net.ssl.TrustManagerFactory;
 
 /**
  * Bridges SSLConfiguration into the {@link Settings} framework, using {@link Setting} objects.
@@ -104,7 +104,7 @@ public class SSLConfigurationSettings {
 
     public static final SslSetting<SecureString> LEGACY_TRUSTSTORE_PASSWORD = SslSetting.setting(
         SslConfigurationKeys.TRUSTSTORE_LEGACY_PASSWORD,
-        key -> new Setting<>(key, "", SecureString::new, Property.Deprecated, Property.Filtered, Property.NodeScope)
+        key -> new Setting<>(key, "", SecureString::new, Property.DeprecatedWarning, Property.Filtered, Property.NodeScope)
     );
 
     public static final SslSetting<SecureString> TRUSTSTORE_PASSWORD = SslSetting.secureSetting(
@@ -259,10 +259,6 @@ public class SSLConfigurationSettings {
         this.disabledSettings = Collections.unmodifiableList(disabled);
     }
 
-    public static String getKeyStoreType(Setting<Optional<String>> setting, Settings settings, String path) {
-        return setting.get(settings).orElseGet(() -> KeyStoreUtil.inferKeyStoreType(path));
-    }
-
     public List<Setting<?>> getEnabledSettings() {
         return enabledSettings;
     }
@@ -391,8 +387,8 @@ public class SSLConfigurationSettings {
             return Setting.affixKeySetting(groupPrefix, keyPrefix + name, template);
         }
 
-        public Setting<T> transportProfile(String name) {
-            return transportProfile().getConcreteSetting(name);
+        public Setting<T> transportProfile(String settingName) {
+            return transportProfile().getConcreteSetting(settingName);
         }
     }
 

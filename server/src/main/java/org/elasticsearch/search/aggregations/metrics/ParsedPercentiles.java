@@ -8,10 +8,10 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -19,7 +19,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public abstract class ParsedPercentiles extends ParsedAggregation implements Iterable<Percentile>  {
+public abstract class ParsedPercentiles extends ParsedAggregation implements Iterable<Percentile> {
 
     protected final Map<Double, Double> percentiles = new LinkedHashMap<>();
     protected final Map<Double, String> percentilesAsString = new HashMap<>();
@@ -61,6 +61,7 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Ite
     public Iterator<Percentile> iterator() {
         return new Iterator<Percentile>() {
             final Iterator<Map.Entry<Double, Double>> iterator = percentiles.entrySet().iterator();
+
             @Override
             public boolean hasNext() {
                 return iterator.hasNext();

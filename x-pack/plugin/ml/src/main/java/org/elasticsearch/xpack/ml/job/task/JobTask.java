@@ -10,21 +10,25 @@ package org.elasticsearch.xpack.ml.job.task;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.license.LicensedAllocatedPersistentTask;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class JobTask extends AllocatedPersistentTask implements OpenJobAction.JobTaskMatcher {
+public class JobTask extends LicensedAllocatedPersistentTask implements OpenJobAction.JobTaskMatcher {
 
     /**
      * We should only progress forwards through these states: close takes precedence over vacate
      */
     enum ClosingOrVacating {
-        NEITHER, VACATING, CLOSING
+        NEITHER,
+        VACATING,
+        CLOSING
     }
 
     private static final Logger logger = LogManager.getLogger(JobTask.class);
@@ -33,8 +37,16 @@ public class JobTask extends AllocatedPersistentTask implements OpenJobAction.Jo
     private final AtomicReference<ClosingOrVacating> closingOrVacating = new AtomicReference<>(ClosingOrVacating.NEITHER);
     private volatile AutodetectProcessManager autodetectProcessManager;
 
-    JobTask(String jobId, long id, String type, String action, TaskId parentTask, Map<String, String> headers) {
-        super(id, type, action, "job-" + jobId, parentTask, headers);
+    protected JobTask(
+        String jobId,
+        long id,
+        String type,
+        String action,
+        TaskId parentTask,
+        Map<String, String> headers,
+        XPackLicenseState licenseState
+    ) {
+        super(id, type, action, "job-" + jobId, parentTask, headers, MachineLearning.ML_ANOMALY_JOBS_FEATURE, "job-" + jobId, licenseState);
         this.jobId = jobId;
     }
 
@@ -65,7 +77,7 @@ public class JobTask extends AllocatedPersistentTask implements OpenJobAction.Jo
     public void closeJob(String reason) {
         // If a job is vacating the node when a close request arrives, convert that vacate to a close.
         // This may be too late, if the vacate operation has already gone past the point of unassigning
-        // the persistent task instead of completing it.  But in general a close should take precedence
+        // the persistent task instead of completing it. But in general a close should take precedence
         // over a vacate.
         if (closingOrVacating.getAndSet(ClosingOrVacating.CLOSING) == ClosingOrVacating.VACATING) {
             logger.info("[{}] Close request for job while it was vacating the node", jobId);

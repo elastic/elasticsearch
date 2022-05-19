@@ -26,7 +26,7 @@ import static org.elasticsearch.test.ESTestCase.assertBusy;
 public class TaskAssertions {
     private static final Logger logger = LogManager.getLogger(TaskAssertions.class);
 
-    private TaskAssertions() { }
+    private TaskAssertions() {}
 
     public static void awaitTaskWithPrefix(String actionPrefix) throws Exception {
         logger.info("--> waiting for task with prefix [{}] to start", actionPrefix);
@@ -54,7 +54,8 @@ public class TaskAssertions {
                         foundTask = true;
                         assertTrue(
                             "task " + cancellableTask.getId() + "/" + cancellableTask.getAction() + " not cancelled",
-                            cancellableTask.isCancelled());
+                            cancellableTask.isCancelled()
+                        );
                     }
                 }
             }
@@ -66,7 +67,7 @@ public class TaskAssertions {
         logger.info("--> checking that all tasks with prefix {} have finished", actionPrefix);
         assertBusy(() -> {
             final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-            assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.getAction().startsWith(actionPrefix)));
+            assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.action().startsWith(actionPrefix)));
         });
     }
 }

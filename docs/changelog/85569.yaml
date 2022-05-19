@@ -1,0 +1,6 @@
+pr: 85569
+summary: Ensure that inference index primary shards are available before attempting
+  to load model
+area: Machine Learning
+type: bug
+issues: []

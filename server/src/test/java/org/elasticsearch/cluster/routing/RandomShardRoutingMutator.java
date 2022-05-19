@@ -29,8 +29,10 @@ public final class RandomShardRoutingMutator {
                 if (shardRouting.unassigned() == false && shardRouting.primary() == false) {
                     shardRouting = shardRouting.moveToUnassigned(randomUnassignedInfo(randomAlphaOfLength(10), false));
                 } else if (shardRouting.unassignedInfo() != null) {
-                    shardRouting = shardRouting.updateUnassigned(randomUnassignedInfo(randomAlphaOfLength(10), false),
-                        shardRouting.recoverySource());
+                    shardRouting = shardRouting.updateUnassigned(
+                        randomUnassignedInfo(randomAlphaOfLength(10), false),
+                        shardRouting.recoverySource()
+                    );
                 }
                 break;
             case 1:

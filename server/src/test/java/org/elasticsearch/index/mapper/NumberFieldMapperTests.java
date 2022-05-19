@@ -11,19 +11,23 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptFactory;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 
 public abstract class NumberFieldMapperTests extends MapperTestCase {
 
@@ -50,25 +54,20 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
-        checker.registerUpdateCheck(b -> b.field("coerce", false),
-            m -> assertFalse(((NumberFieldMapper) m).coerce()));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
-            m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
+        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((NumberFieldMapper) m).coerce()));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
 
         if (allowsIndexTimeScript()) {
             checker.registerConflictCheck("script", b -> b.field("script", "foo"));
-            checker.registerUpdateCheck(
-                b -> {
-                    minimalMapping(b);
-                    b.field("script", "test");
-                    b.field("on_script_error", "fail");
-                },
-                b -> {
-                    minimalMapping(b);
-                    b.field("script", "test");
-                    b.field("on_script_error", "continue");
-                },
-                m -> assertThat((m).onScriptError, equalTo("continue")));
+            checker.registerUpdateCheck(b -> {
+                minimalMapping(b);
+                b.field("script", "test");
+                b.field("on_script_error", "fail");
+            }, b -> {
+                minimalMapping(b);
+                b.field("script", "test");
+                b.field("on_script_error", "continue");
+            }, m -> assertThat((m).onScriptError, equalTo("continue")));
         }
     }
 
@@ -176,7 +175,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             minimalMapping(b);
             b.field("ignore_malformed", true);
         }));
-        for (Object malformedValue : new Object[]{"a", Boolean.FALSE}) {
+        for (Object malformedValue : new Object[] { "a", Boolean.FALSE }) {
             SourceToParse source = source(b -> b.field("field", malformedValue));
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> notIgnoring.parse(source));
             if (malformedValue instanceof String) {
@@ -189,7 +188,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             ParsedDocument doc = ignoring.parse(source);
             IndexableField[] fields = doc.rootDoc().getFields("field");
             assertEquals(0, fields.length);
-            assertArrayEquals(new String[]{"field"}, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
+            assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
         }
     }
 
@@ -198,16 +197,13 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      */
     public void testIgnoreMalformedWithObject() throws Exception {
         SourceToParse malformed = source(b -> b.startObject("field").field("foo", "bar").endObject());
-        for (Boolean ignoreMalformed : new Boolean[]{true, false}) {
-            DocumentMapper mapper = createDocumentMapper(
-                fieldMapping(b -> {
-                    minimalMapping(b);
-                    b.field("ignore_malformed", ignoreMalformed);
-                })
-            );
+        for (Boolean ignoreMalformed : new Boolean[] { true, false }) {
+            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("ignore_malformed", ignoreMalformed);
+            }));
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(malformed));
-            assertThat(e.getCause().getMessage(), containsString("Current token"));
-            assertThat(e.getCause().getMessage(), containsString("not numeric, can not use numeric value accessors"));
+            assertThat(e.getCause().getMessage(), containsString("Cannot parse object as number"));
         }
     }
 
@@ -235,11 +231,14 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     public void testOutOfRangeValues() throws IOException {
-        for(OutOfRangeSpec item : outOfRangeSpecs()) {
+        for (OutOfRangeSpec item : outOfRangeSpecs()) {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", item.type.typeName())));
             Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(item::write)));
-            assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
-                e.getCause().getMessage(), containsString(item.message));
+            assertThat(
+                "Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
+                e.getCause().getMessage(),
+                containsString(item.message)
+            );
         }
     }
 
@@ -255,9 +254,50 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         // dimension = true is not allowed
         Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("dimension", true);
+            b.field("time_series_dimension", true);
         })));
-        assertThat(e.getCause().getMessage(), containsString("Parameter [dimension] cannot be set"));
+        assertThat(e.getCause().getMessage(), containsString("Parameter [time_series_dimension] cannot be set"));
+    }
+
+    public void testMetricType() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
+        assertNull(ft.getMetricType());
+
+        assertMetricType("gauge", NumberFieldMapper.NumberFieldType::getMetricType);
+        assertMetricType("counter", NumberFieldMapper.NumberFieldType::getMetricType);
+
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "histogram");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [histogram] for field [time_series_metric] - accepted values are [gauge, counter]")
+            );
+        }
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "unknown");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [gauge, counter]")
+            );
+        }
+    }
+
+    public void testMetricAndDocvalues() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", "counter").field("doc_values", false);
+        })));
+        assertThat(e.getCause().getMessage(), containsString("Field [time_series_metric] requires that [doc_values] is true"));
     }
 
     @Override
@@ -267,15 +307,30 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    protected <T> T compileScript(Script script, ScriptContext<T> context) {
-        if (context == LongFieldScript.CONTEXT) {
-            return (T) LongFieldScript.PARSE_FROM_SOURCE;
-        }
-        if (context == DoubleFieldScript.CONTEXT) {
-            return (T) DoubleFieldScript.PARSE_FROM_SOURCE;
-        }
-        throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+    protected IngestScriptSupport ingestScriptSupport() {
+        return new IngestScriptSupport() {
+            @Override
+            @SuppressWarnings("unchecked")
+            protected <T> T compileOtherScript(Script script, ScriptContext<T> context) {
+                if (context == LongFieldScript.CONTEXT) {
+                    return (T) LongFieldScript.PARSE_FROM_SOURCE;
+                }
+                if (context == DoubleFieldScript.CONTEXT) {
+                    return (T) DoubleFieldScript.PARSE_FROM_SOURCE;
+                }
+                throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+            }
+
+            @Override
+            ScriptFactory emptyFieldScript() {
+                return null;
+            }
+
+            @Override
+            ScriptFactory nonEmptyFieldScript() {
+                return null;
+            }
+        };
     }
 
     public void testScriptableTypes() throws IOException {
@@ -295,4 +350,69 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
     protected abstract Number randomNumber();
 
+    protected final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final Function<Number, Number> round;
+        private final Long nullValue = usually() ? null : randomNumber().longValue();
+        private final boolean coerce = rarely();
+
+        protected NumberSyntheticSourceSupport(Function<Number, Number> round) {
+            this.round = round;
+        }
+
+        @Override
+        public SyntheticSourceExample example() {
+            if (randomBoolean()) {
+                Tuple<Object, Number> v = generateValue();
+                return new SyntheticSourceExample(v.v1(), round.apply(v.v2()), this::mapping);
+            }
+            List<Tuple<Object, Number>> values = randomList(1, 5, this::generateValue);
+            List<Object> in = values.stream().map(Tuple::v1).toList();
+            List<Number> outList = values.stream().map(t -> round.apply(t.v2())).sorted().toList();
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<Object, Number> generateValue() {
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            Number n = randomNumber();
+            Object in = n;
+            Number out = n;
+            if (coerce && randomBoolean()) {
+                in = in.toString();
+            }
+            return Tuple.tuple(in, out);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            minimalMapping(b);
+            if (coerce) {
+                b.field("coerce", true);
+            }
+            if (nullValue != null) {
+                b.field("null_value", nullValue);
+            }
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of(
+                new SyntheticSourceInvalidExample(
+                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it doesn't have doc values"),
+                    b -> {
+                        minimalMapping(b);
+                        b.field("doc_values", false);
+                    }
+                ),
+                new SyntheticSourceInvalidExample(
+                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it ignores malformed numbers"),
+                    b -> {
+                        minimalMapping(b);
+                        b.field("ignore_malformed", true);
+                    }
+                )
+            );
+        }
+    }
 }

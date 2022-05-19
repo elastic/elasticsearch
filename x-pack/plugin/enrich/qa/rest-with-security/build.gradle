@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 import org.elasticsearch.gradle.internal.info.BuildParams
 
@@ -11,7 +11,7 @@ if (BuildParams.inFipsJvm){
   tasks.named("javaRestTest").configure{enabled = false }
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: "test_admin", password: "x-pack-test-password", role: "superuser"

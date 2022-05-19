@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -28,8 +28,8 @@ import org.junit.Before;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -43,18 +43,18 @@ public class TransportFinalizeJobExecutionActionTests extends ESTestCase {
     private Client client;
 
     @Before
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private void setupMocks() {
         ExecutorService executorService = mock(ExecutorService.class);
         threadPool = mock(ThreadPool.class);
-        org.elasticsearch.mock.orig.Mockito.doAnswer(invocation -> {
+        org.mockito.Mockito.doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
         }).when(executorService).execute(any(Runnable.class));
         when(threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)).thenReturn(executorService);
 
         client = mock(Client.class);
-        doAnswer( invocationOnMock -> {
+        doAnswer(invocationOnMock -> {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
             listener.onResponse(null);
             return null;
@@ -70,21 +70,24 @@ public class TransportFinalizeJobExecutionActionTests extends ESTestCase {
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("finalize-job-action-tests")).build();
 
-        FinalizeJobExecutionAction.Request request = new FinalizeJobExecutionAction.Request(new String[]{"job1", "job2"});
+        FinalizeJobExecutionAction.Request request = new FinalizeJobExecutionAction.Request(new String[] { "job1", "job2" });
         AtomicReference<AcknowledgedResponse> ack = new AtomicReference<>();
-        action.masterOperation(null, request, clusterState, ActionListener.wrap(
-                ack::set,
-                e -> assertNull(e.getMessage())
-        ));
+        action.masterOperation(null, request, clusterState, ActionListener.wrap(ack::set, e -> assertNull(e.getMessage())));
 
         assertTrue(ack.get().isAcknowledged());
         verify(client, times(2)).execute(eq(UpdateAction.INSTANCE), any(), any());
-        verify(clusterService, never()).submitStateUpdateTask(any(), any());
+        verify(clusterService, never()).submitUnbatchedStateUpdateTask(any(), any());
     }
 
     private TransportFinalizeJobExecutionAction createAction(ClusterService clusterService) {
-        return new TransportFinalizeJobExecutionAction(mock(TransportService.class), clusterService,
-                threadPool, mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), client);
+        return new TransportFinalizeJobExecutionAction(
+            mock(TransportService.class),
+            clusterService,
+            threadPool,
+            mock(ActionFilters.class),
+            mock(IndexNameExpressionResolver.class),
+            client
+        );
 
     }
 }

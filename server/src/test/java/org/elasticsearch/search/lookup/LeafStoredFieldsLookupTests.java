@@ -10,6 +10,7 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -17,7 +18,7 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.List;
 
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -31,14 +32,30 @@ public class LeafStoredFieldsLookupTests extends ESTestCase {
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(fieldType.name()).thenReturn("field");
         // Add 10 when valueForDisplay is called so it is easy to be sure it *was* called
-        when(fieldType.valueForDisplay(anyObject())).then(invocation ->
-                (Double) invocation.getArguments()[0] + 10);
+        when(fieldType.valueForDisplay(any())).then(invocation -> (Double) invocation.getArguments()[0] + 10);
 
-        FieldInfo mockFieldInfo = new FieldInfo("field", 1, false, false, true,
-            IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
+        FieldInfo mockFieldInfo = new FieldInfo(
+            "field",
+            1,
+            false,
+            false,
+            true,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false
+        );
 
-        fieldsLookup = new LeafStoredFieldsLookup(field -> field.equals("field") || field.equals("alias") ? fieldType : null,
-            (doc, visitor) -> visitor.doubleField(mockFieldInfo, 2.718));
+        fieldsLookup = new LeafStoredFieldsLookup(
+            field -> field.equals("field") || field.equals("alias") ? fieldType : null,
+            (doc, visitor) -> visitor.doubleField(mockFieldInfo, 2.718)
+        );
     }
 
     public void testBasicLookup() {

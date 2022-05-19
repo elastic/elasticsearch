@@ -17,7 +17,6 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
-
 public class GraphWithSecurityIT extends ESClientYamlSuiteTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
@@ -33,25 +32,19 @@ public class GraphWithSecurityIT extends ESClientYamlSuiteTestCase {
     }
 
     protected String[] getCredentials() {
-        return new String[]{"graph_explorer", "x-pack-test-password"};
+        return new String[] { "graph_explorer", "x-pack-test-password" };
     }
-
 
     @Override
     protected Settings restClientSettings() {
         String[] creds = getCredentials();
         String token = basicAuthHeaderValue(creds[0], new SecureString(creds[1].toCharArray()));
-        return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecureString(TEST_ADMIN_PASSWORD.toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }
-

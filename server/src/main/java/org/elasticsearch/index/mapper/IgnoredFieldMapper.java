@@ -40,7 +40,9 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new IgnoredFieldMapper());
+    private static final IgnoredFieldMapper INSTANCE = new IgnoredFieldMapper();
+
+    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     public static final class IgnoredFieldType extends StringFieldType {
 
@@ -66,7 +68,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            return new StoredValueFetcher(context.lookup(), NAME);
         }
     }
 

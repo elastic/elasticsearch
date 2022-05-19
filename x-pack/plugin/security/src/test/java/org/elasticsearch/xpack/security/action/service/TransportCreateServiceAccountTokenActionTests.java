@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.junit.Before;
 
@@ -40,8 +41,11 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
         serviceAccountService = mock(ServiceAccountService.class);
         securityContext = mock(SecurityContext.class);
         transportCreateServiceAccountTokenAction = new TransportCreateServiceAccountTokenAction(
-            mock(TransportService.class), new ActionFilters(Collections.emptySet()),
-            serviceAccountService, securityContext);
+            mock(TransportService.class),
+            new ActionFilters(Collections.emptySet()),
+            serviceAccountService,
+            securityContext
+        );
     }
 
     public void testAuthenticationIsRequired() {
@@ -53,7 +57,7 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
     }
 
     public void testExecutionWillDelegate() {
-        final Authentication authentication = mock(Authentication.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
         when(securityContext.getAuthentication()).thenReturn(authentication);
         final CreateServiceAccountTokenRequest request = mock(CreateServiceAccountTokenRequest.class);
         final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();

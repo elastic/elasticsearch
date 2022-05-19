@@ -8,8 +8,9 @@ package org.elasticsearch.xpack.security.transport.filter;
 
 import io.netty.handler.ipfilter.IpFilterRule;
 import io.netty.handler.ipfilter.IpFilterRuleType;
-import org.elasticsearch.core.SuppressForbidden;
+
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -111,7 +112,7 @@ final class PatternRule implements IpFilterRule {
         return pattern;
     }
 
-    private boolean isLocalhost(InetAddress address) {
+    private static boolean isLocalhost(InetAddress address) {
         try {
             return address.isAnyLocalAddress() || address.isLoopbackAddress() || NetworkInterface.getByInetAddress(address) != null;
         } catch (SocketException e) {
@@ -119,7 +120,6 @@ final class PatternRule implements IpFilterRule {
             return false;
         }
     }
-
 
     @Override
     public boolean matches(InetSocketAddress remoteAddress) {

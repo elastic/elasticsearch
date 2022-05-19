@@ -38,20 +38,11 @@ public class DoubleScriptFieldRangeQueryTests extends AbstractDoubleScriptFieldQ
         double lower = orig.lowerValue();
         double upper = orig.upperValue();
         switch (randomInt(3)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
-                lower -= 1;
-                break;
-            case 3:
-                upper += 1;
-                break;
-            default:
-                fail();
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> lower -= 1;
+            case 3 -> upper += 1;
+            default -> fail();
         }
         return new DoubleScriptFieldRangeQuery(script, leafFactory, fieldName, lower, upper);
     }

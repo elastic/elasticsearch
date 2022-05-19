@@ -1,0 +1,5 @@
+pr: 84166
+summary: Remove LegacyCTRAL from `TransportRolloverAction`
+area: Indices APIs
+type: enhancement
+issues: []

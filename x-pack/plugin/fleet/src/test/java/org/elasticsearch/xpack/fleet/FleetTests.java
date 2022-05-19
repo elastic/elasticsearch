@@ -52,7 +52,7 @@ public class FleetTests extends ESTestCase {
 
     public void testFleetFeature() {
         Fleet module = new Fleet();
-        Feature fleet = SystemIndices.pluginToFeature(module, Settings.EMPTY);
+        Feature fleet = Feature.fromSystemIndexPlugin(module, Settings.EMPTY);
         SystemIndices systemIndices = new SystemIndices(Map.of(module.getFeatureName(), fleet));
         assertNotNull(systemIndices);
     }

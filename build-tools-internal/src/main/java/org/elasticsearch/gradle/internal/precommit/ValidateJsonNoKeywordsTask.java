@@ -12,6 +12,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
@@ -46,7 +47,6 @@ import java.util.stream.StreamSupport;
  */
 public class ValidateJsonNoKeywordsTask extends DefaultTask {
 
-    private final ObjectMapper mapper = new ObjectMapper().configure(JsonParser.Feature.ALLOW_COMMENTS, true);
     private File jsonKeywords;
     private File report;
     private FileCollection inputFiles;
@@ -81,11 +81,12 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
 
     @TaskAction
     public void validate(InputChanges inputChanges) {
+        final ObjectMapper mapper = new ObjectMapper().configure(JsonParser.Feature.ALLOW_COMMENTS, true);
         final Map<File, Set<String>> errors = new LinkedHashMap<>();
 
         getLogger().debug("Loading keywords from {}", jsonKeywords.getName());
 
-        final Map<String, Set<String>> languagesByKeyword = loadKeywords();
+        final Map<String, Set<String>> languagesByKeyword = loadKeywords(mapper);
 
         // incrementally evaluate input files
         StreamSupport.stream(inputChanges.getFileChanges(getInputFiles()).spliterator(), false)
@@ -172,7 +173,7 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
      *
      * @return a mapping from keyword to languages.
      */
-    private Map<String, Set<String>> loadKeywords() {
+    private Map<String, Set<String>> loadKeywords(ObjectMapper mapper) {
         Map<String, Set<String>> languagesByKeyword = new HashMap<>();
 
         try {

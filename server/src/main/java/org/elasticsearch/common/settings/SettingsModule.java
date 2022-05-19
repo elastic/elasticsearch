@@ -13,9 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -48,17 +48,19 @@ public class SettingsModule implements Module {
     }
 
     public SettingsModule(
-            Settings settings,
-            List<Setting<?>> additionalSettings,
-            List<String> settingsFilter,
-            Set<SettingUpgrader<?>> settingUpgraders) {
+        Settings settings,
+        List<Setting<?>> additionalSettings,
+        List<String> settingsFilter,
+        Set<SettingUpgrader<?>> settingUpgraders
+    ) {
         this(
             settings,
             additionalSettings,
             settingsFilter,
             settingUpgraders,
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS
+        );
     }
 
     SettingsModule(
@@ -67,7 +69,8 @@ public class SettingsModule implements Module {
         final List<String> settingsFilter,
         final Set<SettingUpgrader<?>> settingUpgraders,
         final Set<Setting<?>> registeredClusterSettings,
-        final Set<Setting<?>> registeredIndexSettings) {
+        final Set<Setting<?>> registeredIndexSettings
+    ) {
         this.settings = settings;
         for (Setting<?> setting : registeredClusterSettings) {
             registerSetting(setting);
@@ -107,12 +110,11 @@ public class SettingsModule implements Module {
                 builder.append(System.lineSeparator());
                 builder.append(System.lineSeparator());
                 int count = 0;
-                for (String word : ("Since elasticsearch 5.x index level settings can NOT be set on the nodes configuration like " +
-                    "the elasticsearch.yaml, in system properties or command line arguments." +
-                    "In order to upgrade all indices the settings must be updated via the /${index}/_settings API. " +
-                    "Unless all settings are dynamic all indices must be closed in order to apply the upgrade" +
-                    "Indices created in the future should use index templates to set default values."
-                ).split(" ")) {
+                for (String word : ("Since elasticsearch 5.x index level settings can NOT be set on the nodes configuration like "
+                    + "the elasticsearch.yaml, in system properties or command line arguments."
+                    + "In order to upgrade all indices the settings must be updated via the /${index}/_settings API. "
+                    + "Unless all settings are dynamic all indices must be closed in order to apply the upgrade"
+                    + "Indices created in the future should use index templates to set default values.").split(" ")) {
                     if (count + word.length() > 85) {
                         builder.append(System.lineSeparator());
                         count = 0;
@@ -180,7 +182,7 @@ public class SettingsModule implements Module {
                 }
                 if (setting.isConsistent()) {
                     if (setting instanceof Setting.AffixSetting<?>) {
-                        if (((Setting.AffixSetting<?>)setting).getConcreteSettingForNamespace("_na_") instanceof SecureSetting<?>) {
+                        if (((Setting.AffixSetting<?>) setting).getConcreteSettingForNamespace("_na_") instanceof SecureSetting<?>) {
                             consistentSettings.add(setting);
                         } else {
                             throw new IllegalArgumentException("Invalid consistent secure setting [" + setting.getKey() + "]");
@@ -214,7 +216,7 @@ public class SettingsModule implements Module {
      */
     private void registerSettingsFilter(String filter) {
         if (SettingsFilter.isValidPattern(filter) == false) {
-            throw new IllegalArgumentException("filter [" + filter +"] is invalid must be either a key or a regex pattern");
+            throw new IllegalArgumentException("filter [" + filter + "] is invalid must be either a key or a regex pattern");
         }
         if (settingsFilterPattern.contains(filter)) {
             throw new IllegalArgumentException("filter [" + filter + "] has already been registered");

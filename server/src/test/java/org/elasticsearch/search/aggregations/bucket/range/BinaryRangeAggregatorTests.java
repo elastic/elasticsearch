@@ -7,13 +7,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -21,7 +16,10 @@ import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator.
 import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator.SortedSetRangeLeafCollector;
 import org.elasticsearch.test.ESTestCase;
 
-import com.carrotsearch.hppc.LongHashSet;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public class BinaryRangeAggregatorTests extends ESTestCase {
 
@@ -50,6 +48,11 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         }
 
         @Override
+        public long docValueCount() {
+            return ords.length;
+        }
+
+        @Override
         public BytesRef lookupOrd(long ord) {
             return terms[(int) ord];
         }
@@ -73,9 +76,11 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         final int numRanges = randomIntBetween(1, 10);
         BinaryRangeAggregator.Range[] ranges = new BinaryRangeAggregator.Range[numRanges];
         for (int i = 0; i < numRanges; ++i) {
-            ranges[i] = new BinaryRangeAggregator.Range(Integer.toString(i),
-                    randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2))),
-                    randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2))));
+            ranges[i] = new BinaryRangeAggregator.Range(
+                Integer.toString(i),
+                randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2))),
+                randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2)))
+            );
         }
         Arrays.sort(ranges, BinaryRangeAggregator.RANGE_COMPARATOR);
 
@@ -91,12 +96,12 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         final int[] expectedCounts = new int[ranges.length];
         final int maxDoc = randomIntBetween(5, 10);
         for (int doc = 0; doc < maxDoc; ++doc) {
-            LongHashSet ordinalSet = new LongHashSet();
+            Set<Long> ordinalSet = new HashSet<>();
             final int numValues = randomInt(maxNumValuesPerDoc);
             while (ordinalSet.size() < numValues) {
-                ordinalSet.add(random().nextInt(terms.length));
+                ordinalSet.add(random().nextLong(terms.length));
             }
-            final long[] ords = ordinalSet.toArray();
+            final long[] ords = ordinalSet.stream().mapToLong(Long::longValue).toArray();
             Arrays.sort(ords);
             values.ords = ords;
 
@@ -108,7 +113,7 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
                 for (long ord : ords) {
                     BytesRef term = terms[(int) ord];
                     if ((ranges[i].from == null || ranges[i].from.compareTo(term) <= 0)
-                            && (ranges[i].to == null || ranges[i].to.compareTo(term) > 0)) {
+                        && (ranges[i].to == null || ranges[i].to.compareTo(term) > 0)) {
                         expectedCounts[i]++;
                         break;
                     }
@@ -172,9 +177,11 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         final int numRanges = randomIntBetween(1, 10);
         BinaryRangeAggregator.Range[] ranges = new BinaryRangeAggregator.Range[numRanges];
         for (int i = 0; i < numRanges; ++i) {
-            ranges[i] = new BinaryRangeAggregator.Range(Integer.toString(i),
-                    randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2))),
-                    randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2))));
+            ranges[i] = new BinaryRangeAggregator.Range(
+                Integer.toString(i),
+                randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2))),
+                randomBoolean() ? null : new BytesRef(TestUtil.randomSimpleString(random(), randomInt(2)))
+            );
         }
         Arrays.sort(ranges, BinaryRangeAggregator.RANGE_COMPARATOR);
 
@@ -190,12 +197,12 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         final int[] expectedCounts = new int[ranges.length];
         final int maxDoc = randomIntBetween(5, 10);
         for (int doc = 0; doc < maxDoc; ++doc) {
-            LongHashSet ordinalSet = new LongHashSet();
+            Set<Long> ordinalSet = new HashSet<>();
             final int numValues = randomInt(maxNumValuesPerDoc);
             while (ordinalSet.size() < numValues) {
-                ordinalSet.add(random().nextInt(terms.length));
+                ordinalSet.add(random().nextLong(terms.length));
             }
-            final long[] ords = ordinalSet.toArray();
+            final long[] ords = ordinalSet.stream().mapToLong(Long::longValue).toArray();
             Arrays.sort(ords);
             values.ords = ords;
 
@@ -207,7 +214,7 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
                 for (long ord : ords) {
                     BytesRef term = terms[(int) ord];
                     if ((ranges[i].from == null || ranges[i].from.compareTo(term) <= 0)
-                            && (ranges[i].to == null || ranges[i].to.compareTo(term) > 0)) {
+                        && (ranges[i].to == null || ranges[i].to.compareTo(term) > 0)) {
                         expectedCounts[i]++;
                         break;
                     }

@@ -33,7 +33,8 @@ public interface ServiceAccount {
             final int split = principal.indexOf('/');
             if (split == -1) {
                 throw new IllegalArgumentException(
-                    "a service account ID must be in the form {namespace}/{service-name}, but was [" + principal + "]");
+                    "a service account ID must be in the form {namespace}/{service-name}, but was [" + principal + "]"
+                );
             }
             return new ServiceAccountId(principal.substring(0, split), principal.substring(split + 1));
         }

@@ -78,7 +78,7 @@ public class RpmPreservationTests extends PackagingTestCase {
         assertRemoved(distribution());
 
         if (isSystemd()) {
-            assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode, is(1));
+            assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode(), is(1));
         }
 
         assertPathsDoNotExist(

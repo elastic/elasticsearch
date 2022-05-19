@@ -8,18 +8,18 @@
 package org.elasticsearch.xpack.versionfield;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class VersionFieldIT extends ESIntegTestCase {
 

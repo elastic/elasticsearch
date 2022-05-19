@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class SingleObjectCacheTests extends ESTestCase {
 
-  public void testRefresh() {
+    public void testRefresh() {
         final AtomicInteger count = new AtomicInteger(0);
         final AtomicBoolean needsRefresh = new AtomicBoolean(true);
         SingleObjectCache<Integer> cache = new SingleObjectCache<Integer>(TimeValue.timeValueMillis(100000), 0) {

@@ -15,8 +15,8 @@ public class AbstractHttpServerTransportTestCase extends ESTestCase {
 
     protected static ClusterSettings randomClusterSettings() {
         return new ClusterSettings(
-                Settings.builder().put(HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), randomBoolean()).build(),
-                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+            Settings.builder().put(HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), randomBoolean()).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
         );
     }
 }

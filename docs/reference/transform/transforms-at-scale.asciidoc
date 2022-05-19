@@ -160,20 +160,14 @@ we do not recommend using a runtime field as the time field that synchronizes a
 
 [discrete]
 [[index-sorting-group-by-ordering]]
-== 8. Use index sorting and `group_by` ordering (search, process)
+== 8. Use index sorting (search, process)
 
-If you use more than one `group_by` field in your {transform}, then the order of 
-the fields in conjunction with the use of <<index-modules-index-sorting>> may 
-improve runtime.
-
-Index sorting enables you to store documents on disk in a specific order which 
-can improve query efficiency. The ideal sorting logic depends on your use case, 
-but the rule of thumb may be to sort the fields in descending order (high to low 
-cardinality) starting with the time-based fields. Then put the time-based 
-components first in the `group_by` if you have any, and then apply the same 
-order to your `group_by` fields as configured for index sorting. Index sorting 
-can be defined only once at index creation. If you don't already have index 
-sorting on the index that you want to use as a source, consider reindexing it to 
+Index sorting enables you to store documents on disk in a specific order which
+can improve query efficiency. The ideal sorting logic depends on your use case,
+but the rule of thumb may be to sort the fields in descending order (high to low
+cardinality) starting with the time-based fields. Index sorting
+can be defined only once at index creation. If you don't already have index
+sorting on the index that you want to use as a source, consider reindexing it to
 a new, sorted index.
 
 

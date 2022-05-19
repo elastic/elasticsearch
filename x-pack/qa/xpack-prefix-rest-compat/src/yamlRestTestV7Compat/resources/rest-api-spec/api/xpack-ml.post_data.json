@@ -1,0 +1,49 @@
+{
+  "xpack-ml.post_data":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-data.html",
+      "description":"Sends data to an anomaly detection job for analysis."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"],
+      "content_type": ["application/x-ndjson", "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/ml/anomaly_detectors/{job_id}/_data",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The name of the job receiving the data"
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        }
+      ]
+    },
+    "params":{
+      "reset_start":{
+        "type":"string",
+        "description":"Optional parameter to specify the start of the bucket resetting range"
+      },
+      "reset_end":{
+        "type":"string",
+        "description":"Optional parameter to specify the end of the bucket resetting range"
+      }
+    },
+    "body":{
+      "description":"The data to process",
+      "required":true,
+      "serialize":"bulk"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "phases": {
+    "hot": {
+      "actions": {
+        "rollover": {
+          "max_primary_shard_size": "50gb",
+          "max_age": "3d"
+        }
+      }
+    },
+    "warm": {
+      "actions": {
+        "forcemerge": {
+          "max_num_segments": 1
+        }
+      }
+    },
+    "delete": {
+      "min_age": "${xpack.stack.monitoring.history.duration}",
+      "actions":{
+        "delete": {}
+      }
+    }
+  },
+  "_meta": {
+    "description": "Index lifecycle policy generated for [monitoring-*-8] data streams",
+    "defaults": {
+      "delete_min_age": "Using value of [${xpack.stack.monitoring.history.duration}] based on ${xpack.stack.monitoring.history.duration.reason}"
+    }
+  }
+}

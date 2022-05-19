@@ -17,15 +17,17 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.FieldMaskingReader;
@@ -33,6 +35,10 @@ import org.elasticsearch.test.FieldMaskingReader;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FieldDataCacheTests extends ESTestCase {
+    private static final ToScriptFieldFactory<SortedSetDocValues> MOCK_TO_SCRIPT_FIELD = (dv, n) -> new DelegateDocValuesField(
+        new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+        n
+    );
 
     public void testLoadGlobal_neverCacheIfFieldIsMissing() throws Exception {
         Directory dir = newDirectory();
@@ -51,8 +57,7 @@ public class FieldDataCacheTests extends ESTestCase {
             }
         }
         iw.close();
-        DirectoryReader ir =
-            ElasticsearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId("_index", "_na_", 0));
+        DirectoryReader ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId("_index", "_na_", 0));
 
         DummyAccountingFieldDataCache fieldDataCache = new DummyAccountingFieldDataCache();
         // Testing SortedSetOrdinalsIndexFieldData:
@@ -74,8 +79,13 @@ public class FieldDataCacheTests extends ESTestCase {
     }
 
     private SortedSetOrdinalsIndexFieldData createSortedDV(String fieldName, IndexFieldDataCache indexFieldDataCache) {
-        return new SortedSetOrdinalsIndexFieldData(indexFieldDataCache, fieldName, CoreValuesSourceType.KEYWORD,
-            new NoneCircuitBreakerService(), AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        return new SortedSetOrdinalsIndexFieldData(
+            indexFieldDataCache,
+            fieldName,
+            CoreValuesSourceType.KEYWORD,
+            new NoneCircuitBreakerService(),
+            MOCK_TO_SCRIPT_FIELD
+        );
     }
 
     private PagedBytesIndexFieldData createPagedBytes(String fieldName, IndexFieldDataCache indexFieldDataCache) {
@@ -86,7 +96,8 @@ public class FieldDataCacheTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
             TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
-            TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE
+            TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
+            MOCK_TO_SCRIPT_FIELD
         );
     }
 
@@ -102,19 +113,17 @@ public class FieldDataCacheTests extends ESTestCase {
 
         @Override
         @SuppressWarnings("unchecked")
-        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
-                                                                                          IFD indexFieldData) throws Exception {
+        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader, IFD indexFieldData)
+            throws Exception {
             cachedGlobally++;
             return (IFD) indexFieldData.loadGlobalDirect(indexReader);
         }
 
         @Override
-        public void clear() {
-        }
+        public void clear() {}
 
         @Override
-        public void clear(String fieldName) {
-        }
+        public void clear(String fieldName) {}
     }
 
 }

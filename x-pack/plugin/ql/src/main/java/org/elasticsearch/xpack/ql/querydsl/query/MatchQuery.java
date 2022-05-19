@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -31,23 +31,23 @@ public class MatchQuery extends LeafQuery {
         // TODO: add zero terms query support, I'm not sure the best way to parse it yet...
         // appliers.put("zero_terms_query", (qb, s) -> qb.zeroTermsQuery(s));
         BUILDER_APPLIERS = Map.ofEntries(
-                entry("analyzer", MatchQueryBuilder::analyzer),
-                entry("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s))),
-                entry("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
-                entry("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s))),
-                entry("fuzzy_rewrite", MatchQueryBuilder::fuzzyRewrite),
-                entry("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s))),
-                entry("max_expansions", (qb, s) -> qb.maxExpansions(Integer.valueOf(s))),
-                entry("minimum_should_match", MatchQueryBuilder::minimumShouldMatch),
-                entry("operator", (qb, s) -> qb.operator(Operator.fromString(s))),
-                entry("prefix_length", (qb, s) -> qb.prefixLength(Integer.valueOf(s))));
+            entry("analyzer", MatchQueryBuilder::analyzer),
+            entry("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s))),
+            entry("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
+            entry("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s))),
+            entry("fuzzy_rewrite", MatchQueryBuilder::fuzzyRewrite),
+            entry("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s))),
+            entry("max_expansions", (qb, s) -> qb.maxExpansions(Integer.valueOf(s))),
+            entry("minimum_should_match", MatchQueryBuilder::minimumShouldMatch),
+            entry("operator", (qb, s) -> qb.operator(Operator.fromString(s))),
+            entry("prefix_length", (qb, s) -> qb.prefixLength(Integer.valueOf(s)))
+        );
     }
 
     private final String name;
     private final Object text;
     private final MatchQueryPredicate predicate;
     private final Map<String, String> options;
-
 
     public MatchQuery(Source source, String name, Object text) {
         this(source, name, text, null);
@@ -98,9 +98,7 @@ public class MatchQuery extends LeafQuery {
         }
 
         MatchQuery other = (MatchQuery) obj;
-        return Objects.equals(text, other.text)
-                && Objects.equals(name, other.name)
-                && Objects.equals(predicate, other.predicate);
+        return Objects.equals(text, other.text) && Objects.equals(name, other.name) && Objects.equals(predicate, other.predicate);
     }
 
     @Override

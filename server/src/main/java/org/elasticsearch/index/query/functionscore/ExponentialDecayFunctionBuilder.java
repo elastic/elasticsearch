@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -18,7 +18,8 @@ import java.io.IOException;
 public class ExponentialDecayFunctionBuilder extends DecayFunctionBuilder<ExponentialDecayFunctionBuilder> {
     public static final String NAME = "exp";
     public static final ScoreFunctionParser<ExponentialDecayFunctionBuilder> PARSER = new DecayFunctionParser<>(
-            ExponentialDecayFunctionBuilder::new);
+        ExponentialDecayFunctionBuilder::new
+    );
     public static final DecayFunction EXP_DECAY_FUNCTION = new ExponentialDecayScoreFunction();
 
     public ExponentialDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset) {
@@ -59,9 +60,7 @@ public class ExponentialDecayFunctionBuilder extends DecayFunctionBuilder<Expone
 
         @Override
         public Explanation explainFunction(String valueExpl, double value, double scale) {
-            return Explanation.match(
-                    (float) evaluate(value, scale),
-                    "exp(- " + valueExpl + " * " + -1 * scale + ")");
+            return Explanation.match((float) evaluate(value, scale), "exp(- " + valueExpl + " * " + -1 * scale + ")");
         }
 
         @Override
@@ -81,5 +80,10 @@ public class ExponentialDecayFunctionBuilder extends DecayFunctionBuilder<Expone
             }
             return obj != null && getClass() != obj.getClass();
         }
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.painless.api;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.core.Tuple;
 
 import java.net.InetAddress;
 import java.util.Arrays;
@@ -56,8 +56,9 @@ public class CIDR {
         final Integer prefixLength = cidr.v2();
 
         if (prefixLength < 0 || prefixLength > 8 * value.getAddress().length) {
-            throw new IllegalArgumentException("illegal prefixLength '" + prefixLength +
-                "'. Must be 0-32 for IPv4 ranges, 0-128 for IPv6 ranges");
+            throw new IllegalArgumentException(
+                "illegal prefixLength '" + prefixLength + "'. Must be 0-32 for IPv4 ranges, 0-128 for IPv6 ranges"
+            );
         }
 
         byte[] lower = value.getAddress();
@@ -77,14 +78,13 @@ public class CIDR {
             lower = encode(lower);
             upper = encode(upper);
         }
-        return Arrays.compareUnsigned(lower, addr) <= 0 &&
-            Arrays.compareUnsigned(upper, addr) >= 0;
+        return Arrays.compareUnsigned(lower, addr) <= 0 && Arrays.compareUnsigned(upper, addr) >= 0;
     }
 
     // Borrowed from Lucene to make this consistent IP fields matching for the mix of IPv4 and IPv6 values
     // Modified signature to avoid extra conversions
     private static byte[] encode(byte[] address) {
-        final byte[] IPV4_PREFIX = new byte[]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1};
+        final byte[] IPV4_PREFIX = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1 };
         if (address.length == 4) {
             byte[] mapped = new byte[16];
             System.arraycopy(IPV4_PREFIX, 0, mapped, 0, IPV4_PREFIX.length);

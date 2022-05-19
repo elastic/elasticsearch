@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.recovery;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -19,9 +20,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -44,14 +45,28 @@ import java.util.Map;
 public class TransportRecoveryAction extends TransportBroadcastByNodeAction<RecoveryRequest, RecoveryResponse, RecoveryState> {
 
     private final IndicesService indicesService;
+    private final StatsRequestLimiter statsRequestLimiter;
 
     @Inject
-    public TransportRecoveryAction(ClusterService clusterService,
-                                   TransportService transportService, IndicesService indicesService,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(RecoveryAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                RecoveryRequest::new, ThreadPool.Names.MANAGEMENT);
+    public TransportRecoveryAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        StatsRequestLimiter statsRequestLimiter
+    ) {
+        super(
+            RecoveryAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            RecoveryRequest::new,
+            ThreadPool.Names.MANAGEMENT
+        );
         this.indicesService = indicesService;
+        this.statsRequestLimiter = statsRequestLimiter;
     }
 
     @Override
@@ -59,11 +74,16 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
         return RecoveryState.readRecoveryState(in);
     }
 
-
     @Override
-    protected RecoveryResponse newResponse(RecoveryRequest request, int totalShards, int successfulShards, int failedShards,
-                                           List<RecoveryState> responses, List<DefaultShardOperationFailedException> shardFailures,
-                                           ClusterState clusterState) {
+    protected RecoveryResponse newResponse(
+        RecoveryRequest request,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<RecoveryState> responses,
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
+    ) {
         Map<String, List<RecoveryState>> shardResponses = new HashMap<>();
         for (RecoveryState recoveryState : responses) {
             if (recoveryState == null) {
@@ -113,6 +133,11 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, RecoveryRequest request, String[] concreteIndices) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
+    }
+
+    @Override
+    protected void doExecute(Task task, RecoveryRequest request, ActionListener<RecoveryResponse> listener) {
+        statsRequestLimiter.tryToExecute(task, request, listener, super::doExecute);
     }
 
     @Nullable // unless running tests that inject extra behaviour

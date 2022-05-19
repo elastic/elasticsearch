@@ -53,9 +53,9 @@ public class SniffModeInfo implements RemoteConnectionInfo.ModeInfo {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SniffModeInfo sniff = (SniffModeInfo) o;
-        return maxConnectionsPerCluster == sniff.maxConnectionsPerCluster &&
-                numNodesConnected == sniff.numNodesConnected &&
-                Objects.equals(seedNodes, sniff.seedNodes);
+        return maxConnectionsPerCluster == sniff.maxConnectionsPerCluster
+            && numNodesConnected == sniff.numNodesConnected
+            && Objects.equals(seedNodes, sniff.seedNodes);
     }
 
     @Override

@@ -8,14 +8,13 @@
 
 package org.elasticsearch.index.engine;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.ReferenceManager;
-
 import org.apache.lucene.search.SearcherManager;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.SuppressForbidden;
+
+import java.io.IOException;
 
 /**
  * Utility class to safely share {@link ElasticsearchDirectoryReader} instances across

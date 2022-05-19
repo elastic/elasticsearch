@@ -4,10 +4,9 @@
 <titleabbrev>Set up basic security plus HTTPS</titleabbrev>
 ++++
 
-In a production environment, some {es} features such as tokens and
-API keys will be disabled unless you enable TLS on the HTTP layer. This
-additional layer of security ensures that all communications to and from your
-cluster are secured.
+When you enable TLS on the HTTP layer it provides an additional layer of
+security to ensure that all communications to and from your
+cluster are encrypted.
 
 When you run the `elasticsearch-certutil` tool in `http` mode, the tool asks
 several questions about how you want to generate certificates. While there are
@@ -146,8 +145,8 @@ xpack.security.http.ssl.keystore.path: http.p12
 
 Browsers send traffic to {kib} and {kib} sends traffic to {es}.
 These communication channels are configured separately to use TLS. You encrypt
-traffic between your browser and {kib}, and then encrypt traffic between
-{kib} and {es}.
+traffic between {kib} and {es}, and then encrypt traffic between your browser
+and {kib}.
 
 [[encrypt-kibana-elasticsearch]]
 ===== Encrypt traffic between {kib} and {es}

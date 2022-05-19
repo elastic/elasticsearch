@@ -39,7 +39,7 @@
   - do:
       headers:
         Authorization: Bearer boom
-      catch: /missing authentication credentials/
+      catch: /unable to authenticate with provided credentials and anonymous access is not allowed for this request/
       search:
         rest_total_hits_as_int: true
         index: token_index

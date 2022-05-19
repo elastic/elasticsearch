@@ -20,7 +20,7 @@ final class MockInternalEngine extends InternalEngine {
     private MockEngineSupport support;
     private Class<? extends FilterDirectoryReader> wrapperClass;
 
-    MockInternalEngine(EngineConfig config,  Class<? extends FilterDirectoryReader> wrapper) throws EngineException {
+    MockInternalEngine(EngineConfig config, Class<? extends FilterDirectoryReader> wrapper) throws EngineException {
         super(config);
         wrapperClass = wrapper;
 
@@ -37,24 +37,16 @@ final class MockInternalEngine extends InternalEngine {
     @Override
     public void close() throws IOException {
         switch (support().flushOrClose(MockEngineSupport.CloseAction.CLOSE)) {
-            case FLUSH_AND_CLOSE:
-                flushAndCloseInternal();
-                break;
-            case CLOSE:
-                super.close();
-                break;
+            case FLUSH_AND_CLOSE -> flushAndCloseInternal();
+            case CLOSE -> super.close();
         }
     }
 
     @Override
     public void flushAndClose() throws IOException {
         switch (support().flushOrClose(MockEngineSupport.CloseAction.FLUSH_AND_CLOSE)) {
-            case FLUSH_AND_CLOSE:
-                flushAndCloseInternal();
-                break;
-            case CLOSE:
-                super.close();
-                break;
+            case FLUSH_AND_CLOSE -> flushAndCloseInternal();
+            case CLOSE -> super.close();
         }
     }
 

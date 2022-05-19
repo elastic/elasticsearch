@@ -13,9 +13,11 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.AStatement;
+import org.elasticsearch.painless.node.ECallLocal;
 import org.elasticsearch.painless.node.SBlock;
 import org.elasticsearch.painless.node.SExpression;
 import org.elasticsearch.painless.node.SFunction;
@@ -29,6 +31,8 @@ import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
 import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ThisPainlessMethod;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.SemanticScope;
@@ -49,8 +53,8 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
 
         if ("execute".equals(functionName)) {
             ScriptClassInfo scriptClassInfo = scriptScope.getScriptClassInfo();
-            LocalFunction localFunction =
-                    scriptScope.getFunctionTable().getFunction(functionName, scriptClassInfo.getExecuteArguments().size());
+            LocalFunction localFunction = scriptScope.getFunctionTable()
+                .getFunction(functionName, scriptClassInfo.getExecuteArguments().size());
             List<Class<?>> typeParameters = localFunction.getTypeParameters();
             FunctionScope functionScope = newFunctionScope(scriptScope, localFunction.getReturnType());
 
@@ -71,9 +75,17 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
             SBlock userBlockNode = userFunctionNode.getBlockNode();
 
             if (userBlockNode.getStatementNodes().isEmpty()) {
-                throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
-                        "found no statements for function " +
-                        "[" + functionName + "] with [" + typeParameters.size() + "] parameters"));
+                throw userFunctionNode.createError(
+                    new IllegalArgumentException(
+                        "invalid function definition: "
+                            + "found no statements for function "
+                            + "["
+                            + functionName
+                            + "] with ["
+                            + typeParameters.size()
+                            + "] parameters"
+                    )
+                );
             }
 
             functionScope.setCondition(userBlockNode, LastSource.class);
@@ -111,15 +123,19 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
         }
 
         checkedVisit(userStatementNode, semanticScope);
-        Class<?> expressionValueType = semanticScope.getDecoration(userStatementNode, Decorations.ValueType.class).getValueType();
+        Class<?> expressionValueType = semanticScope.getDecoration(userStatementNode, Decorations.ValueType.class).valueType();
         boolean rtn = lastSource && isVoid == false && expressionValueType != void.class;
 
         if (rtn) {
             semanticScope.putDecoration(userStatementNode, new TargetType(rtnType));
             semanticScope.setCondition(userStatementNode, Internal.class);
             if ("execute".equals(functionName)) {
-                decorateWithCastForReturn(userStatementNode, userExpressionNode, semanticScope,
-                    semanticScope.getScriptScope().getScriptClassInfo());
+                decorateWithCastForReturn(
+                    userStatementNode,
+                    userExpressionNode,
+                    semanticScope,
+                    semanticScope.getScriptScope().getScriptClassInfo()
+                );
             } else {
                 decorateWithCast(userStatementNode, semanticScope);
             }
@@ -143,9 +159,17 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
 
         if (userValueNode == null) {
             if (semanticScope.getReturnType() != void.class) {
-                throw userReturnNode.createError(new ClassCastException("cannot cast from " +
-                    "[" + semanticScope.getReturnCanonicalTypeName() + "] to " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]"));
+                throw userReturnNode.createError(
+                    new ClassCastException(
+                        "cannot cast from "
+                            + "["
+                            + semanticScope.getReturnCanonicalTypeName()
+                            + "] to "
+                            + "["
+                            + PainlessLookupUtility.typeToCanonicalTypeName(void.class)
+                            + "]"
+                    )
+                );
             }
         } else {
             semanticScope.setCondition(userValueNode, Read.class);
@@ -153,8 +177,12 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
             semanticScope.setCondition(userValueNode, Internal.class);
             checkedVisit(userValueNode, semanticScope);
             if ("execute".equals(functionName)) {
-                decorateWithCastForReturn(userValueNode, userReturnNode, semanticScope,
-                    semanticScope.getScriptScope().getScriptClassInfo());
+                decorateWithCastForReturn(
+                    userValueNode,
+                    userReturnNode,
+                    semanticScope,
+                    semanticScope.getScriptScope().getScriptClassInfo()
+                );
             } else {
                 decorateWithCast(userValueNode, semanticScope);
             }
@@ -175,8 +203,8 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
         ScriptClassInfo scriptClassInfo
     ) {
         Location location = userExpressionNode.getLocation();
-        Class<?> valueType = semanticScope.getDecoration(userExpressionNode, Decorations.ValueType.class).getValueType();
-        Class<?> targetType = semanticScope.getDecoration(userExpressionNode, TargetType.class).getTargetType();
+        Class<?> valueType = semanticScope.getDecoration(userExpressionNode, Decorations.ValueType.class).valueType();
+        Class<?> targetType = semanticScope.getDecoration(userExpressionNode, TargetType.class).targetType();
 
         PainlessCast painlessCast;
         if (valueType == def.class) {
@@ -204,6 +232,49 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
         painlessCast = AnalyzerCaster.getLegalCast(location, valueType, targetType, isExplicitCast, isInternalCast);
         if (painlessCast != null) {
             semanticScope.putDecoration(userExpressionNode, new ExpressionPainlessCast(painlessCast));
+        }
+    }
+
+    @Override
+    public void visitCallLocal(ECallLocal userCallLocalNode, SemanticScope semanticScope) {
+        if ("$".equals(userCallLocalNode.getMethodName())) {
+            ScriptScope scriptScope = semanticScope.getScriptScope();
+            PainlessMethod thisMethod = scriptScope.getPainlessLookup()
+                .lookupPainlessMethod(scriptScope.getScriptClassInfo().getBaseClass(), false, "field", 1);
+
+            if (thisMethod == null) {
+                throw new IllegalArgumentException("invalid shortcut [$] for [field]; ensure [field] exists in this context");
+            }
+
+            semanticScope.setUsesInstanceMethod();
+            semanticScope.putDecoration(userCallLocalNode, new ThisPainlessMethod(thisMethod));
+
+            // we specify the parameters here as String for the field name, and def for the default value
+            // we don't know the type of field at compile-time or the method since we use duck-typing
+            // so the default value has to be def
+            Class<?>[] typeParameters = new Class<?>[] { String.class, def.class };
+            List<AExpression> userArgumentNodes = userCallLocalNode.getArgumentNodes();
+            int userArgumentsSize = userArgumentNodes.size();
+
+            if (userArgumentsSize != 2) {
+                throw new IllegalArgumentException(
+                    "invalid number of arguments for [$] shortcut for [field]; expected <field name> and <default value>"
+                );
+            }
+
+            for (int argument = 0; argument < userArgumentsSize; ++argument) {
+                AExpression userArgumentNode = userArgumentNodes.get(argument);
+
+                semanticScope.setCondition(userArgumentNode, Read.class);
+                semanticScope.putDecoration(userArgumentNode, new TargetType(typeParameters[argument]));
+                semanticScope.setCondition(userArgumentNode, Internal.class);
+                checkedVisit(userArgumentNode, semanticScope);
+                decorateWithCast(userArgumentNode, semanticScope);
+            }
+
+            semanticScope.putDecoration(userCallLocalNode, new ValueType(def.class));
+        } else {
+            super.visitCallLocal(userCallLocalNode, semanticScope);
         }
     }
 }

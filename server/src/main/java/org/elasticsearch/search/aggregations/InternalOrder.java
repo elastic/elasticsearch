@@ -11,15 +11,15 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.util.Comparators;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.sort.SortValue;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,9 +74,10 @@ public abstract class InternalOrder extends BucketOrder {
         @Override
         public Comparator<Bucket> comparator() {
             return (lhs, rhs) -> {
-                double l = path.resolveValue(((InternalAggregations) lhs.getAggregations()));
-                double r = path.resolveValue(((InternalAggregations) rhs.getAggregations()));
-                return Comparators.compareDiscardNaN(l, r, order == SortOrder.ASC);
+                final SortValue l = path.resolveValue(((InternalAggregations) lhs.getAggregations()));
+                final SortValue r = path.resolveValue(((InternalAggregations) rhs.getAggregations()));
+                int compareResult = l.compareTo(r);
+                return order == SortOrder.ASC ? compareResult : -compareResult;
             };
         }
 
@@ -112,8 +113,7 @@ public abstract class InternalOrder extends BucketOrder {
                 return false;
             }
             Aggregation other = (Aggregation) obj;
-            return Objects.equals(path, other.path)
-                && Objects.equals(order, other.order);
+            return Objects.equals(path, other.path) && Objects.equals(order, other.order);
         }
     }
 
@@ -186,8 +186,8 @@ public abstract class InternalOrder extends BucketOrder {
         @Override
         public <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator) {
             List<Comparator<T>> comparators = orderElements.stream()
-                    .map(oe -> oe.partiallyBuiltBucketComparator(ordinalReader, aggregator))
-                    .collect(toList());
+                .map(oe -> oe.partiallyBuiltBucketComparator(ordinalReader, aggregator))
+                .collect(toList());
             return (lhs, rhs) -> {
                 for (Comparator<T> c : comparators) {
                     int result = c.compare(lhs, rhs);
@@ -313,9 +313,7 @@ public abstract class InternalOrder extends BucketOrder {
                 return false;
             }
             SimpleOrder other = (SimpleOrder) obj;
-            return Objects.equals(id, other.id)
-                && Objects.equals(key, other.key)
-                && Objects.equals(order, other.order);
+            return Objects.equals(id, other.id) && Objects.equals(key, other.key) && Objects.equals(order, other.order);
         }
     }
 
@@ -386,7 +384,8 @@ public abstract class InternalOrder extends BucketOrder {
                 return ((KeyComparable) b1).compareKey(b2);
             }
             throw new IllegalStateException("Unexpected order bucket class [" + b1.getClass() + "]");
-        };    }
+        };
+    }
 
     /**
      * @return compare by {@link Bucket#getKey()} that will be in the bucket once it is reduced
@@ -472,10 +471,14 @@ public abstract class InternalOrder extends BucketOrder {
         public static BucketOrder readOrder(StreamInput in) throws IOException {
             byte id = in.readByte();
             switch (id) {
-                case COUNT_DESC_ID: return COUNT_DESC;
-                case COUNT_ASC_ID: return COUNT_ASC;
-                case KEY_DESC_ID: return KEY_DESC;
-                case KEY_ASC_ID: return KEY_ASC;
+                case COUNT_DESC_ID:
+                    return COUNT_DESC;
+                case COUNT_ASC_ID:
+                    return COUNT_ASC;
+                case KEY_DESC_ID:
+                    return KEY_DESC;
+                case KEY_ASC_ID:
+                    return KEY_ASC;
                 case Aggregation.ID:
                     boolean asc = in.readBoolean();
                     String key = in.readString();
@@ -512,12 +515,10 @@ public abstract class InternalOrder extends BucketOrder {
          */
         public static void writeOrder(BucketOrder order, StreamOutput out) throws IOException {
             out.writeByte(order.id());
-            if (order instanceof Aggregation) {
-                Aggregation aggregationOrder = (Aggregation) order;
+            if (order instanceof Aggregation aggregationOrder) {
                 out.writeBoolean(aggregationOrder.order == SortOrder.ASC);
                 out.writeString(aggregationOrder.path().toString());
-            } else if (order instanceof CompoundOrder) {
-                CompoundOrder compoundOrder = (CompoundOrder) order;
+            } else if (order instanceof CompoundOrder compoundOrder) {
                 out.writeVInt(compoundOrder.orderElements.size());
                 for (BucketOrder innerOrder : compoundOrder.orderElements) {
                     innerOrder.writeTo(out);
@@ -542,6 +543,7 @@ public abstract class InternalOrder extends BucketOrder {
      */
     public static class Parser {
         private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Parser.class);
+
         /**
          * Parse a {@link BucketOrder} from {@link XContent}.
          *
@@ -563,33 +565,30 @@ public abstract class InternalOrder extends BucketOrder {
                     } else if ("desc".equalsIgnoreCase(dir)) {
                         orderAsc = false;
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown order direction [" + dir + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "Unknown order direction [" + dir + "]");
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token [" + token + "] for [order]");
+                    throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "] for [order]");
                 }
             }
             if (orderKey == null) {
-                throw new ParsingException(parser.getTokenLocation(),
-                    "Must specify at least one field for [order]");
+                throw new ParsingException(parser.getTokenLocation(), "Must specify at least one field for [order]");
             }
             // _term and _time order deprecated in 6.0; replaced by _key
-            if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
-                ("_term".equals(orderKey) || "_time".equals(orderKey))) {
-                deprecationLogger.compatibleApiWarning("_term_and_time_key_removal" ,
-                    "Deprecated aggregation order key [{}] used, replaced by [_key]", orderKey);
+            if (parser.getRestApiVersion() == RestApiVersion.V_7 && ("_term".equals(orderKey) || "_time".equals(orderKey))) {
+                deprecationLogger.compatibleCritical(
+                    "_term_and_time_key_removal",
+                    "Deprecated aggregation order key [{}] used, replaced by [_key]",
+                    orderKey
+                );
                 return orderAsc ? KEY_ASC : KEY_DESC;
             }
-            switch (orderKey) {
-                case "_key":
-                    return orderAsc ? KEY_ASC : KEY_DESC;
-                case "_count":
-                    return orderAsc ? COUNT_ASC : COUNT_DESC;
-                default: // assume all other orders are sorting on a sub-aggregation. Validation occurs later.
-                    return aggregation(orderKey, orderAsc);
-            }
+            return switch (orderKey) {
+                case "_key" -> orderAsc ? KEY_ASC : KEY_DESC;
+                case "_count" -> orderAsc ? COUNT_ASC : COUNT_DESC;
+                default -> // assume all other orders are sorting on a sub-aggregation. Validation occurs later.
+                    aggregation(orderKey, orderAsc);
+            };
         }
     }
 }

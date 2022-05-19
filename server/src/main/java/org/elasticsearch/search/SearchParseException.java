@@ -8,12 +8,12 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
 
 import java.io.IOException;
 
@@ -32,10 +32,8 @@ public class SearchParseException extends SearchException {
         int lineNumber = UNKNOWN_POSITION;
         int columnNumber = UNKNOWN_POSITION;
         if (location != null) {
-            if (location != null) {
-                lineNumber = location.lineNumber;
-                columnNumber = location.columnNumber;
-            }
+            lineNumber = location.lineNumber();
+            columnNumber = location.columnNumber();
         }
         this.columnNumber = columnNumber;
         this.lineNumber = lineNumber;

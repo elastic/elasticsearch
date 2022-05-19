@@ -24,17 +24,35 @@ public class TransportPostStartTrialAction extends TransportMasterNodeAction<Pos
     private final LicenseService licenseService;
 
     @Inject
-    public TransportPostStartTrialAction(TransportService transportService, ClusterService clusterService,
-                                         LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(PostStartTrialAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                PostStartTrialRequest::new, indexNameExpressionResolver, PostStartTrialResponse::new, ThreadPool.Names.SAME);
+    public TransportPostStartTrialAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        LicenseService licenseService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            PostStartTrialAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PostStartTrialRequest::new,
+            indexNameExpressionResolver,
+            PostStartTrialResponse::new,
+            ThreadPool.Names.SAME
+        );
         this.licenseService = licenseService;
     }
 
     @Override
-    protected void masterOperation(Task task, PostStartTrialRequest request, ClusterState state,
-                                   ActionListener<PostStartTrialResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        PostStartTrialRequest request,
+        ClusterState state,
+        ActionListener<PostStartTrialResponse> listener
+    ) throws Exception {
         licenseService.startTrialLicense(request, listener);
     }
 

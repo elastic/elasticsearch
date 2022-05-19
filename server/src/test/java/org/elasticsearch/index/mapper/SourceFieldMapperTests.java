@@ -11,11 +11,11 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,34 +32,49 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerConflictCheck("enabled", b -> b.field("enabled", false));
+        checker.registerConflictCheck(
+            "enabled",
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", false).endObject()),
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", true).endObject())
+        );
+        checker.registerUpdateCheck(
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", true).endObject()),
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", false).endObject()),
+            dm -> assertFalse(dm.metadataMapper(SourceFieldMapper.class).enabled())
+        );
         checker.registerConflictCheck("includes", b -> b.array("includes", "foo*"));
         checker.registerConflictCheck("excludes", b -> b.array("excludes", "foo*"));
+        checker.registerConflictCheck("synthetic", b -> b.field("synthetic", true));
     }
 
     public void testNoFormat() throws Exception {
 
         DocumentMapper documentMapper = createDocumentMapper(topMapping(b -> b.startObject("_source").endObject()));
-        ParsedDocument doc = documentMapper.parse(new SourceToParse("_doc", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                .field("field", "value")
-                .endObject()),
-                XContentType.JSON));
+        ParsedDocument doc = documentMapper.parse(
+            new SourceToParse(
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
+                XContentType.JSON
+            )
+        );
 
         assertThat(XContentFactory.xContentType(doc.source().toBytesRef().bytes), equalTo(XContentType.JSON));
 
-        doc = documentMapper.parse(new SourceToParse("_doc", "1",
-            BytesReference.bytes(XContentFactory.smileBuilder().startObject()
-                .field("field", "value")
-                .endObject()),
-                XContentType.SMILE));
+        doc = documentMapper.parse(
+            new SourceToParse(
+                "1",
+                BytesReference.bytes(XContentFactory.smileBuilder().startObject().field("field", "value").endObject()),
+                XContentType.SMILE
+            )
+        );
 
         assertThat(XContentHelper.xContentType(doc.source()), equalTo(XContentType.SMILE));
     }
 
     public void testIncludes() throws Exception {
-        DocumentMapper documentMapper = createDocumentMapper(topMapping(
-            b -> b.startObject("_source").array("includes", "path1*").endObject()));
+        DocumentMapper documentMapper = createDocumentMapper(
+            topMapping(b -> b.startObject("_source").array("includes", "path1*").endObject())
+        );
 
         ParsedDocument doc = documentMapper.parse(source(b -> {
             b.startObject("path1").field("field1", "value1").endObject();
@@ -75,10 +90,26 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         assertThat(sourceAsMap.containsKey("path2"), equalTo(false));
     }
 
+    public void testDuplicatedIncludes() throws Exception {
+        DocumentMapper documentMapper = createDocumentMapper(
+            topMapping(b -> b.startObject("_source").array("includes", "path1", "path1").endObject())
+        );
+
+        ParsedDocument doc = documentMapper.parse(source(b -> {
+            b.startObject("path1").field("field1", "value1").endObject();
+            b.startObject("path2").field("field2", "value2").endObject();
+        }));
+
+        IndexableField sourceField = doc.rootDoc().getField("_source");
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
+            assertEquals(Map.of("path1", Map.of("field1", "value1")), parser.map());
+        }
+    }
+
     public void testExcludes() throws Exception {
-        DocumentMapper documentMapper = createDocumentMapper(topMapping(
-            b -> b.startObject("_source").array("excludes", "path1*").endObject()
-        ));
+        DocumentMapper documentMapper = createDocumentMapper(
+            topMapping(b -> b.startObject("_source").array("excludes", "path1*").endObject())
+        );
 
         ParsedDocument doc = documentMapper.parse(source(b -> {
             b.startObject("path1").field("field1", "value1").endObject();
@@ -94,29 +125,49 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         assertThat(sourceAsMap.containsKey("path2"), equalTo(true));
     }
 
+    public void testDuplicatedExcludes() throws Exception {
+        DocumentMapper documentMapper = createDocumentMapper(
+            topMapping(b -> b.startObject("_source").array("excludes", "path1", "path1").endObject())
+        );
+
+        ParsedDocument doc = documentMapper.parse(source(b -> {
+            b.startObject("path1").field("field1", "value1").endObject();
+            b.startObject("path2").field("field2", "value2").endObject();
+        }));
+
+        IndexableField sourceField = doc.rootDoc().getField("_source");
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
+            assertEquals(Map.of("path2", Map.of("field2", "value2")), parser.map());
+        }
+    }
+
     public void testComplete() throws Exception {
 
         assertTrue(createDocumentMapper(topMapping(b -> {})).sourceMapper().isComplete());
 
-        assertFalse(createDocumentMapper(topMapping(
-            b -> b.startObject("_source").field("enabled", false).endObject()
-        )).sourceMapper().isComplete());
+        assertFalse(
+            createDocumentMapper(topMapping(b -> b.startObject("_source").field("enabled", false).endObject())).sourceMapper().isComplete()
+        );
 
-        assertFalse(createDocumentMapper(topMapping(
-            b -> b.startObject("_source").array("includes", "foo*").endObject()
-        )).sourceMapper().isComplete());
+        assertFalse(
+            createDocumentMapper(topMapping(b -> b.startObject("_source").array("includes", "foo*").endObject())).sourceMapper()
+                .isComplete()
+        );
 
-        assertFalse(createDocumentMapper(topMapping(
-            b -> b.startObject("_source").array("excludes", "foo*").endObject()
-        )).sourceMapper().isComplete());
+        assertFalse(
+            createDocumentMapper(topMapping(b -> b.startObject("_source").array("excludes", "foo*").endObject())).sourceMapper()
+                .isComplete()
+        );
     }
 
     public void testSourceObjectContainsExtraTokens() throws Exception {
         DocumentMapper documentMapper = createDocumentMapper(mapping(b -> {}));
 
-        MapperParsingException exception = expectThrows(MapperParsingException.class,
+        MapperParsingException exception = expectThrows(
+            MapperParsingException.class,
             // extra end object (invalid JSON))
-            () -> documentMapper.parse(new SourceToParse("test", "1", new BytesArray("{}}"), XContentType.JSON)));
+            () -> documentMapper.parse(new SourceToParse("1", new BytesArray("{}}"), XContentType.JSON))
+        );
         assertNotNull(exception.getRootCause());
         assertThat(exception.getRootCause().getMessage(), containsString("Unexpected close marker '}'"));
     }

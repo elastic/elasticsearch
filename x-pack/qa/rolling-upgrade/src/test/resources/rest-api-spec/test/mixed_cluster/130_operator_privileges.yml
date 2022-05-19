@@ -1,0 +1,17 @@
+---
+"Test operator privileges will work in the mixed cluster":
+
+  - skip:
+      features: headers
+      version: " - 7.10.99"
+      reason: "operator privileges are available since 7.11"
+
+  # The default user ("test_user") is an operator, so this works
+  - do:
+      cluster.delete_voting_config_exclusions: { }
+
+  - do:
+      catch: forbidden
+      headers: # the non_operator user
+        Authorization: Basic bm9uX29wZXJhdG9yOngtcGFjay10ZXN0LXBhc3N3b3Jk
+      cluster.delete_voting_config_exclusions: { }

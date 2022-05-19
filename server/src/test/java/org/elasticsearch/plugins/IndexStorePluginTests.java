@@ -8,7 +8,6 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
@@ -92,41 +91,42 @@ public class IndexStorePluginTests extends ESTestCase {
         }
     }
 
-
     public void testIndexStoreFactoryConflictsWithBuiltInIndexStoreType() {
         final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         final IllegalStateException e = expectThrows(
-                IllegalStateException.class, () -> new MockNode(settings, Collections.singletonList(ConflictingStorePlugin.class)));
-        assertThat(e, hasToString(containsString(
-                "registered index store type [" + ConflictingStorePlugin.TYPE + "] conflicts with a built-in type")));
+            IllegalStateException.class,
+            () -> new MockNode(settings, Collections.singletonList(ConflictingStorePlugin.class))
+        );
+        assertThat(
+            e,
+            hasToString(containsString("registered index store type [" + ConflictingStorePlugin.TYPE + "] conflicts with a built-in type"))
+        );
     }
 
     public void testDuplicateIndexStoreFactories() {
         final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         final IllegalStateException e = expectThrows(
-                IllegalStateException.class, () -> new MockNode(settings, Arrays.asList(BarStorePlugin.class, FooStorePlugin.class)));
-        if (JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
-            assertThat(e, hasToString(matches(
-                    "java.lang.IllegalStateException: Duplicate key store \\(attempted merging values " +
-                            "org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+ " +
-                            "and org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+\\)")));
-        } else {
-            assertThat(e, hasToString(matches(
-                    "java.lang.IllegalStateException: Duplicate key org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+")));
-        }
+            IllegalStateException.class,
+            () -> new MockNode(settings, Arrays.asList(BarStorePlugin.class, FooStorePlugin.class))
+        );
+        assertThat(
+            e,
+            hasToString(
+                matches(
+                    "java.lang.IllegalStateException: Duplicate key store \\(attempted merging values "
+                        + "org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+ "
+                        + "and org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+\\)"
+                )
+            )
+        );
     }
 
     public void testDuplicateIndexStoreRecoveryStateFactories() {
         final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         final IllegalStateException e = expectThrows(
-            IllegalStateException.class, () -> new MockNode(settings, Arrays.asList(FooCustomRecoveryStore.class,
-                                                                                    BarCustomRecoveryStore.class)));
-        if (JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
-            assertThat(e.getMessage(), containsString("Duplicate key recovery-type"));
-        } else {
-            assertThat(e, hasToString(matches(
-                "java.lang.IllegalStateException: Duplicate key " +
-                    "org.elasticsearch.plugins.IndexStorePluginTests$RecoveryFactory@[\\w\\d]+")));
-        }
+            IllegalStateException.class,
+            () -> new MockNode(settings, Arrays.asList(FooCustomRecoveryStore.class, BarCustomRecoveryStore.class))
+        );
+        assertThat(e.getMessage(), containsString("Duplicate key recovery-type"));
     }
 }

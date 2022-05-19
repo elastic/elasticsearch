@@ -10,9 +10,9 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.IntervalsSourceProvider.Fuzzy;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -63,14 +63,7 @@ public class FuzzyIntervalsSourceProviderTests extends AbstractSerializingTestCa
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new Fuzzy(
-            term,
-            prefixLength,
-            isTranspositions,
-            fuzziness,
-            analyzer,
-            useField
-        );
+        return new Fuzzy(term, prefixLength, isTranspositions, fuzziness, analyzer, useField);
     }
 
     @Override

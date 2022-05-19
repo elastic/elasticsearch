@@ -1,0 +1,5 @@
+pr: 84636
+summary: Fix race condition when stopping a recently relocated datafeed
+area: Machine Learning
+type: bug
+issues: []

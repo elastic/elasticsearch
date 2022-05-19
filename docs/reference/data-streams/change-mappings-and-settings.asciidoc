@@ -389,10 +389,11 @@ Follow these steps:
 . Choose a name or index pattern for a new data stream. This new data
 stream will contain data from your existing stream.
 +
+--
 You can use the resolve index API to check if the name or pattern matches any
 existing indices, aliases, or data streams. If so, you should consider using
 another name or pattern.
---
+
 The following resolve index API request checks for any existing indices,
 aliases, or data streams that start with `new-data-stream`. If not, the
 `new-data-stream*` index pattern can be used to create a new data stream.
@@ -514,14 +515,14 @@ index doesn’t grow too large while waiting for the rollover check. By default,
 {ilm-init} checks rollover conditions every 10 minutes.
 +
 --
-The following <<cluster-update-settings,update cluster settings API>> request
+The following <<cluster-update-settings,cluster update settings API>> request
 lowers the `indices.lifecycle.poll_interval` setting to `1m` (one minute).
 
 [source,console]
 ----
 PUT /_cluster/settings
 {
-  "transient": {
+  "persistent": {
     "indices.lifecycle.poll_interval": "1m"
   }
 }
@@ -577,7 +578,9 @@ stream's oldest backing index.
       "status": "GREEN",
       "template": "my-data-stream-template",
       "hidden": false,
-      "system": false
+      "system": false,
+      "allow_custom_routing": false,
+      "replicated": false
     }
   ]
 }
@@ -650,14 +653,14 @@ original value when reindexing is complete. This prevents unnecessary load on
 the master node.
 +
 --
-The following update cluster settings API request resets the
-`indices.lifecycle.poll_interval` setting to its default value, 10 minutes.
+The following cluster update settings API request resets the
+`indices.lifecycle.poll_interval` setting to its default value.
 
 [source,console]
 ----
 PUT /_cluster/settings
 {
-  "transient": {
+  "persistent": {
     "indices.lifecycle.poll_interval": null
   }
 }

@@ -37,20 +37,36 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private ObjectArray<BytesRefBuilder> valueBuilders;
     private BytesRef currentValue;
 
-    BinaryValuesSource(BigArrays bigArrays, LongConsumer breakerConsumer,
-                       MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
-                       DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
-        super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
+    BinaryValuesSource(
+        BigArrays bigArrays,
+        LongConsumer breakerConsumer,
+        MappedFieldType fieldType,
+        CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
+        DocValueFormat format,
+        boolean missingBucket,
+        MissingOrder missingOrder,
+        int size,
+        int reverseMul
+    ) {
+        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
         this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newObjectArray(Math.min(size, 100));
-        this.valueBuilders = bigArrays.newObjectArray(Math.min(size, 100));
+        boolean success = false;
+        try {
+            this.valueBuilders = bigArrays.newObjectArray(Math.min(size, 100));
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override
     void copyCurrent(int slot) {
-        values =  bigArrays.grow(values, slot+1);
-        valueBuilders = bigArrays.grow(valueBuilders, slot+1);
+        values = bigArrays.grow(values, slot + 1);
+        valueBuilders = bigArrays.grow(valueBuilders, slot + 1);
         BytesRefBuilder builder = valueBuilders.get(slot);
         int byteSize = builder == null ? 0 : builder.bytes().length;
         if (builder == null) {
@@ -71,9 +87,9 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     int compare(int from, int to) {
         if (missingBucket) {
             if (values.get(from) == null) {
-                return values.get(to) == null ? 0 : -1 * reverseMul;
+                return values.get(to) == null ? 0 : -1 * missingOrder.compareAnyValueToMissing(reverseMul);
             } else if (values.get(to) == null) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(values.get(from), values.get(to));
@@ -83,9 +99,9 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     int compareCurrent(int slot) {
         if (missingBucket) {
             if (currentValue == null) {
-                return values.get(slot) == null ? 0 : -1 * reverseMul;
+                return values.get(slot) == null ? 0 : -1 * missingOrder.compareAnyValueToMissing(reverseMul);
             } else if (values.get(slot) == null) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, values.get(slot));
@@ -95,9 +111,9 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     int compareCurrentWithAfter() {
         if (missingBucket) {
             if (currentValue == null) {
-                return afterValue == null ? 0 : -1 * reverseMul;
+                return afterValue == null ? 0 : -1 * missingOrder.compareAnyValueToMissing(reverseMul);
             } else if (afterValue == null) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, afterValue);
@@ -130,7 +146,10 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
         if (missingBucket && value == null) {
             afterValue = null;
         } else if (value.getClass() == String.class) {
-            afterValue = format.parseBytesRef(value.toString());
+            afterValue = format.parseBytesRef(value);
+        } else if (value.getClass() == BytesRef.class) {
+            // The value may be a bytes reference (eg an encoded tsid field)
+            afterValue = (BytesRef) value;
         } else {
             throw new IllegalArgumentException("invalid value, expected string, got " + value.getClass().getSimpleName());
         }
@@ -138,7 +157,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     BytesRef toComparable(int slot) {
-       return values.get(slot);
+        return values.get(slot);
     }
 
     @Override
@@ -177,9 +196,9 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                fieldType instanceof StringFieldType == false ||
-                    (query != null && query.getClass() != MatchAllDocsQuery.class)) {
+        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
+            || fieldType instanceof StringFieldType == false
+            || (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }
         return new TermsSortedDocsProducer(fieldType.name());

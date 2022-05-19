@@ -1,0 +1,36 @@
+{
+  "security.get_user_profile":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user-profile.html",
+      "description":"Retrieves user profile for the given unique ID."
+    },
+    "stability":"experimental",
+    "visibility":"feature_flag",
+    "feature_flag": "es.user_profile_feature_flag_enabled",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/profile/{uid}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "uid":{
+              "type":"string",
+              "description":"An unique identifier of the user profile"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "data":{
+        "type":"list",
+        "description":"A comma-separated list of keys for which the corresponding application data are retrieved."
+      }
+    }
+  }
+}

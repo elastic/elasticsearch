@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.analytics.normalize;
 
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -30,24 +30,30 @@ public class NormalizePipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
     private final Function<double[], DoubleUnaryOperator> methodSupplier;
 
-    NormalizePipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter,
-                                Function<double[], DoubleUnaryOperator> methodSupplier,
-                                Map<String, Object> metadata) {
+    NormalizePipelineAggregator(
+        String name,
+        String[] bucketsPaths,
+        DocValueFormat formatter,
+        Function<double[], DoubleUnaryOperator> methodSupplier,
+        Map<String, Object> metadata
+    ) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
         this.methodSupplier = methodSupplier;
     }
 
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
         @SuppressWarnings("unchecked")
-        InternalMultiBucketAggregation<?, InternalMultiBucketAggregation.InternalBucket> originalAgg =
-            (InternalMultiBucketAggregation<?, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        InternalMultiBucketAggregation<?, InternalMultiBucketAggregation.InternalBucket> originalAgg = (InternalMultiBucketAggregation<
+            ?,
+            InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>(buckets.size());
 
         double[] values = buckets.stream()
-            .mapToDouble(bucket -> resolveBucketValue(originalAgg, bucket, bucketsPaths()[0], GapPolicy.SKIP)).toArray();
+            .mapToDouble(bucket -> resolveBucketValue(originalAgg, bucket, bucketsPaths()[0], GapPolicy.SKIP))
+            .toArray();
 
         DoubleUnaryOperator method = methodSupplier.apply(values);
 

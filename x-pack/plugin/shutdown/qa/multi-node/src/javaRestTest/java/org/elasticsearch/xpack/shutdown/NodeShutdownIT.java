@@ -7,15 +7,19 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.readiness.ReadinessClientProbe;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,24 +31,44 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class NodeShutdownIT extends ESRestTestCase {
+public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientProbe {
+
+    public void testRestartCRUD() throws Exception {
+        checkCRUD(randomFrom("restart", "RESTART"), randomPositiveTimeValue(), null);
+    }
+
+    public void testRemoveCRUD() throws Exception {
+        checkCRUD(randomFrom("remove", "REMOVE"), null, null);
+    }
+
+    public void testReplaceCRUD() throws Exception {
+        checkCRUD(randomFrom("replace", "REPLACE"), null, randomAlphaOfLength(10));
+    }
+
+    public void checkCRUD(String type, @Nullable String allocationDelay, @Nullable String targetNodeName) throws Exception {
+        String nodeIdToShutdown = getRandomNodeId();
+        checkCRUD(nodeIdToShutdown, type, allocationDelay, targetNodeName, true);
+    }
 
     @SuppressWarnings("unchecked")
-    public void testCRUD() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
-        String nodeIdToShutdown = getRandomNodeId();
-        String type = randomFrom("RESTART", "REMOVE");
-
+    public void checkCRUD(
+        String nodeIdToShutdown,
+        String type,
+        @Nullable String allocationDelay,
+        @Nullable String targetNodeName,
+        boolean delete
+    ) throws Exception {
         // Ensure if we do a GET before the cluster metadata is set up, we don't get an error
         assertNoShuttingDownNodes(nodeIdToShutdown);
 
-        putNodeShutdown(nodeIdToShutdown, type);
+        putNodeShutdown(nodeIdToShutdown, type, allocationDelay, targetNodeName);
 
         // Ensure we can read it back
         {
@@ -53,14 +77,67 @@ public class NodeShutdownIT extends ESRestTestCase {
             List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
             assertThat(nodesArray, hasSize(1));
             assertThat(nodesArray.get(0).get("node_id"), equalTo(nodeIdToShutdown));
-            assertThat(nodesArray.get(0).get("type"), equalTo(type));
+            assertThat((String) nodesArray.get(0).get("type"), equalToIgnoringCase(type));
             assertThat(nodesArray.get(0).get("reason"), equalTo(this.getTestName()));
+            assertThat(nodesArray.get(0).get("allocation_delay"), equalTo(allocationDelay));
+            assertThat(nodesArray.get(0).get("target_node_name"), equalTo(targetNodeName));
         }
 
-        // Delete it and make sure it's deleted
-        Request deleteRequest = new Request("DELETE", "_nodes/" + nodeIdToShutdown + "/shutdown");
+        if (delete) {
+            // Delete it and make sure it's deleted
+            Request deleteRequest = new Request("DELETE", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            assertOK(client().performRequest(deleteRequest));
+            assertNoShuttingDownNodes(nodeIdToShutdown);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testShutdownReadinessService() throws Exception {
+        // Get a node from the cluster and find its readiness port
+        Request getNodes = new Request("GET", "_nodes");
+        Map<String, Object> nodesResponse = responseAsMap(client().performRequest(getNodes));
+        Map<String, Object> nodesObject = (Map<String, Object>) nodesResponse.get("nodes");
+
+        String nodeId = nodesObject.keySet().iterator().next();
+        Map<String, Object> nodeObject = (Map<String, Object>) nodesObject.get(nodeId);
+        Map<String, Object> httpObject = (Map<String, Object>) nodeObject.get("http");
+        String publishAddress = (String) httpObject.get("publish_address");
+
+        String readinessPorts = this.getTestReadinessPorts();
+        String restPorts = this.getTestRestCluster();
+
+        String[] restAddresses = restPorts.split(",");
+        int nodeIndex = 0;
+        for (String restAddress : restAddresses) {
+            // skip ipv6 if any
+            if (restAddress.startsWith("[")) {
+                continue;
+            }
+            if (restAddress.equals(publishAddress)) {
+                break;
+            }
+            nodeIndex++;
+        }
+
+        String[] readinessAddresses = readinessPorts.split(",");
+        String readinessAddress = readinessAddresses[nodeIndex];
+
+        String portStr = readinessAddress.split(":")[1];
+        Integer port = Integer.parseInt(portStr);
+
+        // Once we have the right port, check to see if it's ready, has to be for a properly started cluster
+        tcpReadinessProbeTrue(port);
+
+        // Mark the node for shutdown and check that it's not ready
+        checkCRUD(nodeId, randomFrom("restart", "RESTART"), "1ms", null, false);
+        tcpReadinessProbeFalse(port);
+
+        // Delete the shutdown request and verify that the node is ready again
+        Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
         assertOK(client().performRequest(deleteRequest));
-        assertNoShuttingDownNodes(nodeIdToShutdown);
+        assertNoShuttingDownNodes(nodeId);
+
+        tcpReadinessProbeTrue(port);
     }
 
     public void testPutShutdownIsIdempotentForRestart() throws Exception {
@@ -73,7 +150,6 @@ public class NodeShutdownIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private void checkPutShutdownIdempotency(String type) throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
 
         // PUT the shutdown once
@@ -99,7 +175,6 @@ public class NodeShutdownIT extends ESRestTestCase {
         }
     }
 
-
     public void testPutShutdownCanChangeTypeFromRestartToRemove() throws Exception {
         checkTypeChange("RESTART", "REMOVE");
     }
@@ -110,7 +185,6 @@ public class NodeShutdownIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void checkTypeChange(String fromType, String toType) throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
         String type = fromType;
 
@@ -143,7 +217,6 @@ public class NodeShutdownIT extends ESRestTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testAllocationPreventedForRemoval() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
         putNodeShutdown(nodeIdToShutdown, "REMOVE");
 
@@ -189,8 +262,8 @@ public class NodeShutdownIT extends ESRestTestCase {
      * 2) Ensures the status properly comes to rest at COMPLETE after the shards have moved.
      */
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77488")
     public void testShardsMoveOffRemovingNode() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
 
         final String indexName = "test-idx";
@@ -242,7 +315,6 @@ public class NodeShutdownIT extends ESRestTestCase {
     }
 
     public void testShardsCanBeAllocatedAfterShutdownDeleted() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
         putNodeShutdown(nodeIdToShutdown, "REMOVE");
 
@@ -264,21 +336,22 @@ public class NodeShutdownIT extends ESRestTestCase {
         ensureGreen(indexName);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77456")
     public void testStalledShardMigrationProperlyDetected() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
-        int numberOfShards = randomIntBetween(1,5);
+        int numberOfShards = randomIntBetween(1, 5);
 
         // Create an index, pin the allocation to the node we're about to shut down
         final String indexName = "test-idx";
         Request createIndexRequest = new Request("PUT", indexName);
-        createIndexRequest.setJsonEntity(
-            "{\"settings\":  {\"number_of_shards\": "
-                + numberOfShards
-                + ", \"number_of_replicas\": 0, \"index.routing.allocation.require._id\": \""
-                + nodeIdToShutdown
-                + "\"}}"
-        );
+        createIndexRequest.setJsonEntity("""
+            {
+              "settings": {
+                "number_of_shards": %s,
+                "number_of_replicas": 0,
+                "index.routing.allocation.require._id": "%s"
+              }
+            }""".formatted(numberOfShards, nodeIdToShutdown));
         assertOK(client().performRequest(createIndexRequest));
 
         // Mark the node for shutdown
@@ -310,7 +383,7 @@ public class NodeShutdownIT extends ESRestTestCase {
             Map<String, Object> status = entityAsMap(statusResponse);
             assertThat(ObjectPath.eval("nodes.0.shard_migration.status", status), equalTo("COMPLETE"));
             assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(0));
-                        assertThat(ObjectPath.eval("nodes.0.shard_migration.explanation", status), nullValue());
+            assertThat(ObjectPath.eval("nodes.0.shard_migration.explanation", status), nullValue());
         });
     }
 
@@ -318,7 +391,6 @@ public class NodeShutdownIT extends ESRestTestCase {
      * Ensures that attempting to delete the status of a node that is not registered for shutdown gives a 404 response code.
      */
     public void testDeleteNodeNotRegisteredForShutdown() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         Request deleteReq = new Request("DELETE", "_nodes/this-node-doesnt-exist/shutdown");
         ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(deleteReq));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), is(404));
@@ -363,11 +435,68 @@ public class NodeShutdownIT extends ESRestTestCase {
     }
 
     private void putNodeShutdown(String nodeIdToShutdown, String type) throws IOException {
+        putNodeShutdown(nodeIdToShutdown, type, null, null);
+    }
+
+    private void putNodeShutdown(String nodeIdToShutdown, String type, @Nullable String allocationDelay, @Nullable String targetNodeName)
+        throws IOException {
         String reason = this.getTestName();
 
         // Put a shutdown request
         Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
-        putShutdown.setJsonEntity("{\"type\":  \"" + type + "\", \"reason\":  \"" + reason + "\"}");
+
+        try (XContentBuilder putBody = JsonXContent.contentBuilder()) {
+            putBody.startObject();
+            {
+                putBody.field("type", type);
+                putBody.field("reason", reason);
+                if (allocationDelay != null) {
+                    assertThat("allocation delay parameter is only valid for RESTART-type shutdowns", type, equalToIgnoringCase("restart"));
+                    putBody.field("allocation_delay", allocationDelay);
+                }
+                if (targetNodeName != null) {
+                    assertThat("target node name parameter is only valid for REPLACE-type shutdowns", type, equalToIgnoringCase("replace"));
+                    putBody.field("target_node_name", targetNodeName);
+                } else {
+                    assertThat("target node name is required for REPALCE-type shutdowns", type, not(equalToIgnoringCase("replace")));
+                }
+            }
+            putBody.endObject();
+            putShutdown.setJsonEntity(Strings.toString(putBody));
+        }
+
+        if (type.equalsIgnoreCase("restart") && allocationDelay != null) {
+            assertNull("target node name parameter is only valid for REPLACE-type shutdowns", targetNodeName);
+            try (XContentBuilder putBody = JsonXContent.contentBuilder()) {
+                putBody.startObject();
+                {
+                    putBody.field("type", type);
+                    putBody.field("reason", reason);
+                    putBody.field("allocation_delay", allocationDelay);
+                }
+                putBody.endObject();
+                putShutdown.setJsonEntity(Strings.toString(putBody));
+            }
+        } else {
+            assertNull("allocation delay parameter is only valid for RESTART-type shutdowns", allocationDelay);
+            try (XContentBuilder putBody = JsonXContent.contentBuilder()) {
+                putBody.startObject();
+                {
+                    putBody.field("type", type);
+                    putBody.field("reason", reason);
+                    if (targetNodeName != null) {
+                        assertThat(
+                            "target node name parameter is only valid for REPLACE-type shutdowns",
+                            type,
+                            equalToIgnoringCase("replace")
+                        );
+                        putBody.field("target_node_name", targetNodeName);
+                    }
+                }
+                putBody.endObject();
+                putShutdown.setJsonEntity(Strings.toString(putBody));
+            }
+        }
         assertOK(client().performRequest(putShutdown));
     }
 

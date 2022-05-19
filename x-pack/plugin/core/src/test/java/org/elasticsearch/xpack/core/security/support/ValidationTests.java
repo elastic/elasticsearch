@@ -28,22 +28,112 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ValidationTests extends ESTestCase {
 
-    private static final Character[] ALLOWED_CHARS = Validation.VALID_NAME_CHARS.toArray(
-        new Character[Validation.VALID_NAME_CHARS.size()]
-    );
+    private static final Character[] ALLOWED_CHARS = Validation.VALID_NAME_CHARS.toArray(new Character[Validation.VALID_NAME_CHARS.size()]);
 
     private static final Set<Character> VALID_SERVICE_ACCOUNT_TOKEN_NAME_CHARS = Set.of(
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-        'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-        'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-        '-', '_'
+        '0',
+        '1',
+        '2',
+        '3',
+        '4',
+        '5',
+        '6',
+        '7',
+        '8',
+        '9',
+        'A',
+        'B',
+        'C',
+        'D',
+        'E',
+        'F',
+        'G',
+        'H',
+        'I',
+        'J',
+        'K',
+        'L',
+        'M',
+        'N',
+        'O',
+        'P',
+        'Q',
+        'R',
+        'S',
+        'T',
+        'U',
+        'V',
+        'W',
+        'X',
+        'Y',
+        'Z',
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+        'f',
+        'g',
+        'h',
+        'i',
+        'j',
+        'k',
+        'l',
+        'm',
+        'n',
+        'o',
+        'p',
+        'q',
+        'r',
+        's',
+        't',
+        'u',
+        'v',
+        'w',
+        'x',
+        'y',
+        'z',
+        '-',
+        '_'
     );
 
     private static final Set<Character> INVALID_SERVICE_ACCOUNT_TOKEN_NAME_CHARS = Set.of(
-        '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '.', '/', ';', '<', '=', '>', '?', '@', '[',
-        '\\', ']', '^', '`', '{', '|', '}', '~', ' ', '\t', '\n', '\r');
+        '!',
+        '"',
+        '#',
+        '$',
+        '%',
+        '&',
+        '\'',
+        '(',
+        ')',
+        '*',
+        '+',
+        ',',
+        '.',
+        '/',
+        ';',
+        '<',
+        '=',
+        '>',
+        '?',
+        '@',
+        '[',
+        '\\',
+        ']',
+        '^',
+        '`',
+        '{',
+        '|',
+        '}',
+        '~',
+        ' ',
+        '\t',
+        '\n',
+        '\r'
+    );
+
+    private static final int CUSTOM_MAX_NAME_LENGTH = 507;
 
     public void testUsernameValid() throws Exception {
         int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
@@ -59,7 +149,7 @@ public class ValidationTests extends ESTestCase {
     }
 
     public void testUsernameInvalidLength() throws Exception {
-        int length = frequently() ? randomIntBetween(Validation.MAX_NAME_LENGTH + 1, 2048) : 0;
+        int length = frequently() ? randomIntBetween(Validation.MAX_NAME_LENGTH + 1, Validation.MAX_NAME_LENGTH * 2) : 0;
         char[] name = new char[length];
         if (length > 0) {
             name = generateValidName(length);
@@ -79,25 +169,15 @@ public class ValidationTests extends ESTestCase {
         assertThat(Users.validateUsername(name, false, Settings.EMPTY), notNullValue());
     }
 
-    public void testUsersValidatePassword() throws Exception {
-        SecureString passwd = new SecureString(randomAlphaOfLength(randomIntBetween(0, 20)).toCharArray());
-        logger.info("{}[{}]", passwd, passwd.length());
-        if (passwd.length() >= 6) {
-            assertThat(Users.validatePassword(passwd), nullValue());
-        } else {
-            assertThat(Users.validatePassword(passwd), notNullValue());
-        }
-    }
-
     public void testRoleNameValid() throws Exception {
         int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
         String name = new String(generateValidName(length));
-        assertThat(Roles.validateRoleName(name), nullValue());
+        assertThat(Roles.validateRoleName(name, false), nullValue());
     }
 
     public void testRoleNameReserved() {
         final String rolename = randomFrom(ReservedRolesStore.names());
-        final Error error = Roles.validateRoleName(rolename);
+        final Error error = Roles.validateRoleName(rolename, false, Validation.MAX_NAME_LENGTH);
         assertNotNull(error);
         assertThat(error.toString(), containsString("is reserved"));
 
@@ -106,7 +186,7 @@ public class ValidationTests extends ESTestCase {
     }
 
     public void testRoleNameInvalidLength() throws Exception {
-        int length = frequently() ? randomIntBetween(Validation.MAX_NAME_LENGTH + 1, 2048) : 0;
+        int length = frequently() ? randomIntBetween(Validation.MAX_NAME_LENGTH + 1, Validation.MAX_NAME_LENGTH * 2) : 0;
         char[] name = new char[length];
         if (length > 0) {
             name = generateValidName(length);
@@ -124,6 +204,87 @@ public class ValidationTests extends ESTestCase {
         int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
         String name = new String(generateNameInvalidWhitespace(length));
         assertThat(Roles.validateRoleName(name, false), notNullValue());
+    }
+
+    public void testUsernameValidWithCustomLength() {
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, CUSTOM_MAX_NAME_LENGTH);
+        String name = new String(generateValidName(length));
+        assertThat(Users.validateUsername(name, false, Settings.EMPTY, CUSTOM_MAX_NAME_LENGTH), nullValue());
+    }
+
+    public void testUsernameReservedWithCustomLength() {
+        final String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
+        final Error error = Users.validateUsername(username, false, Settings.EMPTY, CUSTOM_MAX_NAME_LENGTH);
+        assertNotNull(error);
+        assertThat(error.toString(), containsString("is reserved"));
+    }
+
+    public void testUsernameInvalidLengthWithCustomLength() {
+        int length = frequently() ? randomIntBetween(CUSTOM_MAX_NAME_LENGTH + 1, CUSTOM_MAX_NAME_LENGTH * 2) : 0;
+        char[] name = new char[length];
+        if (length > 0) {
+            name = generateValidName(length);
+        }
+        assertThat(Users.validateUsername(new String(name), false, Settings.EMPTY, CUSTOM_MAX_NAME_LENGTH), notNullValue());
+    }
+
+    public void testUsernameInvalidCharactersWithCustomLength() {
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, CUSTOM_MAX_NAME_LENGTH);
+        String name = new String(generateNameInvalidCharacters(length));
+        assertThat(Users.validateUsername(name, false, Settings.EMPTY, CUSTOM_MAX_NAME_LENGTH), notNullValue());
+    }
+
+    public void testUsernameInvalidWhitespaceWithCustomLength() {
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, CUSTOM_MAX_NAME_LENGTH);
+        String name = new String(generateNameInvalidWhitespace(length));
+        assertThat(Users.validateUsername(name, false, Settings.EMPTY, CUSTOM_MAX_NAME_LENGTH), notNullValue());
+    }
+
+    public void testUsersValidatePassword() {
+        SecureString passwd = new SecureString(randomAlphaOfLength(randomIntBetween(0, 20)).toCharArray());
+        logger.info("{}[{}]", passwd, passwd.length());
+        if (passwd.length() >= 6) {
+            assertThat(Users.validatePassword(passwd), nullValue());
+        } else {
+            assertThat(Users.validatePassword(passwd), notNullValue());
+        }
+    }
+
+    public void testRoleNameValidWithCustomLength() {
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, CUSTOM_MAX_NAME_LENGTH);
+        String name = new String(generateValidName(length));
+        assertThat(Roles.validateRoleName(name, false, CUSTOM_MAX_NAME_LENGTH), nullValue());
+    }
+
+    public void testRoleNameReservedWithCustomLength() {
+        final String rolename = randomFrom(ReservedRolesStore.names());
+        final Error error = Roles.validateRoleName(rolename, false, CUSTOM_MAX_NAME_LENGTH);
+        assertNotNull(error);
+        assertThat(error.toString(), containsString("is reserved"));
+
+        final Error allowed = Roles.validateRoleName(rolename, true, CUSTOM_MAX_NAME_LENGTH);
+        assertNull(allowed);
+    }
+
+    public void testRoleNameInvalidLengthWithCustomLength() throws Exception {
+        int length = frequently() ? randomIntBetween(CUSTOM_MAX_NAME_LENGTH + 1, CUSTOM_MAX_NAME_LENGTH * 2) : 0;
+        char[] name = new char[length];
+        if (length > 0) {
+            name = generateValidName(length);
+        }
+        assertThat(Roles.validateRoleName(new String(name), false, CUSTOM_MAX_NAME_LENGTH), notNullValue());
+    }
+
+    public void testRoleNameInvalidCharactersWithCustomLength() throws Exception {
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, CUSTOM_MAX_NAME_LENGTH);
+        String name = new String(generateNameInvalidCharacters(length));
+        assertThat(Roles.validateRoleName(name, false, CUSTOM_MAX_NAME_LENGTH), notNullValue());
+    }
+
+    public void testRoleNameInvalidWhitespaceWithCustomLength() throws Exception {
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, CUSTOM_MAX_NAME_LENGTH);
+        String name = new String(generateNameInvalidWhitespace(length));
+        assertThat(Roles.validateRoleName(name, false, CUSTOM_MAX_NAME_LENGTH), notNullValue());
     }
 
     public void testIsValidServiceAccountTokenName() {
@@ -191,11 +352,7 @@ public class ValidationTests extends ESTestCase {
     }
 
     public static String randomTokenName() {
-        final Character[] chars = randomArray(
-            1,
-            256,
-            Character[]::new,
-            () -> randomFrom(VALID_SERVICE_ACCOUNT_TOKEN_NAME_CHARS));
+        final Character[] chars = randomArray(1, 256, Character[]::new, () -> randomFrom(VALID_SERVICE_ACCOUNT_TOKEN_NAME_CHARS));
         final String name = Arrays.stream(chars).map(String::valueOf).collect(Collectors.joining());
         return name.startsWith("_") ? randomAlphaOfLength(1) + name.substring(1) : name;
     }

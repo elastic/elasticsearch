@@ -43,6 +43,7 @@
                 "fs",
                 "http",
                 "indices",
+                "ingest",
                 "jvm",
                 "os",
                 "process",
@@ -69,6 +70,7 @@
                 "fs",
                 "http",
                 "indices",
+                "ingest",
                 "jvm",
                 "os",
                 "process",
@@ -128,7 +130,7 @@
                 "store",
                 "warmer",
                 "bulk",
-                "shards"
+                "shard_stats"
               ],
               "description":"Limit the information returned for `indices` metric to the specific index metrics. Isn't used if `indices` (or `all`) metric isn't specified."
             }
@@ -177,7 +179,7 @@
                 "store",
                 "warmer",
                 "bulk",
-                "shards"
+                "shard_stats"
               ],
               "description":"Limit the information returned for `indices` metric to the specific index metrics. Isn't used if `indices` (or `all`) metric isn't specified."
             },

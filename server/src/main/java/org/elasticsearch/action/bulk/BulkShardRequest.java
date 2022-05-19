@@ -23,7 +23,6 @@ import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Stream;
 
 public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable, RawIndexingDataTransportRequest {
 
@@ -100,20 +99,20 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
         StringBuilder b = new StringBuilder("BulkShardRequest [");
         b.append(shardId).append("] containing [");
         if (items.length > 1) {
-          b.append(items.length).append("] requests");
+            b.append(items.length).append("] requests");
         } else {
             b.append(items[0].request()).append("]");
         }
 
         switch (getRefreshPolicy()) {
-        case IMMEDIATE:
-            b.append(" and a refresh");
-            break;
-        case WAIT_UNTIL:
-            b.append(" blocking until refresh");
-            break;
-        case NONE:
-            break;
+            case IMMEDIATE:
+                b.append(" and a refresh");
+                break;
+            case WAIT_UNTIL:
+                b.append(" blocking until refresh");
+                break;
+            case NONE:
+                break;
         }
         return b.toString();
     }
@@ -146,6 +145,10 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + Stream.of(items).mapToLong(Accountable::ramBytesUsed).sum();
+        long sum = SHALLOW_SIZE;
+        for (BulkItemRequest item : items) {
+            sum += item.ramBytesUsed();
+        }
+        return sum;
     }
 }

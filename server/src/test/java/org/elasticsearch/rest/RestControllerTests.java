@@ -8,8 +8,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -20,11 +19,8 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
@@ -37,6 +33,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.junit.After;
 import org.junit.Before;
 
@@ -52,7 +52,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.OPTIONS;
@@ -60,8 +59,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -86,7 +85,8 @@ public class RestControllerTests extends ESTestCase {
                 .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                 .build(),
             Collections.emptyList(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         usageService = new UsageService();
         // we can do this here only because we know that we don't adjust breaker settings dynamically in the test
         inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
@@ -94,13 +94,16 @@ public class RestControllerTests extends ESTestCase {
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         client = new NoOpNodeClient(this.getTestName());
         restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
-        restController.registerHandler(new Route(GET, "/"),
-            (request, channel, client) ->
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
-        restController.registerHandler(new Route(GET, "/error"),
-            (request, channel, client) -> {
-                throw new IllegalArgumentException("test error");
-            });
+        restController.registerHandler(
+            new Route(GET, "/"),
+            (request, channel, client) -> channel.sendResponse(
+                new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+            )
+        );
+        restController.registerHandler(
+            new Route(GET, "/error"),
+            (request, channel, client) -> { throw new IllegalArgumentException("test error"); }
+        );
         httpServerTransport.start();
     }
 
@@ -111,8 +114,9 @@ public class RestControllerTests extends ESTestCase {
 
     public void testApplyRelevantHeaders() throws Exception {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition("header.1", true),
-            new RestHeaderDefinition("header.2", true)));
+        Set<RestHeaderDefinition> headers = new HashSet<>(
+            Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", true))
+        );
         final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("true"));
@@ -120,23 +124,21 @@ public class RestControllerTests extends ESTestCase {
         restHeaders.put("header.3", Collections.singletonList("false"));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
         final RestController spyRestController = spy(restController);
-        when(spyRestController.getAllHandlers(null, fakeRequest.rawPath()))
-            .thenReturn(new Iterator<>() {
-                @Override
-                public boolean hasNext() {
-                    return false;
-                }
+        when(spyRestController.getAllHandlers(null, fakeRequest.rawPath())).thenReturn(new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
 
-                @Override
-                public MethodHandlers next() {
-                    return new MethodHandlers("/")
-                        .addMethod(GET, RestApiVersion.current(), (request, channel, client) -> {
-                            assertEquals("true", threadContext.getHeader("header.1"));
-                            assertEquals("true", threadContext.getHeader("header.2"));
-                            assertNull(threadContext.getHeader("header.3"));
-                        });
-                }
-            });
+            @Override
+            public MethodHandlers next() {
+                return new MethodHandlers("/").addMethod(GET, RestApiVersion.current(), (request, channel, client) -> {
+                    assertEquals("true", threadContext.getHeader("header.1"));
+                    assertEquals("true", threadContext.getHeader("header.2"));
+                    assertNull(threadContext.getHeader("header.3"));
+                });
+            }
+        });
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
@@ -146,14 +148,17 @@ public class RestControllerTests extends ESTestCase {
         assertNull(threadContext.getHeader("header.3"));
         List<String> expectedProductResponseHeader = new ArrayList<>();
         expectedProductResponseHeader.add(RestController.ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
-        assertEquals(expectedProductResponseHeader, threadContext.getResponseHeaders()
-            .getOrDefault(RestController.ELASTIC_PRODUCT_HTTP_HEADER, null));
+        assertEquals(
+            expectedProductResponseHeader,
+            threadContext.getResponseHeaders().getOrDefault(RestController.ELASTIC_PRODUCT_HTTP_HEADER, null)
+        );
     }
 
     public void testRequestWithDisallowedMultiValuedHeader() {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition("header.1", true),
-            new RestHeaderDefinition("header.2", false)));
+        Set<RestHeaderDefinition> headers = new HashSet<>(
+            Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
+        );
         final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
@@ -166,48 +171,53 @@ public class RestControllerTests extends ESTestCase {
 
     public void testTraceParentAndTraceId() throws Exception {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition(Task.TRACE_PARENT, false)));
+        Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false)));
         final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
-        restHeaders.put(Task.TRACE_PARENT, Collections.singletonList("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"));
+        restHeaders.put(
+            Task.TRACE_PARENT_HTTP_HEADER,
+            Collections.singletonList("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+        );
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
         final RestController spyRestController = spy(restController);
-        when(spyRestController.getAllHandlers(null, fakeRequest.rawPath()))
-            .thenReturn(new Iterator<>() {
-                @Override
-                public boolean hasNext() {
-                    return false;
-                }
+        when(spyRestController.getAllHandlers(null, fakeRequest.rawPath())).thenReturn(new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
 
-                @Override
-                public MethodHandlers next() {
-                    return new MethodHandlers("/")
-                        .addMethod(GET, RestApiVersion.current(), (request, channel, client) -> {
-                            assertEquals("0af7651916cd43dd8448eb211c80319c", threadContext.getHeader(Task.TRACE_ID));
-                            assertNull(threadContext.getHeader(Task.TRACE_PARENT));
-                        });
-                }
-            });
+            @Override
+            public MethodHandlers next() {
+                return new MethodHandlers("/").addMethod(GET, RestApiVersion.current(), (request, channel, client) -> {
+                    assertEquals("0af7651916cd43dd8448eb211c80319c", threadContext.getHeader(Task.TRACE_ID));
+                    assertNull(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER));
+                });
+            }
+        });
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
         // context in this test
         assertEquals("0af7651916cd43dd8448eb211c80319c", threadContext.getHeader(Task.TRACE_ID));
-        assertNull(threadContext.getHeader(Task.TRACE_PARENT));
+        assertNull(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER));
     }
 
     public void testRequestWithDisallowedMultiValuedHeaderButSameValues() {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition("header.1", true),
-            new RestHeaderDefinition("header.2", false)));
+        Set<RestHeaderDefinition> headers = new HashSet<>(
+            Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
+        );
         final RestController restController = new RestController(headers, null, client, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "foo"));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).withPath("/bar").build();
-        restController.registerHandler(new Route(GET, "/bar"),
-            (request, channel, client) ->
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
+        restController.registerHandler(
+            new Route(GET, "/bar"),
+            (request, channel, client) -> channel.sendResponse(
+                new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+            )
+        );
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.OK);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         assertTrue(channel.getSendResponseCalled());
@@ -222,12 +232,12 @@ public class RestControllerTests extends ESTestCase {
         String deprecationMessage = randomAlphaOfLengthBetween(1, 10);
         RestApiVersion deprecatedInVersion = RestApiVersion.current();
 
-        Route route = Route.builder(method, path)
-            .deprecated(deprecationMessage, deprecatedInVersion).build();
+        Route route = Route.builder(method, path).deprecated(deprecationMessage, deprecatedInVersion).build();
 
         // don't want to test everything -- just that it actually wraps the handler
         doCallRealMethod().when(controller).registerHandler(route, handler);
-        doCallRealMethod().when(controller).registerAsDeprecatedHandler(method, path, deprecatedInVersion, handler, deprecationMessage);
+        doCallRealMethod().when(controller)
+            .registerAsDeprecatedHandler(method, path, deprecatedInVersion, handler, deprecationMessage, null);
 
         controller.registerHandler(route, handler);
 
@@ -244,16 +254,22 @@ public class RestControllerTests extends ESTestCase {
         final String replacedPath = "/_" + randomAlphaOfLengthBetween(1, 6);
         final RestApiVersion current = RestApiVersion.current();
         final RestApiVersion previous = current.previous();
-        final String deprecationMessage = "[" + replacedMethod.name() + " " + replacedPath + "] is deprecated! Use [" +
-            method.name() + " " + path + "] instead.";
+        final String deprecationMessage = "["
+            + replacedMethod.name()
+            + " "
+            + replacedPath
+            + "] is deprecated! Use ["
+            + method.name()
+            + " "
+            + path
+            + "] instead.";
 
-        final Route route = Route.builder(method, path)
-            .replaces(replacedMethod, replacedPath, previous).build();
+        final Route route = Route.builder(method, path).replaces(replacedMethod, replacedPath, previous).build();
 
         // don't want to test everything -- just that it actually wraps the handlers
         doCallRealMethod().when(controller).registerHandler(route, handler);
-        doCallRealMethod().when(controller).registerAsReplacedHandler(method, path, current, handler,
-            replacedMethod, replacedPath, previous);
+        doCallRealMethod().when(controller)
+            .registerAsReplacedHandler(method, path, current, handler, replacedMethod, replacedPath, previous);
 
         controller.registerHandler(route, handler);
 
@@ -265,8 +281,7 @@ public class RestControllerTests extends ESTestCase {
         final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService);
 
         RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
-        RestRequest.Method secondMethod =
-            randomFrom(Arrays.stream(RestRequest.Method.values()).filter(m -> m != firstMethod).collect(Collectors.toList()));
+        RestRequest.Method secondMethod = randomFrom(Arrays.stream(RestRequest.Method.values()).filter(m -> m != firstMethod).toList());
 
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
 
@@ -274,8 +289,10 @@ public class RestControllerTests extends ESTestCase {
 
         restController.registerHandler(new Route(firstMethod, path + "/{wildcard1}"), handler);
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> restController.registerHandler(new Route(secondMethod, path + "/{wildcard2}"), handler));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> restController.registerHandler(new Route(secondMethod, path + "/{wildcard2}"), handler)
+        );
 
         assertThat(exception.getMessage(), equalTo("Trying to use conflicting wildcard names for same path: wildcard1 and wildcard2"));
     }
@@ -285,12 +302,10 @@ public class RestControllerTests extends ESTestCase {
         AtomicBoolean wrapperCalled = new AtomicBoolean(false);
         final RestHandler handler = (RestRequest request, RestChannel channel, NodeClient client) -> handlerCalled.set(true);
         final HttpServerTransport httpServerTransport = new TestHttpServerTransport();
-        final RestController restController =
-            new RestController(Collections.emptySet(),
-                h -> {
-                    assertSame(handler, h);
-                    return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
-                }, client, circuitBreakerService, usageService);
+        final RestController restController = new RestController(Collections.emptySet(), h -> {
+            assertSame(handler, h);
+            return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
+        }, client, circuitBreakerService, usageService);
         restController.registerHandler(new Route(GET, "/wrapped"), handler);
         RestRequest request = testRestRequest("/wrapped", "{}", XContentType.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
@@ -354,9 +369,10 @@ public class RestControllerTests extends ESTestCase {
         RestRequest request = testRestRequest("/", content, null);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.NOT_ACCEPTABLE);
         restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService);
-        restController.registerHandler(new Route(GET, "/"),
-            (r, c, client) -> c.sendResponse(
-                new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
+        restController.registerHandler(
+            new Route(GET, "/"),
+            (r, c, client) -> c.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY))
+        );
 
         assertFalse(channel.getSendResponseCalled());
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
@@ -364,7 +380,10 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchDoesNotRequireContentTypeForRequestsWithoutContent() {
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
 
         assertFalse(channel.getSendResponseCalled());
@@ -374,13 +393,20 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchFailsWithPlainText() {
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray(content), null).withPath("/foo")
-            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("text/plain"))).build();
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray(content), null)
+            .withPath("/foo")
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("text/plain")))
+            .build();
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
-        restController.registerHandler(new Route(GET, "/foo"),
-            (request, channel1, client) ->
-                channel1.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
+        restController.registerHandler(
+            new Route(GET, "/foo"),
+            (request, channel1, client) -> channel1.sendResponse(
+                new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
+            )
+        );
 
         assertFalse(channel.getSendResponseCalled());
         restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
@@ -388,9 +414,13 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchUnsupportedContentType() {
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray("{}"), null).withPath("/")
-            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("application/x-www-form-urlencoded"))).build();
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("{}"), null)
+            .withPath("/")
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("application/x-www-form-urlencoded")))
+            .build();
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
 
         assertFalse(channel.getSendResponseCalled());
@@ -401,9 +431,13 @@ public class RestControllerTests extends ESTestCase {
     public void testDispatchWorksWithNewlineDelimitedJson() {
         final String mediaType = "application/x-ndjson";
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray(content), null).withPath("/foo")
-            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(mediaType))).build();
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray(content), null)
+            .withPath("/foo")
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(mediaType)))
+            .build();
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
         restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
@@ -428,9 +462,13 @@ public class RestControllerTests extends ESTestCase {
         final String mediaType = randomFrom("application/json", "application/smile");
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         final List<String> contentTypeHeader = Collections.singletonList(mediaType);
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray(content), RestRequest.parseContentType(contentTypeHeader)).withPath("/foo")
-            .withHeaders(Collections.singletonMap("Content-Type", contentTypeHeader)).build();
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray(content),
+            RestRequest.parseContentType(contentTypeHeader)
+        ).withPath("/foo").withHeaders(Collections.singletonMap("Content-Type", contentTypeHeader)).build();
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
         restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
@@ -452,9 +490,13 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchWithContentStreamNoContentType() {
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray("{}"), null).withPath("/foo").build();
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("{}"), null)
+            .withPath("/foo")
+            .build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
@@ -473,9 +515,13 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testNonStreamingXContentCausesErrorResponse() throws IOException {
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(BytesReference.bytes(YamlXContent.contentBuilder().startObject().endObject()),
-                XContentType.YAML).withPath("/foo").build();
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            BytesReference.bytes(YamlXContent.contentBuilder().startObject().endObject()),
+            XContentType.YAML
+        ).withPath("/foo").build();
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
         restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
@@ -494,10 +540,13 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testUnknownContentWithContentStream() {
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray("aaaabbbbb"), null).withPath("/foo")
-            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("foo/bar")))
-            .build();
+        RestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray("aaaabbbbb"),
+            null
+        ).withPath("/foo").withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("foo/bar"))).build();
+        if (randomBoolean()) {
+            fakeRestRequest = new RestRequest(fakeRestRequest);
+        }
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
         restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
             @Override
@@ -521,7 +570,8 @@ public class RestControllerTests extends ESTestCase {
         restController.dispatchBadRequest(
             channel,
             client.threadPool().getThreadContext(),
-            randomBoolean() ? new IllegalStateException("bad request") : new Throwable("bad request"));
+            randomBoolean() ? new IllegalStateException("bad request") : new Throwable("bad request")
+        );
         assertTrue(channel.getSendResponseCalled());
         assertThat(channel.getRestResponse().content().utf8ToString(), containsString("bad request"));
     }
@@ -541,9 +591,10 @@ public class RestControllerTests extends ESTestCase {
         });
 
         final XContentBuilder content = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())
-            .startObject().field("field", "value").endObject();
-        final FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("/notconsumed")
+            .startObject()
+            .field("field", "value")
+            .endObject();
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/notconsumed")
             .withMethod(method)
             .withContent(BytesReference.bytes(content), content.contentType())
             .build();
@@ -567,8 +618,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testFavicon() {
-        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withMethod(GET)
+        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(GET)
             .withPath("/favicon.ico")
             .build();
         final AssertingChannel channel = new AssertingChannel(fakeRestRequest, false, RestStatus.OK);
@@ -579,10 +629,8 @@ public class RestControllerTests extends ESTestCase {
 
     public void testFaviconWithWrongHttpMethod() {
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
-            randomValueOtherThanMany(m -> m == GET || m == OPTIONS,
-                () -> randomFrom(RestRequest.Method.values())))
-            .withPath("/favicon.ico")
-            .build();
+            randomValueOtherThanMany(m -> m == GET || m == OPTIONS, () -> randomFrom(RestRequest.Method.values()))
+        ).withPath("/favicon.ico").build();
         final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.METHOD_NOT_ALLOWED);
         restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
         assertTrue(channel.getSendResponseCalled());
@@ -592,7 +640,7 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchUnsupportedHttpMethod() {
         final boolean hasContent = randomBoolean();
-        final RestRequest request = RestRequest.request(xContentRegistry(), new HttpRequest() {
+        final RestRequest request = RestRequest.request(parserConfig(), new HttpRequest() {
             @Override
             public RestRequest.Method method() {
                 throw new IllegalArgumentException("test");
@@ -641,8 +689,7 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public void release() {
-            }
+            public void release() {}
 
             @Override
             public HttpRequest releaseAndCopy() {
@@ -717,11 +764,10 @@ public class RestControllerTests extends ESTestCase {
     private FakeRestRequest requestWithContent(String mediaType) {
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         final List<String> mediaTypeList = Collections.singletonList(mediaType);
-        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray(content), RestRequest.parseContentType(mediaTypeList))
-            .withPath("/foo")
-            .withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList))
-            .build();
+        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray(content),
+            RestRequest.parseContentType(mediaTypeList)
+        ).withPath("/foo").withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList)).build();
     }
 
     public void testCurrentVersionVNDMediaTypeIsNotUsingCompatibility() {
@@ -749,28 +795,70 @@ public class RestControllerTests extends ESTestCase {
         assertTrue(channel.getSendResponseCalled());
     }
 
-    private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements
-        HttpServerTransport {
+    public void testCustomMediaTypeValidation() {
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
 
-        TestHttpServerTransport() {
-        }
+        final String mediaType = "application/x-protobuf";
+        FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
+        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+
+        // register handler that handles custom media type validation
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
+            @Override
+            public boolean mediaTypesValid(RestRequest request) {
+                return request.getXContentType() == null
+                    && request.getParsedContentType().mediaTypeWithoutParameters().equals("application/x-protobuf");
+            }
+
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+        });
+
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testBrowserSafelistedContentTypesAreRejected() {
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+
+        final String mediaType = randomFrom(RestController.SAFELISTED_MEDIA_TYPES);
+        FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
+
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
+
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {}
+        });
+
+        restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+        assertThat(
+            channel.getRestResponse().content().utf8ToString(),
+            containsString("Content-Type header [" + mediaType + "] is not supported")
+        );
+    }
+
+    private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
+
+        TestHttpServerTransport() {}
 
         @Override
-        protected void doStart() {
-        }
+        protected void doStart() {}
 
         @Override
-        protected void doStop() {
-        }
+        protected void doStop() {}
 
         @Override
-        protected void doClose() {
-        }
+        protected void doClose() {}
 
         @Override
         public BoundTransportAddress boundAddress() {
             TransportAddress transportAddress = buildNewFakeTransportAddress();
-            return new BoundTransportAddress(new TransportAddress[]{transportAddress}, transportAddress);
+            return new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress);
         }
 
         @Override
@@ -831,7 +919,10 @@ public class RestControllerTests extends ESTestCase {
         FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
         builder.withPath(path);
         builder.withContent(new BytesArray(content), xContentType);
-        return builder.build();
+        if (randomBoolean()) {
+            return builder.build();
+        } else {
+            return new RestRequest(builder.build());
+        }
     }
 }
-

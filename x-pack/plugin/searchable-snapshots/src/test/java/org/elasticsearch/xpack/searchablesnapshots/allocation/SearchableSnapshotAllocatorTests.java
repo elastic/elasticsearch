@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -53,7 +53,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.Matchers.empty;
 
 public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
@@ -61,7 +61,6 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
     public void testAllocateToNodeWithLargestCache() {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final List<DiscoveryNode> nodes = randomList(1, 10, () -> newNode("node-" + UUIDs.randomBase64UUID(random())));
-        final DiscoveryNode localNode = randomFrom(nodes);
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId);
@@ -136,7 +135,6 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
     public void testNoFetchesOnDeciderNo() {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final List<DiscoveryNode> nodes = randomList(1, 10, () -> newNode("node-" + UUIDs.randomBase64UUID(random())));
-        final DiscoveryNode localNode = randomFrom(nodes);
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId);
@@ -176,7 +174,6 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
     public void testNoFetchesForPartialIndex() {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final List<DiscoveryNode> nodes = randomList(1, 10, () -> newNode("node-" + UUIDs.randomBase64UUID(random())));
-        final DiscoveryNode localNode = randomFrom(nodes);
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId, builder -> builder.put(SNAPSHOT_PARTIAL_SETTING.getKey(), true));
@@ -255,7 +252,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
     ) {
         return new RoutingAllocation(
             allocationDeciders,
-            new RoutingNodes(state, false),
+            state.mutableRoutingNodes(),
             state,
             null,
             new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {

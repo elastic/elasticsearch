@@ -8,8 +8,8 @@
 
 package org.elasticsearch.indices.analysis;
 
-import org.apache.lucene.analysis.util.TokenFilterFactory;
-import org.apache.lucene.analysis.util.TokenizerFactory;
+import org.apache.lucene.analysis.TokenFilterFactory;
+import org.apache.lucene.analysis.TokenizerFactory;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -37,9 +36,7 @@ import static java.util.Map.entry;
  */
 public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
-    private static final Pattern UNDERSCORE_THEN_ANYTHING = Pattern.compile("_(.)");
-
-    private static final Map<String,Class<?>> KNOWN_TOKENIZERS = Map.ofEntries(
+    private static final Map<String, Class<?>> KNOWN_TOKENIZERS = Map.ofEntries(
         // exposed in ES
         entry("classic", MovedToAnalysisCommon.class),
         entry("edgengram", MovedToAnalysisCommon.class),
@@ -55,9 +52,10 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         entry("uax29urlemail", MovedToAnalysisCommon.class),
         entry("whitespace", MovedToAnalysisCommon.class),
         // this one "seems to mess up offsets". probably shouldn't be a tokenizer...
-        entry("wikipedia", Void.class));
+        entry("wikipedia", Void.class)
+    );
 
-    static final Map<String,Class<?>> KNOWN_TOKENFILTERS = Map.ofEntries(
+    static final Map<String, Class<?>> KNOWN_TOKENFILTERS = Map.ofEntries(
         // exposed in ES
         entry("apostrophe", MovedToAnalysisCommon.class),
         entry("arabicnormalization", MovedToAnalysisCommon.class),
@@ -111,6 +109,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         entry("ngram", MovedToAnalysisCommon.class),
         entry("norwegianlightstem", MovedToAnalysisCommon.class),
         entry("norwegianminimalstem", MovedToAnalysisCommon.class),
+        entry("norwegiannormalization", MovedToAnalysisCommon.class),
         entry("patterncapturegroup", MovedToAnalysisCommon.class),
         entry("patternreplace", MovedToAnalysisCommon.class),
         entry("persiannormalization", MovedToAnalysisCommon.class),
@@ -132,8 +131,11 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         entry("stemmeroverride", MovedToAnalysisCommon.class),
         entry("stop", StopTokenFilterFactory.class),
         entry("swedishlightstem", MovedToAnalysisCommon.class),
+        entry("swedishminimalstem", MovedToAnalysisCommon.class),
         entry("synonym", MovedToAnalysisCommon.class),
         entry("synonymgraph", MovedToAnalysisCommon.class),
+        entry("telugunormalization", MovedToAnalysisCommon.class),
+        entry("telugustem", MovedToAnalysisCommon.class),
         entry("trim", MovedToAnalysisCommon.class),
         entry("truncate", MovedToAnalysisCommon.class),
         entry("turkishlowercase", MovedToAnalysisCommon.class),
@@ -186,18 +188,31 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         entry("delimitedboost", Void.class),
         // LUCENE-9574
         entry("dropifflagged", Void.class),
+        entry("japanesecompletion", Void.class),
         // LUCENE-9575
-        entry("patterntyping", Void.class));
+        entry("patterntyping", Void.class),
+        // LUCENE-10248
+        entry("spanishpluralstem", Void.class),
+        // LUCENE-10352
+        entry("daitchmokotoffsoundex", Void.class),
+        entry("persianstem", Void.class)
+    );
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = Map.of(
-            "htmlstrip", MovedToAnalysisCommon.class,
-            "mapping", MovedToAnalysisCommon.class,
-            "patternreplace", MovedToAnalysisCommon.class,
-            // TODO: these charfilters are not yet exposed: useful?
-            // handling of zwnj for persian
-            "persian", Void.class,
-            // LUCENE-9413 : it might useful for dictionary-based CJK analyzers
-            "cjkwidth", Void.class);
+        "htmlstrip",
+        MovedToAnalysisCommon.class,
+        "mapping",
+        MovedToAnalysisCommon.class,
+        "patternreplace",
+        MovedToAnalysisCommon.class,
+        // TODO: these charfilters are not yet exposed: useful?
+        // handling of zwnj for persian
+        "persian",
+        Void.class,
+        // LUCENE-9413 : it might useful for dictionary-based CJK analyzers
+        "cjkwidth",
+        Void.class
+    );
 
     /**
      * The plugin being tested. Core uses an "empty" plugin so we don't have to throw null checks all over the place.
@@ -261,26 +276,38 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
     public void testTokenizers() {
         Set<String> missing = new TreeSet<String>();
-        missing.addAll(org.apache.lucene.analysis.util.TokenizerFactory.availableTokenizers()
-            .stream().map(key -> key.toLowerCase(Locale.ROOT)).collect(Collectors.toSet()));
+        missing.addAll(
+            org.apache.lucene.analysis.TokenizerFactory.availableTokenizers()
+                .stream()
+                .map(key -> key.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet())
+        );
         missing.removeAll(getTokenizers().keySet());
         assertTrue("new tokenizers found, please update KNOWN_TOKENIZERS: " + missing.toString(), missing.isEmpty());
     }
 
     public void testCharFilters() {
         Set<String> missing = new TreeSet<String>();
-        missing.addAll(org.apache.lucene.analysis.util.CharFilterFactory.availableCharFilters()
-            .stream().map(key -> key.toLowerCase(Locale.ROOT)).collect(Collectors.toSet()));
+        missing.addAll(
+            org.apache.lucene.analysis.CharFilterFactory.availableCharFilters()
+                .stream()
+                .map(key -> key.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet())
+        );
         missing.removeAll(getCharFilters().keySet());
         assertTrue("new charfilters found, please update KNOWN_CHARFILTERS: " + missing.toString(), missing.isEmpty());
     }
 
     public void testTokenFilters() {
-        Set<String> missing = new TreeSet<String>();
-        missing.addAll(org.apache.lucene.analysis.util.TokenFilterFactory.availableTokenFilters()
-            .stream().map(key -> key.toLowerCase(Locale.ROOT)).collect(Collectors.toSet()));
+        Set<String> missing = new TreeSet<>();
+        missing.addAll(
+            org.apache.lucene.analysis.TokenFilterFactory.availableTokenFilters()
+                .stream()
+                .map(key -> key.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet())
+        );
         missing.removeAll(getTokenFilters().keySet());
-        assertTrue("new tokenfilters found, please update KNOWN_TOKENFILTERS: " + missing.toString(), missing.isEmpty());
+        assertTrue("new tokenfilters found, please update KNOWN_TOKENFILTERS: " + missing, missing.isEmpty());
     }
 
     /**

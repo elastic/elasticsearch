@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -23,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,22 +39,38 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
     private static final Logger logger = LogManager.getLogger(TransportWatcherServiceAction.class);
 
     @Inject
-    public TransportWatcherServiceAction(TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            WatcherServiceRequest::new, indexNameExpressionResolver, ThreadPool.Names.MANAGEMENT);
+    public TransportWatcherServiceAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            WatcherServiceAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            WatcherServiceRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.MANAGEMENT
+        );
     }
 
     @Override
-    protected void masterOperation(Task task, WatcherServiceRequest request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        WatcherServiceRequest request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         final boolean manuallyStopped = request.getCommand() == WatcherServiceRequest.Command.STOP;
         final String source = manuallyStopped ? "update_watcher_manually_stopped" : "update_watcher_manually_started";
 
         // TODO: make WatcherServiceRequest a real AckedRequest so that we have both a configurable timeout and master node timeout like
-        //       we do elsewhere
-        clusterService.submitStateUpdateTask(source, new AckedClusterStateUpdateTask(new AckedRequest() {
+        // we do elsewhere
+        submitUnbatchedTask(source, new AckedClusterStateUpdateTask(new AckedRequest() {
             @Override
             public TimeValue ackTimeout() {
                 return AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
@@ -75,16 +93,17 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
                     return clusterState;
                 } else {
                     ClusterState.Builder builder = new ClusterState.Builder(clusterState);
-                    builder.metadata(Metadata.builder(clusterState.getMetadata())
-                        .putCustom(WatcherMetadata.TYPE, newWatcherMetadata));
+                    builder.metadata(Metadata.builder(clusterState.getMetadata()).putCustom(WatcherMetadata.TYPE, newWatcherMetadata));
                     return builder.build();
                 }
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
-                logger.error(new ParameterizedMessage("could not update watcher stopped status to [{}], source [{}]",
-                    manuallyStopped, source), e);
+            public void onFailure(Exception e) {
+                logger.error(
+                    new ParameterizedMessage("could not update watcher stopped status to [{}], source [{}]", manuallyStopped, source),
+                    e
+                );
                 listener.onFailure(e);
             }
         });
@@ -94,4 +113,10 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
     protected ClusterBlockException checkBlock(WatcherServiceRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
+    }
+
 }

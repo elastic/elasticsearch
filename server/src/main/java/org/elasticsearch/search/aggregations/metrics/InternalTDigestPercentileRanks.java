@@ -17,8 +17,14 @@ import java.util.Map;
 public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPercentiles implements PercentileRanks {
     public static final String NAME = "tdigest_percentile_ranks";
 
-    public InternalTDigestPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed, DocValueFormat formatter,
-                                          Map<String, Object> metadata) {
+    public InternalTDigestPercentileRanks(
+        String name,
+        double[] cdfValues,
+        TDigestState state,
+        boolean keyed,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
         super(name, cdfValues, state, keyed, formatter, metadata);
     }
 
@@ -55,8 +61,13 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
     }
 
     @Override
-    protected AbstractInternalTDigestPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
-            Map<String, Object> metadata) {
+    protected AbstractInternalTDigestPercentiles createReduced(
+        String name,
+        double[] keys,
+        TDigestState merged,
+        boolean keyed,
+        Map<String, Object> metadata
+    ) {
         return new InternalTDigestPercentileRanks(name, keys, merged, keyed, format, metadata);
     }
 
@@ -64,8 +75,7 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
         double percentileRank = state.cdf(value);
         if (percentileRank < 0) {
             percentileRank = 0;
-        }
-        else if (percentileRank > 1) {
+        } else if (percentileRank > 1) {
             percentileRank = 1;
         }
         return percentileRank * 100;

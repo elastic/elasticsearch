@@ -98,10 +98,6 @@ public class JoinRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "JoinRequest{" +
-            "sourceNode=" + sourceNode +
-            ", minimumTerm=" + minimumTerm +
-            ", optionalJoin=" + optionalJoin +
-            '}';
+        return "JoinRequest{" + "sourceNode=" + sourceNode + ", minimumTerm=" + minimumTerm + ", optionalJoin=" + optionalJoin + '}';
     }
 }

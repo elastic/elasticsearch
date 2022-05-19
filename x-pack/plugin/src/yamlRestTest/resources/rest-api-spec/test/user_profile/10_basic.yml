@@ -1,0 +1,185 @@
+---
+setup:
+  - skip:
+      features: stash_in_key
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+          {
+            "password" : "s3krit-password",
+            "roles" : [ "superuser" ],
+            "full_name" : "Bazooka Joe",
+            "email" : "joe@bazooka.gum"
+          }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "joe"
+        ignore: 404
+
+---
+"Test user profile apis":
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "joe",
+            "password" : "s3krit-password"
+          }
+  - is_true: uid
+  - match: { "user.username" : "joe" }
+  - match: { "user.roles" : [ "superuser" ] }
+  - match: { "user.full_name" : "Bazooka Joe" }
+  - match: { "user.realm_name" : "default_native" }
+  - is_false: "user.realm_domain"
+  - is_true: _doc
+  - set: { uid: profile_uid }
+
+  - do:
+      security.get_user_profile:
+        uid: "$profile_uid"
+
+  - length: { $body: 1 }
+  - is_true: "$profile_uid"
+  - set: { $profile_uid: profile }
+  - match: { $profile.uid : "$profile_uid" }
+  - match: { $profile.user.username : "joe" }
+  - match: { $profile.data : {} }
+
+  - do:
+      security.update_user_profile_data:
+        uid: "$profile_uid"
+        body: >
+          {
+            "labels": {
+              "kibana": {
+                "spaces": "demo"
+              }
+            },
+            "data": {
+              "app1": {
+                "theme": "default"
+              },
+              "app2": {
+                "theme": "dark"
+              }
+            }
+          }
+
+  - is_true: acknowledged
+
+  # Get the update profile with application data
+  - do:
+      security.get_user_profile:
+        uid: "$profile_uid"
+        data: "app1"
+
+  - length: { $body: 1 }
+  - is_true: "$profile_uid"
+  - set: { $profile_uid: profile }
+  - match: { $profile.data: { "app1": { "theme": "default" } } }
+
+  # Activate again should get the same profile
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "joe",
+            "password" : "s3krit-password"
+          }
+  - match: { "uid" : "$profile_uid" }
+
+  # Data should be preserved
+  - do:
+      security.get_user_profile:
+        uid: "$profile_uid"
+        data: "*"
+
+  - length: { $body: 1 }
+  - is_true: "$profile_uid"
+  - set: { $profile_uid: profile }
+  - match: { $profile.labels: { "kibana": { "spaces": "demo" } } }
+  - match: { $profile.data: { "app1": { "theme": "default" }, "app2": { "theme": "dark"} } }
+
+  # Attempting to get a non-existing profile leads to 404
+  - do:
+      catch: missing
+      security.get_user_profile:
+        uid: no_such_profile_uid
+
+  - length: { $body: 0 }
+
+
+---
+"Test enable disable user profile":
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "joe",
+            "password" : "s3krit-password"
+          }
+  - set: { uid: profile_uid }
+
+  # enabled right after activation
+  - do:
+      security.get_user_profile:
+        uid: "$profile_uid"
+  - set: { $profile_uid: profile }
+  - is_true: "$profile.enabled"
+
+  # disable the profile
+  - do:
+      security.disable_user_profile:
+        uid: "$profile_uid"
+
+  - do:
+      security.get_user_profile:
+        uid: "$profile_uid"
+  - set: { $profile_uid: profile }
+  - is_false: "$profile.enabled"
+
+  # enable again
+  - do:
+      security.enable_user_profile:
+        uid: "$profile_uid"
+
+  - do:
+      security.get_user_profile:
+        uid: "$profile_uid"
+  - set: { $profile_uid: profile }
+  - is_true: "$profile.enabled"
+
+---
+"Test suggest user profile":
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "joe",
+            "password" : "s3krit-password"
+          }
+  - set: { uid: profile_uid }
+
+  - do:
+      security.suggest_user_profiles:
+        body: >
+          {
+            "name": "joe",
+            "size": 5
+          }
+
+  - length: { profiles: 1 }
+  - match: { "profiles.0.uid": "$profile_uid" }

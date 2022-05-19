@@ -1,0 +1,5 @@
+pr: 85049
+summary: Handle role descriptor retrieval for internal users
+area: Authorization
+type: bug
+issues: []

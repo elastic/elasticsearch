@@ -12,8 +12,11 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 public final class AuthenticationServiceField {
 
-    public static final Setting<Boolean> RUN_AS_ENABLED =
-            Setting.boolSetting(setting("authc.run_as.enabled"), true, Setting.Property.NodeScope);
+    public static final Setting<Boolean> RUN_AS_ENABLED = Setting.boolSetting(
+        setting("authc.run_as.enabled"),
+        true,
+        Setting.Property.NodeScope
+    );
     public static final String RUN_AS_USER_HEADER = "es-security-runas-user";
 
     private AuthenticationServiceField() {}

@@ -12,35 +12,32 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.OrdinalsFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.StringFilter;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeSet;
 
 public class IncludeExcludeTests extends ESTestCase {
     public void testEmptyTermsWithOrds() throws IOException {
-        IncludeExclude inexcl = new IncludeExclude(
-                new TreeSet<>(Collections.singleton(new BytesRef("foo"))),
-                null);
+        IncludeExclude inexcl = new IncludeExclude(null, null, new TreeSet<>(Set.of(new BytesRef("foo"))), null);
         OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
         LongBitSet acceptedOrds = filter.acceptedGlobalOrdinals(DocValues.emptySortedSet());
         assertEquals(0, acceptedOrds.length());
 
-        inexcl = new IncludeExclude(
-                null,
-                new TreeSet<>(Collections.singleton(new BytesRef("foo"))));
+        inexcl = new IncludeExclude(null, null, null, new TreeSet<>(Set.of(new BytesRef("foo"))));
         filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
         acceptedOrds = filter.acceptedGlobalOrdinals(DocValues.emptySortedSet());
         assertEquals(0, acceptedOrds.length());
@@ -70,6 +67,11 @@ public class IncludeExcludeTests extends ESTestCase {
             }
 
             @Override
+            public long docValueCount() {
+                return 1;
+            }
+
+            @Override
             public BytesRef lookupOrd(long ord) {
                 assertEquals(0, ord);
                 return value;
@@ -91,8 +93,8 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     public void testTermAccept() throws IOException {
-        String[] fooSet = {"foo"};
-        String[] barSet = {"bar"};
+        SortedSet<BytesRef> fooSet = new TreeSet<>(Set.of(new BytesRef("foo")));
+        SortedSet<BytesRef> barSet = new TreeSet<>(Set.of(new BytesRef("bar")));
         String fooRgx = "f.*";
         String barRgx = "b.*";
 
@@ -156,33 +158,33 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     public void testExactIncludeValuesEquals() throws IOException {
-        String[] incValues = { "a", "b" };
-        String[] differentIncValues = { "a", "c" };
-        IncludeExclude serialized = serialize(new IncludeExclude(incValues, null), IncludeExclude.INCLUDE_FIELD);
+        SortedSet<BytesRef> incValues = new TreeSet<>(Set.of(new BytesRef("a"), new BytesRef("b")));
+        SortedSet<BytesRef> differentIncValues = new TreeSet<>(Set.of(new BytesRef("a"), new BytesRef("c")));
+        IncludeExclude serialized = serialize(new IncludeExclude(null, null, incValues, null), IncludeExclude.INCLUDE_FIELD);
         assertFalse(serialized.isPartitionBased());
         assertFalse(serialized.isRegexBased());
 
-        IncludeExclude same = new IncludeExclude(incValues, null);
+        IncludeExclude same = new IncludeExclude(null, null, incValues, null);
         assertEquals(serialized, same);
         assertEquals(serialized.hashCode(), same.hashCode());
 
-        IncludeExclude different = new IncludeExclude(differentIncValues, null);
+        IncludeExclude different = new IncludeExclude(null, null, differentIncValues, null);
         assertFalse(serialized.equals(different));
         assertTrue(serialized.hashCode() != different.hashCode());
     }
 
     public void testExactExcludeValuesEquals() throws IOException {
-        String[] excValues = { "a", "b" };
-        String[] differentExcValues = { "a", "c" };
-        IncludeExclude serialized = serialize(new IncludeExclude(null, excValues), IncludeExclude.EXCLUDE_FIELD);
+        SortedSet<BytesRef> excValues = new TreeSet<>(Set.of(new BytesRef("a"), new BytesRef("b")));
+        SortedSet<BytesRef> differentExcValues = new TreeSet<>(Set.of(new BytesRef("a"), new BytesRef("c")));
+        IncludeExclude serialized = serialize(new IncludeExclude(null, null, null, excValues), IncludeExclude.EXCLUDE_FIELD);
         assertFalse(serialized.isPartitionBased());
         assertFalse(serialized.isRegexBased());
 
-        IncludeExclude same = new IncludeExclude(null, excValues);
+        IncludeExclude same = new IncludeExclude(null, null, null, excValues);
         assertEquals(serialized, same);
         assertEquals(serialized.hashCode(), same.hashCode());
 
-        IncludeExclude different = new IncludeExclude(null, differentExcValues);
+        IncludeExclude different = new IncludeExclude(null, null, null, differentExcValues);
         assertFalse(serialized.equals(different));
         assertTrue(serialized.hashCode() != different.hashCode());
     }
@@ -190,15 +192,15 @@ public class IncludeExcludeTests extends ESTestCase {
     public void testRegexInclude() throws IOException {
         String incRegex = "foo.*";
         String differentRegex = "bar.*";
-        IncludeExclude serialized = serialize(new IncludeExclude(incRegex, null), IncludeExclude.INCLUDE_FIELD);
+        IncludeExclude serialized = serialize(new IncludeExclude(incRegex, null, null, null), IncludeExclude.INCLUDE_FIELD);
         assertFalse(serialized.isPartitionBased());
         assertTrue(serialized.isRegexBased());
 
-        IncludeExclude same = new IncludeExclude(incRegex, null);
+        IncludeExclude same = new IncludeExclude(incRegex, null, null, null);
         assertEquals(serialized, same);
         assertEquals(serialized.hashCode(), same.hashCode());
 
-        IncludeExclude different = new IncludeExclude(differentRegex, null);
+        IncludeExclude different = new IncludeExclude(differentRegex, null, null, null);
         assertFalse(serialized.equals(different));
         assertTrue(serialized.hashCode() != different.hashCode());
     }
@@ -206,15 +208,15 @@ public class IncludeExcludeTests extends ESTestCase {
     public void testRegexExclude() throws IOException {
         String excRegex = "foo.*";
         String differentRegex = "bar.*";
-        IncludeExclude serialized = serialize(new IncludeExclude(null, excRegex), IncludeExclude.EXCLUDE_FIELD);
+        IncludeExclude serialized = serialize(new IncludeExclude(null, excRegex, null, null), IncludeExclude.EXCLUDE_FIELD);
         assertFalse(serialized.isPartitionBased());
         assertTrue(serialized.isRegexBased());
 
-        IncludeExclude same = new IncludeExclude(null, excRegex);
+        IncludeExclude same = new IncludeExclude(null, excRegex, null, null);
         assertEquals(serialized, same);
         assertEquals(serialized.hashCode(), same.hashCode());
 
-        IncludeExclude different = new IncludeExclude(null, differentRegex);
+        IncludeExclude different = new IncludeExclude(null, differentRegex, null, null);
         assertFalse(serialized.equals(different));
         assertTrue(serialized.hashCode() != different.hashCode());
     }
@@ -242,8 +244,7 @@ public class IncludeExcludeTests extends ESTestCase {
             } else if (field.getPreferredName().equalsIgnoreCase("exclude")) {
                 return IncludeExclude.parseExclude(parser);
             } else {
-                throw new IllegalArgumentException(
-                    "Unexpected field name serialized in test: " + field.getPreferredName());
+                throw new IllegalArgumentException("Unexpected field name serialized in test: " + field.getPreferredName());
             }
         }
     }
@@ -252,24 +253,24 @@ public class IncludeExcludeTests extends ESTestCase {
         String incRegex = "foo.*";
         String excRegex = "football";
         String differentExcRegex = "foosball";
-        IncludeExclude serialized = serializeMixedRegex(new IncludeExclude(incRegex, excRegex));
+        IncludeExclude serialized = serializeMixedRegex(new IncludeExclude(incRegex, excRegex, null, null));
         assertFalse(serialized.isPartitionBased());
         assertTrue(serialized.isRegexBased());
 
-        IncludeExclude same = new IncludeExclude(incRegex, excRegex);
+        IncludeExclude same = new IncludeExclude(incRegex, excRegex, null, null);
         assertEquals(serialized, same);
         assertEquals(serialized.hashCode(), same.hashCode());
 
-        IncludeExclude different = new IncludeExclude(incRegex, differentExcRegex);
+        IncludeExclude different = new IncludeExclude(incRegex, differentExcRegex, null, null);
         assertFalse(serialized.equals(different));
         assertTrue(serialized.hashCode() != different.hashCode());
     }
 
     public void testRegexIncludeAndSetExclude() throws IOException {
         String incRegex = "foo.*";
-        String[] excValues = { "a", "b" };
+        SortedSet<BytesRef> excValues = new TreeSet<>(Set.of(new BytesRef("a"), new BytesRef("b")));
         String differentIncRegex = "foosball";
-        String[] differentExcValues = { "a", "c" };
+        SortedSet<BytesRef> differentExcValues = new TreeSet<>(Set.of(new BytesRef("a"), new BytesRef("c")));
 
         IncludeExclude serialized = serializeMixedRegex(new IncludeExclude(incRegex, null, null, excValues));
         assertFalse(serialized.isPartitionBased());
@@ -289,9 +290,9 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     public void testSetIncludeAndRegexExclude() throws IOException {
-        String[] incValues = { "a", "b" };
+        SortedSet<BytesRef> incValues = new TreeSet<>(Set.of(new BytesRef("a"), new BytesRef("b")));
         String excRegex = "foo.*";
-        String[] differentIncValues = { "a", "c" };
+        SortedSet<BytesRef> differentIncValues = new TreeSet<>(Set.of(new BytesRef("a"), new BytesRef("c")));
         String differentExcRegex = "foosball";
 
         IncludeExclude serialized = serializeMixedRegex(new IncludeExclude(null, excRegex, incValues, null));
@@ -348,7 +349,7 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     public void testInvalidIncludeExcludeCombination() {
-        String[] values = {"foo"};
+        SortedSet<BytesRef> values = new TreeSet<>(Set.of(new BytesRef("foo")));
         String regex = "foo";
 
         expectThrows(IllegalArgumentException.class, () -> new IncludeExclude((String) null, null, null, null));

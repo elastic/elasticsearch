@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.security.authc.saml;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
@@ -29,42 +29,67 @@ public class SamlRealmSettings {
     // these settings will be used under the prefix xpack.security.authc.realms.REALM_NAME.
     private static final String IDP_METADATA_SETTING_PREFIX = "idp.metadata.";
 
-    public static final Setting.AffixSetting<String> IDP_ENTITY_ID
-            = RealmSettings.simpleString(TYPE, "idp.entity_id", Setting.Property.NodeScope);
+    public static final Setting.AffixSetting<String> IDP_ENTITY_ID = RealmSettings.simpleString(
+        TYPE,
+        "idp.entity_id",
+        Setting.Property.NodeScope
+    );
 
-    public static final Setting.AffixSetting<String> IDP_METADATA_PATH
-            = RealmSettings.simpleString(TYPE, IDP_METADATA_SETTING_PREFIX + "path", Setting.Property.NodeScope);
+    public static final Setting.AffixSetting<String> IDP_METADATA_PATH = RealmSettings.simpleString(
+        TYPE,
+        IDP_METADATA_SETTING_PREFIX + "path",
+        Setting.Property.NodeScope
+    );
 
     public static final Setting.AffixSetting<TimeValue> IDP_METADATA_HTTP_REFRESH = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(TYPE), IDP_METADATA_SETTING_PREFIX + "http.refresh",
-            key -> Setting.timeSetting(key, TimeValue.timeValueHours(1), Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(TYPE),
+        IDP_METADATA_SETTING_PREFIX + "http.refresh",
+        key -> Setting.timeSetting(key, TimeValue.timeValueHours(1), Setting.Property.NodeScope)
+    );
 
     public static final Setting.AffixSetting<Boolean> IDP_SINGLE_LOGOUT = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(TYPE), "idp.use_single_logout",
-            key -> Setting.boolSetting(key, true, Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(TYPE),
+        "idp.use_single_logout",
+        key -> Setting.boolSetting(key, true, Setting.Property.NodeScope)
+    );
 
-    public static final Setting.AffixSetting<String> SP_ENTITY_ID
-            = RealmSettings.simpleString(TYPE, "sp.entity_id", Setting.Property.NodeScope);
+    public static final Setting.AffixSetting<String> SP_ENTITY_ID = RealmSettings.simpleString(
+        TYPE,
+        "sp.entity_id",
+        Setting.Property.NodeScope
+    );
 
     public static final Setting.AffixSetting<String> SP_ACS = RealmSettings.simpleString(TYPE, "sp.acs", Setting.Property.NodeScope);
     public static final Setting.AffixSetting<String> SP_LOGOUT = RealmSettings.simpleString(TYPE, "sp.logout", Setting.Property.NodeScope);
 
-    public static final Setting.AffixSetting<String> NAMEID_FORMAT
-        = RealmSettings.simpleString(TYPE, "nameid_format", Setting.Property.NodeScope);
+    public static final Setting.AffixSetting<String> NAMEID_FORMAT = RealmSettings.simpleString(
+        TYPE,
+        "nameid_format",
+        Setting.Property.NodeScope
+    );
 
     public static final Setting.AffixSetting<Boolean> NAMEID_ALLOW_CREATE = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(TYPE), "nameid.allow_create",
-            key -> Setting.boolSetting(key, false, Setting.Property.NodeScope));
-    public static final Setting.AffixSetting<String> NAMEID_SP_QUALIFIER
-            = RealmSettings.simpleString(TYPE, "nameid.sp_qualifier", Setting.Property.NodeScope);
+        RealmSettings.realmSettingPrefix(TYPE),
+        "nameid.allow_create",
+        key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
+    );
+    public static final Setting.AffixSetting<String> NAMEID_SP_QUALIFIER = RealmSettings.simpleString(
+        TYPE,
+        "nameid.sp_qualifier",
+        Setting.Property.NodeScope
+    );
 
     public static final Setting.AffixSetting<Boolean> FORCE_AUTHN = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(TYPE), "force_authn",
-            key -> Setting.boolSetting(key, false, Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(TYPE),
+        "force_authn",
+        key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
+    );
 
     public static final Setting.AffixSetting<Boolean> POPULATE_USER_METADATA = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(TYPE), "populate_user_metadata",
-            key -> Setting.boolSetting(key, true, Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(TYPE),
+        "populate_user_metadata",
+        key -> Setting.boolSetting(key, true, Setting.Property.NodeScope)
+    );
 
     public static final AttributeSetting PRINCIPAL_ATTRIBUTE = new AttributeSetting("principal");
     public static final AttributeSetting GROUPS_ATTRIBUTE = new AttributeSetting("groups");
@@ -74,39 +99,63 @@ public class SamlRealmSettings {
 
     public static final String ENCRYPTION_SETTING_KEY = "encryption.";
     public static final Setting.AffixSetting<String> ENCRYPTION_KEY_ALIAS = RealmSettings.simpleString(
-            TYPE, ENCRYPTION_SETTING_KEY + "keystore.alias", Setting.Property.NodeScope);
+        TYPE,
+        ENCRYPTION_SETTING_KEY + "keystore.alias",
+        Setting.Property.NodeScope
+    );
 
     public static final String SIGNING_SETTING_KEY = "signing.";
     public static final Setting.AffixSetting<String> SIGNING_KEY_ALIAS = RealmSettings.simpleString(
-            TYPE, SIGNING_SETTING_KEY + "keystore.alias", Setting.Property.NodeScope);
+        TYPE,
+        SIGNING_SETTING_KEY + "keystore.alias",
+        Setting.Property.NodeScope
+    );
 
     public static final Setting.AffixSetting<List<String>> SIGNING_MESSAGE_TYPES = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(TYPE), "signing.saml_messages",
-            key -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(TYPE),
+        "signing.saml_messages",
+        key -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Setting.Property.NodeScope)
+    );
 
     public static final Setting.AffixSetting<List<String>> REQUESTED_AUTHN_CONTEXT_CLASS_REF = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(TYPE), "req_authn_context_class_ref",
-            key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(),Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(TYPE),
+        "req_authn_context_class_ref",
+        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope)
+    );
 
     public static final Setting.AffixSetting<TimeValue> CLOCK_SKEW = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(TYPE), "allowed_clock_skew",
-            key -> Setting.positiveTimeSetting(key, TimeValue.timeValueMinutes(3), Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(TYPE),
+        "allowed_clock_skew",
+        key -> Setting.positiveTimeSetting(key, TimeValue.timeValueMinutes(3), Setting.Property.NodeScope)
+    );
 
     public static final String SSL_PREFIX = "ssl.";
 
-    private SamlRealmSettings() {
-    }
+    private SamlRealmSettings() {}
 
     /**
      * @return The {@link Setting setting configuration} for this realm type
      */
     public static Set<Setting.AffixSetting<?>> getSettings() {
         final Set<Setting.AffixSetting<?>> set = Sets.newHashSet(
-            IDP_ENTITY_ID, IDP_METADATA_PATH, IDP_METADATA_HTTP_REFRESH, IDP_SINGLE_LOGOUT,
-            SP_ENTITY_ID, SP_ACS, SP_LOGOUT,
-            NAMEID_FORMAT, NAMEID_ALLOW_CREATE, NAMEID_SP_QUALIFIER, FORCE_AUTHN,
-            POPULATE_USER_METADATA, CLOCK_SKEW,
-            ENCRYPTION_KEY_ALIAS, SIGNING_KEY_ALIAS, SIGNING_MESSAGE_TYPES, REQUESTED_AUTHN_CONTEXT_CLASS_REF);
+            IDP_ENTITY_ID,
+            IDP_METADATA_PATH,
+            IDP_METADATA_HTTP_REFRESH,
+            IDP_SINGLE_LOGOUT,
+            SP_ENTITY_ID,
+            SP_ACS,
+            SP_LOGOUT,
+            NAMEID_FORMAT,
+            NAMEID_ALLOW_CREATE,
+            NAMEID_SP_QUALIFIER,
+            FORCE_AUTHN,
+            POPULATE_USER_METADATA,
+            CLOCK_SKEW,
+            ENCRYPTION_KEY_ALIAS,
+            SIGNING_KEY_ALIAS,
+            SIGNING_MESSAGE_TYPES,
+            REQUESTED_AUTHN_CONTEXT_CLASS_REF
+        );
         set.addAll(X509KeyPairSettings.affix(RealmSettings.realmSettingPrefix(TYPE), ENCRYPTION_SETTING_KEY, false));
         set.addAll(X509KeyPairSettings.affix(RealmSettings.realmSettingPrefix(TYPE), SIGNING_SETTING_KEY, false));
         set.addAll(SSLConfigurationSettings.getRealmSettings(TYPE));

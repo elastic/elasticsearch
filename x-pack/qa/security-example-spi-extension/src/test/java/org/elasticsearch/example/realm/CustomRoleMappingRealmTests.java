@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullS
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
@@ -38,7 +38,8 @@ public class CustomRoleMappingRealmTests extends ESTestCase {
         final RealmConfig realmConfig = new RealmConfig(
             realmIdentifier,
             Settings.builder().put(env.settings()).put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
-            env, new ThreadContext(env.settings())
+            env,
+            new ThreadContext(env.settings())
         );
         CustomRoleMappingRealm realm = new CustomRoleMappingRealm(realmConfig, roleMapper);
 

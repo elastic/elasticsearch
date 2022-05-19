@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ccr-pause-auto-follow-pattern]]
 === Pause auto-follow pattern API
 ++++

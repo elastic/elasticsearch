@@ -9,18 +9,18 @@ package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -57,7 +57,7 @@ public class AggregateMetricBackedMinAggregatorTests extends AggregatorTestCase 
                 )
             );
         }, min -> {
-            assertEquals(2, min.getValue(), 0d);
+            assertEquals(2, min.value(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         });
     }
@@ -66,7 +66,7 @@ public class AggregateMetricBackedMinAggregatorTests extends AggregatorTestCase 
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
         }, min -> {
-            assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0d);
+            assertEquals(Double.POSITIVE_INFINITY, min.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(min));
         });
     }
@@ -76,7 +76,7 @@ public class AggregateMetricBackedMinAggregatorTests extends AggregatorTestCase 
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 1)));
         }, min -> {
-            assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0d);
+            assertEquals(Double.POSITIVE_INFINITY, min.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(min));
         });
     }
@@ -105,7 +105,7 @@ public class AggregateMetricBackedMinAggregatorTests extends AggregatorTestCase 
                 )
             );
         }, min -> {
-            assertEquals(2L, min.getValue(), 0d);
+            assertEquals(2L, min.value(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         });
     }
@@ -131,7 +131,7 @@ public class AggregateMetricBackedMinAggregatorTests extends AggregatorTestCase 
         return fieldType;
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalMin> verify)
+    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<Min> verify)
         throws IOException {
         MappedFieldType fieldType = createDefaultFieldType(FIELD_NAME);
         AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, FIELD_NAME);

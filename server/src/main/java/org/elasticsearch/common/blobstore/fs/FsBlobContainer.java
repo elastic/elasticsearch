@@ -19,10 +19,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.FileNotFoundException;
-import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -129,8 +128,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 }
 
                 @Override
-                public void close() {
-                }
+                public void close() {}
             };
         }
     }
@@ -246,10 +244,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName,
-                          boolean failIfAlreadyExists,
-                          boolean atomic,
-                          CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+    public void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
+        throws IOException {
         if (atomic) {
             final String tempBlob = tempBlobName(blobName);
             try {
@@ -270,10 +266,10 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     private void writeToPath(String blobName, boolean failIfAlreadyExists, CheckedConsumer<OutputStream, IOException> writer)
-            throws IOException {
+        throws IOException {
         final Path file = path.resolve(blobName);
         try {
-            try (OutputStream out = new BlobOutputStream(file)) {
+            try (OutputStream out = blobOutputStream(file)) {
                 writer.accept(out);
             }
         } catch (FileAlreadyExistsException faee) {
@@ -281,7 +277,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 throw faee;
             }
             deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
-            try (OutputStream out = new BlobOutputStream(file)) {
+            try (OutputStream out = blobOutputStream(file)) {
                 writer.accept(out);
             }
         }
@@ -307,7 +303,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         }
     }
 
-    private void writeToPath(BytesReference bytes, Path tempBlobPath) throws IOException {
+    private static void writeToPath(BytesReference bytes, Path tempBlobPath) throws IOException {
         try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
             bytes.writeTo(outputStream);
         }
@@ -317,8 +313,11 @@ public class FsBlobContainer extends AbstractBlobContainer {
     private void writeToPath(InputStream inputStream, Path tempBlobPath, long blobSize) throws IOException {
         try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
             final int bufferSize = blobStore.bufferSizeInBytes();
-            org.elasticsearch.core.internal.io.Streams.copy(
-                    inputStream, outputStream, new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize]);
+            org.elasticsearch.core.Streams.copy(
+                inputStream,
+                outputStream,
+                new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize]
+            );
         }
         IOUtils.fsync(tempBlobPath, false);
     }
@@ -352,15 +351,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         return blobName.startsWith(TEMP_FILE_PREFIX);
     }
 
-    private static class BlobOutputStream extends FilterOutputStream {
-
-        BlobOutputStream(Path file) throws IOException {
-            super(Files.newOutputStream(file, StandardOpenOption.CREATE_NEW));
-        }
-
-        @Override
-        public void write(byte[] b, int off, int len) throws IOException {
-            out.write(b, off, len);
-        }
+    private static OutputStream blobOutputStream(Path file) throws IOException {
+        return Files.newOutputStream(file, StandardOpenOption.CREATE_NEW);
     }
 }

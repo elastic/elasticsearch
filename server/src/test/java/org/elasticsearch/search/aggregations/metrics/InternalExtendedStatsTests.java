@@ -8,10 +8,12 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats.Bounds;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.ArrayList;
@@ -39,8 +41,17 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         return createInstance(name, count, sum, min, max, randomDoubleBetween(0, 1000000, true), sigma, format, metadata);
     }
 
-    protected InternalExtendedStats createInstance(String name, long count, double sum, double min, double max, double sumOfSqrs,
-            double sigma, DocValueFormat formatter, Map<String, Object> metadata) {
+    protected InternalExtendedStats createInstance(
+        String name,
+        long count,
+        double sum,
+        double min,
+        double max,
+        double sumOfSqrs,
+        double sigma,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
         return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, metadata);
 
     }
@@ -76,30 +87,57 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalExtendedStats sampled, InternalExtendedStats reduced, SamplingContext samplingContext) {
+        assertEquals(sigma, sampled.getSigma(), 0);
+        assertEquals(sampled.getCount(), samplingContext.scaleUp(reduced.getCount()));
+        assertEquals(sampled.getSum(), samplingContext.scaleUp(reduced.getSum()), 0);
+        assertEquals(sampled.getMax(), reduced.getMax(), 0d);
+        assertEquals(sampled.getMin(), reduced.getMin(), 0d);
+        assertEquals(sampled.getSumOfSquares(), samplingContext.scaleUp(reduced.getSumOfSquares()), 0);
+    }
+
+    @Override
     protected void assertFromXContent(InternalExtendedStats aggregation, ParsedAggregation parsedAggregation) {
         assertTrue(parsedAggregation instanceof ParsedExtendedStats);
         ParsedExtendedStats parsed = (ParsedExtendedStats) parsedAggregation;
         InternalStatsTests.assertStats(aggregation, parsed);
 
         long count = aggregation.getCount();
-        // for count == 0, fields are rendered as `null`, so  we test that we parse to default values used also in the reduce phase
-        assertEquals(count > 0 ? aggregation.getSumOfSquares() : 0 , parsed.getSumOfSquares(), 0);
-        assertEquals(count > 0 ? aggregation.getVariance() : 0 , parsed.getVariance(), 0);
-        assertEquals(count > 0 ? aggregation.getVariancePopulation() : 0 , parsed.getVariancePopulation(), 0);
-        assertEquals(count > 0 ? aggregation.getVarianceSampling() : 0 , parsed.getVarianceSampling(), 0);
-        assertEquals(count > 0 ? aggregation.getStdDeviation() : 0 , parsed.getStdDeviation(), 0);
-        assertEquals(count > 0 ? aggregation.getStdDeviationPopulation() : 0 , parsed.getStdDeviationPopulation(), 0);
-        assertEquals(count > 0 ? aggregation.getStdDeviationSampling() : 0 , parsed.getStdDeviationSampling(), 0);
-        assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.LOWER) : 0 , parsed.getStdDeviationBound(Bounds.LOWER), 0);
-        assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.UPPER) : 0 , parsed.getStdDeviationBound(Bounds.UPPER), 0);
-        assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.LOWER_POPULATION) : 0 ,
-            parsed.getStdDeviationBound(Bounds.LOWER_POPULATION), 0);
-        assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.UPPER_POPULATION) : 0 ,
-            parsed.getStdDeviationBound(Bounds.UPPER_POPULATION), 0);
-        assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.LOWER_SAMPLING) : 0 ,
-            parsed.getStdDeviationBound(Bounds.LOWER_SAMPLING), 0);
-        assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.UPPER_SAMPLING) : 0 ,
-            parsed.getStdDeviationBound(Bounds.UPPER_SAMPLING), 0);
+        // for count == 0, fields are rendered as `null`, so we test that we parse to default values used also in the reduce phase
+        assertEquals(count > 0 ? aggregation.getSumOfSquares() : 0, parsed.getSumOfSquares(), 0);
+        assertEquals(count > 0 ? aggregation.getVariance() : 0, parsed.getVariance(), 0);
+        assertEquals(count > 0 ? aggregation.getVariancePopulation() : 0, parsed.getVariancePopulation(), 0);
+        assertEquals(count > 0 ? aggregation.getVarianceSampling() : 0, parsed.getVarianceSampling(), 0);
+        assertEquals(count > 0 ? aggregation.getStdDeviation() : 0, parsed.getStdDeviation(), 0);
+        assertEquals(count > 0 ? aggregation.getStdDeviationPopulation() : 0, parsed.getStdDeviationPopulation(), 0);
+        assertEquals(count > 0 ? aggregation.getStdDeviationSampling() : 0, parsed.getStdDeviationSampling(), 0);
+        assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.LOWER) : 0, parsed.getStdDeviationBound(Bounds.LOWER), 0);
+        assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.UPPER) : 0, parsed.getStdDeviationBound(Bounds.UPPER), 0);
+        assertEquals(
+            count > 0 ? aggregation.getStdDeviationBound(Bounds.LOWER_POPULATION) : 0,
+            parsed.getStdDeviationBound(Bounds.LOWER_POPULATION),
+            0
+        );
+        assertEquals(
+            count > 0 ? aggregation.getStdDeviationBound(Bounds.UPPER_POPULATION) : 0,
+            parsed.getStdDeviationBound(Bounds.UPPER_POPULATION),
+            0
+        );
+        assertEquals(
+            count > 0 ? aggregation.getStdDeviationBound(Bounds.LOWER_SAMPLING) : 0,
+            parsed.getStdDeviationBound(Bounds.LOWER_SAMPLING),
+            0
+        );
+        assertEquals(
+            count > 0 ? aggregation.getStdDeviationBound(Bounds.UPPER_SAMPLING) : 0,
+            parsed.getStdDeviationBound(Bounds.UPPER_SAMPLING),
+            0
+        );
         // also as_string values are only rendered for count != 0
         if (count > 0) {
             assertEquals(aggregation.getSumOfSquaresAsString(), parsed.getSumOfSquaresAsString());
@@ -111,14 +149,22 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
             assertEquals(aggregation.getStdDeviationSamplingAsString(), parsed.getStdDeviationSamplingAsString());
             assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.LOWER), parsed.getStdDeviationBoundAsString(Bounds.LOWER));
             assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.UPPER), parsed.getStdDeviationBoundAsString(Bounds.UPPER));
-            assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.LOWER_POPULATION),
-                parsed.getStdDeviationBoundAsString(Bounds.LOWER_POPULATION));
-            assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.UPPER_POPULATION),
-                parsed.getStdDeviationBoundAsString(Bounds.UPPER_POPULATION));
-            assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.LOWER_SAMPLING),
-                parsed.getStdDeviationBoundAsString(Bounds.LOWER_SAMPLING));
-            assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.UPPER_SAMPLING),
-                parsed.getStdDeviationBoundAsString(Bounds.UPPER_SAMPLING));
+            assertEquals(
+                aggregation.getStdDeviationBoundAsString(Bounds.LOWER_POPULATION),
+                parsed.getStdDeviationBoundAsString(Bounds.LOWER_POPULATION)
+            );
+            assertEquals(
+                aggregation.getStdDeviationBoundAsString(Bounds.UPPER_POPULATION),
+                parsed.getStdDeviationBoundAsString(Bounds.UPPER_POPULATION)
+            );
+            assertEquals(
+                aggregation.getStdDeviationBoundAsString(Bounds.LOWER_SAMPLING),
+                parsed.getStdDeviationBoundAsString(Bounds.LOWER_SAMPLING)
+            );
+            assertEquals(
+                aggregation.getStdDeviationBoundAsString(Bounds.UPPER_SAMPLING),
+                parsed.getStdDeviationBoundAsString(Bounds.UPPER_SAMPLING)
+            );
         }
     }
 
@@ -134,67 +180,67 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         DocValueFormat formatter = instance.format;
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 7)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            if (Double.isFinite(count)) {
-                count += between(1, 100);
-            } else {
-                count = between(1, 100);
-            }
-            break;
-        case 2:
-            if (Double.isFinite(sum)) {
-                sum += between(1, 100);
-            } else {
-                sum = between(1, 100);
-            }
-            break;
-        case 3:
-            if (Double.isFinite(min)) {
-                min += between(1, 100);
-            } else {
-                min = between(1, 100);
-            }
-            break;
-        case 4:
-            if (Double.isFinite(max)) {
-                max += between(1, 100);
-            } else {
-                max = between(1, 100);
-            }
-            break;
-        case 5:
-            if (Double.isFinite(sumOfSqrs)) {
-                sumOfSqrs += between(1, 100);
-            } else {
-                sumOfSqrs = between(1, 100);
-            }
-            break;
-        case 6:
-            if (Double.isFinite(sigma)) {
-                sigma += between(1, 10);
-            } else {
-                sigma = between(1, 10);
-            }
-            break;
-        case 7:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                if (Double.isFinite(count)) {
+                    count += between(1, 100);
+                } else {
+                    count = between(1, 100);
+                }
+                break;
+            case 2:
+                if (Double.isFinite(sum)) {
+                    sum += between(1, 100);
+                } else {
+                    sum = between(1, 100);
+                }
+                break;
+            case 3:
+                if (Double.isFinite(min)) {
+                    min += between(1, 100);
+                } else {
+                    min = between(1, 100);
+                }
+                break;
+            case 4:
+                if (Double.isFinite(max)) {
+                    max += between(1, 100);
+                } else {
+                    max = between(1, 100);
+                }
+                break;
+            case 5:
+                if (Double.isFinite(sumOfSqrs)) {
+                    sumOfSqrs += between(1, 100);
+                } else {
+                    sumOfSqrs = between(1, 100);
+                }
+                break;
+            case 6:
+                if (Double.isFinite(sigma)) {
+                    sigma += between(1, 10);
+                } else {
+                    sigma = between(1, 10);
+                }
+                break;
+            case 7:
+                if (metadata == null) {
+                    metadata = Maps.newMapWithExpectedSize(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, metadata);
     }
 
     public void testSummationAccuracy() {
-        double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
+        double[] values = new double[] { 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7 };
         verifySumOfSqrsOfDoubles(values, 13.5, 0d);
 
         int n = randomIntBetween(5, 10);

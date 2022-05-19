@@ -130,7 +130,7 @@ class AntFixture extends AntTask implements Fixture {
                 }
                 and {
                     resourceexists {
-                        file(file: pidFile.toString())
+                        file(file: pidFile.relativePath(baseDir).toString())
                     }
                     resourceexists {
                         file(file: portsFile.toString())

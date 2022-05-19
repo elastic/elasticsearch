@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.sql;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
@@ -53,6 +53,6 @@ public class SqlFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(stats);
+        out.writeGenericMap(stats);
     }
 }

@@ -12,8 +12,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -25,6 +23,9 @@ import java.security.cert.X509Certificate;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -139,7 +140,7 @@ public class StoreTrustConfigTests extends ESTestCase {
         final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
         final X509Certificate[] issuers = trustManager.getAcceptedIssuers();
         final Set<String> issuerNames = Stream.of(issuers)
-            .map(X509Certificate::getSubjectDN)
+            .map(X509Certificate::getSubjectX500Principal)
             .map(Principal::getName)
             .collect(Collectors.toSet());
 

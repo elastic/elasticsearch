@@ -135,17 +135,22 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
             validationException = addValidationError("suggest-only queries are not supported", validationException);
         }
         if (keepAlive.getMillis() < MIN_KEEP_ALIVE) {
-            validationException =
-                addValidationError("[keep_alive] must be greater or equals than 1 second, got:" +
-                    keepAlive.toString(), validationException);
+            validationException = addValidationError(
+                "[keep_alive] must be greater or equals than 1 second, got:" + keepAlive.toString(),
+                validationException
+            );
         }
         if (request.isCcsMinimizeRoundtrips()) {
-            validationException =
-                addValidationError("[ccs_minimize_roundtrips] is not supported on async search queries", validationException);
+            validationException = addValidationError(
+                "[ccs_minimize_roundtrips] is not supported on async search queries",
+                validationException
+            );
         }
         if (request.getPreFilterShardSize() == null || request.getPreFilterShardSize() != 1) {
-            validationException =
-                addValidationError("[pre_filter_shard_size] cannot be changed for async search queries", validationException);
+            validationException = addValidationError(
+                "[pre_filter_shard_size] cannot be changed for async search queries",
+                validationException
+            );
         }
 
         return validationException;
@@ -157,10 +162,14 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
             @Override
             public String getDescription() {
                 // generating description in a lazy way since source can be quite big
-                return "waitForCompletionTimeout[" + waitForCompletionTimeout +
-                    "], keepOnCompletion[" + keepOnCompletion +
-                    "] keepAlive[" + keepAlive +
-                    "], request=" + request.buildDescription();
+                return "waitForCompletionTimeout["
+                    + waitForCompletionTimeout
+                    + "], keepOnCompletion["
+                    + keepOnCompletion
+                    + "] keepAlive["
+                    + keepAlive
+                    + "], request="
+                    + request.buildDescription();
             }
         };
     }
@@ -174,10 +183,10 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
             return false;
         }
         SubmitAsyncSearchRequest request1 = (SubmitAsyncSearchRequest) o;
-        return keepOnCompletion == request1.keepOnCompletion &&
-            waitForCompletionTimeout.equals(request1.waitForCompletionTimeout) &&
-            keepAlive.equals(request1.keepAlive) &&
-            request.equals(request1.request);
+        return keepOnCompletion == request1.keepOnCompletion
+            && waitForCompletionTimeout.equals(request1.waitForCompletionTimeout)
+            && keepAlive.equals(request1.keepAlive)
+            && request.equals(request1.request);
     }
 
     @Override

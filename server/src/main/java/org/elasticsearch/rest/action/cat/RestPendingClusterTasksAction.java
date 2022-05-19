@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.rest.RestRequest;
@@ -43,16 +43,15 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
         PendingClusterTasksRequest pendingClusterTasksRequest = new PendingClusterTasksRequest();
         pendingClusterTasksRequest.masterNodeTimeout(request.paramAsTime("master_timeout", pendingClusterTasksRequest.masterNodeTimeout()));
         pendingClusterTasksRequest.local(request.paramAsBoolean("local", pendingClusterTasksRequest.local()));
-        return channel ->
-                client.admin()
-                        .cluster()
-                        .pendingClusterTasks(pendingClusterTasksRequest, new RestResponseListener<PendingClusterTasksResponse>(channel) {
-                            @Override
-                            public RestResponse buildResponse(PendingClusterTasksResponse pendingClusterTasks) throws Exception {
-                                Table tab = buildTable(request, pendingClusterTasks);
-                                return RestTable.buildResponse(tab, channel);
-                            }
-                        });
+        return channel -> client.admin()
+            .cluster()
+            .pendingClusterTasks(pendingClusterTasksRequest, new RestResponseListener<PendingClusterTasksResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(PendingClusterTasksResponse pendingClusterTasks) throws Exception {
+                    Table tab = buildTable(request, pendingClusterTasks);
+                    return RestTable.buildResponse(tab, channel);
+                }
+            });
     }
 
     @Override

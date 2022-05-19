@@ -6,15 +6,15 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
@@ -37,7 +37,7 @@ public class InferenceStats implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<InferenceStats, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new InferenceStats((Long)a[0], (Long)a[1], (Long)a[2], (Long)a[3], (String)a[4], (String)a[5], (Instant)a[6])
+        a -> new InferenceStats((Long) a[0], (Long) a[1], (Long) a[2], (Long) a[3], (String) a[4], (String) a[5], (Instant) a[6])
     );
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), MISSING_ALL_FIELDS_COUNT);
@@ -46,10 +46,12 @@ public class InferenceStats implements ToXContentObject, Writeable {
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CACHE_MISS_COUNT);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), MODEL_ID);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NODE_ID);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
             p -> TimeUtils.parseTimeFieldToInstant(p, TIMESTAMP.getPreferredName()),
             TIMESTAMP,
-            ObjectParser.ValueType.VALUE);
+            ObjectParser.ValueType.VALUE
+        );
     }
 
     public static String docId(String modelId, String nodeId) {
@@ -64,38 +66,44 @@ public class InferenceStats implements ToXContentObject, Writeable {
     private final String nodeId;
     private final Instant timeStamp;
 
-    private InferenceStats(Long missingAllFieldsCount,
-                           Long inferenceCount,
-                           Long failureCount,
-                           Long cacheMissCount,
-                           String modelId,
-                           String nodeId,
-                           Instant instant) {
-        this(unboxOrZero(missingAllFieldsCount),
+    private InferenceStats(
+        Long missingAllFieldsCount,
+        Long inferenceCount,
+        Long failureCount,
+        Long cacheMissCount,
+        String modelId,
+        String nodeId,
+        Instant instant
+    ) {
+        this(
+            unboxOrZero(missingAllFieldsCount),
             unboxOrZero(inferenceCount),
             unboxOrZero(failureCount),
             unboxOrZero(cacheMissCount),
             modelId,
             nodeId,
-            instant);
+            instant
+        );
     }
 
-    public InferenceStats(long missingAllFieldsCount,
-                          long inferenceCount,
-                          long failureCount,
-                          long cacheMissCount,
-                          String modelId,
-                          String nodeId,
-                          Instant timeStamp) {
+    public InferenceStats(
+        long missingAllFieldsCount,
+        long inferenceCount,
+        long failureCount,
+        long cacheMissCount,
+        String modelId,
+        String nodeId,
+        Instant timeStamp
+    ) {
         this.missingAllFieldsCount = missingAllFieldsCount;
         this.inferenceCount = inferenceCount;
         this.failureCount = failureCount;
         this.cacheMissCount = cacheMissCount;
         this.modelId = modelId;
         this.nodeId = nodeId;
-        this.timeStamp = timeStamp == null ?
-            Instant.ofEpochMilli(Instant.now().toEpochMilli()) :
-            Instant.ofEpochMilli(timeStamp.toEpochMilli());
+        this.timeStamp = timeStamp == null
+            ? Instant.ofEpochMilli(Instant.now().toEpochMilli())
+            : Instant.ofEpochMilli(timeStamp.toEpochMilli());
     }
 
     public InferenceStats(StreamInput in) throws IOException {
@@ -180,15 +188,24 @@ public class InferenceStats implements ToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return "InferenceStats{" +
-            "missingAllFieldsCount=" + missingAllFieldsCount +
-            ", inferenceCount=" + inferenceCount +
-            ", failureCount=" + failureCount +
-            ", cacheMissCount=" + cacheMissCount +
-            ", modelId='" + modelId + '\'' +
-            ", nodeId='" + nodeId + '\'' +
-            ", timeStamp=" + timeStamp +
-            '}';
+        return "InferenceStats{"
+            + "missingAllFieldsCount="
+            + missingAllFieldsCount
+            + ", inferenceCount="
+            + inferenceCount
+            + ", failureCount="
+            + failureCount
+            + ", cacheMissCount="
+            + cacheMissCount
+            + ", modelId='"
+            + modelId
+            + '\''
+            + ", nodeId='"
+            + nodeId
+            + '\''
+            + ", timeStamp="
+            + timeStamp
+            + '}';
     }
 
     private static long unboxOrZero(@Nullable Long value) {
@@ -279,13 +296,15 @@ public class InferenceStats implements ToXContentObject, Writeable {
         }
 
         public InferenceStats currentStats(Instant timeStamp) {
-            return new InferenceStats(missingFieldsAccumulator,
+            return new InferenceStats(
+                missingFieldsAccumulator,
                 inferenceAccumulator,
                 failureCountAccumulator,
                 cacheMissAccumulator,
                 modelId,
                 nodeId,
-                timeStamp);
+                timeStamp
+            );
         }
     }
 }

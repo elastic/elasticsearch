@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[sql-search-api]]
 === SQL search API
 ++++
@@ -55,6 +54,17 @@ precedence.
 [[sql-search-api-request-body]]
 ==== {api-request-body-title}
 
+`allow_partial_search_results`::
+(Optional, Boolean) If `true`, returns partial results if there are shard
+request timeouts or <<shard-failures,shard failures>>. If `false`, returns an error with no
+partial results. Defaults to `false`.
+
+`catalog`::
+(Optional, string) Default catalog (cluster) for queries. If unspecified, the
+queries execute on the data in the local cluster only.
++
+experimental:[] See <<modules-cross-cluster-search,{ccs}>>.
+
 `columnar`::
 (Optional, Boolean) If `true`, returns results in a columnar format. Defaults to
 `false`. The API only supports this parameter for CBOR, JSON, SMILE, and YAML
@@ -96,8 +106,11 @@ searches>> if you also specify the `wait_for_completion_timeout` parameter. If
 the `wait_for_completion_timeout`. Defaults to `false`.
 
 `page_timeout`::
-(Optional, <<time-units,time value>>) Timeout before a
-<<sql-pagination,pagination request>> fails. Defaults to `45s` (45 seconds).
+(Optional, <<time-units,time value>>) Minimum retention period for the scroll
+cursor. After this time period, a <<sql-pagination,pagination request>> might
+fail because the scroll cursor is no longer available. Subsequent scroll requests
+prolong the lifetime of the scroll cursor by the duration of `page_timeout` in
+the scroll request. Defaults to `45s` (45 seconds).
 
 `params`::
 (Optional, array) Values for parameters in the `query`. For syntax, see

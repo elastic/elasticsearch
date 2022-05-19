@@ -21,15 +21,20 @@ import java.util.Objects;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.common.Strings.hasText;
 
 public class ShowTables extends Command {
 
+    private final LikePattern catalogPattern;
+    private final String catalog;
     private final String index;
     private final LikePattern pattern;
     private final boolean includeFrozen;
 
-    public ShowTables(Source source, String index, LikePattern pattern, boolean includeFrozen) {
+    public ShowTables(Source source, LikePattern catalogPattern, String catalog, String index, LikePattern pattern, boolean includeFrozen) {
         super(source);
+        this.catalogPattern = catalogPattern;
+        this.catalog = catalog;
         this.index = index;
         this.pattern = pattern;
         this.includeFrozen = includeFrozen;
@@ -37,7 +42,7 @@ public class ShowTables extends Command {
 
     @Override
     protected NodeInfo<ShowTables> info() {
-        return NodeInfo.create(this, ShowTables::new, index, pattern, includeFrozen);
+        return NodeInfo.create(this, ShowTables::new, catalogPattern, catalog, index, pattern, includeFrozen);
     }
 
     public String index() {
@@ -50,22 +55,26 @@ public class ShowTables extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(keyword("name"), keyword("type"), keyword("kind"));
+        return asList(keyword("catalog"), keyword("name"), keyword("type"), keyword("kind"));
     }
 
     @Override
     public final void execute(SqlSession session, ActionListener<Page> listener) {
+        String cat = catalogPattern != null ? catalogPattern.asIndexNameWildcard() : catalog;
+        cat = hasText(cat) ? cat : session.configuration().catalog();
         String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
+        boolean withFrozen = session.configuration().includeFrozen() || includeFrozen;
         // to avoid redundancy, indicate whether frozen fields are required by specifying the type
-        EnumSet<IndexType> withFrozen = session.configuration().includeFrozen() || includeFrozen ?
-                IndexType.VALID_INCLUDE_FROZEN : IndexType.VALID_REGULAR;
-
-        session.indexResolver().resolveNames(idx, regex, withFrozen, ActionListener.wrap(result -> {
-            listener.onResponse(of(session, result.stream()
-                 .map(t -> asList(t.name(), t.type().toSql(), t.type().toNative()))
-                .collect(toList())));
+        EnumSet<IndexType> indexType = withFrozen ? IndexType.VALID_INCLUDE_FROZEN : IndexType.VALID_REGULAR;
+        session.indexResolver().resolveNames(cat, idx, regex, indexType, ActionListener.wrap(result -> {
+            listener.onResponse(
+                of(
+                    session,
+                    result.stream().map(t -> asList(t.cluster(), t.name(), t.type().toSql(), t.type().toNative())).collect(toList())
+                )
+            );
         }, listener::onFailure));
     }
 
@@ -85,8 +94,6 @@ public class ShowTables extends Command {
         }
 
         ShowTables other = (ShowTables) obj;
-        return Objects.equals(index, other.index)
-                && Objects.equals(pattern, other.pattern)
-                && includeFrozen == other.includeFrozen;
+        return Objects.equals(index, other.index) && Objects.equals(pattern, other.pattern) && includeFrozen == other.includeFrozen;
     }
 }

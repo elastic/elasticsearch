@@ -9,8 +9,10 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,8 +32,13 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     private final MatrixStatsResults results;
 
     /** per shard ctor */
-    InternalMatrixStats(String name, long count, RunningStats multiFieldStatsResults, MatrixStatsResults results,
-                                  Map<String, Object> metadata) {
+    InternalMatrixStats(
+        String name,
+        long count,
+        RunningStats multiFieldStatsResults,
+        MatrixStatsResults results,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         assert count >= 0;
         this.stats = multiFieldStatsResults;
@@ -61,6 +68,9 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     /** get the number of documents */
     @Override
     public long getDocCount() {
+        if (results != null) {
+            return results.getDocCount();
+        }
         if (stats == null) {
             return 0;
         }
@@ -197,34 +207,26 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
             if (results == null) {
                 return emptyMap();
             }
-            switch (element) {
-                case "counts":
-                    return results.getFieldCounts();
-                case "means":
-                    return results.getMeans();
-                case "variances":
-                    return results.getVariances();
-                case "skewness":
-                    return results.getSkewness();
-                case "kurtosis":
-                    return results.getKurtosis();
-                case "covariance":
-                    return results.getCovariances();
-                case "correlation":
-                    return results.getCorrelations();
-                default:
-                    throw new IllegalArgumentException("Found unknown path element [" + element + "] in [" + getName() + "]");
-            }
+            return switch (element) {
+                case "counts" -> results.getFieldCounts();
+                case "means" -> results.getMeans();
+                case "variances" -> results.getVariances();
+                case "skewness" -> results.getSkewness();
+                case "kurtosis" -> results.getKurtosis();
+                case "covariance" -> results.getCovariances();
+                case "correlation" -> results.getCorrelations();
+                default -> throw new IllegalArgumentException("Found unknown path element [" + element + "] in [" + getName() + "]");
+            };
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         // merge stats across all shards
         List<InternalAggregation> aggs = new ArrayList<>(aggregations);
-        aggs.removeIf(p -> ((InternalMatrixStats)p).stats == null);
+        aggs.removeIf(p -> ((InternalMatrixStats) p).stats == null);
 
         // return empty result iff all stats are null
         if (aggs.isEmpty()) {
@@ -237,10 +239,21 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         }
 
         if (reduceContext.isFinalReduce()) {
-            MatrixStatsResults results = new MatrixStatsResults(runningStats);
-            return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, getMetadata());
+            MatrixStatsResults matrixStatsResults = new MatrixStatsResults(runningStats);
+            return new InternalMatrixStats(name, matrixStatsResults.getDocCount(), runningStats, matrixStatsResults, getMetadata());
         }
         return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalMatrixStats(
+            name,
+            samplingContext.scaleUp(getDocCount()),
+            stats,
+            new MatrixStatsResults(stats, samplingContext),
+            getMetadata()
+        );
     }
 
     @Override
@@ -260,7 +273,6 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         if (super.equals(obj) == false) return false;
 
         InternalMatrixStats other = (InternalMatrixStats) obj;
-        return Objects.equals(this.stats, other.stats) &&
-            Objects.equals(this.results, other.results);
+        return Objects.equals(this.stats, other.stats) && Objects.equals(this.results, other.results);
     }
 }

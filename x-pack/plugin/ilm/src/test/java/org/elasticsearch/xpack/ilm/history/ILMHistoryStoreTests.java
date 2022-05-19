@@ -22,32 +22,28 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
-import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
@@ -66,25 +62,26 @@ public class ILMHistoryStoreTests extends ESTestCase {
     public void setup() {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
-        clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        ILMHistoryTemplateRegistry registry = new ILMHistoryTemplateRegistry(clusterService.getSettings(), clusterService, threadPool,
-            client, NamedXContentRegistry.EMPTY);
-        Map<String, ComposableIndexTemplate> templates =
-            registry.getComposableTemplateConfigs().stream().collect(Collectors.toMap(IndexTemplateConfig::getTemplateName,
-                this::parseIndexTemplate));
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING))
+        );
+        clusterService = ClusterServiceUtils.createClusterService(threadPool, settings);
+        ILMHistoryTemplateRegistry registry = new ILMHistoryTemplateRegistry(
+            clusterService.getSettings(),
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY
+        );
         ClusterState state = clusterService.state();
-        ClusterServiceUtils.setState(clusterService,
-            ClusterState.builder(state).metadata(Metadata.builder(state.metadata()).indexTemplates(templates)).build());
-        historyStore = new ILMHistoryStore(Settings.EMPTY, client, clusterService, threadPool);
-    }
-
-    private ComposableIndexTemplate parseIndexTemplate(IndexTemplateConfig c) {
-        try {
-            return ComposableIndexTemplate.parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, c.loadBytes()));
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
+        ClusterServiceUtils.setState(
+            clusterService,
+            ClusterState.builder(state)
+                .metadata(Metadata.builder(state.metadata()).indexTemplates(registry.getComposableTemplateConfigs()))
+                .build()
+        );
+        historyStore = new ILMHistoryStore(client, clusterService, threadPool);
     }
 
     @After
@@ -96,32 +93,36 @@ public class ILMHistoryStoreTests extends ESTestCase {
     }
 
     public void testNoActionIfDisabled() throws Exception {
-        Settings settings = Settings.builder().put(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build();
-        try (ILMHistoryStore disabledHistoryStore = new ILMHistoryStore(settings, client, null, threadPool)) {
-            String policyId = randomAlphaOfLength(5);
-            final long timestamp = randomNonNegativeLong();
-            ILMHistoryItem record = ILMHistoryItem.success("index", policyId, timestamp, null, null);
+        ClusterState state = clusterService.state();
+        Metadata.Builder metadata = Metadata.builder(state.metadata())
+            .persistentSettings(Settings.builder().put(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build());
+        ClusterServiceUtils.setState(clusterService, ClusterState.builder(state).metadata(metadata));
 
-            CountDownLatch latch = new CountDownLatch(1);
-            client.setVerifier((a, r, l) -> {
-                fail("the history store is disabled, no action should have been taken");
-                latch.countDown();
-                return null;
-            });
-            disabledHistoryStore.putAsync(record);
-            latch.await(10, TimeUnit.SECONDS);
-        }
+        String policyId = randomAlphaOfLength(5);
+        final long timestamp = randomNonNegativeLong();
+        ILMHistoryItem record = ILMHistoryItem.success("index", policyId, timestamp, null, null);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        client.setVerifier((a, r, l) -> {
+            fail("the history store is disabled, no action should have been taken");
+            latch.countDown();
+            return null;
+        });
+        historyStore.putAsync(record);
+        latch.await(10, TimeUnit.SECONDS);
     }
 
-    @SuppressWarnings("unchecked")
     public void testPut() throws Exception {
         String policyId = randomAlphaOfLength(5);
         final long timestamp = randomNonNegativeLong();
         {
-            ILMHistoryItem record = ILMHistoryItem.success("index", policyId, timestamp, 10L,
-                LifecycleExecutionState.builder()
-                    .setPhase("phase")
-                    .build());
+            ILMHistoryItem record = ILMHistoryItem.success(
+                "index",
+                policyId,
+                timestamp,
+                10L,
+                LifecycleExecutionState.builder().setPhase("phase").build()
+            );
 
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
@@ -134,11 +135,18 @@ public class ILMHistoryStoreTests extends ESTestCase {
 
                 // The content of this BulkResponse doesn't matter, so just make it have the same number of responses
                 int responses = bulkRequest.numberOfActions();
-                return new BulkResponse(IntStream.range(0, responses)
-                    .mapToObj(i -> BulkItemResponse.success(i, DocWriteRequest.OpType.INDEX,
-                        new IndexResponse(new ShardId("index", "uuid", 0), randomAlphaOfLength(10), 1, 1, 1, true)))
-                    .toArray(BulkItemResponse[]::new),
-                    1000L);
+                return new BulkResponse(
+                    IntStream.range(0, responses)
+                        .mapToObj(
+                            i -> BulkItemResponse.success(
+                                i,
+                                DocWriteRequest.OpType.INDEX,
+                                new IndexResponse(new ShardId("index", "uuid", 0), randomAlphaOfLength(10), 1, 1, 1, true)
+                            )
+                        )
+                        .toArray(BulkItemResponse[]::new),
+                    1000L
+                );
             });
 
             historyStore.putAsync(record);
@@ -148,10 +156,14 @@ public class ILMHistoryStoreTests extends ESTestCase {
         {
             final String cause = randomAlphaOfLength(9);
             Exception failureException = new RuntimeException(cause);
-            ILMHistoryItem record = ILMHistoryItem.failure("index", policyId, timestamp, 10L,
-                LifecycleExecutionState.builder()
-                    .setPhase("phase")
-                    .build(), failureException);
+            ILMHistoryItem record = ILMHistoryItem.failure(
+                "index",
+                policyId,
+                timestamp,
+                10L,
+                LifecycleExecutionState.builder().setPhase("phase").build(),
+                failureException
+            );
 
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
@@ -174,11 +186,18 @@ public class ILMHistoryStoreTests extends ESTestCase {
 
                 // The content of this BulkResponse doesn't matter, so just make it have the same number of responses with failures
                 int responses = bulkRequest.numberOfActions();
-                return new BulkResponse(IntStream.range(0, responses)
-                    .mapToObj(i -> BulkItemResponse.failure(i, DocWriteRequest.OpType.INDEX,
-                        new BulkItemResponse.Failure("index", i + "", failureException)))
-                    .toArray(BulkItemResponse[]::new),
-                    1000L);
+                return new BulkResponse(
+                    IntStream.range(0, responses)
+                        .mapToObj(
+                            i -> BulkItemResponse.failure(
+                                i,
+                                DocWriteRequest.OpType.INDEX,
+                                new BulkItemResponse.Failure("index", i + "", failureException)
+                            )
+                        )
+                        .toArray(BulkItemResponse[]::new),
+                    1000L
+                );
             });
 
             historyStore.putAsync(record);
@@ -202,9 +221,11 @@ public class ILMHistoryStoreTests extends ESTestCase {
 
         @Override
         @SuppressWarnings("unchecked")
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
-                                                                                                  Request request,
-                                                                                                  ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
             try {
                 listener.onResponse((Response) verifier.apply(action, request, listener));
             } catch (Exception e) {

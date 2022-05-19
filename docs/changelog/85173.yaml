@@ -1,0 +1,5 @@
+pr: 85173
+summary: Validate index format agreement for system index descriptors
+area: Infra/Core
+type: bug
+issues: []

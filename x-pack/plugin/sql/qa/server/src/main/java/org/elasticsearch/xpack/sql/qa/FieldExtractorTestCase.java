@@ -12,16 +12,18 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,6 +34,7 @@ import java.util.Map.Entry;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.assertResponse;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.expectBadRequest;
@@ -46,7 +49,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
     /*
      *    "text_field": {
-     *       "text": "keyword"
+     *       "type": "text"
      *    }
      */
     public void testTextField() throws IOException {
@@ -55,7 +58,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
         boolean enableSource = randomBoolean(); // enable _source at index level
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         createIndexWithFieldTypeAndProperties("text", null, explicitSourceSetting ? indexProps : null);
@@ -84,13 +87,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         boolean enableSource = randomBoolean(); // enable _source at index level
         boolean ignoreAbove = randomBoolean();
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreAbove) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("ignore_above", 10);
             fieldProps.put("keyword_field", fieldProp);
         }
@@ -120,13 +123,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
         boolean enableSource = randomBoolean(); // enable _source at index level
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (randomBoolean()) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("value", value);
             fieldProps.put("constant_keyword_field", fieldProp);
         }
@@ -157,13 +160,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         boolean enableSource = randomBoolean(); // enable _source at index level
         boolean ignoreAbove = randomBoolean();
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreAbove) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("ignore_above", 10);
             fieldProps.put("wildcard_field", fieldProp);
         }
@@ -185,6 +188,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      *    "long/integer/short/byte_field": {
      *       "type": "long/integer/short/byte"
      *    }
+     *    Note: no unsigned_long tested -- the mapper for it won't accept float formats.
      */
     public void testFractionsForNonFloatingPointTypes() throws IOException {
         String floatingPointNumber = "123.456";
@@ -214,8 +218,8 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (isScaledFloat) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("scaling_factor", 10);            // scaling_factor is required for "scaled_float"
             fieldProps.put(fieldType + "_field", fieldProp);
         }
@@ -279,6 +283,17 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         testField("byte", ((Number) randomByte()).intValue());
     }
 
+    /*
+     *    "unsigned_long_field": {
+     *       "type": "unsigned_long",
+     *       "ignore_malformed": true/false
+     *    }
+     */
+    public void testUnsignedLongFieldType() throws IOException {
+        // randomBigInteger() can produce a value that fits into a Long, which is what testField() will then recover
+        testField("unsigned_long", BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(randomNonNegativeLong())));
+    }
+
     private void testField(String fieldType, Object value) throws IOException {
         String fieldName = fieldType + "_field";
         String query = "SELECT " + fieldName + " FROM test";
@@ -287,13 +302,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         boolean enableSource = randomBoolean(); // enable _source at index level
         boolean ignoreMalformed = randomBoolean();       // ignore_malformed is true, thus test a non-number value
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a string instead of a number and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             fieldProps.put(fieldName, fieldProp);
@@ -325,7 +340,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         boolean enableSource = randomBoolean(); // enable _source at index level
         boolean asString = randomBoolean();              // pass true or false as string "true" or "false
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         createIndexWithFieldTypeAndProperties("boolean", null, explicitSourceSetting ? indexProps : null);
@@ -360,13 +375,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         boolean enableSource = randomBoolean(); // enable _source at index level
         boolean ignoreMalformed = randomBoolean();
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a non-IP and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             fieldProps.put("ip_field", fieldProp);
@@ -399,13 +414,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         boolean enableSource = randomBoolean();          // enable _source at index level
         boolean ignoreMalformed = randomBoolean();
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a non-geo-point and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             fieldProps.put("geo_point_field", fieldProp);
@@ -437,20 +452,22 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         boolean enableSource = randomBoolean();          // enable _source at index level
         boolean ignoreMalformed = randomBoolean();
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a non-geo-shape and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             fieldProps.put("geo_shape_field", fieldProp);
             actualValue = "\"foo\"";
         }
         createIndexWithFieldTypeAndProperties("geo_shape", fieldProps, explicitSourceSetting ? indexProps : null);
-        index("{\"geo_shape_field\":{\"type\":\"point\",\"coordinates\":" + actualValue + "}}");
+        index("""
+            {"geo_shape_field":{"type":"point","coordinates":%s}}
+            """.formatted(actualValue));
 
         if (explicitSourceSetting == false || enableSource) {
             Map<String, Object> expected = new HashMap<>();
@@ -476,13 +493,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         boolean enableSource = randomBoolean();          // enable _source at index level
         boolean ignoreMalformed = randomBoolean();
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a non-geo-point and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             fieldProps.put("shape_field", fieldProp);
@@ -617,13 +634,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String subFieldName = "text_field.keyword_subfield";
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> subFieldsProps = null;
         if (ignoreAbove) {
-            subFieldsProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            subFieldsProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("ignore_above", 10);
             subFieldsProps.put(subFieldName, fieldProp);
         }
@@ -650,6 +667,36 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     /*
+     *      "keyword_field": {
+     *          "type": "keyword",
+     *          "ignore_above": 10
+     *      },
+     *      "date": {
+     *          "type": "date"
+     *      }
+     *      Test for bug https://github.com/elastic/elasticsearch/issues/80653
+     */
+    public void testTopHitsAggBug_With_IgnoreAbove_Subfield() throws IOException {
+        String text = randomAlphaOfLength(10) + " " + randomAlphaOfLength(10);
+        String function = randomFrom("FIRST", "LAST");
+        String query = "select keyword_field from test group by keyword_field order by " + function + "(date)";
+
+        Map<String, Map<String, Object>> fieldProps = Maps.newMapWithExpectedSize(1);
+        Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
+        fieldProp.put("ignore_above", 10);
+        fieldProps.put("keyword_field", fieldProp);
+
+        createIndexWithFieldTypeAndProperties("keyword", fieldProps, null);
+        index("{\"keyword_field\":\"" + text + "\",\"date\":\"2021-11-11T11:11:11.000Z\"}");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", singletonList(columnInfo("plain", "keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+
+        expected.put("rows", singletonList(singletonList(null)));
+        assertResponse(expected, runSql(query));
+    }
+
+    /*
      *    "text_field": {
      *       "type": "text",
      *       "fields": {
@@ -670,13 +717,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String subFieldName = "text_field.integer_subfield";
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> subFieldsProps = null;
         if (ignoreMalformed) {
-            subFieldsProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            subFieldsProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a string instead of a number and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             subFieldsProps.put(subFieldName, fieldProp);
@@ -729,13 +776,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String subFieldName = "text_field.ip_subfield";
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> subFieldsProps = null;
         if (ignoreMalformed) {
-            subFieldsProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            subFieldsProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a non-IP value instead of an IP and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             subFieldsProps.put(subFieldName, fieldProp);
@@ -789,13 +836,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String subFieldName = "integer_field." + (isKeyword ? "keyword_subfield" : "text_subfield");
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a string instead of a number and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             fieldProps.put(fieldName, fieldProp);
@@ -859,13 +906,13 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String subFieldName = "ip_field." + (isKeyword ? "keyword_subfield" : "text_subfield");
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (ignoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             // on purpose use a non-IP instead of an ip and check for null when querying the field's value
             fieldProp.put("ignore_malformed", true);
             fieldProps.put(fieldName, fieldProp);
@@ -926,20 +973,20 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String subFieldName = "integer_field.byte_subfield";
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (rootIgnoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("ignore_malformed", true);
             fieldProps.put(fieldName, fieldProp);
         }
         Map<String, Map<String, Object>> subFieldProps = null;
         if (subFieldIgnoreMalformed) {
-            subFieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            subFieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("ignore_malformed", true);
             subFieldProps.put(subFieldName, fieldProp);
         }
@@ -995,20 +1042,20 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         String subFieldName = "byte_field.integer_subfield";
         String query = "SELECT " + fieldName + "," + subFieldName + " FROM test";
 
-        Map<String, Object> indexProps = new HashMap<>(1);
+        Map<String, Object> indexProps = Maps.newMapWithExpectedSize(1);
         indexProps.put("_source", enableSource);
 
         Map<String, Map<String, Object>> fieldProps = null;
         if (rootIgnoreMalformed) {
-            fieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            fieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("ignore_malformed", true);
             fieldProps.put(fieldName, fieldProp);
         }
         Map<String, Map<String, Object>> subFieldProps = null;
         if (subFieldIgnoreMalformed) {
-            subFieldProps = new HashMap<>(1);
-            Map<String, Object> fieldProp = new HashMap<>(1);
+            subFieldProps = Maps.newMapWithExpectedSize(1);
+            Map<String, Object> fieldProp = Maps.newMapWithExpectedSize(1);
             fieldProp.put("ignore_malformed", true);
             subFieldProps.put(subFieldName, fieldProp);
         }
@@ -1043,42 +1090,45 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
     public void testNestedFieldsHierarchyWithMultiNestedValues() throws IOException {
         Request request = new Request("PUT", "/test");
-        request.setJsonEntity(
-            "{"
-                + "  \"mappings\" : {"
-                + "    \"properties\" : {"
-                + "      \"h\" : {"
-                + "        \"type\" : \"nested\","
-                + "        \"properties\" : {"
-                + "          \"i\" : {"
-                + "            \"type\" : \"keyword\""
-                + "          },"
-                + "          \"j\" : {"
-                + "            \"type\" : \"keyword\""
-                + "          },"
-                + "          \"f\" : {"
-                + "            \"type\" : \"nested\","
-                + "            \"properties\" : {"
-                + "              \"o\" : {"
-                + "                \"type\" : \"keyword\""
-                + "              },"
-                + "              \"b\" : {"
-                + "                \"properties\" : {"
-                + "                  \"a\" : {"
-                + "                    \"type\" : \"keyword\""
-                + "                  }"
-                + "                }"
-                + "              }"
-                + "            }"
-                + "          }"
-                + "        }"
-                + "      }"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "h": {
+                    "type": "nested",
+                    "properties": {
+                      "i": {
+                        "type": "keyword"
+                      },
+                      "j": {
+                        "type": "keyword"
+                      },
+                      "f": {
+                        "type": "nested",
+                        "properties": {
+                          "o": {
+                            "type": "keyword"
+                          },
+                          "b": {
+                            "properties": {
+                              "a": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
         client().performRequest(request);
-        index("{\"h\": [{\"i\":\"123\", \"j\":\"abc\"}, {\"i\":\"890\", \"j\":\"xyz\"}, {\"i\":\"567\", \"j\":\"klm\"}],\"test\":\"foo\"}");
+        index(stripWhitespace("""
+            {
+              "h": [ { "i": "123", "j": "abc" }, { "i": "890", "j": "xyz" }, { "i": "567", "j": "klm" } ],
+              "test": "foo"
+            }"""));
 
         Map<String, Object> expected = new HashMap<>();
         expected.put(
@@ -1095,39 +1145,41 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
     public void testNestedFieldsHierarchyWithMissingValue() throws IOException {
         Request request = new Request("PUT", "/test");
-        request.setJsonEntity(
-            "{"
-                + "  \"mappings\" : {"
-                + "    \"properties\" : {"
-                + "      \"h\" : {"
-                + "        \"type\" : \"nested\","
-                + "        \"properties\" : {"
-                + "          \"i\" : {"
-                + "            \"type\" : \"keyword\""
-                + "          },"
-                + "          \"f\" : {"
-                + "            \"type\" : \"nested\","
-                + "            \"properties\" : {"
-                + "              \"o\" : {"
-                + "                \"type\" : \"keyword\""
-                + "              },"
-                + "              \"b\" : {"
-                + "                \"properties\" : {"
-                + "                  \"a\" : {"
-                + "                    \"type\" : \"keyword\""
-                + "                  }"
-                + "                }"
-                + "              }"
-                + "            }"
-                + "          }"
-                + "        }"
-                + "      }"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "h": {
+                    "type": "nested",
+                    "properties": {
+                      "i": {
+                        "type": "keyword"
+                      },
+                      "f": {
+                        "type": "nested",
+                        "properties": {
+                          "o": {
+                            "type": "keyword"
+                          },
+                          "b": {
+                            "properties": {
+                              "a": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
         client().performRequest(request);
-        index("{\"h\": [{\"f\":{\"b\": {\"a\": \"ABC\"}}}]}");
+        index(stripWhitespace("""
+            {
+              "h": [ { "f": { "b": { "a": "ABC" } } } ]
+            }"""));
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", singletonList(columnInfo("plain", "h.f.o", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
@@ -1140,39 +1192,41 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
     public void testNestedFieldsHierarchyExtractDeeplyNestedValue() throws IOException {
         Request request = new Request("PUT", "/test");
-        request.setJsonEntity(
-            "{"
-                + "  \"mappings\" : {"
-                + "    \"properties\" : {"
-                + "      \"h\" : {"
-                + "        \"type\" : \"nested\","
-                + "        \"properties\" : {"
-                + "          \"i\" : {"
-                + "            \"type\" : \"keyword\""
-                + "          },"
-                + "          \"f\" : {"
-                + "            \"type\" : \"nested\","
-                + "            \"properties\" : {"
-                + "              \"o\" : {"
-                + "                \"type\" : \"keyword\""
-                + "              },"
-                + "              \"b\" : {"
-                + "                \"properties\" : {"
-                + "                  \"a\" : {"
-                + "                    \"type\" : \"keyword\""
-                + "                  }"
-                + "                }"
-                + "              }"
-                + "            }"
-                + "          }"
-                + "        }"
-                + "      }"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "h": {
+                    "type": "nested",
+                    "properties": {
+                      "i": {
+                        "type": "keyword"
+                      },
+                      "f": {
+                        "type": "nested",
+                        "properties": {
+                          "o": {
+                            "type": "keyword"
+                          },
+                          "b": {
+                            "properties": {
+                              "a": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
         client().performRequest(request);
-        index("{\"h\": [{\"f\":{\"b\": {\"a\": \"ABC\"}}}]}");
+        index(stripWhitespace("""
+            {
+              "h": [ { "f": { "b": { "a": "ABC" } } } ]
+            }"""));
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", singletonList(columnInfo("plain", "h.f.b.a", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
@@ -1182,45 +1236,58 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
     public void testNestedFieldsHierarchyWithArrayOfValues() throws IOException {
         Request request = new Request("PUT", "/test");
-        request.setJsonEntity(
-            "{"
-                + "  \"mappings\" : {"
-                + "    \"properties\" : {"
-                + "      \"h\" : {"
-                + "        \"type\" : \"nested\","
-                + "        \"properties\" : {"
-                + "          \"i\" : {"
-                + "            \"type\" : \"keyword\""
-                + "          },"
-                + "          \"j\" : {"
-                + "            \"type\" : \"keyword\""
-                + "          },"
-                + "          \"f\" : {"
-                + "            \"type\" : \"nested\","
-                + "            \"properties\" : {"
-                + "              \"o\" : {"
-                + "                \"type\" : \"keyword\""
-                + "              },"
-                + "              \"b\" : {"
-                + "                \"properties\" : {"
-                + "                  \"a\" : {"
-                + "                    \"type\" : \"keyword\""
-                + "                  }"
-                + "                }"
-                + "              }"
-                + "            }"
-                + "          }"
-                + "        }"
-                + "      }"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        request.setJsonEntity(stripWhitespace("""
+            {
+              "mappings": {
+                "properties": {
+                  "h": {
+                    "type": "nested",
+                    "properties": {
+                      "i": {
+                        "type": "keyword"
+                      },
+                      "j": {
+                        "type": "keyword"
+                      },
+                      "f": {
+                        "type": "nested",
+                        "properties": {
+                          "o": {
+                            "type": "keyword"
+                          },
+                          "b": {
+                            "properties": {
+                              "a": {
+                                "type": "keyword"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }"""));
         client().performRequest(request);
-        index(
-            "{\"h\": [{\"i\":[\"123\",\"124\",\"125\"], \"j\":\"abc\"}, {\"i\":\"890\", \"j\":\"xyz\"}, {\"i\":\"567\", \"j\":\"klm\"}],"
-                + "\"test\":\"foo\"}"
-        );
+        index(stripWhitespace("""
+            {
+              "h": [
+                {
+                  "i": [ "123", "124", "125" ],
+                  "j": "abc"
+                },
+                {
+                  "i": "890",
+                  "j": "xyz"
+                },
+                {
+                  "i": "567",
+                  "j": "klm"
+                }
+              ],
+              "test": "foo"
+            }"""));
 
         Map<String, Object> expected = new HashMap<>();
         Map<String, Object> actual = new HashMap<>();
@@ -1538,27 +1605,18 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     private JDBCType jdbcTypeFor(String esType) {
-        switch (esType) {
-            case "long":
-                return JDBCType.BIGINT;
-            case "integer":
-                return JDBCType.INTEGER;
-            case "short":
-                return JDBCType.SMALLINT;
-            case "byte":
-                return JDBCType.TINYINT;
-            case "float":
-                return JDBCType.REAL;
-            case "double":
-                return JDBCType.DOUBLE;
-            case "half_float":
-                return JDBCType.FLOAT;
-            case "scaled_float":
-                return JDBCType.DOUBLE;
-            case "ip":
-                return JDBCType.VARCHAR;
-            default:
-                throw new AssertionError("Illegal value [" + esType + "] for data type");
-        }
+        return switch (esType) {
+            case "long" -> JDBCType.BIGINT;
+            case "integer" -> JDBCType.INTEGER;
+            case "short" -> JDBCType.SMALLINT;
+            case "byte" -> JDBCType.TINYINT;
+            case "float" -> JDBCType.REAL;
+            case "double" -> JDBCType.DOUBLE;
+            case "half_float" -> JDBCType.FLOAT;
+            case "scaled_float" -> JDBCType.DOUBLE;
+            case "ip" -> JDBCType.VARCHAR;
+            case "unsigned_long" -> JDBCType.BIGINT;
+            default -> throw new AssertionError("Illegal value [" + esType + "] for data type");
+        };
     }
 }

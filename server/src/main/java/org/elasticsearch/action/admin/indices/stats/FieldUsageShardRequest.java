@@ -29,7 +29,6 @@ public class FieldUsageShardRequest extends BroadcastShardRequest {
         this.fields = request.fields();
     }
 
-
     FieldUsageShardRequest(StreamInput in) throws IOException {
         super(in);
         this.fields = in.readStringArray();

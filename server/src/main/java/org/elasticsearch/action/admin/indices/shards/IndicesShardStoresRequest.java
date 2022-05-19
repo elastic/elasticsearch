@@ -35,8 +35,7 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
         this.indices = indices;
     }
 
-    public IndicesShardStoresRequest() {
-    }
+    public IndicesShardStoresRequest() {}
 
     public IndicesShardStoresRequest(StreamInput in) throws IOException {
         super(in);

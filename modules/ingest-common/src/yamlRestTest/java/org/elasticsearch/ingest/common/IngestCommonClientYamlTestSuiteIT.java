@@ -25,4 +25,3 @@ public class IngestCommonClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         return ESClientYamlSuiteTestCase.createParameters();
     }
 }
-

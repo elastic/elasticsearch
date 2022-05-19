@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
@@ -90,8 +91,9 @@ public class OptimizerTests extends ESTestCase {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
         PostAnalyzer postAnalyzer = new PostAnalyzer();
         Analyzer analyzer = new Analyzer(TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
-        return optimizer.optimize(postAnalyzer.postAnalyze(analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql),
-            resolution)), TEST_CFG));
+        return optimizer.optimize(
+            postAnalyzer.postAnalyze(analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution)), TEST_CFG)
+        );
     }
 
     private LogicalPlan accept(String eql) {
@@ -99,10 +101,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testIsNull() {
-        List<String> tests = asList(
-            "foo where command_line == null",
-            "foo where null == command_line"
-        );
+        List<String> tests = asList("foo where command_line == null", "foo where null == command_line");
 
         for (String q : tests) {
             LogicalPlan plan = defaultPipes(accept(q));
@@ -118,10 +117,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testIsNotNull() {
-        List<String> tests = asList(
-            "foo where command_line != null",
-            "foo where null != command_line"
-        );
+        List<String> tests = asList("foo where command_line != null", "foo where null != command_line");
 
         for (String q : tests) {
             LogicalPlan plan = defaultPipes(accept(q));
@@ -169,17 +165,13 @@ public class OptimizerTests extends ESTestCase {
 
         Like like = (Like) condition.right();
         assertEquals("command_line", ((FieldAttribute) like.field()).name());
-        assertEquals( "^. bar .$", like.pattern().asJavaRegex());
+        assertEquals("^. bar .$", like.pattern().asJavaRegex());
         assertEquals("? bar ?", like.pattern().asLuceneWildcard());
-        assertEquals( "* bar *", like.pattern().asIndexNameWildcard());
+        assertEquals("* bar *", like.pattern().asIndexNameWildcard());
     }
 
     public void testEqualsWildcardWithLiteralsOnLeft() {
-        List<String> tests = asList(
-            "foo where \"abc\": \"*b*\"",
-            "foo where \"abc\": \"ab*\"",
-            "foo where \"abc\": \"*bc\""
-        );
+        List<String> tests = asList("foo where \"abc\": \"*b*\"", "foo where \"abc\": \"ab*\"", "foo where \"abc\": \"*bc\"");
 
         for (String q : tests) {
             LogicalPlan plan = accept(q);
@@ -396,6 +388,46 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(Filter.class, result.getClass());
         Filter f = (Filter) result;
         assertEquals(s, f.child());
+    }
+
+    //
+    // Sequence tests
+    //
+
+    /**
+     * sequence
+     * 1. filter X by a
+     * 2. filter Y by b
+     * ==
+     * sequence
+     * 1. filter X by a
+     * \ filter a != null
+     * 2. filter Y by b
+     * \ filter b != null
+     */
+    public void testMandatoryKeyConstraints() {
+        Attribute a = key("a");
+        Attribute b = key("b");
+
+        Expression filter = equalsExpression();
+        KeyedFilter rule1 = keyedFilter(basicFilter(filter), a);
+        KeyedFilter rule2 = keyedFilter(basicFilter(filter), b);
+
+        Sequence s = sequence(rule1, rule2);
+
+        LogicalPlan result = new Optimizer.AddMandatoryJoinKeyFilter().apply(s);
+
+        assertEquals(Sequence.class, result.getClass());
+        Sequence seq = (Sequence) result;
+
+        List<KeyedFilter> queries = seq.queries();
+        KeyedFilter query1 = queries.get(0);
+        assertEquals(new IsNotNull(EMPTY, a), filterCondition(query1.child()));
+        assertEquals(filter, filterCondition(query1.child().children().get(0)));
+
+        KeyedFilter query2 = queries.get(1);
+        assertEquals(new IsNotNull(EMPTY, b), filterCondition(query2.child()));
+        assertEquals(filter, filterCondition(query2.child().children().get(0)));
     }
 
     /**

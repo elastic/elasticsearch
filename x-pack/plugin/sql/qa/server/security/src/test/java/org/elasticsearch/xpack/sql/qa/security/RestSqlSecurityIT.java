@@ -13,11 +13,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.cbor.CborXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.xcontent.cbor.CborXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -118,7 +119,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         @Override
         public void expectDescribe(Map<String, List<String>> columns, String user) throws Exception {
             String mode = randomMode();
-            Map<String, Object> expected = new HashMap<>(3);
+            Map<String, Object> expected = Maps.newMapWithExpectedSize(3);
             expected.put(
                 "columns",
                 Arrays.asList(
@@ -143,6 +144,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         public void expectShowTables(List<String> tables, String user) throws Exception {
             String mode = randomMode();
             List<Object> columns = new ArrayList<>();
+            columns.add(columnInfo(mode, "catalog", "keyword", JDBCType.VARCHAR, 32766));
             columns.add(columnInfo(mode, "name", "keyword", JDBCType.VARCHAR, 32766));
             columns.add(columnInfo(mode, "type", "keyword", JDBCType.VARCHAR, 32766));
             columns.add(columnInfo(mode, "kind", "keyword", JDBCType.VARCHAR, 32766));
@@ -151,6 +153,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             List<List<String>> rows = new ArrayList<>();
             for (String table : tables) {
                 List<String> fields = new ArrayList<>();
+                fields.add("javaRestTest"); // gradle defined
                 fields.add(table);
                 fields.add("TABLE");
                 fields.add("INDEX");
@@ -167,7 +170,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
              */
             @SuppressWarnings("unchecked")
             List<List<String>> rowsNoSecurity = ((List<List<String>>) actual.get("rows")).stream()
-                .filter(ls -> ls.get(0).startsWith(".security") == false)
+                .filter(ls -> ls.get(1).startsWith(".security") == false)
                 .collect(Collectors.toList());
             actual.put("rows", rowsNoSecurity);
             assertResponse(expected, actual);
@@ -278,18 +281,27 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
     }
 
     /**
-     * Test the hijacking a scroll fails. This test is only implemented for
-     * REST because it is the only API where it is simple to hijack a scroll.
+     * Test the hijacking a cursor fails. This test is only implemented for
+     * REST because it is the only API where it is simple to hijack a cursor.
      * It should exercise the same code as the other APIs but if we were truly
      * paranoid we'd hack together something to test the others as well.
      */
-    public void testHijackScrollFails() throws Exception {
-        createUser("full_access", "rest_minimal");
+    public void testHijackCursorFails() throws Exception {
+        createUser("no_read", "read_nothing");
         final String mode = randomMode();
+
+        final String query = randomFrom(
+            List.of(
+                "SELECT * FROM test",
+                "SELECT a FROM test GROUP BY a",
+                "SELECT MAX(a) FROM test GROUP BY a ORDER BY 1",
+                "SHOW COLUMNS IN test"
+            )
+        );
 
         Map<String, Object> adminResponse = RestActions.runSql(
             null,
-            new StringEntity(query("SELECT * FROM test").mode(mode).fetchSize(1).toString(), ContentType.APPLICATION_JSON),
+            new StringEntity(query(query).mode(mode).fetchSize(1).toString(), ContentType.APPLICATION_JSON),
             mode,
             false
         );
@@ -300,20 +312,18 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         ResponseException e = expectThrows(
             ResponseException.class,
             () -> RestActions.runSql(
-                "full_access",
+                "no_read",
                 new StringEntity(cursor(cursor).mode(mode).toString(), ContentType.APPLICATION_JSON),
                 mode,
                 false
             )
         );
-        // TODO return a better error message for bad scrolls
-        assertThat(e.getMessage(), containsString("No search context found for id"));
-        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
+
+        assertThat(e.getMessage(), containsString("is unauthorized for user"));
+        assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
 
         createAuditLogAsserter().expectSqlCompositeActionFieldCaps("test_admin", "test")
-            .expect(true, SQL_ACTION_NAME, "full_access", empty())
-            // one scroll access denied per shard
-            .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")
+            .expect("access_denied", SQL_ACTION_NAME, "no_read", "default_native", empty(), "SqlQueryRequest")
             .assertLogs();
     }
 

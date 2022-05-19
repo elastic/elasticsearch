@@ -7,15 +7,15 @@
  */
 package org.elasticsearch.gradle.internal;
 
+import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
+import org.gradle.api.Project;
+import org.gradle.testfixtures.ProjectBuilder;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
-
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
-import org.gradle.api.Project;
-import org.gradle.testfixtures.ProjectBuilder;
 
 public class ConcatFilesTaskTests extends GradleUnitTestCase {
 

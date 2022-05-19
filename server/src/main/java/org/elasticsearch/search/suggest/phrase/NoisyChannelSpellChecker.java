@@ -34,8 +34,15 @@ final class NoisyChannelSpellChecker {
         this.tokenLimit = tokenLimit;
     }
 
-    Result getCorrections(TokenStream stream, final CandidateGenerator generator,
-            float maxErrors, int numCorrections, WordScorer wordScorer, float confidence, int gramSize) throws IOException {
+    Result getCorrections(
+        TokenStream stream,
+        final CandidateGenerator generator,
+        float maxErrors,
+        int numCorrections,
+        WordScorer wordScorer,
+        float confidence,
+        int gramSize
+    ) throws IOException {
 
         final List<CandidateSet> candidateSetsList = new ArrayList<>();
         DirectCandidateGenerator.analyze(stream, new DirectCandidateGenerator.TokenConsumer() {
@@ -44,6 +51,7 @@ final class NoisyChannelSpellChecker {
             private final BytesRefBuilder termsRef = new BytesRefBuilder();
             private boolean anyUnigram = false;
             private boolean anyTokens = false;
+
             @Override
             public void reset(TokenStream stream) {
                 super.reset(stream);

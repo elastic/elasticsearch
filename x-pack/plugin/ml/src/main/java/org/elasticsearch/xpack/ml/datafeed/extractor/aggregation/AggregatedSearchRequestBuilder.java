@@ -12,7 +12,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
-
 /**
  * This is used when building search actions for aggregated data.
  *

@@ -15,15 +15,20 @@ import org.elasticsearch.search.aggregations.bucket.terms.heuristic.GND;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class InternalSignificantTermsTestCase extends InternalMultiBucketAggregationTestCase<InternalSignificantTerms<?, ?>> {
 
@@ -36,9 +41,36 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
     }
 
     @Override
-    protected final InternalSignificantTerms<?, ?> createTestInstance(String name,
-                                                          Map<String, Object> metadata,
-                                                          InternalAggregations aggregations) {
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(
+        InternalSignificantTerms<?, ?> sampled,
+        InternalSignificantTerms<?, ?> reduced,
+        SamplingContext samplingContext
+    ) {
+        assertThat(sampled.getSubsetSize(), equalTo(samplingContext.scaleUp(reduced.getSubsetSize())));
+        assertThat(sampled.getSupersetSize(), equalTo(samplingContext.scaleUp(reduced.getSupersetSize())));
+        assertEquals(sampled.getBuckets().size(), reduced.getBuckets().size());
+        Iterator<? extends InternalSignificantTerms.Bucket<?>> sampledIt = sampled.getBuckets().iterator();
+        for (InternalSignificantTerms.Bucket<?> reducedBucket : reduced.getBuckets()) {
+            InternalSignificantTerms.Bucket<?> sampledBucket = sampledIt.next();
+            assertEquals(sampledBucket.subsetDf, samplingContext.scaleUp(reducedBucket.subsetDf));
+            assertEquals(sampledBucket.supersetDf, samplingContext.scaleUp(reducedBucket.supersetDf));
+            assertEquals(sampledBucket.subsetSize, samplingContext.scaleUp(reducedBucket.subsetSize));
+            assertEquals(sampledBucket.supersetSize, samplingContext.scaleUp(reducedBucket.supersetSize));
+            assertThat(sampledBucket.score, closeTo(reducedBucket.score, 1e-14));
+        }
+    }
+
+    @Override
+    protected final InternalSignificantTerms<?, ?> createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations
+    ) {
         final int requiredSize = randomIntBetween(1, 5);
         final int numBuckets = randomNumberOfBuckets();
 
@@ -58,21 +90,35 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
             subsetSize += subsetDf;
             supersetSize += supersetDf;
         }
-        return createTestInstance(name, metadata, aggregations, requiredSize, numBuckets, subsetSize, subsetDfs,
-                supersetSize, supersetDfs, significanceHeuristic);
+        return createTestInstance(
+            name,
+            metadata,
+            aggregations,
+            requiredSize,
+            numBuckets,
+            subsetSize,
+            subsetDfs,
+            supersetSize,
+            supersetDfs,
+            significanceHeuristic
+        );
     }
 
-    protected abstract InternalSignificantTerms<?, ?> createTestInstance(String name,
-                                                                   Map<String, Object> metadata,
-                                                                   InternalAggregations aggregations,
-                                                                   int requiredSize, int numBuckets,
-                                                                   long subsetSize, int[] subsetDfs,
-                                                                   long supersetSize, int[] supersetDfs,
-                                                                   SignificanceHeuristic significanceHeuristic);
+    protected abstract InternalSignificantTerms<?, ?> createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations,
+        int requiredSize,
+        int numBuckets,
+        long subsetSize,
+        int[] subsetDfs,
+        long supersetSize,
+        int[] supersetDfs,
+        SignificanceHeuristic significanceHeuristic
+    );
 
     @Override
-    protected InternalSignificantTerms<?, ?> createUnmappedInstance(String name,
-                                                              Map<String, Object> metadata) {
+    protected InternalSignificantTerms<?, ?> createUnmappedInstance(String name, Map<String, Object> metadata) {
         InternalSignificantTerms<?, ?> testInstance = createTestInstance(name, metadata);
         return new UnmappedSignificantTerms(name, testInstance.requiredSize, testInstance.minDocCount, metadata);
     }
@@ -83,9 +129,9 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
         assertEquals(inputs.stream().mapToLong(InternalSignificantTerms::getSupersetSize).sum(), reduced.getSupersetSize());
 
         List<Function<SignificantTerms.Bucket, Long>> counts = Arrays.asList(
-                SignificantTerms.Bucket::getSubsetDf,
-                SignificantTerms.Bucket::getSupersetDf,
-                SignificantTerms.Bucket::getDocCount
+            SignificantTerms.Bucket::getSubsetDf,
+            SignificantTerms.Bucket::getSupersetDf,
+            SignificantTerms.Bucket::getDocCount
         );
 
         for (Function<SignificantTerms.Bucket, Long> count : counts) {
@@ -134,16 +180,19 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
         assertEquals(expectedSigTerm.getSupersetSize(), actualSigTerm.getSupersetSize());
     }
 
-    private static Map<Object, Long> toCounts(Stream<? extends SignificantTerms.Bucket> buckets,
-                                              Function<SignificantTerms.Bucket, Long> fn) {
+    private static Map<Object, Long> toCounts(
+        Stream<? extends SignificantTerms.Bucket> buckets,
+        Function<SignificantTerms.Bucket, Long> fn
+    ) {
         return buckets.collect(Collectors.toMap(SignificantTerms.Bucket::getKey, fn, Long::sum));
     }
 
     private static SignificanceHeuristic randomSignificanceHeuristic() {
         return randomFrom(
-                new JLHScore(),
-                new MutualInformation(randomBoolean(), randomBoolean()),
-                new GND(randomBoolean()),
-                new ChiSquare(randomBoolean(), randomBoolean()));
+            new JLHScore(),
+            new MutualInformation(randomBoolean(), randomBoolean()),
+            new GND(randomBoolean()),
+            new ChiSquare(randomBoolean(), randomBoolean())
+        );
     }
 }

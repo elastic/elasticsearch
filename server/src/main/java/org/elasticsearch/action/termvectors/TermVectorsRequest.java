@@ -15,8 +15,6 @@ import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,12 +22,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.action.document.RestTermVectorsAction;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,7 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Request returning the term vector (doc frequency, positions, offsets) for a document.
@@ -66,7 +66,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     private static final ParseField FILTER = new ParseField("filter");
     private static final ParseField DOC = new ParseField("doc");
     private static final ParseField TYPE = new ParseField("_type");
-
 
     private String id;
 
@@ -123,11 +122,9 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         }
     }
 
-    private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
-            Flag.FieldStatistics);
+    private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads, Flag.FieldStatistics);
 
-    public TermVectorsRequest() {
-    }
+    public TermVectorsRequest() {}
 
     TermVectorsRequest(StreamInput in) throws IOException {
         super(in);
@@ -519,7 +516,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     public enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!
-        Positions, Offsets, Payloads, FieldStatistics, TermStatistics
+        Positions,
+        Offsets,
+        Payloads,
+        FieldStatistics,
+        TermStatistics
     }
 
     /**
@@ -563,14 +564,16 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.index = parser.text();
                 } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.doc != null) {
-                        throw new ElasticsearchParseException("failed to parse term vectors request. " +
-                            "either [id] or [doc] can be specified, but not both!");
+                        throw new ElasticsearchParseException(
+                            "failed to parse term vectors request. " + "either [id] or [doc] can be specified, but not both!"
+                        );
                     }
                     termVectorsRequest.id = parser.text();
                 } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.id != null) {
-                        throw new ElasticsearchParseException("failed to parse term vectors request. " +
-                            "either [id] or [doc] can be specified, but not both!");
+                        throw new ElasticsearchParseException(
+                            "failed to parse term vectors request. " + "either [id] or [doc] can be specified, but not both!"
+                        );
                     }
                     termVectorsRequest.doc(jsonBuilder().copyCurrentStructure(parser));
                 } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -580,8 +583,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                 } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.versionType = VersionType.fromString(parser.text());
                 } else if (restApiVersion == RestApiVersion.V_7 && TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.compatibleApiWarning("termvectors_with_types",
-                        RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
+                    deprecationLogger.compatibleCritical("termvectors_with_types", RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
                 } else {
                     throw new ElasticsearchParseException("failed to parse term vectors request. unknown field [{}]", currentFieldName);
                 }
@@ -599,8 +601,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             if (e.getValue() instanceof String) {
                 mapStrStr.put(e.getKey(), (String) e.getValue());
             } else {
-                throw new ElasticsearchParseException("expecting the analyzer at [{}] to be a String, but found [{}] instead",
-                    e.getKey(), e.getValue().getClass());
+                throw new ElasticsearchParseException(
+                    "expecting the analyzer at [{}] to be a String, but found [{}] instead",
+                    e.getKey(),
+                    e.getValue().getClass()
+                );
             }
         }
         return mapStrStr;
@@ -629,8 +634,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                 } else if (currentFieldName.equals("max_word_length")) {
                     settings.maxWordLength = parser.intValue();
                 } else {
-                    throw new ElasticsearchParseException("failed to parse term vectors request. " +
-                        "the field [{}] is not valid for filter parameter for term vector request", currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "failed to parse term vectors request. "
+                            + "the field [{}] is not valid for filter parameter for term vector request",
+                        currentFieldName
+                    );
                 }
             }
         }

@@ -15,9 +15,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -278,11 +278,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             }
             Entry that = (Entry) o;
             return repoName.equals(that.repoName)
-                       && snapshots.equals(that.snapshots)
-                       && startTime == that.startTime
-                       && repositoryStateId == that.repositoryStateId
-                       && state == that.state
-                       && uuid.equals(that.uuid);
+                && snapshots.equals(that.snapshots)
+                && startTime == that.startTime
+                && repositoryStateId == that.repositoryStateId
+                && state == that.state
+                && uuid.equals(that.uuid);
         }
 
         @Override
@@ -337,14 +337,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         public static State readFrom(StreamInput in) throws IOException {
             final byte value = in.readByte();
-            switch (value) {
-                case 0:
-                    return WAITING;
-                case 1:
-                    return STARTED;
-                default:
-                    throw new IllegalArgumentException("No snapshot delete state for value [" + value + "]");
-            }
+            return switch (value) {
+                case 0 -> WAITING;
+                case 1 -> STARTED;
+                default -> throw new IllegalArgumentException("No snapshot delete state for value [" + value + "]");
+            };
         }
 
         @Override

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
@@ -40,8 +40,7 @@ public class RestClearPrivilegesCacheAction extends SecurityBaseRestHandler {
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] applicationNames = request.paramAsStringArrayOrEmptyIfAll("application");
-        final ClearSecurityCacheRequest req =
-            new ClearSecurityCacheRequest().cacheName("application_privileges").keys(applicationNames);
+        final ClearSecurityCacheRequest req = new ClearSecurityCacheRequest().cacheName("application_privileges").keys(applicationNames);
         return channel -> client.execute(ClearSecurityCacheAction.INSTANCE, req, new NodesResponseRestListener<>(channel));
     }
 

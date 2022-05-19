@@ -1,0 +1,38 @@
+{
+  "_internal.update_desired_nodes":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/update-desired-nodes.html",
+      "description": "Updates the desired nodes. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
+    },
+    "stability":"experimental",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_internal/desired_nodes/{history_id}/{version}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "history_id": {
+              "type":"string",
+              "description":"the history id"
+            },
+            "version": {
+              "type": "integer",
+              "description": "the version number"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"the specification of the desired nodes",
+      "required":true
+    }
+  }
+}

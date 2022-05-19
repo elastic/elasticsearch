@@ -1,0 +1,90 @@
+---
+"Modify a data stream":
+  - skip:
+      version: " - 7.15.99"
+      reason: "this API was released in 7.16.0"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [data-*]
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream-for-modification
+  - is_true: acknowledged
+
+  # rollover data stream to create new backing index
+  - do:
+      indices.rollover:
+        alias: "data-stream-for-modification"
+  - is_true: acknowledged
+
+  # save index names for later use
+  - do:
+      indices.get_data_stream:
+        name: data-stream-for-modification
+  - set: { data_streams.0.indices.0.index_name: first_index }
+  - set: { data_streams.0.indices.1.index_name: write_index }
+
+  - do:
+      index:
+        index:  test_index1
+        body:   { "foo": "bar1", "@timestamp": "2009-11-15T14:12:12" }
+
+  - do:
+      indices.modify_data_stream:
+        body:
+          actions:
+            - add_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: "test_index1"
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "data-stream-for-modification"
+  - match: { data_streams.0.name: data-stream-for-modification }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 3 }
+  - length: { data_streams.0.indices: 3 }
+  - match: { data_streams.0.indices.0.index_name: 'test_index1' }
+  - match: { data_streams.0.indices.1.index_name: $first_index }
+  - match: { data_streams.0.indices.2.index_name: $write_index }
+
+  - do:
+      catch: /cannot remove backing index \[.*\] of data stream \[data-stream-for-modification\] because it is the write index/
+      indices.modify_data_stream:
+        body:
+          actions:
+            - remove_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: $write_index
+
+  - do:
+      indices.modify_data_stream:
+        body:
+          actions:
+            - remove_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: "test_index1"
+
+  - do:
+      indices.get_data_stream:
+        name: "data-stream-for-modification"
+  - match: { data_streams.0.name: data-stream-for-modification }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 4 }
+  - length: { data_streams.0.indices: 2 }
+  - match: { data_streams.0.indices.0.index_name: $first_index }
+  - match: { data_streams.0.indices.1.index_name: $write_index }
+
+  - do:
+      indices.delete_data_stream:
+        name: data-stream-for-modification
+  - is_true: acknowledged

@@ -9,7 +9,6 @@
 package org.elasticsearch.action.support;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -25,8 +24,13 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
     private final String executor;
     private final boolean forceExecution;
 
-    public ThreadedActionListener(Logger logger, ThreadPool threadPool, String executor, ActionListener<Response> listener,
-                                  boolean forceExecution) {
+    public ThreadedActionListener(
+        Logger logger,
+        ThreadPool threadPool,
+        String executor,
+        ActionListener<Response> listener,
+        boolean forceExecution
+    ) {
         super(listener);
         this.logger = logger;
         this.threadPool = threadPool;
@@ -64,7 +68,7 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to execute failure callback on [{}]", delegate), e);
+                logger.warn(() -> "failed to execute failure callback on [" + delegate + "]", e);
             }
         });
     }

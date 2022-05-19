@@ -10,8 +10,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.script.AbstractFieldScript;
@@ -47,6 +47,11 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
     @Override
     protected DateFieldScript.Factory dummyScript() {
         return DUMMY;
+    }
+
+    @Override
+    protected DateFieldScript.Factory fromSource() {
+        return DateFieldScript.PARSE_FROM_SOURCE;
     }
 
     public void testTooManyValues() throws IOException {

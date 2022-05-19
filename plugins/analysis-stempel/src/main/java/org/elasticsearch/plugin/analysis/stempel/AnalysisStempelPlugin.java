@@ -25,8 +25,7 @@ import static java.util.Collections.singletonMap;
 public class AnalysisStempelPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-        return Map.of("polish_stem", PolishStemTokenFilterFactory::new,
-                      "polish_stop", PolishStopTokenFilterFactory::new);
+        return Map.of("polish_stem", PolishStemTokenFilterFactory::new, "polish_stop", PolishStopTokenFilterFactory::new);
     }
 
     @Override

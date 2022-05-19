@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[get-transform-stats]]
 = Get {transform} statistics API
 

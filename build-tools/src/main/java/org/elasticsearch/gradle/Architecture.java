@@ -21,15 +21,11 @@ public enum Architecture {
 
     public static Architecture current() {
         final String architecture = System.getProperty("os.arch", "");
-        switch (architecture) {
-            case "amd64":
-            case "x86_64":
-                return X64;
-            case "aarch64":
-                return AARCH64;
-            default:
-                throw new IllegalArgumentException("can not determine architecture from [" + architecture + "]");
-        }
+        return switch (architecture) {
+            case "amd64", "x86_64" -> X64;
+            case "aarch64" -> AARCH64;
+            default -> throw new IllegalArgumentException("can not determine architecture from [" + architecture + "]");
+        };
     }
 
 }

@@ -30,15 +30,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -48,6 +48,7 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.EncodedVersion;
 
 import java.io.IOException;
@@ -96,18 +97,18 @@ public class VersionStringFieldMapper extends FieldMapper {
             super(name);
         }
 
-        private VersionStringFieldType buildFieldType(ContentPath contentPath, FieldType fieldtype) {
-            return new VersionStringFieldType(buildFullName(contentPath), fieldtype, meta.getValue());
+        private VersionStringFieldType buildFieldType(MapperBuilderContext context, FieldType fieldtype) {
+            return new VersionStringFieldType(context.buildFullName(name), fieldtype, meta.getValue());
         }
 
         @Override
-        public VersionStringFieldMapper build(ContentPath contentPath) {
+        public VersionStringFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             return new VersionStringFieldMapper(
                 name,
                 fieldtype,
-                buildFieldType(contentPath, fieldtype),
-                multiFieldsBuilder.build(this, contentPath),
+                buildFieldType(context, fieldtype),
+                multiFieldsBuilder.build(this, context),
                 copyTo.build()
             );
         }
@@ -279,7 +280,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), VersionScriptDocValues::new, CoreValuesSourceType.KEYWORD);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, VersionStringDocValuesField::new);
         }
 
         @Override
@@ -292,14 +293,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
-            }
-            if (timeZone != null) {
-                throw new IllegalArgumentException(
-                    "Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones"
-                );
-            }
+            checkNoFormat(format);
+            checkNoTimeZone(timeZone);
             return VERSION_DOCVALUE;
         }
 
@@ -326,8 +321,13 @@ public class VersionStringFieldMapper extends FieldMapper {
         MultiFields multiFields,
         CopyTo copyTo
     ) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.fieldType = fieldType;
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -384,8 +384,8 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return VersionEncoder.encodeVersion(value).bytesRef;
+        public BytesRef parseBytesRef(Object value) {
+            return VersionEncoder.encodeVersion(value.toString()).bytesRef;
         }
 
         @Override

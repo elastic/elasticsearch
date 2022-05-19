@@ -7,17 +7,19 @@
 package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,8 +31,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.SORT_FIELD;
-import static  org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.METRIC_FIELD;
-
+import static org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.METRIC_FIELD;
 
 public class InternalTopMetrics extends InternalMultiValueAggregation {
     private final SortOrder sortOrder;
@@ -38,8 +39,14 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     private final List<String> metricNames;
     private final List<TopMetric> topMetrics;
 
-    public InternalTopMetrics(String name, @Nullable SortOrder sortOrder, List<String> metricNames,
-            int size, List<TopMetric> topMetrics, Map<String, Object> metadata) {
+    public InternalTopMetrics(
+        String name,
+        @Nullable SortOrder sortOrder,
+        List<String> metricNames,
+        int size,
+        List<TopMetric> topMetrics,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         this.sortOrder = sortOrder;
         this.metricNames = metricNames;
@@ -104,7 +111,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     }
 
     @Override
-    public InternalTopMetrics reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalTopMetrics reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         if (false == isMapped()) {
             return this;
         }
@@ -157,30 +164,28 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     public boolean equals(Object obj) {
         if (super.equals(obj) == false) return false;
         InternalTopMetrics other = (InternalTopMetrics) obj;
-        return sortOrder.equals(other.sortOrder) &&
-            metricNames.equals(other.metricNames) &&
-            size == other.size &&
-            topMetrics.equals(other.topMetrics);
+        return sortOrder.equals(other.sortOrder)
+            && metricNames.equals(other.metricNames)
+            && size == other.size
+            && topMetrics.equals(other.topMetrics);
     }
 
     @Override
-    public final double sortValue(String key) {
+    public final SortValue sortValue(String key) {
         int index = metricNames.indexOf(key);
         if (index < 0) {
             throw new IllegalArgumentException("unknown metric [" + key + "]");
         }
         if (topMetrics.isEmpty()) {
-            return Double.NaN;
+            return SortValue.empty();
         }
 
         MetricValue value = topMetrics.get(0).metricValues.get(index);
         if (value == null) {
-            return Double.NaN;
+            return SortValue.empty();
         }
 
-        // TODO it'd probably be nicer to have "compareTo" instead of assuming a double.
-        // non-numeric fields always return NaN
-        return value.numberValue().doubleValue();
+        return value.getValue();
     }
 
     @Override
@@ -199,6 +204,11 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
             }
             return value.getValue().format(value.getFormat());
         }).collect(Collectors.toList());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
     }
 
     @Override
@@ -312,9 +322,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
                 return false;
             }
             TopMetric other = (TopMetric) obj;
-            return sortFormat.equals(other.sortFormat)
-                    && sortValue.equals(other.sortValue)
-                    && metricValues.equals(other.metricValues);
+            return sortFormat.equals(other.sortFormat) && sortValue.equals(other.sortValue) && metricValues.equals(other.metricValues);
         }
 
         @Override

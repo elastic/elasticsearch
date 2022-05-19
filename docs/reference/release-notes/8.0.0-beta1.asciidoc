@@ -1,0 +1,238 @@
+:es-issue: https://github.com/elastic/elasticsearch/issues/
+:es-pull:  https://github.com/elastic/elasticsearch/pull/
+
+[[release-notes-8.0.0-beta1]]
+== {es} version 8.0.0-beta1
+
+Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
+
+[[known-issues-8.0.0-beta1]]
+[float]
+=== Known issues
+
+* If you're using {ml}, it's not safe to upgrade to `8.0.0-beta1`
+  if the cluster you're upgrading was first used prior to `7.7.0`.
+  If you attempt such an upgrade the filtered aliases against
+  the {ml} results indices will lose their filters, causing {ml}
+  anomaly detection results for different jobs to be mixed.
+  Wait for `8.0.0-rc1` before attempting to test upgrading a cluster
+  where {ml} was used prior to version `7.7.0`.
+* System indices are included in wildcard queries when using the `*` pattern. Do 
+  not rely on this behavior, because system indices will be hidden in the 8.0 
+  release. If you need to access system indices, specify the index name, use a 
+  more specific wildcard, or use the `expand_wildcards` parameter in your query.
+
+* By default, system indices are included in snapshots of all indices, and are 
+  restored when no indices are specified. This behavior results from including
+  system indices in the implicit default wildcard (`*`) for snapshot and restore
+  operations, which was intended for backwards compatibility in 7.x versions.
+  In 8.0, all system indices should be accessed through the `feature_states` 
+  parameter of the snapshot or restore request.
+  
+
+[[breaking-8.0.0-beta1]]
+[float]
+=== Breaking changes
+
+ILM+SLM::
+* Always enforce default tier preference {es-pull}79751[#79751] (issue: {es-issue}76147[#76147])
+* Validate that snapshot repository exists for ILM policies at creation/update time {es-pull}78468[#78468] (issues: {es-issue}72957[#72957], {es-issue}77657[#77657])
+* Default `ENFORCE_DEFAULT_TIER_PREFERENCE` to `true` {es-pull}79275[#79275] (issues: {es-issue}76147[#76147], {es-issue}79210[#79210])
+
+Indices APIs::
+* Remove endpoint for freezing indices {es-pull}78918[#78918] (issues: {es-issue}70192[#70192], {es-issue}77273[#77273])
+
+Infra/Core::
+* Remove Joda dependency {es-pull}79007[#79007]
+* Remove Joda support from date formatters {es-pull}78990[#78990]
+
+Ingest::
+* Remove default maxmind GeoIP databases from distribution {es-pull}78362[#78362] (issue: {es-issue}68920[#68920])
+
+License::
+* Enforce license expiration {es-pull}79671[#79671]
+
+Machine Learning::
+* Remove `allow_no_datafeeds` and `allow_no_jobs` parameters from APIs {es-pull}80048[#80048] (issue: {es-issue}60732[#60732])
+
+Packaging::
+* Require Java 17 for running Elasticsearch {es-pull}79873[#79873]
+
+
+
+[[deprecation-8.0.0-beta1]]
+[float]
+=== Deprecations
+
+Authentication::
+* Deprecate setup-passwords tool {es-pull}76902[#76902]
+
+CRUD::
+* Remove `indices_segments` 'verbose' parameter {es-pull}78451[#78451] (issue: {es-issue}75955[#75955])
+
+Monitoring::
+* Add deprecation info API entries for deprecated monitoring settings {es-pull}78799[#78799]
+* Automatically install monitoring templates at plugin initialization {es-pull}78350[#78350]
+* Remove Monitoring ingest pipelines {es-pull}77459[#77459] (issue: {es-issue}50770[#50770])
+
+
+
+[[feature-8.0.0-beta1]]
+[float]
+=== New features
+
+Security::
+* Auto-configure TLS for new nodes of new clusters {es-pull}77231[#77231] (issues: {es-issue}75144[#75144], {es-issue}75704[#75704])
+
+[[enhancement-8.0.0-beta1]]
+[float]
+=== Enhancements
+
+Authentication::
+* New CLI tool to reset password for built-in users {es-pull}79709[#79709]
+* Upgrade to UnboundID LDAP SDK v6.0.2 {es-pull}79332[#79332]
+* Auto-configure the `elastic` user password {es-pull}78306[#78306]
+
+Cluster Coordination::
+* Prevent downgrades from 8.x to 7.x {es-pull}78586[#78586] (issues: {es-issue}42489[#42489], {es-issue}52414[#52414])
+* Prevent downgrades from 8.x to 7.x {es-pull}78638[#78638] (issues: {es-issue}42489[#42489], {es-issue}52414[#52414])
+
+Data streams::
+* Data stream support read and write with custom routing and partition size {es-pull}74394[#74394] (issue: {es-issue}74390[#74390])
+
+ILM+SLM::
+
+* Inject migrate action regardless of allocate action {es-pull}79090[#79090] (issue: {es-issue}76147[#76147])
+
+Infra/Core::
+* Check whether stdout is a real console {es-pull}79882[#79882]
+* Share int, long, float, double, and byte pages {es-pull}75053[#75053]
+* Revert "Deprecate resolution loss on date field (#78921)" {es-pull}79914[#79914] (issue: {es-issue}78921[#78921])
+* Add two missing entries to the deprecation information API {es-pull}80290[#80290] (issue: {es-issue}80233[#80233])
+
+Infra/Scripting::
+* Add nio Buffers to Painless {es-pull}79870[#79870] (issue: {es-issue}79867[#79867])
+* Restore the scripting general cache {es-pull}79453[#79453] (issue: {es-issue}62899[#62899])
+
+Ingest::
+* Remove binary field after attachment processor execution {es-pull}79172[#79172]
+* Improving cache lookup to reduce recomputing / searches {es-pull}77259[#77259]
+
+
+License::
+* Enforce Transport TLS check on all licenses {es-pull}79602[#79602] (issue: {es-issue}75292[#75292])
+
+Machine Learning::
+* Add inference time configuration overrides {es-pull}78441[#78441] (issue: {es-issue}77799[#77799])
+* Optimize source extraction for `categorize_text` aggregation {es-pull}79099[#79099]
+* The Linux build platform for the {ml} C++ code is now CentOS 7 running gcc 10.3. {ml-pull}2028[#2028]
+* Make ML indices hidden when the node becomes master {es-pull}77416[#77416] (issue: {es-issue}53674[#53674])
+
+Mapping::
+* Add support for configuring HNSW parameters {es-pull}79193[#79193] (issue: {es-issue}78473[#78473])
+* Extend `dense_vector` to support indexing vectors {es-pull}78491[#78491] (issue: {es-issue}78473[#78473])
+
+Monitoring::
+* Add previously removed Monitoring settings back for 8.0 {es-pull}78784[#78784]
+* Change Monitoring plugin cluster alerts to not install by default {es-pull}79657[#79657]
+
+Packaging::
+* Allow total memory to be overridden {es-pull}78750[#78750] (issue: {es-issue}65905[#65905])
+
+Search::
+* Node level can match action {es-pull}78765[#78765]
+* TSDB: Add time series information to field caps {es-pull}78790[#78790] (issue: {es-issue}74660[#74660])
+* Add new kNN search endpoint {es-pull}79013[#79013] (issue: {es-issue}78473[#78473])
+* Disallow kNN searches on nested vector fields {es-pull}79403[#79403] (issue: {es-issue}78473[#78473])
+* Ensure kNN search respects authorization {es-pull}79693[#79693] (issue: {es-issue}78473[#78473])
+* Load kNN vectors format with mmapfs {es-pull}78724[#78724] (issue: {es-issue}78473[#78473])
+* Support cosine similarity in kNN search {es-pull}79500[#79500]
+* Node level can match action {es-pull}78765[#78765]
+
+
+
+Security::
+* Add v7 `restCompat` for invalidating API key with the id field {es-pull}78664[#78664] (issue: {es-issue}66671[#66671])
+* Print enrollment token on startup {es-pull}78293[#78293]
+* Startup check for security implicit behavior change {es-pull}76879[#76879]
+* Update auto-generated credentials output {es-pull}79755[#79755] (issue: {es-issue}79312[#79312])
+* CLI tool to reconfigure nodes to enroll {es-pull}79690[#79690] (issue: {es-issue}7718[#7718])
+* Security auto-configuration for packaged installations {es-pull}75144[#75144] (issue: {es-issue}78306[#78306])
+* Update to OpenSAML 4 {es-pull}77012[#77012] (issue: {es-issue}71983[#71983])
+
+Snapshot/Restore::
+* Allow listing older repositories {es-pull}78244[#78244]
+* Optimize SLM Policy Queries {es-pull}79341[#79341] (issue: {es-issue}79321[#79321])
+* Upgrade repository-hdfs plugin to Hadoop 3 {es-pull}76897[#76897]
+
+Transform::
+* Prevent old beta transforms from starting {es-pull}79712[#79712]
+
+TSDB::
+* Automatically add timestamp mapper {es-pull}79136[#79136]
+* Create a coordinating node level reader for tsdb {es-pull}79197[#79197]
+* Fix TSDB shrink test in multi-version cluster {es-pull}79940[#79940] (issue: {es-issue}79936[#79936])
+* Do not allow shadowing metrics or dimensions {es-pull}79757[#79757]
+
+[[bug-8.0.0-beta1]]
+[float]
+=== Bug fixes
+
+Infra/Core::
+* Prevent stack overflow in rounding {es-pull}80450[#80450]
+
+Infra/Settings::
+* Stricter `UpdateSettingsRequest` parsing on the REST layer {es-pull}79227[#79227] (issue: {es-issue}29268[#29268])
+* Set Auto expand replica on deprecation log data stream {es-pull}79226[#79226] (issue: {es-issue}78991[#78991])
+
+Machine Learning::
+* Add timeout parameter for delete trained models API {es-pull}79739[#79739] (issue: {es-issue}77070[#77070])
+* Fix `MlMetadata` backwards compatibility bug with 7.13 through 7.16 {es-pull}80041[#80041]
+* Tone down ML unassigned job notifications {es-pull}79578[#79578] (issue: {es-issue}79270[#79270])
+* Use a new annotations index for future annotations {es-pull}79006[#79006] (issue: {es-issue}78439[#78439])
+
+Search::
+* Remove unsafe assertion in wildcard field {es-pull}78966[#78966]
+
+Snapshot/Restore::
+* Don't fill stack traces in `SnapshotShardFailure` {es-pull}80009[#80009] (issue: {es-issue}79718[#79718])
+
+
+
+[[regression-8.0.0-beta1]]
+[float]
+=== Regressions
+
+Search::
+* Disable numeric sort optimization conditionally {es-pull}78103[#78103]
+
+
+
+[[upgrade-8.0.0-beta1]]
+[float]
+=== Upgrades
+
+Search::
+* Update Lucene 9 snapshot {es-pull}79701[#79701] {es-pull}79138[#79138] {es-pull}78548[#78548] {es-pull}78286[#78286] {es-pull}73324[#73324] {es-pull}79461[#79461]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -11,8 +11,8 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -32,8 +32,14 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
     private final Script script;
     private final Map<String, String> bucketsPathsMap;
 
-    BucketScriptPipelineAggregator(String name, Map<String, String> bucketsPathsMap, Script script, DocValueFormat formatter,
-            GapPolicy gapPolicy, Map<String, Object> metadata) {
+    BucketScriptPipelineAggregator(
+        String name,
+        Map<String, String> bucketsPathsMap,
+        Script script,
+        DocValueFormat formatter,
+        GapPolicy gapPolicy,
+        Map<String, Object> metadata
+    ) {
         super(name, bucketsPathsMap.values().toArray(new String[0]), metadata);
         this.bucketsPathsMap = bucketsPathsMap;
         this.script = script;
@@ -42,14 +48,13 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
     }
 
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        @SuppressWarnings({"rawtypes", "unchecked"})
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
-                (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+            (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
-        BucketAggregationScript.Factory factory =
-            reduceContext.scriptService().compile(script, BucketAggregationScript.CONTEXT);
+        BucketAggregationScript.Factory factory = reduceContext.scriptService().compile(script, BucketAggregationScript.CONTEXT);
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
@@ -74,13 +79,16 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                 if (returned == null) {
                     newBuckets.add(bucket);
                 } else {
-                    final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map(
-                        (p) -> (InternalAggregation) p).collect(Collectors.toList());
+                    final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
+                        .map((p) -> (InternalAggregation) p)
+                        .collect(Collectors.toCollection(ArrayList::new));
 
                     InternalSimpleValue simpleValue = new InternalSimpleValue(name(), returned.doubleValue(), formatter, metadata());
                     aggs.add(simpleValue);
-                    InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(InternalAggregations.from(aggs),
-                        bucket);
+                    InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(
+                        InternalAggregations.from(aggs),
+                        bucket
+                    );
                     newBuckets.add(newBucket);
                 }
             }

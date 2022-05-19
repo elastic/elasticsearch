@@ -25,8 +25,12 @@ public class RecoverySettingsChunkSizePlugin extends Plugin {
     /**
      * The chunk size. Only exposed by tests.
      */
-    public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("indices.recovery.chunk_size",
-            RecoverySettings.DEFAULT_CHUNK_SIZE, Property.Dynamic, Property.NodeScope);
+    public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
+        "indices.recovery.chunk_size",
+        RecoverySettings.DEFAULT_CHUNK_SIZE,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     @Override
     public List<Setting<?>> getSettings() {

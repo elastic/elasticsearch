@@ -6,22 +6,22 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Min;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Map;
@@ -116,10 +117,10 @@ public class MetricAggExtractor implements BucketExtractor {
         }
 
         if (agg instanceof InternalNumericMetricsAggregation.MultiValue) {
-            //TODO: need to investigate when this can be not-null
-            //if (innerKey == null) {
-            //    throw new SqlIllegalArgumentException("Invalid innerKey {} specified for aggregation {}", innerKey, name);
-            //}
+            // TODO: need to investigate when this can be not-null
+            // if (innerKey == null) {
+            // throw new SqlIllegalArgumentException("Invalid innerKey {} specified for aggregation {}", innerKey, name);
+            // }
             return handleTargetType(((InternalNumericMetricsAggregation.MultiValue) agg).value(property));
         } else if (agg instanceof InternalFilter) {
             // COUNT(expr) and COUNT(ALL expr) uses this type of aggregation to account for non-null values only
@@ -157,20 +158,20 @@ public class MetricAggExtractor implements BucketExtractor {
         if (agg instanceof InternalMatrixStats) {
             return hasValue((InternalMatrixStats) agg);
         }
-        if (agg instanceof InternalMax) {
-            return hasValue((InternalMax) agg);
+        if (agg instanceof Max) {
+            return hasValue((Max) agg);
         }
-        if (agg instanceof InternalMin) {
-            return hasValue((InternalMin) agg);
+        if (agg instanceof Min) {
+            return hasValue((Min) agg);
         }
         if (agg instanceof InternalAvg) {
             return hasValue((InternalAvg) agg);
         }
-        if (agg instanceof InternalSum) {
-            return hasValue((InternalSum) agg);
+        if (agg instanceof Sum) {
+            return hasValue((Sum) agg);
         }
         if (agg instanceof InternalTDigestPercentileRanks) {
-            return  hasValue((InternalTDigestPercentileRanks) agg);
+            return hasValue((InternalTDigestPercentileRanks) agg);
         }
         if (agg instanceof InternalTDigestPercentiles) {
             return hasValue((InternalTDigestPercentiles) agg);
@@ -194,9 +195,7 @@ public class MetricAggExtractor implements BucketExtractor {
         }
 
         MetricAggExtractor other = (MetricAggExtractor) obj;
-        return Objects.equals(name, other.name)
-                && Objects.equals(property, other.property)
-                && Objects.equals(innerKey, other.innerKey);
+        return Objects.equals(name, other.name) && Objects.equals(property, other.property) && Objects.equals(innerKey, other.innerKey);
     }
 
     @Override

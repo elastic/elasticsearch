@@ -6,12 +6,13 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.index.IndexCompatibility;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.MappingException;
@@ -35,6 +36,8 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.common.Strings.hasText;
+import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 
 public class SqlSession implements Session {
 
@@ -50,13 +53,17 @@ public class SqlSession implements Session {
 
     private final SqlConfiguration configuration;
 
-    public SqlSession(SqlConfiguration configuration, Client client, FunctionRegistry functionRegistry,
-            IndexResolver indexResolver,
-            PreAnalyzer preAnalyzer,
-            Verifier verifier,
-            Optimizer optimizer,
-            Planner planner,
-            PlanExecutor planExecutor) {
+    public SqlSession(
+        SqlConfiguration configuration,
+        Client client,
+        FunctionRegistry functionRegistry,
+        IndexResolver indexResolver,
+        PreAnalyzer preAnalyzer,
+        Verifier verifier,
+        Optimizer optimizer,
+        Planner planner,
+        PlanExecutor planExecutor
+    ) {
         this.client = configuration.taskId() != null ? new ParentTaskAssigningClient(client, configuration.taskId()) : client;
         this.functionRegistry = functionRegistry;
 
@@ -108,8 +115,13 @@ public class SqlSession implements Session {
             return;
         }
 
-        preAnalyze(parsed, c -> {
-            Analyzer analyzer = new Analyzer(configuration, functionRegistry, c, verifier);
+        preAnalyze(parsed, r -> {
+            Analyzer analyzer = new Analyzer(
+                configuration,
+                functionRegistry,
+                IndexCompatibility.compatible(r, Version.fromId(configuration.version().id)),
+                verifier
+            );
             return analyzer.analyze(parsed, verify);
         }, listener);
     }
@@ -142,14 +154,19 @@ public class SqlSession implements Session {
             TableIdentifier table = tableInfo.id();
 
             String cluster = table.cluster();
+            cluster = hasText(cluster) ? cluster : configuration.catalog();
 
-            if (Strings.hasText(cluster) && indexResolver.clusterName().equals(cluster) == false) {
-                listener.onFailure(new MappingException("Cannot inspect indices in cluster/catalog [{}]", cluster));
-            }
+            String indexPattern = hasText(cluster) && cluster.equals(configuration.clusterName()) == false
+                ? buildRemoteIndexName(cluster, table.index())
+                : table.index();
 
             boolean includeFrozen = configuration.includeFrozen() || tableInfo.isFrozen();
-            indexResolver.resolveAsMergedMapping(table.index(), null, includeFrozen, configuration.runtimeMappings(),
-                    wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
+            indexResolver.resolveAsMergedMapping(
+                indexPattern,
+                includeFrozen,
+                configuration.runtimeMappings(),
+                wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure)
+            );
         } else {
             try {
                 // occurs when dealing with local relations (SELECT 5+2)

@@ -22,8 +22,7 @@ public class CurrentTime extends CurrentFunction<OffsetTime> {
     private final Expression precision;
 
     public CurrentTime(Source source, Expression precision, Configuration configuration) {
-        super(source, configuration, nanoPrecision(configuration.now().toOffsetDateTime().toOffsetTime(), precision),
-            SqlDataTypes.TIME);
+        super(source, configuration, nanoPrecision(configuration.now().toOffsetDateTime().toOffsetTime(), precision), SqlDataTypes.TIME);
         this.precision = precision;
     }
 

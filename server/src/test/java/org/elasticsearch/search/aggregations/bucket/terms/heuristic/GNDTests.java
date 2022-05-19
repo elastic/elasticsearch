@@ -30,11 +30,11 @@ public class GNDTests extends AbstractSignificanceHeuristicTestCase {
      */
     public void testGNDCornerCases() {
         GND gnd = new GND(true);
-        assertThat(gnd.getScore(0, randomIntBetween(1, 2), 0, randomIntBetween(2,3)), equalTo(0.0));
+        assertThat(gnd.getScore(0, randomIntBetween(1, 2), 0, randomIntBetween(2, 3)), equalTo(0.0));
         // the terms do not co-occur at all - should be 0
-        assertThat(gnd.getScore(0, randomIntBetween(1, 2), randomIntBetween(2, 3), randomIntBetween(5,6)), equalTo(0.0));
+        assertThat(gnd.getScore(0, randomIntBetween(1, 2), randomIntBetween(2, 3), randomIntBetween(5, 6)), equalTo(0.0));
         // comparison between two terms that do not exist - probably not relevant
-        assertThat(gnd.getScore(0, 0, 0, randomIntBetween(1,2)), equalTo(0.0));
+        assertThat(gnd.getScore(0, 0, 0, randomIntBetween(1, 2)), equalTo(0.0));
         // terms co-occur perfectly - should be 1
         assertThat(gnd.getScore(1, 1, 1, 1), equalTo(1.0));
         gnd = new GND(false);

@@ -10,7 +10,7 @@ package org.elasticsearch.action.admin.cluster.repositories.delete;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * Builder for unregister repository request

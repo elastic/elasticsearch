@@ -27,10 +27,19 @@ import static org.hamcrest.Matchers.equalTo;
 public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
 
     public void testQueryRewriteOnRefresh() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("index").setMapping("s", "type=text")
-                .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                .get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("index")
+                .setMapping("s", "type=text")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .get()
+        );
 
         // Index some documents
         indexDocument("1", "d");
@@ -43,15 +52,21 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
 
         // Search for a range and check that it missed the cache (since its the
         // first time it has run)
-        final SearchResponse r1 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g")).get();
+        final SearchResponse r1 = client().prepareSearch("index")
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g"))
+            .get();
         assertSearchResponse(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(3L));
         assertRequestCacheStats(0, 1);
 
         // Search again and check it hits the cache
-        final SearchResponse r2 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g")).get();
+        final SearchResponse r2 = client().prepareSearch("index")
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g"))
+            .get();
         assertSearchResponse(r2);
         assertThat(r2.getHits().getTotalHits().value, equalTo(3L));
         assertRequestCacheStats(1, 1);
@@ -62,18 +77,25 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
         refreshIndex();
 
         // Search again and check the request cache for another miss since request cache should be invalidated by refresh
-        final SearchResponse r3 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g")).get();
+        final SearchResponse r3 = client().prepareSearch("index")
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g"))
+            .get();
         assertSearchResponse(r3);
         assertThat(r3.getHits().getTotalHits().value, equalTo(5L));
         assertRequestCacheStats(1, 2);
     }
 
     private void assertRequestCacheStats(long expectedHits, long expectedMisses) {
-        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-                equalTo(expectedHits));
-        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-                equalTo(expectedMisses));
+        assertThat(
+            client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+            equalTo(expectedHits)
+        );
+        assertThat(
+            client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+            equalTo(expectedMisses)
+        );
     }
 
     private void refreshIndex() {

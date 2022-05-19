@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -32,8 +32,9 @@ public class RestEstimateModelMemoryAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        EstimateModelMemoryAction.Request request =
-            EstimateModelMemoryAction.Request.parseRequest(restRequest.contentOrSourceParamParser());
+        EstimateModelMemoryAction.Request request = EstimateModelMemoryAction.Request.parseRequest(
+            restRequest.contentOrSourceParamParser()
+        );
         return channel -> client.execute(EstimateModelMemoryAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

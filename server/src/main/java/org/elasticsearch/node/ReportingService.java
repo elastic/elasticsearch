@@ -9,7 +9,7 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent;
 
 public interface ReportingService<I extends ReportingService.Info> {
     I info();

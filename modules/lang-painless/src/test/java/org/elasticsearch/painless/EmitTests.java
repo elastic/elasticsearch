@@ -38,12 +38,12 @@ public class EmitTests extends ScriptTestCase {
     public void testEmit() {
         TestFieldScript script = exec("emit(1L)");
         assertNotNull(script);
-        assertArrayEquals(new long[]{1L}, script.fetchValues());
+        assertArrayEquals(new long[] { 1L }, script.fetchValues());
     }
 
     public void testEmitFromUserFunction() {
         TestFieldScript script = exec("void doEmit(long l) { emit(l) } doEmit(1L); doEmit(100L)");
         assertNotNull(script);
-        assertArrayEquals(new long[]{1L, 100L}, script.fetchValues());
+        assertArrayEquals(new long[] { 1L, 100L }, script.fetchValues());
     }
 }

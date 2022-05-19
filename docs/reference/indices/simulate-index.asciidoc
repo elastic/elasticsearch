@@ -189,7 +189,14 @@ The response shows the index settings, mappings, and aliases applied by the `fin
     "settings" : {
       "index" : {
         "number_of_shards" : "2",
-        "number_of_replicas" : "0"
+        "number_of_replicas" : "0",
+        "routing" : {
+          "allocation" : {
+            "include" : {
+              "_tier_preference" : "data_content"
+            }
+          }
+        }
       }
     },
     "mappings" : {

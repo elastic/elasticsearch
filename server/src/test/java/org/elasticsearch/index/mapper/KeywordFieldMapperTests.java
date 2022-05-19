@@ -9,8 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.MockLowerCaseFilter;
-import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
@@ -19,9 +17,15 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -36,16 +40,19 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -71,7 +78,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 )
             );
         }
-
     }
 
     @Override
@@ -100,7 +106,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertExistsQuery(mapperService);
         assertParseMinimalWarnings();
     }
-
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -157,26 +162,25 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
         checker.registerConflictCheck("normalizer", b -> b.field("normalizer", "lowercase"));
 
-        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true),
-            m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
-        checker.registerUpdateCheck(b -> b.field("ignore_above", 256),
-            m -> assertEquals(256, ((KeywordFieldMapper)m).fieldType().ignoreAbove()));
-        checker.registerUpdateCheck(b -> b.field("split_queries_on_whitespace", true),
-            m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
+        checker.registerUpdateCheck(
+            b -> b.field("ignore_above", 256),
+            m -> assertEquals(256, ((KeywordFieldMapper) m).fieldType().ignoreAbove())
+        );
+        checker.registerUpdateCheck(
+            b -> b.field("split_queries_on_whitespace", true),
+            m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().searchAnalyzer().name())
+        );
 
         // norms can be set from true to false, but not vice versa
         checker.registerConflictCheck("norms", b -> b.field("norms", true));
-        checker.registerUpdateCheck(
-            b -> {
-                minimalMapping(b);
-                b.field("norms", true);
-            },
-            b -> {
-                minimalMapping(b);
-                b.field("norms", false);
-            },
-            m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
-        );
+        checker.registerUpdateCheck(b -> {
+            minimalMapping(b);
+            b.field("norms", true);
+        }, b -> {
+            minimalMapping(b);
+            b.field("norms", false);
+        }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
 
         registerDimensionChecks(checker);
     }
@@ -314,81 +318,91 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testDimensionAndIgnoreAbove() {
         Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("dimension", true).field("ignore_above", 2048);
+            b.field("time_series_dimension", true).field("ignore_above", 2048);
         })));
-        assertThat(e.getCause().getMessage(),
-            containsString("Field [ignore_above] cannot be set in conjunction with field [dimension]"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Field [ignore_above] cannot be set in conjunction with field [time_series_dimension]")
+        );
     }
 
     public void testDimensionAndNormalizer() {
         Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("dimension", true).field("normalizer", "my_normalizer");
+            b.field("time_series_dimension", true).field("normalizer", "my_normalizer");
         })));
-        assertThat(e.getCause().getMessage(),
-            containsString("Field [normalizer] cannot be set in conjunction with field [dimension]"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Field [normalizer] cannot be set in conjunction with field [time_series_dimension]")
+        );
     }
 
     public void testDimensionIndexedAndDocvalues() {
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true).field("index", false).field("doc_values", false);
+                b.field("time_series_dimension", true).field("index", false).field("doc_values", false);
             })));
-            assertThat(e.getCause().getMessage(),
-                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+            );
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true).field("index", true).field("doc_values", false);
+                b.field("time_series_dimension", true).field("index", true).field("doc_values", false);
             })));
-            assertThat(e.getCause().getMessage(),
-                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+            );
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true).field("index", false).field("doc_values", true);
+                b.field("time_series_dimension", true).field("index", false).field("doc_values", true);
             })));
-            assertThat(e.getCause().getMessage(),
-                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+            );
         }
     }
 
     public void testDimensionMultiValuedField() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        XContentBuilder mapping = fieldMapping(b -> {
             minimalMapping(b);
-            b.field("dimension", true);
-        }));
+            b.field("time_series_dimension", true);
+        });
+        DocumentMapper mapper = randomBoolean() ? createDocumentMapper(mapping) : createTimeSeriesModeDocumentMapper(mapping);
 
-        Exception e = expectThrows(MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", "1234", "45678"))));
-        assertThat(e.getCause().getMessage(),
-            containsString("Dimension field [field] cannot be a multi-valued field"));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", "1234", "45678"))));
+        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
     }
 
     public void testDimensionExtraLongKeyword() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createTimeSeriesModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("dimension", true);
+            b.field("time_series_dimension", true);
         }));
 
-        Exception e = expectThrows(MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.field("field", randomAlphaOfLengthBetween(1025, 2048)))));
-        assertThat(e.getCause().getMessage(),
-            containsString("Dimension field [field] cannot be more than [1024] bytes long."));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", randomAlphaOfLengthBetween(1025, 2048))))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Dimension fields must be less than [1024] bytes but was"));
     }
 
     public void testConfigureSimilarity() throws IOException {
-        MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "keyword").field("similarity", "boolean"))
-        );
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("similarity", "boolean")));
         MappedFieldType ft = mapperService.documentMapper().mappers().fieldTypesLookup().get("field");
-        assertEquals("boolean", ft.getTextSearchInfo().getSimilarity().name());
+        assertEquals("boolean", ft.getTextSearchInfo().similarity().name());
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> merge(mapperService, fieldMapping(b -> b.field("type", "keyword").field("similarity", "BM25"))));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, fieldMapping(b -> b.field("type", "keyword").field("similarity", "BM25")))
+        );
         assertThat(e.getMessage(), containsString("Cannot update parameter [similarity] from [boolean] to [BM25]"));
     }
 
@@ -504,18 +518,18 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         KeywordFieldMapper.KeywordFieldType ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
-        Analyzer a = ft.getTextSearchInfo().getSearchAnalyzer();
+        Analyzer a = ft.getTextSearchInfo().searchAnalyzer();
         assertTokenStreamContents(a.tokenStream("", "Hello World"), new String[] { "Hello World" });
 
         fieldType = mapperService.fieldType("field_with_normalizer");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
-        assertThat(ft.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("lowercase"));
+        assertThat(ft.getTextSearchInfo().searchAnalyzer().name(), equalTo("lowercase"));
         assertTokenStreamContents(
-            ft.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
+            ft.getTextSearchInfo().searchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] { "hello", "world" }
         );
-        Analyzer q = ft.getTextSearchInfo().getSearchQuoteAnalyzer();
+        Analyzer q = ft.getTextSearchInfo().searchQuoteAnalyzer();
         assertTokenStreamContents(q.tokenStream("", "Hello World"), new String[] { "hello world" });
 
         mapperService = createMapperService(mapping(b -> {
@@ -533,16 +547,16 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
         assertTokenStreamContents(
-            ft.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
+            ft.getTextSearchInfo().searchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] { "Hello", "World" }
         );
 
         fieldType = mapperService.fieldType("field_with_normalizer");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
-        assertThat(ft.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("lowercase"));
+        assertThat(ft.getTextSearchInfo().searchAnalyzer().name(), equalTo("lowercase"));
         assertTokenStreamContents(
-            ft.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
+            ft.getTextSearchInfo().searchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] { "hello world" }
         );
     }
@@ -553,30 +567,158 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.field("script", "test");
             b.field("null_value", true);
         })));
-        assertThat(e.getMessage(),
-            equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
+        assertThat(e.getMessage(), equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
     }
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        switch (between(0, 3)) {
-            case 0:
-                return randomAlphaOfLengthBetween(1, 100);
-            case 1:
-                return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100);
-            case 2:
-                return randomLong();
-            case 3:
-                return randomDouble();
-            case 4:
-                return randomBoolean();
-            default:
-                throw new IllegalStateException();
-        }
+        return switch (between(0, 3)) {
+            case 0 -> randomAlphaOfLengthBetween(1, 100);
+            case 1 -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100);
+            case 2 -> randomLong();
+            case 3 -> randomDouble();
+            case 4 -> randomBoolean();
+            default -> throw new IllegalStateException();
+        };
     }
 
     @Override
     protected boolean dedupAfterFetch() {
         return true;
+    }
+
+    @Override
+    protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
+        return "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+            + "and without the [script] parameter. ["
+            + mapper.name()
+            + "] was not [time_series_dimension: true].";
+    }
+
+    public void testDimensionInRoutingPath() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("time_series_dimension", true)));
+        IndexSettings settings = createIndexSettings(
+            Version.CURRENT,
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+                .build()
+        );
+        mapper.documentMapper().validate(settings, false);  // Doesn't throw
+    }
+
+    public void testKeywordFieldUtf8LongerThan32766() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword")));
+        StringBuilder stringBuilder = new StringBuilder(32768);
+        for (int i = 0; i < 32768; i++) {
+            stringBuilder.append("a");
+        }
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", stringBuilder.toString())))
+        );
+        assertThat(e.getCause().getMessage(), containsString("UTF8 encoding is longer than the max length"));
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new KeywordSyntheticSourceSupport();
+    }
+
+    static class KeywordSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final String nullValue = usually() ? null : randomAlphaOfLength(2);
+
+        @Override
+        public SyntheticSourceExample example() {
+            if (randomBoolean()) {
+                Tuple<String, String> v = generateValue();
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+            }
+            List<Tuple<String, String>> values = randomList(1, 5, this::generateValue);
+            List<String> in = values.stream().map(Tuple::v1).toList();
+            List<String> outList = values.stream().map(Tuple::v2).collect(Collectors.toSet()).stream().sorted().toList();
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<String, String> generateValue() {
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            String v = randomAlphaOfLength(5);
+            return Tuple.tuple(v, v);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "keyword");
+            if (nullValue != null) {
+                b.field("null_value", nullValue);
+            }
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of(
+                new SyntheticSourceInvalidExample(
+                    equalTo("field [field] of type [keyword] doesn't support synthetic source because it doesn't have doc values"),
+                    b -> b.field("type", "keyword").field("doc_values", false)
+                ),
+                new SyntheticSourceInvalidExample(
+                    equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares ignore_above"),
+                    b -> b.field("type", "keyword").field("ignore_above", 10)
+                ),
+                new SyntheticSourceInvalidExample(
+                    equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares a normalizer"),
+                    b -> b.field("type", "keyword").field("normalizer", "lowercase")
+                )
+            );
+        }
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        return new IngestScriptSupport() {
+            @Override
+            protected StringFieldScript.Factory emptyFieldScript() {
+                return (fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {}
+                };
+            }
+
+            @Override
+            protected StringFieldScript.Factory nonEmptyFieldScript() {
+                return (fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {
+                        emit("foo");
+                    }
+                };
+            }
+        };
+    }
+
+    public void testLegacyField() throws Exception {
+        // check that unknown normalizers are treated leniently on old indices
+        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+            b.startObject("mykeyw");
+            b.field("type", "keyword");
+            b.field("normalizer", "unknown-normalizer");
+            b.endObject();
+        }));
+        assertThat(service.fieldType("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertEquals(Lucene.KEYWORD_ANALYZER, ((KeywordFieldMapper.KeywordFieldType) service.fieldType("mykeyw")).normalizer());
+
+        // check that normalizer can be updated
+        merge(service, mapping(b -> {
+            b.startObject("mykeyw");
+            b.field("type", "keyword");
+            b.field("normalizer", "lowercase");
+            b.endObject();
+        }));
+        assertThat(service.fieldType("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertNotEquals(Lucene.KEYWORD_ANALYZER, ((KeywordFieldMapper.KeywordFieldType) service.fieldType("mykeyw")).normalizer());
     }
 }

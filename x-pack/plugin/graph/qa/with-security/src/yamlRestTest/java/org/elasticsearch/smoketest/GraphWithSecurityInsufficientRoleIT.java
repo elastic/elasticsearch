@@ -24,7 +24,7 @@ public class GraphWithSecurityInsufficientRoleIT extends GraphWithSecurityIT {
         try {
             super.test();
             fail("should have failed because of missing role");
-        } catch(AssertionError ae) {
+        } catch (AssertionError ae) {
             assertThat(ae.getMessage(), containsString("action [indices:data/read/xpack/graph/explore"));
             assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
             assertThat(ae.getMessage(), containsString("is unauthorized for user [no_graph_explorer]"));
@@ -33,7 +33,6 @@ public class GraphWithSecurityInsufficientRoleIT extends GraphWithSecurityIT {
 
     @Override
     protected String[] getCredentials() {
-        return new String[]{"no_graph_explorer", "x-pack-test-password"};
+        return new String[] { "no_graph_explorer", "x-pack-test-password" };
     }
 }
-

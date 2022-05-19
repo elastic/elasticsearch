@@ -10,7 +10,6 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -36,8 +35,7 @@ public final class IndexWarmer {
 
     private final List<Listener> listeners;
 
-    IndexWarmer(ThreadPool threadPool, IndexFieldDataService indexFieldDataService,
-                Listener... listeners) {
+    IndexWarmer(ThreadPool threadPool, IndexFieldDataService indexFieldDataService, Listener... listeners) {
         ArrayList<Listener> list = new ArrayList<>();
         final Executor executor = threadPool.executor(ThreadPool.Names.WARMER);
         list.add(new FieldDataWarmer(executor, indexFieldDataService));
@@ -88,6 +86,7 @@ public final class IndexWarmer {
         /** Wait until execution of the warm-up action completes. */
         void awaitTermination() throws InterruptedException;
     }
+
     public interface Listener {
         /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the
          *  execution of those tasks. */
@@ -117,26 +116,29 @@ public final class IndexWarmer {
                 executor.execute(() -> {
                     try {
                         final long start = System.nanoTime();
-                        IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(fieldType, indexFieldDataService.index().getName(),
-                            () -> {
-                                throw new UnsupportedOperationException("search lookup not available when warming an index");
-                            });
+                        IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(
+                            fieldType,
+                            indexFieldDataService.index().getName(),
+                            () -> { throw new UnsupportedOperationException("search lookup not available when warming an index"); }
+                        );
                         IndexFieldData<?> global = ifd.loadGlobal(reader);
                         if (reader.leaves().isEmpty() == false) {
                             global.load(reader.leaves().get(0));
                         }
 
                         if (indexShard.warmerService().logger().isTraceEnabled()) {
-                            indexShard.warmerService().logger().trace(
-                                "warmed global ordinals for [{}], took [{}]",
-                                fieldType.name(),
-                                TimeValue.timeValueNanos(System.nanoTime() - start));
+                            indexShard.warmerService()
+                                .logger()
+                                .trace(
+                                    "warmed global ordinals for [{}], took [{}]",
+                                    fieldType.name(),
+                                    TimeValue.timeValueNanos(System.nanoTime() - start)
+                                );
                         }
                     } catch (Exception e) {
-                        indexShard
-                            .warmerService()
+                        indexShard.warmerService()
                             .logger()
-                            .warn(() -> new ParameterizedMessage("failed to warm-up global ordinals for [{}]", fieldType.name()), e);
+                            .warn(() -> "failed to warm-up global ordinals for [" + fieldType.name() + "]", e);
                     } finally {
                         latch.countDown();
                     }

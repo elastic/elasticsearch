@@ -8,13 +8,13 @@ description = 'Code shared between jdbc and cli'
 
 dependencies {
   api xpackProject('plugin:sql:sql-proto')
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   testImplementation project(":test:framework")
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-tasks.named("dependencyLicenses").configure {
-  mapping from: /jackson-.*/, to: 'jackson'
+tasks.named("compileJava").configure {
+  targetCompatibility = JavaVersion.VERSION_1_8
+  sourceCompatibility = JavaVersion.VERSION_1_8
 }
 
 tasks.named('forbiddenApisMain').configure {

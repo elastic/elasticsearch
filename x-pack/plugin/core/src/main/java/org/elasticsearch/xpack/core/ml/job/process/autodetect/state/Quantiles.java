@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
@@ -40,8 +40,11 @@ public class Quantiles implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<Quantiles, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<Quantiles, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<Quantiles, Void> parser = new ConstructingObjectParser<>(TYPE.getPreferredName(), ignoreUnknownFields,
-                a -> new Quantiles((String) a[0], (Date) a[1], (String) a[2]));
+        ConstructingObjectParser<Quantiles, Void> parser = new ConstructingObjectParser<>(
+            TYPE.getPreferredName(),
+            ignoreUnknownFields,
+            a -> new Quantiles((String) a[0], (Date) a[1], (String) a[2])
+        );
 
         parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         parser.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> new Date(p.longValue()), TIMESTAMP, ValueType.LONG);
@@ -145,10 +148,9 @@ public class Quantiles implements ToXContentObject, Writeable {
 
         Quantiles that = (Quantiles) other;
 
-        return Objects.equals(this.jobId, that.jobId) && Objects.equals(this.timestamp, that.timestamp)
-                    && Objects.equals(this.quantileState, that.quantileState);
-
+        return Objects.equals(this.jobId, that.jobId)
+            && Objects.equals(this.timestamp, that.timestamp)
+            && Objects.equals(this.quantileState, that.quantileState);
 
     }
 }
-

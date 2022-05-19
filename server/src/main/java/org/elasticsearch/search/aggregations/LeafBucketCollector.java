@@ -32,10 +32,12 @@ public abstract class LeafBucketCollector implements LeafCollector {
         public void setScorer(Scorable arg0) throws IOException {
             // no-op
         }
+
         @Override
         public void collect(int doc, long bucket) {
             // no-op
         }
+
         @Override
         public boolean isNoop() {
             return true;

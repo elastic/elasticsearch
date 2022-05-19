@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,10 +22,10 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 
 import java.util.ArrayList;
@@ -38,12 +37,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
 public class Exporters extends AbstractLifecycleComponent {
-    private static final Logger logger = LogManager.getLogger(Exporters.class);
+    private static final Logger LOGGER = LogManager.getLogger(Exporters.class);
 
     private final Settings settings;
     private final Map<String, Exporter.Factory> factories;
@@ -53,9 +51,14 @@ public class Exporters extends AbstractLifecycleComponent {
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
 
-    public Exporters(Settings settings, Map<String, Exporter.Factory> factories,
-                     ClusterService clusterService, XPackLicenseState licenseState,
-                     ThreadContext threadContext, SSLService sslService) {
+    public Exporters(
+        Settings settings,
+        Map<String, Exporter.Factory> factories,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        ThreadContext threadContext,
+        SSLService sslService
+    ) {
         this.settings = settings;
         this.factories = factories;
         this.exporters = new AtomicReference<>(emptyMap());
@@ -64,8 +67,7 @@ public class Exporters extends AbstractLifecycleComponent {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.licenseState = Objects.requireNonNull(licenseState);
 
-        final List<Setting.AffixSetting<?>> dynamicSettings =
-            getSettings().stream().filter(Setting::isDynamic).collect(Collectors.toList());
+        final List<Setting.AffixSetting<?>> dynamicSettings = getSettings().stream().filter(Setting::isDynamic).toList();
         final List<Setting<?>> updateSettings = new ArrayList<Setting<?>>(dynamicSettings);
         updateSettings.add(Monitoring.MIGRATION_DECOMMISSION_ALERTS);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(this::setExportersSetting, updateSettings);
@@ -88,28 +90,27 @@ public class Exporters extends AbstractLifecycleComponent {
 
     public void setExportersSetting(Settings exportersSetting) {
         if (this.lifecycle.started()) {
-            InitializedExporters exporters = initExporters(exportersSetting);
-            Map<String, Exporter> updated = exporters.enabledExporters;
-            closeExporters(logger, this.exporters.getAndSet(updated));
-            this.disabledExporterConfigs.getAndSet(exporters.disabledExporters);
+            InitializedExporters initializedExporters = initExporters(exportersSetting);
+            Map<String, Exporter> updated = initializedExporters.enabledExporters;
+            closeExporters(LOGGER, this.exporters.getAndSet(updated));
+            this.disabledExporterConfigs.getAndSet(initializedExporters.disabledExporters);
         }
     }
 
     @Override
     protected void doStart() {
-        InitializedExporters exporters = initExporters(settings);
-        this.exporters.set(exporters.enabledExporters);
-        this.disabledExporterConfigs.set(exporters.disabledExporters);
+        InitializedExporters initializedExporters = initExporters(settings);
+        this.exporters.set(initializedExporters.enabledExporters);
+        this.disabledExporterConfigs.set(initializedExporters.disabledExporters);
     }
 
     @Override
     protected void doStop() {
-        closeExporters(logger, exporters.get());
+        closeExporters(LOGGER, exporters.get());
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     public Exporter getExporter(String name) {
         return exporters.get().get(name);
@@ -151,17 +152,17 @@ public class Exporters extends AbstractLifecycleComponent {
             try {
                 exporter.close();
             } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to close exporter [{}]", exporter.name()), e);
+                logger.error((Supplier<?>) () -> "failed to close exporter [" + exporter.name() + "]", e);
             }
         }
     }
 
-    InitializedExporters initExporters(Settings settings) {
+    InitializedExporters initExporters(Settings settingsToUse) {
         Set<String> singletons = new HashSet<>();
-        Map<String, Exporter> exporters = new HashMap<>();
+        Map<String, Exporter> exportersMap = new HashMap<>();
         Map<String, Exporter.Config> disabled = new HashMap<>();
         boolean hasDisabled = false;
-        Settings exportersSettings = settings.getByPrefix("xpack.monitoring.exporters.");
+        Settings exportersSettings = settingsToUse.getByPrefix("xpack.monitoring.exporters.");
         for (String name : exportersSettings.names()) {
             Settings exporterSettings = exportersSettings.getAsSettings(name);
             String type = exporterSettings.get("type");
@@ -172,11 +173,11 @@ public class Exporters extends AbstractLifecycleComponent {
             if (factory == null) {
                 throw new SettingsException("unknown exporter type [" + type + "] set for exporter [" + name + "]");
             }
-            Exporter.Config config = new Exporter.Config(name, type, settings, clusterService, licenseState);
+            Exporter.Config config = new Exporter.Config(name, type, settingsToUse, clusterService, licenseState);
             if (config.enabled() == false) {
                 hasDisabled = true;
-                if (logger.isDebugEnabled()) {
-                    logger.debug("exporter [{}/{}] is disabled", type, name);
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("exporter [{}/{}] is disabled", type, name);
                 }
                 disabled.put(config.name(), config);
                 continue;
@@ -186,26 +187,32 @@ public class Exporters extends AbstractLifecycleComponent {
                 // this is a singleton exporter, let's make sure we didn't already create one
                 // (there can only be one instance of a singleton exporter)
                 if (singletons.contains(type)) {
-                    throw new SettingsException("multiple [" + type + "] exporters are configured. there can " +
-                            "only be one [" + type + "] exporter configured");
+                    throw new SettingsException(
+                        "multiple [" + type + "] exporters are configured. there can " + "only be one [" + type + "] exporter configured"
+                    );
                 }
                 singletons.add(type);
             }
-            exporters.put(config.name(), exporter);
+            exportersMap.put(config.name(), exporter);
         }
 
         // no exporters are configured, lets create a default local one.
         //
-        // NOTE:    if there are exporters configured and they're all disabled, we don't
-        //          fallback on the default
+        // NOTE: if there are exporters configured and they're all disabled, we don't
+        // fallback on the default
         //
-        if (exporters.isEmpty() && hasDisabled == false) {
-            Exporter.Config config =
-                    new Exporter.Config("default_" + LocalExporter.TYPE, LocalExporter.TYPE, settings, clusterService, licenseState);
-            exporters.put(config.name(), factories.get(LocalExporter.TYPE).create(config));
+        if (exportersMap.isEmpty() && hasDisabled == false) {
+            Exporter.Config config = new Exporter.Config(
+                "default_" + LocalExporter.TYPE,
+                LocalExporter.TYPE,
+                settingsToUse,
+                clusterService,
+                licenseState
+            );
+            exportersMap.put(config.name(), factories.get(LocalExporter.TYPE).create(config));
         }
 
-        return new InitializedExporters(exporters, disabled);
+        return new InitializedExporters(exportersMap, disabled);
     }
 
     /**
@@ -217,10 +224,10 @@ public class Exporters extends AbstractLifecycleComponent {
         final ClusterState state = clusterService.state();
 
         // wait until we have a usable cluster state
-        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) ||
-            ClusterState.UNKNOWN_UUID.equals(state.metadata().clusterUUID()) ||
-            state.version() == ClusterState.UNKNOWN_VERSION) {
-            logger.trace("skipping exporters because the cluster state is not loaded");
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)
+            || ClusterState.UNKNOWN_UUID.equals(state.metadata().clusterUUID())
+            || state.version() == ClusterState.UNKNOWN_VERSION) {
+            LOGGER.trace("skipping exporters because the cluster state is not loaded");
 
             listener.onResponse(null);
             return;
@@ -243,7 +250,8 @@ public class Exporters extends AbstractLifecycleComponent {
         // get every exporter's ExportBulk and, when they've all responded, respond with a wrapped version
         for (final Exporter exporter : exporterMap.values()) {
             exporter.openBulk(
-                new AccumulatingExportBulkActionListener(exporter.name(), i++, accumulatedBulks, countDown, threadContext, listener));
+                new AccumulatingExportBulkActionListener(exporter.name(), i++, accumulatedBulks, countDown, threadContext, listener)
+            );
         }
     }
 
@@ -320,10 +328,14 @@ public class Exporters extends AbstractLifecycleComponent {
         private final ActionListener<ExportBulk> delegate;
         private final ThreadContext threadContext;
 
-        AccumulatingExportBulkActionListener(final String name,
-                                             final int indexPosition, final AtomicArray<ExportBulk> accumulatedBulks,
-                                             final CountDown countDown,
-                                             final ThreadContext threadContext, final ActionListener<ExportBulk> delegate) {
+        AccumulatingExportBulkActionListener(
+            final String name,
+            final int indexPosition,
+            final AtomicArray<ExportBulk> accumulatedBulks,
+            final CountDown countDown,
+            final ThreadContext threadContext,
+            final ActionListener<ExportBulk> delegate
+        ) {
             this.name = name;
             this.indexPosition = indexPosition;
             this.accumulatedBulks = accumulatedBulks;
@@ -335,7 +347,7 @@ public class Exporters extends AbstractLifecycleComponent {
         @Override
         public void onResponse(final ExportBulk exportBulk) {
             if (exportBulk == null) {
-                logger.debug("skipping exporter [{}] as it is not ready yet", name);
+                LOGGER.debug("skipping exporter [{}] as it is not ready yet", name);
             } else {
                 accumulatedBulks.set(indexPosition, exportBulk);
             }
@@ -345,7 +357,7 @@ public class Exporters extends AbstractLifecycleComponent {
 
         @Override
         public void onFailure(Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("exporter [{}] failed to open exporting bulk", name), e);
+            LOGGER.error((Supplier<?>) () -> "exporter [" + name + "] failed to open exporting bulk", e);
 
             delegateIfComplete();
         }

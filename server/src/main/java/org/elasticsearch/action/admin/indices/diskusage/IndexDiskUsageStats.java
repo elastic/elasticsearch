@@ -13,15 +13,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * The result of analyzing disk usage of each field in a shard/index
@@ -53,7 +52,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     }
 
     public IndexDiskUsageStats(StreamInput in) throws IOException {
-        this.fields = in.readMap(StreamInput::readString, PerFieldDiskUsage::new);
+        this.fields = new HashMap<>(in.readMap(StreamInput::readString, PerFieldDiskUsage::new));
         this.indexSizeInBytes = in.readVLong();
     }
 
@@ -79,7 +78,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         return indexSizeInBytes;
     }
 
-    private void checkByteSize(long bytes) {
+    private static void checkByteSize(long bytes) {
         if (bytes < 0) {
             throw new IllegalArgumentException("Bytes must be non-negative; got " + bytes);
         }
@@ -140,8 +139,10 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         // per field
         builder.startObject("fields");
         {
-            final List<Map.Entry<String, PerFieldDiskUsage>> entries = fields.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey()).collect(Collectors.toList());
+            final List<Map.Entry<String, PerFieldDiskUsage>> entries = fields.entrySet()
+                .stream()
+                .sorted(Map.Entry.comparingByKey())
+                .toList();
             for (Map.Entry<String, PerFieldDiskUsage> entry : entries) {
                 builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);
@@ -223,7 +224,6 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         public long getTermVectorsBytes() {
             return termVectorsBytes;
         }
-
 
         long totalBytes() {
             return invertedIndexBytes + storedFieldBytes + docValuesBytes + pointsBytes + normsBytes + termVectorsBytes;

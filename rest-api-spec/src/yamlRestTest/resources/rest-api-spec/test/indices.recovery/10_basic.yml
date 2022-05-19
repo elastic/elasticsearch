@@ -1,9 +1,8 @@
 ---
 "Indices recovery test":
   - skip:
-      # todo: change after backport
-      version: " - 7.99.99"
-      reason: recovery from snapshot bytes not available until 8.0
+      version: " - 7.14.99"
+      reason: recovery from snapshot bytes not available until 7.15
 
   - do:
       indices.create:
@@ -47,7 +46,7 @@
 
 ---
 "Indices recovery test without recovery from snapshot":
-
+# to be removed once 7.15 is out.
   - do:
       indices.create:
         index:  test_1

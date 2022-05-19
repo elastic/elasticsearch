@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.rest.action.service;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
@@ -52,7 +52,7 @@ public class RestClearServiceAccountTokenStoreCacheAction extends SecurityBaseRe
             req.keys(namespace + "/" + service + "/");
         } else {
             final Set<String> qualifiedTokenNames = new HashSet<>(tokenNames.length);
-            for (String name: tokenNames) {
+            for (String name : tokenNames) {
                 if (false == Validation.isValidServiceAccountTokenName(name)) {
                     throw new IllegalArgumentException(Validation.formatInvalidServiceTokenNameErrorMessage(name));
                 }

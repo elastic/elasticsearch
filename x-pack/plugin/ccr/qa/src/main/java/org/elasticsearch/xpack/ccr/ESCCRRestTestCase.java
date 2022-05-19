@@ -15,20 +15,25 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -54,13 +59,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             document.field((String) fields[i], fields[i + 1]);
         }
         document.endObject();
-        final Request request = new Request("POST", "/" + index + "/_doc/" + id);
+        final Request request = new Request("POST", "/" + index + "/_doc" + (id == null ? "" : "/" + id));
         request.setJsonEntity(Strings.toString(document));
         assertOK(client.performRequest(request));
-    }
-
-    protected static void refresh(String index) throws IOException {
-        assertOK(adminClient().performRequest(new Request("POST", "/" + index + "/_refresh")));
     }
 
     protected static void resumeFollow(String followIndex) throws IOException {
@@ -119,8 +120,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void putAutoFollowPattern(String patternName, String remoteCluster, String indexPattern) throws IOException {
         Request putPatternRequest = new Request("PUT", "/_ccr/auto_follow/" + patternName);
-        putPatternRequest.setJsonEntity("{\"leader_index_patterns\": [\"" + indexPattern + "\"], \"remote_cluster\": \"" +
-            remoteCluster + "\"}");
+        putPatternRequest.setJsonEntity(String.format(Locale.ROOT, """
+            {"leader_index_patterns": ["%s"], "remote_cluster": "%s"}
+            """, indexPattern, remoteCluster));
         assertOK(client().performRequest(putPatternRequest));
     }
 
@@ -141,10 +143,8 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         verifyDocuments(index, expectedNumDocs, query, adminClient());
     }
 
-    protected static void verifyDocuments(final String index,
-                                          final int expectedNumDocs,
-                                          final String query,
-                                          final RestClient client) throws IOException {
+    protected static void verifyDocuments(final String index, final int expectedNumDocs, final String query, final RestClient client)
+        throws IOException {
         final Request request = new Request("GET", "/" + index + "/_search");
         request.addParameter("size", Integer.toString(expectedNumDocs));
         request.addParameter("sort", "field:asc");
@@ -163,9 +163,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         }
     }
 
-    protected static void verifyDocuments(final RestClient client,
-                                          final String index,
-                                          final int expectedNumDocs) throws IOException {
+    protected static void verifyDocuments(final RestClient client, final String index, final int expectedNumDocs) throws IOException {
         final Request request = new Request("GET", "/" + index + "/_search");
         request.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         Map<String, ?> response = toMap(client.performRequest(request));
@@ -176,7 +174,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void verifyCcrMonitoring(final String expectedLeaderIndex, final String expectedFollowerIndex) throws IOException {
         Request request = new Request("GET", "/.monitoring-*/_search");
-        request.setJsonEntity("{\"query\": {\"term\": {\"ccr_stats.leader_index\": \"" + expectedLeaderIndex + "\"}}}");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {"query": {"term": {"ccr_stats.leader_index": "%s"}}}
+            """, expectedLeaderIndex));
         Map<String, ?> response;
         try {
             response = toMap(adminClient().performRequest(request));
@@ -200,17 +200,13 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             final String followerIndex = (String) XContentMapValues.extractValue("_source.ccr_stats.follower_index", hit);
             assertThat(followerIndex, equalTo(expectedFollowerIndex));
 
-            int foundFollowerMaxSeqNo =
-                (int) XContentMapValues.extractValue("_source.ccr_stats.follower_max_seq_no", hit);
+            int foundFollowerMaxSeqNo = (int) XContentMapValues.extractValue("_source.ccr_stats.follower_max_seq_no", hit);
             followerMaxSeqNo = Math.max(followerMaxSeqNo, foundFollowerMaxSeqNo);
-            int foundFollowerMappingVersion =
-                (int) XContentMapValues.extractValue("_source.ccr_stats.follower_mapping_version", hit);
+            int foundFollowerMappingVersion = (int) XContentMapValues.extractValue("_source.ccr_stats.follower_mapping_version", hit);
             followerMappingVersion = Math.max(followerMappingVersion, foundFollowerMappingVersion);
-            int foundFollowerSettingsVersion =
-                    (int) XContentMapValues.extractValue("_source.ccr_stats.follower_settings_version", hit);
+            int foundFollowerSettingsVersion = (int) XContentMapValues.extractValue("_source.ccr_stats.follower_settings_version", hit);
             followerSettingsVersion = Math.max(followerSettingsVersion, foundFollowerSettingsVersion);
-            int foundFollowerAliasesVersion =
-                    (int) XContentMapValues.extractValue("_source.ccr_stats.follower_aliases_version", hit);
+            int foundFollowerAliasesVersion = (int) XContentMapValues.extractValue("_source.ccr_stats.follower_aliases_version", hit);
             followerAliasesVersion = Math.max(followerAliasesVersion, foundFollowerAliasesVersion);
         }
 
@@ -222,7 +218,8 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void verifyAutoFollowMonitoring() throws IOException {
         Request request = new Request("GET", "/.monitoring-*/_search");
-        request.setJsonEntity("{\"query\": {\"term\": {\"type\": \"ccr_auto_follow_stats\"}}}");
+        request.setJsonEntity("""
+            {"query": {"term": {"type": "ccr_auto_follow_stats"}}}""");
         Map<String, ?> response;
         try {
             response = toMap(adminClient().performRequest(request));
@@ -238,8 +235,10 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         for (int i = 0; i < hits.size(); i++) {
             Map<?, ?> hit = (Map<?, ?>) hits.get(i);
 
-            int foundNumberOfOperationsReceived =
-                (int) XContentMapValues.extractValue("_source.ccr_auto_follow_stats.number_of_successful_follow_indices", hit);
+            int foundNumberOfOperationsReceived = (int) XContentMapValues.extractValue(
+                "_source.ccr_auto_follow_stats.number_of_successful_follow_indices",
+                hit
+            );
             numberOfSuccessfulFollowIndices = Math.max(numberOfSuccessfulFollowIndices, foundNumberOfOperationsReceived);
         }
 
@@ -270,7 +269,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         });
     }
 
-    protected int countCcrNodeTasks() throws IOException {
+    protected Set<CcrNodeTask> getCcrNodeTasks() throws IOException {
         final Request request = new Request("GET", "/_tasks");
         request.addParameter("detailed", "true");
         Map<String, Object> rsp1 = toMap(adminClient().performRequest(request));
@@ -278,41 +277,41 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         assertThat(nodes.size(), equalTo(1));
         Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
         Map<?, ?> nodeTasks = (Map<?, ?>) node.get("tasks");
-        int numNodeTasks = 0;
+        var ccrNodeTasks = new HashSet<CcrNodeTask>();
         for (Map.Entry<?, ?> entry : nodeTasks.entrySet()) {
             Map<?, ?> nodeTask = (Map<?, ?>) entry.getValue();
             String action = (String) nodeTask.get("action");
             if (action.startsWith("xpack/ccr/shard_follow_task")) {
-                numNodeTasks++;
+                var status = (Map<?, ?>) nodeTask.get("status");
+                ccrNodeTasks.add(
+                    new CcrNodeTask(
+                        (String) status.get("remote_cluster"),
+                        (String) status.get("leader_index"),
+                        (String) status.get("follower_index"),
+                        (Integer) status.get("shard_id")
+                    )
+                );
             }
         }
-        return numNodeTasks;
+        return ccrNodeTasks;
     }
 
-    protected static void createIndex(String name, Settings settings) throws IOException {
-        createIndex(name, settings, "");
-    }
-
-    protected static void createIndex(String name, Settings settings, String mapping) throws IOException {
-        final Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("{ \"settings\": " + Strings.toString(settings) + ", \"mappings\" : {" + mapping + "} }");
-        assertOK(adminClient().performRequest(request));
-    }
+    protected record CcrNodeTask(String remoteCluster, String leaderIndex, String followerIndex, int shardId) {}
 
     protected static boolean indexExists(String index) throws IOException {
         Response response = adminClient().performRequest(new Request("HEAD", "/" + index));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
-    protected static void verifyDataStream(final RestClient client,
-                                 final String name,
-                                 final String... expectedBackingIndices) throws IOException {
+    protected static List<String> verifyDataStream(final RestClient client, final String name, final String... expectedBackingIndices)
+        throws IOException {
         Request request = new Request("GET", "/_data_stream/" + name);
         Map<String, ?> response = toMap(client.performRequest(request));
         List<?> retrievedDataStreams = (List<?>) response.get("data_streams");
         assertThat(retrievedDataStreams, hasSize(1));
         List<?> actualBackingIndexItems = (List<?>) ((Map<?, ?>) retrievedDataStreams.get(0)).get("indices");
         assertThat(actualBackingIndexItems, hasSize(expectedBackingIndices.length));
+        final List<String> actualBackingIndices = new ArrayList<>();
         for (int i = 0; i < expectedBackingIndices.length; i++) {
             Map<?, ?> actualBackingIndexItem = (Map<?, ?>) actualBackingIndexItems.get(i);
             String actualBackingIndex = (String) actualBackingIndexItem.get("index_name");
@@ -325,7 +324,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             int actualGeneration = Integer.parseInt(actualBackingIndex.substring(actualBackingIndex.lastIndexOf('-')));
             int expectedGeneration = Integer.parseInt(expectedBackingIndex.substring(expectedBackingIndex.lastIndexOf('-')));
             assertThat(actualGeneration, equalTo(expectedGeneration));
+            actualBackingIndices.add(actualBackingIndex);
         }
+        return List.copyOf(actualBackingIndices);
     }
 
     protected static void createAutoFollowPattern(RestClient client, String name, String pattern, String remoteCluster) throws IOException {
@@ -346,8 +347,19 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         assertOK(client.performRequest(request));
     }
 
-    protected static String backingIndexName(String dataStreamName, int generation) {
-        return DataStream.getDefaultBackingIndexName(dataStreamName, generation);
+    /**
+     * Fix point in time when data stream backing index is first time queried.
+     * This is required to avoid failures when running test at midnight.
+     * (index is created for day0, but assertions are executed for day1 assuming different time based index name that does not exist)
+     */
+    private final LazyInitializable<Long, RuntimeException> time = new LazyInitializable<>(System::currentTimeMillis);
+
+    protected String backingIndexName(String dataStreamName, int generation) {
+        return DataStream.getDefaultBackingIndexName(dataStreamName, generation, time.getOrCompute());
+    }
+
+    protected String backingIndexName(String dataStreamName, int generation, long epochMillis) {
+        return DataStream.getDefaultBackingIndexName(dataStreamName, generation, epochMillis);
     }
 
     protected RestClient buildLeaderClient() throws IOException {
@@ -371,9 +383,12 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     private RestClient buildClient(final String url, final Settings settings) throws IOException {
         int portSeparator = url.lastIndexOf(':');
-        HttpHost httpHost = new HttpHost(url.substring(0, portSeparator),
-                Integer.parseInt(url.substring(portSeparator + 1)), getProtocol());
-        return buildClient(settings, new HttpHost[]{httpHost});
+        HttpHost httpHost = new HttpHost(
+            url.substring(0, portSeparator),
+            Integer.parseInt(url.substring(portSeparator + 1)),
+            getProtocol()
+        );
+        return buildClient(settings, new HttpHost[] { httpHost });
     }
 
 }

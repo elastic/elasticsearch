@@ -11,7 +11,7 @@ package org.elasticsearch.search.fieldcaps;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT.ExceptionOnRewriteQueryBuilder;
@@ -70,7 +70,8 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         FieldCapabilitiesFailure failure = response.getFailures()
             .stream()
             .filter(f -> Arrays.asList(f.getIndices()).contains("remote_cluster:*"))
-            .findFirst().get();
+            .findFirst()
+            .get();
         Exception ex = failure.getException();
         assertEquals(RemoteTransportException.class, ex.getClass());
         Throwable cause = ExceptionsHelper.unwrapCause(ex);
@@ -80,10 +81,8 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         // if we only query the remote we should get back an exception only
         ex = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareFieldCaps("remote_cluster:*")
-            .setFields("*")
-            .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
-            .get());
+            () -> client().prepareFieldCaps("remote_cluster:*").setFields("*").setIndexFilter(new ExceptionOnRewriteQueryBuilder()).get()
+        );
         assertEquals("I throw because I choose to.", ex.getMessage());
 
         // add an index that doesn't fail to the remote
@@ -100,11 +99,10 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         failure = response.getFailures()
             .stream()
             .filter(f -> Arrays.asList(f.getIndices()).contains("remote_cluster:" + remoteErrorIndex))
-            .findFirst().get();
+            .findFirst()
+            .get();
         ex = failure.getException();
-        assertEquals(RemoteTransportException.class, ex.getClass());
-        cause = ExceptionsHelper.unwrapCause(ex);
-        assertEquals(IllegalArgumentException.class, cause.getClass());
-        assertEquals("I throw because I choose to.", cause.getMessage());
+        assertEquals(IllegalArgumentException.class, ex.getClass());
+        assertEquals("I throw because I choose to.", ex.getMessage());
     }
 }

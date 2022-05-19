@@ -10,5 +10,4 @@ package org.elasticsearch.client.core;
 
 import org.elasticsearch.client.Validatable;
 
-public class MainRequest implements Validatable {
-}
+public class MainRequest implements Validatable {}

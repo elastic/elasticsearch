@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -50,9 +51,17 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
     private final int window;
     private final int shift;
 
-    MovFnPipelineAggregator(String name, String bucketsPath, Script script, int window, int shift, DocValueFormat formatter,
-                            BucketHelpers.GapPolicy gapPolicy, Map<String, Object> metadata) {
-        super(name, new String[]{bucketsPath}, metadata);
+    MovFnPipelineAggregator(
+        String name,
+        String bucketsPath,
+        Script script,
+        int window,
+        int shift,
+        DocValueFormat formatter,
+        BucketHelpers.GapPolicy gapPolicy,
+        Map<String, Object> metadata
+    ) {
+        super(name, new String[] { bucketsPath }, metadata);
         this.bucketsPath = bucketsPath;
         this.script = script;
         this.formatter = formatter;
@@ -62,11 +71,13 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
     }
 
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, InternalAggregation.ReduceContext reduceContext) {
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
         @SuppressWarnings("rawtypes")
-        InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket>
-            histo = (InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends
-            InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        InternalMultiBucketAggregation<
+            ? extends InternalMultiBucketAggregation,
+            ? extends InternalMultiBucketAggregation.InternalBucket> histo = (InternalMultiBucketAggregation<
+                ? extends InternalMultiBucketAggregation,
+                ? extends InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
 
@@ -84,13 +95,13 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         List<Double> values = buckets.stream()
             .map(b -> resolveBucketValue(histo, b, bucketsPaths()[0], gapPolicy))
             .filter(v -> v != null && v.isNaN() == false)
-            .collect(Collectors.toList());
+            .toList();
 
         int index = 0;
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
 
-            // Default is to reuse existing bucket.  Simplifies the rest of the logic,
+            // Default is to reuse existing bucket. Simplifies the rest of the logic,
             // since we only change newBucket if we can add to it
             MultiBucketsAggregation.Bucket newBucket = bucket;
 
@@ -102,15 +113,12 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
                 int toIndex = clamp(index + shift, values);
                 double movavg = executableScript.execute(
                     vars,
-                    values.subList(fromIndex, toIndex).stream()
-                        .mapToDouble(Double::doubleValue)
-                        .toArray()
+                    values.subList(fromIndex, toIndex).stream().mapToDouble(Double::doubleValue).toArray()
                 );
 
-                List<InternalAggregation> aggs = StreamSupport
-                    .stream(bucket.getAggregations().spliterator(), false)
+                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                     .map(InternalAggregation.class::cast)
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toCollection(ArrayList::new));
                 aggs.add(new InternalSimpleValue(name(), movavg, formatter, metadata()));
                 newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
                 index++;
@@ -121,7 +129,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         return factory.createAggregation(newBuckets);
     }
 
-    private int clamp(int index, List<Double> list) {
+    private static int clamp(int index, List<Double> list) {
         if (index < 0) {
             return 0;
         }

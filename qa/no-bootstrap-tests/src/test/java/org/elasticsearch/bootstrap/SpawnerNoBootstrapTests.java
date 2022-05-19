@@ -8,18 +8,23 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.plugins.Platforms;
+import org.elasticsearch.plugins.PluginTestUtil;
+import org.elasticsearch.test.MockLogAppender;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
@@ -30,6 +35,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -48,11 +54,61 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
-    private static final String CONTROLLER_SOURCE = "#!/bin/bash\n"
-            + "\n"
-            + "echo I am alive\n"
-            + "\n"
-            + "read SOMETHING\n";
+    private static final String CONTROLLER_SOURCE = """
+        #!/bin/bash
+
+        echo I am alive
+        echo "I am an error" >&2
+
+        read SOMETHING
+        """;
+
+    static {
+        // normally done by ESTestCase, but need here because spawner depends on logging
+        LogConfigurator.loadLog4jPlugins();
+    }
+
+    static class ExpectedStreamMessage implements MockLogAppender.LoggingExpectation {
+        final String expectedLogger;
+        final String expectedMessage;
+        final CountDownLatch matchCalledLatch;
+        boolean saw;
+
+        ExpectedStreamMessage(String logger, String message, CountDownLatch matchCalledLatch) {
+            this.expectedLogger = logger;
+            this.expectedMessage = message;
+            this.matchCalledLatch = matchCalledLatch;
+        }
+
+        @Override
+        public void match(LogEvent event) {
+            if (event.getLoggerName().equals(expectedLogger)
+                && event.getLevel().equals(Level.WARN)
+                && event.getMessage().getFormattedMessage().equals(expectedMessage)) {
+                saw = true;
+            }
+            matchCalledLatch.countDown();
+        }
+
+        @Override
+        public void assertMatched() {
+            assertTrue("Expected to see message [" + expectedMessage + "] on logger [" + expectedLogger + "]", saw);
+        }
+    }
+
+    private MockLogAppender addMockLogger(String loggerName) throws Exception {
+        MockLogAppender appender = new MockLogAppender();
+        appender.start();
+        final Logger testLogger = LogManager.getLogger(loggerName);
+        Loggers.addAppender(testLogger, appender);
+        Loggers.setLevel(testLogger, Level.TRACE);
+        return appender;
+    }
+
+    private void removeMockLogger(String loggerName, MockLogAppender appender) {
+        Loggers.removeAppender(LogManager.getLogger(loggerName), appender);
+        appender.stop();
+    }
 
     /**
      * Simplest case: a module with no controller daemon.
@@ -70,17 +126,25 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Files.createDirectories(environment.modulesFile());
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
-                plugin,
-                "description", "a_plugin",
-                "version", Version.CURRENT.toString(),
-                "elasticsearch.version", Version.CURRENT.toString(),
-                "name", "a_plugin",
-                "java.version", "1.8",
-                "classname", "APlugin",
-                "has.native.controller", "false");
+            plugin,
+            "description",
+            "a_plugin",
+            "version",
+            Version.CURRENT.toString(),
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "name",
+            "a_plugin",
+            "java.version",
+            "1.8",
+            "classname",
+            "APlugin",
+            "has.native.controller",
+            "false"
+        );
 
         try (Spawner spawner = new Spawner()) {
-            spawner.spawnNativeControllers(environment, false);
+            spawner.spawnNativeControllers(environment);
             assertThat(spawner.getProcesses(), hasSize(0));
         }
     }
@@ -114,13 +178,21 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
             plugin,
-            "description", "test_plugin",
-            "version", Version.CURRENT.toString(),
-            "elasticsearch.version", Version.CURRENT.toString(),
-            "name", "test_plugin",
-            "java.version", "1.8",
-            "classname", "TestPlugin",
-            "has.native.controller", "true");
+            "description",
+            "test_plugin",
+            "version",
+            Version.CURRENT.toString(),
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "name",
+            "test_plugin",
+            "java.version",
+            "1.8",
+            "classname",
+            "TestPlugin",
+            "has.native.controller",
+            "true"
+        );
         Path controllerProgram = Platforms.nativeControllerPath(plugin);
         createControllerProgram(controllerProgram);
 
@@ -129,33 +201,55 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Files.createDirectories(otherPlugin);
         PluginTestUtil.writePluginProperties(
             otherPlugin,
-            "description", "other_plugin",
-            "version", Version.CURRENT.toString(),
-            "elasticsearch.version", Version.CURRENT.toString(),
-            "name", "other_plugin",
-            "java.version", "1.8",
-            "classname", "OtherPlugin",
-            "has.native.controller", "false");
+            "description",
+            "other_plugin",
+            "version",
+            Version.CURRENT.toString(),
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "name",
+            "other_plugin",
+            "java.version",
+            "1.8",
+            "classname",
+            "OtherPlugin",
+            "has.native.controller",
+            "false"
+        );
 
-        Spawner spawner = new Spawner();
-        spawner.spawnNativeControllers(environment, false);
-
-        List<Process> processes = spawner.getProcesses();
-
+        String stdoutLoggerName = "test_plugin-controller-stdout";
+        String stderrLoggerName = "test_plugin-controller-stderr";
+        MockLogAppender stdoutAppender = addMockLogger(stdoutLoggerName);
+        MockLogAppender stderrAppender = addMockLogger(stderrLoggerName);
+        CountDownLatch messagesLoggedLatch = new CountDownLatch(2);
         if (expectSpawn) {
-             // as there should only be a reference in the list for the module that had the controller daemon, we expect one here
-            assertThat(processes, hasSize(1));
-            Process process = processes.get(0);
-            final InputStreamReader in = new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8);
-            try (BufferedReader stdoutReader = new BufferedReader(in)) {
-                String line = stdoutReader.readLine();
-                assertEquals("I am alive", line);
+            stdoutAppender.addExpectation(new ExpectedStreamMessage(stdoutLoggerName, "I am alive", messagesLoggedLatch));
+            stderrAppender.addExpectation(new ExpectedStreamMessage(stderrLoggerName, "I am an error", messagesLoggedLatch));
+        }
+
+        try {
+            Spawner spawner = new Spawner();
+            spawner.spawnNativeControllers(environment);
+
+            List<Process> processes = spawner.getProcesses();
+
+            if (expectSpawn) {
+                // as there should only be a reference in the list for the module that had the controller daemon, we expect one here
+                assertThat(processes, hasSize(1));
+                Process process = processes.get(0);
+                // fail if we don't get the expected log messages within one second; usually it will be even quicker
+                assertTrue(messagesLoggedLatch.await(1, TimeUnit.SECONDS));
                 spawner.close();
                 // fail if the process does not die within one second; usually it will be even quicker but it depends on OS scheduling
                 assertTrue(process.waitFor(1, TimeUnit.SECONDS));
+            } else {
+                assertThat(processes, hasSize(0));
             }
-        } else {
-            assertThat(processes, hasSize(0));
+            stdoutAppender.assertAllExpectationsMatched();
+            stderrAppender.assertAllExpectationsMatched();
+        } finally {
+            removeMockLogger(stdoutLoggerName, stdoutAppender);
+            removeMockLogger(stderrLoggerName, stderrAppender);
         }
     }
 
@@ -171,24 +265,28 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Path plugin = environment.modulesFile().resolve("test_plugin");
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
-                plugin,
-                "description", "test_plugin",
-                "version", Version.CURRENT.toString(),
-                "elasticsearch.version", Version.CURRENT.toString(),
-                "name", "test_plugin",
-                "java.version", "1.8",
-                "classname", "TestPlugin",
-                "has.native.controller", "false");
+            plugin,
+            "description",
+            "test_plugin",
+            "version",
+            Version.CURRENT.toString(),
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "name",
+            "test_plugin",
+            "java.version",
+            "1.8",
+            "classname",
+            "TestPlugin",
+            "has.native.controller",
+            "false"
+        );
         Path controllerProgram = Platforms.nativeControllerPath(plugin);
         createControllerProgram(controllerProgram);
 
         Spawner spawner = new Spawner();
-        IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> spawner.spawnNativeControllers(environment, false));
-        assertThat(
-                e.getMessage(),
-                equalTo("module [test_plugin] does not have permission to fork native controller"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> spawner.spawnNativeControllers(environment));
+        assertThat(e.getMessage(), equalTo("module [test_plugin] does not have permission to fork native controller"));
     }
 
     public void testSpawnerHandlingOfDesktopServicesStoreFiles() throws IOException {
@@ -206,10 +304,10 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         final Spawner spawner = new Spawner();
         if (Constants.MAC_OS_X) {
             // if the spawner were not skipping the Desktop Services Store files on macOS this would explode
-            spawner.spawnNativeControllers(environment, false);
+            spawner.spawnNativeControllers(environment);
         } else {
             // we do not ignore these files on non-macOS systems
-            final FileSystemException e = expectThrows(FileSystemException.class, () -> spawner.spawnNativeControllers(environment, false));
+            final FileSystemException e = expectThrows(FileSystemException.class, () -> spawner.spawnNativeControllers(environment));
             if (Constants.WINDOWS) {
                 assertThat(e, instanceOf(NoSuchFileException.class));
             } else {
@@ -222,8 +320,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         final Path outputDir = outputFile.getParent();
         Files.createDirectories(outputDir);
         Files.write(outputFile, CONTROLLER_SOURCE.getBytes(StandardCharsets.UTF_8));
-        final PosixFileAttributeView view =
-                Files.getFileAttributeView(outputFile, PosixFileAttributeView.class);
+        final PosixFileAttributeView view = Files.getFileAttributeView(outputFile, PosixFileAttributeView.class);
         if (view != null) {
             final Set<PosixFilePermission> perms = new HashSet<>();
             perms.add(PosixFilePermission.OWNER_READ);

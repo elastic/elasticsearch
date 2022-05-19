@@ -10,12 +10,6 @@ package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.core.Nullable;
 
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509ExtendedKeyManager;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -34,8 +28,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509ExtendedKeyManager;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * A variety of utility methods for working with or constructing {@link KeyStore} instances.
@@ -95,8 +95,7 @@ public final class KeyStoreUtil {
      * The provided keystore is modified in place.
      */
     public static KeyStore filter(KeyStore store, Predicate<KeyStoreEntry> filter) {
-        stream(store, e -> new SslConfigException("Failed to apply filter to existing keystore", e))
-            .filter(filter.negate())
+        stream(store, e -> new SslConfigException("Failed to apply filter to existing keystore", e)).filter(filter.negate())
             .forEach(e -> e.delete());
         return store;
     }
@@ -140,18 +139,19 @@ public final class KeyStoreUtil {
     /**
      * Creates a {@link X509ExtendedKeyManager} based on the key material in the provided {@link KeyStore}
      */
-    public static X509ExtendedKeyManager createKeyManager(KeyStore keyStore, char[] password,
-                                                          String algorithm) throws GeneralSecurityException {
+    public static X509ExtendedKeyManager createKeyManager(KeyStore keyStore, char[] password, String algorithm)
+        throws GeneralSecurityException {
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
         kmf.init(keyStore, password);
         KeyManager[] keyManagers = kmf.getKeyManagers();
         for (KeyManager keyManager : keyManagers) {
-            if (keyManager instanceof X509ExtendedKeyManager) {
-                return (X509ExtendedKeyManager) keyManager;
+            if (keyManager instanceof X509ExtendedKeyManager x509ExtendedKeyManager) {
+                return x509ExtendedKeyManager;
             }
         }
-        throw new SslConfigException("failed to find a X509ExtendedKeyManager in the key manager factory for [" + algorithm
-            + "] and keystore [" + keyStore + "]");
+        throw new SslConfigException(
+            "failed to find a X509ExtendedKeyManager in the key manager factory for [" + algorithm + "] and keystore [" + keyStore + "]"
+        );
     }
 
     /**
@@ -163,12 +163,17 @@ public final class KeyStoreUtil {
         tmf.init(trustStore);
         TrustManager[] trustManagers = tmf.getTrustManagers();
         for (TrustManager trustManager : trustManagers) {
-            if (trustManager instanceof X509ExtendedTrustManager) {
-                return (X509ExtendedTrustManager) trustManager;
+            if (trustManager instanceof X509ExtendedTrustManager x509ExtendedTrustManager) {
+                return x509ExtendedTrustManager;
             }
         }
-        throw new SslConfigException("failed to find a X509ExtendedTrustManager in the trust manager factory for [" + algorithm
-            + "] and truststore [" + trustStore + "]");
+        throw new SslConfigException(
+            "failed to find a X509ExtendedTrustManager in the trust manager factory for ["
+                + algorithm
+                + "] and truststore ["
+                + trustStore
+                + "]"
+        );
     }
 
     /**
@@ -182,8 +187,10 @@ public final class KeyStoreUtil {
         return createTrustManager(store, TrustManagerFactory.getDefaultAlgorithm());
     }
 
-    public static Stream<KeyStoreEntry> stream(KeyStore keyStore,
-                                        Function<GeneralSecurityException, ? extends RuntimeException> exceptionHandler) {
+    public static Stream<KeyStoreEntry> stream(
+        KeyStore keyStore,
+        Function<GeneralSecurityException, ? extends RuntimeException> exceptionHandler
+    ) {
         try {
             return Collections.list(keyStore.aliases()).stream().map(a -> new KeyStoreEntry(keyStore, a, exceptionHandler));
         } catch (KeyStoreException e) {
@@ -223,8 +230,8 @@ public final class KeyStoreUtil {
         public X509Certificate getX509Certificate() {
             try {
                 final Certificate c = store.getCertificate(alias);
-                if (c instanceof X509Certificate) {
-                    return (X509Certificate) c;
+                if (c instanceof X509Certificate x509Certificate) {
+                    return x509Certificate;
                 } else {
                     return null;
                 }
@@ -253,8 +260,8 @@ public final class KeyStoreUtil {
         public PrivateKey getKey(char[] password) {
             try {
                 final Key key = store.getKey(alias, password);
-                if (key instanceof PrivateKey) {
-                    return (PrivateKey) key;
+                if (key instanceof PrivateKey privateKey) {
+                    return privateKey;
                 }
                 return null;
             } catch (GeneralSecurityException e) {
@@ -273,10 +280,7 @@ public final class KeyStoreUtil {
                 if (certificates == null || certificates.length == 0) {
                     return List.of();
                 }
-                return Stream.of(certificates)
-                    .filter(c -> c instanceof X509Certificate)
-                    .map(X509Certificate.class::cast)
-                    .collect(Collectors.toUnmodifiableList());
+                return Stream.of(certificates).filter(c -> c instanceof X509Certificate).map(X509Certificate.class::cast).toList();
             } catch (KeyStoreException e) {
                 throw exceptionHandler.apply(e);
             }
@@ -294,6 +298,5 @@ public final class KeyStoreUtil {
         }
 
     }
-
 
 }

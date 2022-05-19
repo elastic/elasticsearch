@@ -8,14 +8,12 @@
 
 package org.elasticsearch.search.dfs;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
-import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -32,7 +30,7 @@ public class DfsPhase {
 
     public void execute(SearchContext context) {
         try {
-            ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
+            Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
             Map<Term, TermStatistics> stats = new HashMap<>();
             IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {
                 @Override
@@ -60,7 +58,7 @@ public class DfsPhase {
                 }
             };
 
-            searcher.createWeight(context.searcher().rewrite(context.query()), ScoreMode.COMPLETE, 1);
+            searcher.createWeight(context.rewrittenQuery(), ScoreMode.COMPLETE, 1);
             for (RescoreContext rescoreContext : context.rescore()) {
                 for (Query query : rescoreContext.getQueries()) {
                     searcher.createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE, 1);
@@ -73,9 +71,10 @@ public class DfsPhase {
                 termStatistics[i] = stats.get(terms[i]);
             }
 
-            context.dfsResult().termsStatistics(terms, termStatistics)
-                    .fieldStatistics(fieldStatistics)
-                    .maxDoc(context.searcher().getIndexReader().maxDoc());
+            context.dfsResult()
+                .termsStatistics(terms, termStatistics)
+                .fieldStatistics(fieldStatistics)
+                .maxDoc(context.searcher().getIndexReader().maxDoc());
         } catch (Exception e) {
             throw new DfsPhaseExecutionException(context.shardTarget(), "Exception during dfs phase", e);
         }

@@ -43,19 +43,19 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: { "str" : "abc" }
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: { "str": "abc" }
 
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body: { "str": "bcd" }
 
   - do:
@@ -87,19 +87,19 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: { "ip": "::1" }
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: { "ip": "127.0.0.1" }
 
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body: { "ip": "::1" }
 
   - do:
@@ -162,19 +162,19 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: { "boolean": true }
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: { "boolean": false }
 
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body: { "boolean": true }
 
   - do:
@@ -206,19 +206,19 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: { "integer": 1234 }
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: { "integer": 5678 }
 
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body: { "integer": 1234 }
 
   - do:
@@ -250,19 +250,19 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: { "double": 1234.5 }
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: { "double": 5678.5 }
 
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body: { "double": 1234.5 }
 
   - do:
@@ -294,19 +294,19 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: { "date": "2016-05-03" }
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: { "date": "2014-09-01" }
 
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body: { "date": "2016-05-03" }
 
   - do:
@@ -365,19 +365,19 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: { "str" : "abc" }
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: { "str": "abc" }
 
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body: { "str": "bcd" }
 
   - do:
@@ -419,19 +419,19 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: { "integer": 1234 }
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: { "integer": 5678 }
 
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body: { "integer": 1234 }
 
   - do:
@@ -469,7 +469,7 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: {}
 
   - do:
@@ -494,7 +494,7 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: {}
 
   - do:
@@ -521,7 +521,7 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: {}
 
   - do:
@@ -548,7 +548,7 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: {}
 
   - do:
@@ -573,7 +573,7 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: {}
 
   - do:
@@ -598,31 +598,31 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: {"number": 100}
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: {"number": 10}
 
   - do:
       index:
         index: test_2
-        id: 3
+        id: "3"
         body: {"number": 100.0}
 
   - do:
       index:
         index: test_2
-        id: 1
+        id: "1"
         body: {"number": 10.0}
 
   - do:
       index:
         index: test_2
-        id: 2
+        id: "2"
         body: {"number": 14.6}
 
   - do:
@@ -656,24 +656,24 @@ setup:
       index:
         refresh: true
         index: test_1
-        id: 1
-        routing: 1
+        id: "1"
+        routing: "1"
         body: { "str": "abc" }
 
   - do:
       index:
         refresh: true
         index: test_1
-        id: 2
-        routing: 1
+        id: "2"
+        routing: "1"
         body: { "str": "abc" }
 
   - do:
       index:
         refresh: true
         index: test_1
-        id: 3
-        routing: 1
+        id: "3"
+        routing: "1"
         body: { "str": "bcd" }
 
   - do:
@@ -702,24 +702,24 @@ setup:
       index:
         refresh: true
         index: test_1
-        id: 1
-        routing: 1
+        id: "1"
+        routing: "1"
         body: { "str": "abc" }
 
   - do:
       index:
         refresh: true
         index: test_1
-        id: 2
-        routing: 1
+        id: "2"
+        routing: "1"
         body: { "str": "abc" }
 
   - do:
       index:
         refresh: true
         index: test_1
-        id: 3
-        routing: 1
+        id: "3"
+        routing: "1"
         body: { "str": "bcd" }
 
   - do:
@@ -1324,3 +1324,187 @@ precise size:
   - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
   - match: { aggregations.str_terms.buckets.1.key: c }
   - match: { aggregations.str_terms.buckets.1.doc_count: 3 }
+
+---
+huge size:
+  - skip:
+        version: " - 7.14.0"
+        reason: "Fixed in 7.14.1"
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "a" }
+          { "index": {} }
+          { "str": "b" }
+          { "index": {} }
+          { "str": "c" }
+          { "index": {} }
+          { "str": "b" }
+          { "index": {} }
+          { "str": "c" }
+          { "index": {} }
+          { "str": "c" }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                size: 2147483647
+                field: str
+                order:
+                  - _key : asc
+  - length: { aggregations.str_terms.buckets: 3 }
+  - match: { aggregations.str_terms.buckets.0.key: a }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.1.key: b }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.2.key: c }
+  - match: { aggregations.str_terms.buckets.2.doc_count: 3 }
+
+---
+Value type mismatch fails shard:
+  - skip:
+        version: " - 8.0.99"
+        reason: "Fixed in 8.1"
+
+  - do:
+      indices.create:
+          index: valuetype_test_1
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                ip:
+                   type: keyword
+  - do:
+      indices.create:
+          index: valuetype_test_2
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                ip:
+                   type: ip
+
+  - do:
+      bulk:
+        index: valuetype_test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "ip": "192.168.7.1" }
+          { "index": {} }
+          { "ip": "192.168.7.2" }
+          { "index": {} }
+          { "ip": "192.168.7.3" }
+
+  - do:
+      bulk:
+        index: valuetype_test_2
+        refresh: true
+        body: |
+          { "index": {} }
+          { "ip": "127.0.0.1" }
+          { "index": {} }
+          { "ip": "192.168.0.1" }
+          { "index": {} }
+          { "ip": "192.168.0.2" }
+          { "index": {} }
+          { "ip": "192.168.0.3" }
+  - do:
+      search:
+        index: valuetype_test_1,valuetype_test_2
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: ip
+                value_type: ip
+
+  - match: { _shards.failed: 1 }
+  - length: { aggregations.str_terms.buckets: 4 }
+  - match: { aggregations.str_terms.buckets.0.key: "127.0.0.1" }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.1.key: "192.168.0.1" }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.2.key: "192.168.0.2" }
+  - match: { aggregations.str_terms.buckets.2.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.3.key: "192.168.0.3" }
+  - match: { aggregations.str_terms.buckets.3.doc_count: 1 }
+
+---
+Value type mismatch fails shard with no docs:
+  - skip:
+        version: " - 8.0.99"
+        reason: "Fixed in 8.1"
+
+  - do:
+      indices.create:
+          index: valuetype_test_1
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                ip:
+                   type: keyword
+  - do:
+      indices.create:
+          index: valuetype_test_2
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                ip:
+                   type: ip
+
+  - do:
+      bulk:
+        index: valuetype_test_2
+        refresh: true
+        body: |
+          { "index": {} }
+          { "ip": "127.0.0.1" }
+          { "index": {} }
+          { "ip": "192.168.0.1" }
+          { "index": {} }
+          { "ip": "192.168.0.2" }
+          { "index": {} }
+          { "ip": "192.168.0.3" }
+  - do:
+      search:
+        index: valuetype_test_1,valuetype_test_2
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: ip
+                value_type: ip
+
+  - match: { _shards.failed: 1 }
+  - length: { aggregations.str_terms.buckets: 4 }
+  - match: { aggregations.str_terms.buckets.0.key: "127.0.0.1" }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.1.key: "192.168.0.1" }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.2.key: "192.168.0.2" }
+  - match: { aggregations.str_terms.buckets.2.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.3.key: "192.168.0.3" }
+  - match: { aggregations.str_terms.buckets.3.doc_count: 1 }

@@ -12,12 +12,13 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
@@ -84,7 +85,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
 
     @Override
     public void cancel() {
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Data extractor received cancel request", context.jobId));
+        LOGGER.debug(() -> "[" + context.jobId + "] Data extractor received cancel request");
         isCancelled = true;
     }
 
@@ -94,19 +95,20 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     }
 
     @Override
-    public Optional<InputStream> next() throws IOException {
+    public Result next() throws IOException {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
+        SearchInterval searchInterval = new SearchInterval(context.start, context.end);
         Aggregations aggs = search();
         if (aggs == null) {
-            LOGGER.trace(() -> new ParameterizedMessage("[{}] extraction finished", context.jobId));
+            LOGGER.trace(() -> "[" + context.jobId + "] extraction finished");
             hasNext = false;
             afterKey = null;
-            return Optional.empty();
+            return new Result(searchInterval, Optional.empty());
         }
-        return Optional.of(processAggs(aggs));
+        return new Result(searchInterval, Optional.of(processAggs(aggs)));
     }
 
     private Aggregations search() {
@@ -123,8 +125,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
                 context.end
             )
         );
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
-            .size(0)
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
             .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, context.start, context.end));
 
         if (context.runtimeMappings.isEmpty() == false) {
@@ -136,7 +137,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         searchSourceBuilder.aggregation(compositeAggregationBuilder);
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = requestBuilder.build(searchSourceBuilder);
         SearchResponse searchResponse = executeSearchRequest(searchRequest);
-        LOGGER.trace(() -> new ParameterizedMessage("[{}] Search composite response was obtained", context.jobId));
+        LOGGER.trace(() -> "[" + context.jobId + "] Search composite response was obtained");
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
         Aggregations aggregations = searchResponse.getAggregations();
         if (aggregations == null) {
@@ -150,7 +151,14 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     }
 
     protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
-        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
+        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
+            context.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            searchRequestBuilder::get
+        );
+        checkForSkippedClusters(searchResponse);
+        return searchResponse;
     }
 
     private InputStream processAggs(Aggregations aggs) throws IOException {
@@ -161,42 +169,45 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             context.start,
             context.compositeAggDateHistogramGroupSourceName
         );
-        LOGGER.trace(() -> new ParameterizedMessage(
-            "[{}] got [{}] composite buckets",
-            context.jobId,
-            ((CompositeAggregation)aggs.get(compositeAggregationBuilder.getName())).getBuckets().size()
-        ));
+        LOGGER.trace(
+            () -> new ParameterizedMessage(
+                "[{}] got [{}] composite buckets",
+                context.jobId,
+                ((CompositeAggregation) aggs.get(compositeAggregationBuilder.getName())).getBuckets().size()
+            )
+        );
         aggregationToJsonProcessor.process(aggs);
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        final Long afterKeyTimeBucket = afterKey != null ? (Long)afterKey.get(context.compositeAggDateHistogramGroupSourceName) : null ;
-        boolean cancellable = aggregationToJsonProcessor.writeAllDocsCancellable(
-            timestamp -> {
-                if (isCancelled) {
-                    // If we have not processed a single composite agg page yet and we are cancelled
-                    // We should not process anything
-                    if (afterKeyTimeBucket == null) {
-                        return true;
-                    }
-                    // We want to stop processing once a timestamp enters the next time bucket.
-                    // This could occur in any page. One benefit we have is that even though the paging order is not sorted
-                    // by max timestamp, our iteration of the page results is. So, once we cross over to the next bucket within
-                    // a given page, we know the previous bucket has been exhausted.
-                    if (nextBucketOnCancel == 0L) {
-                        // This simple equation handles two unique scenarios:
-                        //   If the timestamp is the current floor, this means we need to keep processing until the next timebucket
-                        //   If we are not matching the current bucket floor, then this simply aligns to the next bucket
-                        nextBucketOnCancel = Intervals.alignToFloor(timestamp + interval, interval);
-                        LOGGER.debug(() -> new ParameterizedMessage(
+        final Long afterKeyTimeBucket = afterKey != null ? (Long) afterKey.get(context.compositeAggDateHistogramGroupSourceName) : null;
+        boolean cancellable = aggregationToJsonProcessor.writeAllDocsCancellable(timestamp -> {
+            if (isCancelled) {
+                // If we have not processed a single composite agg page yet and we are cancelled
+                // We should not process anything
+                if (afterKeyTimeBucket == null) {
+                    return true;
+                }
+                // We want to stop processing once a timestamp enters the next time bucket.
+                // This could occur in any page. One benefit we have is that even though the paging order is not sorted
+                // by max timestamp, our iteration of the page results is. So, once we cross over to the next bucket within
+                // a given page, we know the previous bucket has been exhausted.
+                if (nextBucketOnCancel == 0L) {
+                    // This simple equation handles two unique scenarios:
+                    // If the timestamp is the current floor, this means we need to keep processing until the next timebucket
+                    // If we are not matching the current bucket floor, then this simply aligns to the next bucket
+                    nextBucketOnCancel = Intervals.alignToFloor(timestamp + interval, interval);
+                    LOGGER.debug(
+                        () -> new ParameterizedMessage(
                             "[{}] set future timestamp cancel to [{}] via timestamp [{}]",
                             context.jobId,
                             nextBucketOnCancel,
                             timestamp
-                        ));
-                    }
-                    return timestamp >= nextBucketOnCancel;
+                        )
+                    );
                 }
-                return false;
-            }, outputStream);
+                return timestamp >= nextBucketOnCancel;
+            }
+            return false;
+        }, outputStream);
         // If the process is canceled and cancelable, then we can indicate that there are no more buckets to process.
         if (isCancelled && cancellable) {
             LOGGER.debug(

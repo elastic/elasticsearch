@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -28,16 +28,27 @@ public class RestClearVotingConfigExclusionsAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
+    @Override
     public String getName() {
         return "clear_voting_config_exclusions_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ClearVotingConfigExclusionsRequest req = new ClearVotingConfigExclusionsRequest();
-        if (request.hasParam("wait_for_removal")) {
-            req.setWaitForRemoval(request.paramAsBoolean("wait_for_removal", true));
-        }
+        final var req = resolveVotingConfigExclusionsRequest(request);
         return channel -> client.execute(ClearVotingConfigExclusionsAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
+
+    static ClearVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
+        final var resolvedRequest = new ClearVotingConfigExclusionsRequest();
+        resolvedRequest.masterNodeTimeout(request.paramAsTime("master_timeout", resolvedRequest.masterNodeTimeout()));
+        resolvedRequest.setTimeout(resolvedRequest.masterNodeTimeout());
+        resolvedRequest.setWaitForRemoval(request.paramAsBoolean("wait_for_removal", resolvedRequest.getWaitForRemoval()));
+        return resolvedRequest;
+    }
+
 }

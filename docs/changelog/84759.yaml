@@ -1,0 +1,5 @@
+pr: 84759
+summary: Return all Datafeeds with GET Anomaly Detector
+area: Machine Learning
+type: bug
+issues: []

@@ -9,38 +9,55 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertPassThroughConfig;
-import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
+
+import java.util.List;
+import java.util.Optional;
+
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
 /**
  * A NLP processor that directly returns the PyTorch result
  * without any post-processing
  */
-public class PassThroughProcessor implements NlpTask.Processor {
+public class PassThroughProcessor extends NlpTask.Processor {
 
-    private final BertRequestBuilder bertRequestBuilder;
+    private final NlpTask.RequestBuilder requestBuilder;
 
-    PassThroughProcessor(BertTokenizer tokenizer, BertPassThroughConfig config) {
-        this.bertRequestBuilder = new BertRequestBuilder(tokenizer, config.getTokenizationParams().maxSequenceLength());
+    PassThroughProcessor(NlpTokenizer tokenizer, PassThroughConfig config) {
+        super(tokenizer);
+        this.requestBuilder = tokenizer.requestBuilder();
     }
 
     @Override
-    public void validateInputs(String inputs) {
+    public void validateInputs(List<String> inputs) {
         // nothing to validate
     }
 
     @Override
-    public NlpTask.RequestBuilder getRequestBuilder() {
-        return bertRequestBuilder;
+    public NlpTask.RequestBuilder getRequestBuilder(NlpConfig config) {
+        return requestBuilder;
     }
 
     @Override
-    public NlpTask.ResultProcessor getResultProcessor() {
-        return this::processResult;
+    public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
+        return (tokenization, pyTorchResult) -> processResult(tokenization, pyTorchResult, config.getResultsField());
     }
 
-    private InferenceResults processResult(PyTorchResult pyTorchResult) {
-        return new PyTorchPassThroughResults(pyTorchResult.getInferenceResult());
+    private static InferenceResults processResult(
+        TokenizationResult tokenization,
+        PyTorchInferenceResult pyTorchResult,
+        String resultsField
+    ) {
+        // TODO - process all results in the batch
+        return new PyTorchPassThroughResults(
+            Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
+            pyTorchResult.getInferenceResult()[0],
+            tokenization.anyTruncated()
+        );
     }
 }

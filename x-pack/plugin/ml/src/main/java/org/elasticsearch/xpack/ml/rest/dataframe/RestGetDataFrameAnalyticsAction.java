@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.dataframe;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -30,7 +30,8 @@ public class RestGetDataFrameAnalyticsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, BASE_PATH + "data_frame/analytics"),
-            new Route(GET, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}"));
+            new Route(GET, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}")
+        );
     }
 
     @Override
@@ -46,11 +47,16 @@ public class RestGetDataFrameAnalyticsAction extends BaseRestHandler {
             request.setResourceId(id);
         }
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
-            request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+            request.setPageParams(
+                new PageParams(
+                    restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)
+                )
+            );
         }
-        request.setAllowNoResources(restRequest.paramAsBoolean(GetDataFrameAnalyticsAction.Request.ALLOW_NO_MATCH.getPreferredName(),
-                request.isAllowNoResources()));
+        request.setAllowNoResources(
+            restRequest.paramAsBoolean(GetDataFrameAnalyticsAction.Request.ALLOW_NO_MATCH.getPreferredName(), request.isAllowNoResources())
+        );
         return channel -> client.execute(GetDataFrameAnalyticsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

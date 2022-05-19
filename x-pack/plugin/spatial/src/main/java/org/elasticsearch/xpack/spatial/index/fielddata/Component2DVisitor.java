@@ -72,8 +72,7 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
 
     @Override
     public boolean push(int maxX, int maxY) {
-        return component2D.getMinX() <= encoder.decodeX(maxX) &&
-               component2D.getMinY() <= encoder.decodeY(maxY);
+        return component2D.getMinX() <= encoder.decodeX(maxX) && component2D.getMinY() <= encoder.decodeY(maxY);
 
     }
 
@@ -99,23 +98,13 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
      * Creates a visitor from the provided Component2D and spatial relationship. Visitors are re-usable by
      * calling the {@link #reset()} method.
      */
-    public static Component2DVisitor getVisitor(
-        Component2D component2D,
-        ShapeField.QueryRelation relation,
-        CoordinateEncoder encoder
-    ) {
-        switch (relation) {
-            case CONTAINS:
-                return new ContainsVisitor(component2D, encoder);
-            case INTERSECTS:
-                return new IntersectsVisitor(component2D, encoder);
-            case DISJOINT:
-                return new DisjointVisitor(component2D, encoder);
-            case WITHIN:
-                return new WithinVisitor(component2D, encoder);
-            default:
-                throw new IllegalArgumentException("Invalid query relation:[" + relation + "]");
-        }
+    public static Component2DVisitor getVisitor(Component2D component2D, ShapeField.QueryRelation relation, CoordinateEncoder encoder) {
+        return switch (relation) {
+            case CONTAINS -> new ContainsVisitor(component2D, encoder);
+            case INTERSECTS -> new IntersectsVisitor(component2D, encoder);
+            case DISJOINT -> new DisjointVisitor(component2D, encoder);
+            case WITHIN -> new WithinVisitor(component2D, encoder);
+        };
     }
 
     /**
@@ -163,7 +152,7 @@ public abstract class Component2DVisitor implements TriangleTreeReader.Visitor {
         }
 
         @Override
-       boolean doPush(PointValues.Relation relation) {
+        boolean doPush(PointValues.Relation relation) {
             if (relation == PointValues.Relation.CELL_OUTSIDE_QUERY) {
                 // shapes are disjoint, stop traversing the tree.
                 return false;

@@ -20,16 +20,14 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-
-import java.util.function.Function;
 
 import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.sortMissingFirst;
 import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.sortMissingLast;
@@ -38,25 +36,18 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
 
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
-        private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
+        private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
         private final ValuesSourceType valuesSourceType;
 
-        public Builder(String name, ValuesSourceType valuesSourceType) {
-            this(name, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION, valuesSourceType);
-        }
-
-        public Builder(String name, Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction, ValuesSourceType valuesSourceType) {
+        public Builder(String name, ValuesSourceType valuesSourceType, ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
             this.name = name;
-            this.scriptFunction = scriptFunction;
+            this.toScriptFieldFactory = toScriptFieldFactory;
             this.valuesSourceType = valuesSourceType;
         }
 
         @Override
-        public SortedSetOrdinalsIndexFieldData build(
-            IndexFieldDataCache cache,
-            CircuitBreakerService breakerService
-        ) {
-            return new SortedSetOrdinalsIndexFieldData(cache, name, valuesSourceType, breakerService, scriptFunction);
+        public SortedSetOrdinalsIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+            return new SortedSetOrdinalsIndexFieldData(cache, name, valuesSourceType, breakerService, toScriptFieldFactory);
         }
     }
 
@@ -65,9 +56,9 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
         String fieldName,
         ValuesSourceType valuesSourceType,
         CircuitBreakerService breakerService,
-        Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) {
-        super(fieldName, valuesSourceType, cache, breakerService, scriptFunction);
+        super(fieldName, valuesSourceType, cache, breakerService, toScriptFieldFactory);
     }
 
     @Override
@@ -77,27 +68,39 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
          * Check if we can use a simple {@link SortedSetSortField} compatible with index sorting and
          * returns a custom sort field otherwise.
          */
-        if (nested != null ||
-                (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN) ||
-                (sortMissingLast(missingValue) == false && sortMissingFirst(missingValue) == false)) {
+        if (nested != null
+            || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
+            || (sortMissingLast(missingValue) == false && sortMissingFirst(missingValue) == false)) {
             return new SortField(getFieldName(), source, reverse);
         }
-        SortField sortField = new SortedSetSortField(getFieldName(), reverse,
-            sortMode == MultiValueMode.MAX ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
-        sortField.setMissingValue(sortMissingLast(missingValue) ^ reverse ?
-            SortedSetSortField.STRING_LAST : SortedSetSortField.STRING_FIRST);
+        SortField sortField = new SortedSetSortField(
+            getFieldName(),
+            reverse,
+            sortMode == MultiValueMode.MAX ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN
+        );
+        sortField.setMissingValue(
+            sortMissingLast(missingValue) ^ reverse ? SortedSetSortField.STRING_LAST : SortedSetSortField.STRING_FIRST
+        );
         return sortField;
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 
     @Override
     public LeafOrdinalsFieldData load(LeafReaderContext context) {
-        return new SortedSetBytesLeafFieldData(context.reader(), getFieldName(), scriptFunction);
+        return new SortedSetBytesLeafFieldData(context.reader(), getFieldName(), toScriptFieldFactory);
     }
 
     @Override

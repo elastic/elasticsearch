@@ -1,0 +1,62 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  description 'Placeholder plugin for geospatial features in ES'
+  classname 'org.elasticsearch.legacygeo.LegacyGeoPlugin'
+}
+
+dependencies {
+  api "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
+  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}"
+  api "org.locationtech.jts:jts-core:${versions.jts}"
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testImplementation project(":test:framework")
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+
+    // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
+    'org.noggit.JSONParser',
+
+    // from org.locationtech.spatial4j.io.jackson.ShapeAsGeoJSONSerialize
+    'com.fasterxml.jackson.databind.JsonSerializer',
+    'com.fasterxml.jackson.databind.JsonDeserializer',
+    'com.fasterxml.jackson.databind.node.ArrayNode',
+    'com.fasterxml.jackson.databind.DeserializationContext',
+    'com.fasterxml.jackson.databind.JsonNode',
+    'com.fasterxml.jackson.databind.SerializerProvider',
+    'com.fasterxml.jackson.databind.module.SimpleModule',
+    'com.fasterxml.jackson.databind.node.ObjectNode',
+
+    // from lucene-spatial
+    'com.google.common.geometry.S2Cell',
+    'com.google.common.geometry.S2CellId',
+    'com.google.common.geometry.S2Projections',
+    'com.google.common.geometry.S2Point',
+    'com.google.common.geometry.S2$Metric',
+    'com.google.common.geometry.S2LatLng'
+  )
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+

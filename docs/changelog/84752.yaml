@@ -1,0 +1,5 @@
+pr: 84752
+summary: "Fix: use the correct field name when reading data from multi fields"
+area: Aggregations
+type: "bug"
+issues: []

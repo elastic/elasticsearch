@@ -14,8 +14,13 @@ public class CCRFeatureSetUsageTests extends AbstractWireSerializingTestCase<CCR
 
     @Override
     protected CCRInfoTransportAction.Usage createTestInstance() {
-        return new CCRInfoTransportAction.Usage(randomBoolean(), randomBoolean(), randomIntBetween(0, Integer.MAX_VALUE),
-            randomIntBetween(0, Integer.MAX_VALUE), randomNonNegativeLong());
+        return new CCRInfoTransportAction.Usage(
+            randomBoolean(),
+            randomBoolean(),
+            randomIntBetween(0, Integer.MAX_VALUE),
+            randomIntBetween(0, Integer.MAX_VALUE),
+            randomNonNegativeLong()
+        );
     }
 
     @Override

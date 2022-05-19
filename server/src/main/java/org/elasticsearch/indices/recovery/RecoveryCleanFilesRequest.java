@@ -23,8 +23,14 @@ public class RecoveryCleanFilesRequest extends RecoveryTransportRequest {
     private final int totalTranslogOps;
     private final long globalCheckpoint;
 
-    public RecoveryCleanFilesRequest(long recoveryId, long requestSeqNo, ShardId shardId, Store.MetadataSnapshot snapshotFiles,
-                              int totalTranslogOps, long globalCheckpoint) {
+    public RecoveryCleanFilesRequest(
+        long recoveryId,
+        long requestSeqNo,
+        ShardId shardId,
+        Store.MetadataSnapshot snapshotFiles,
+        int totalTranslogOps,
+        long globalCheckpoint
+    ) {
         super(requestSeqNo);
         this.recoveryId = recoveryId;
         this.shardId = shardId;
@@ -37,7 +43,7 @@ public class RecoveryCleanFilesRequest extends RecoveryTransportRequest {
         super(in);
         recoveryId = in.readLong();
         shardId = new ShardId(in);
-        snapshotFiles = new Store.MetadataSnapshot(in);
+        snapshotFiles = Store.MetadataSnapshot.readFrom(in);
         totalTranslogOps = in.readVInt();
         globalCheckpoint = in.readZLong();
     }

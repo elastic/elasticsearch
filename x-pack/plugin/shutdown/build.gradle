@@ -18,7 +18,7 @@ dependencies {
 
 addQaCheckDependencies()
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'default'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

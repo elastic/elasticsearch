@@ -22,8 +22,18 @@ import java.util.Objects;
  */
 public class Explicit<T> {
 
+    public static final Explicit<Boolean> EXPLICIT_TRUE = new Explicit<>(true, true);
+    public static final Explicit<Boolean> EXPLICIT_FALSE = new Explicit<>(false, true);
+    public static final Explicit<Boolean> IMPLICIT_TRUE = new Explicit<>(true, false);
+    public static final Explicit<Boolean> IMPLICIT_FALSE = new Explicit<>(false, false);
+
     private final T value;
     private final boolean explicit;
+
+    public static Explicit<Boolean> explicitBoolean(boolean value) {
+        return value ? EXPLICIT_TRUE : EXPLICIT_FALSE;
+    }
+
     /**
      * Create a value with an indication if this was an explicit choice
      * @param value a setting value
@@ -51,8 +61,7 @@ public class Explicit<T> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Explicit<?> explicit1 = (Explicit<?>) o;
-        return explicit == explicit1.explicit &&
-            Objects.equals(value, explicit1.value);
+        return explicit == explicit1.explicit && Objects.equals(value, explicit1.value);
     }
 
     @Override

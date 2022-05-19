@@ -18,8 +18,6 @@ public interface NamedDiff<T extends Diffable<T>> extends Diff<T>, NamedWriteabl
     /**
      * The minimal version of the recipient this custom object can be sent to
      */
-    default Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumIndexCompatibilityVersion();
-    }
+    Version getMinimalSupportedVersion();
 
 }

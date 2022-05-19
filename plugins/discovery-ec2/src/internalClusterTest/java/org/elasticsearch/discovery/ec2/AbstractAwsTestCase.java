@@ -9,9 +9,9 @@
 package org.elasticsearch.discovery.ec2;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -32,9 +32,9 @@ public abstract class AbstractAwsTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-                Settings.Builder settings = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());
+        Settings.Builder settings = Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());
 
         // if explicit, just load it and don't load from env
         try {
@@ -46,7 +46,8 @@ public abstract class AbstractAwsTestCase extends ESIntegTestCase {
                 }
             } else {
                 throw new IllegalStateException(
-                        "to run integration tests, you need to set -Dtests.thirdparty=true and -Dtests.config=/path/to/elasticsearch.yml");
+                    "to run integration tests, you need to set -Dtests.thirdparty=true and -Dtests.config=/path/to/elasticsearch.yml"
+                );
             }
         } catch (SettingsException exception) {
             throw new IllegalStateException("your test configuration file is incorrect: " + System.getProperty("tests.config"), exception);

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
@@ -23,8 +24,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -73,7 +72,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         long used = stats.getTotal().getStore().getSizeInBytes();
         long minShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).min().orElseThrow();
         long maxShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).max().orElseThrow();
-        long enoughSpace = used + WATERMARK_BYTES + 1;
+        long enoughSpace = used + HIGH_WATERMARK_BYTES + 1;
 
         setTotalSpace(dataNodeName, enoughSpace);
         GetAutoscalingCapacityAction.Response response = capacity();
@@ -118,7 +117,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
                     .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
-                    .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, allocatable ? "data_hot" : "data_content")
+                    .put(DataTier.TIER_PREFERENCE, allocatable ? "data_hot" : "data_content")
                     .build()
             ).setWaitForActiveShards(allocatable ? ActiveShardCount.DEFAULT : ActiveShardCount.NONE)
         );
@@ -131,9 +130,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             client().admin()
                 .indices()
                 .updateSettings(
-                    new UpdateSettingsRequest(indexName).settings(
-                        Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_warm,data_hot")
-                    )
+                    new UpdateSettingsRequest(indexName).settings(Settings.builder().put(DataTier.TIER_PREFERENCE, "data_warm,data_hot"))
                 )
                 .actionGet()
         );
@@ -153,6 +150,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                 DiscoveryNodeRole.DATA_HOT_NODE_ROLE
             )
         );
+
         putAutoscalingPolicy("hot", DataTier.DATA_HOT);
         putAutoscalingPolicy("warm", DataTier.DATA_WARM);
         putAutoscalingPolicy("cold", DataTier.DATA_COLD);
@@ -182,6 +180,10 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     .build()
             )
         );
+
+        // the tier preference will have defaulted to data_content, set it back to null
+        updateIndexSettings(indexName, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
+
         refresh(indexName);
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), Matchers.equalTo(0L));
         assertThat(capacity().results().get("cold").requiredCapacity().total().storage().getBytes(), Matchers.equalTo(0L));

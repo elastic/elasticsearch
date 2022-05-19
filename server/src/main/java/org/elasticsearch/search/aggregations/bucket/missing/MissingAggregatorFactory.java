@@ -29,10 +29,15 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
         builder.register(MissingAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, MissingAggregator::new, true);
     }
 
-    public MissingAggregatorFactory(String name, ValuesSourceConfig config, AggregationContext context,
-                                    AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata,
-                                    MissingAggregatorSupplier aggregatorSupplier) throws IOException {
+    public MissingAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        MissingAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
     }
@@ -43,10 +48,8 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
-        return aggregatorSupplier
-            .build(name, factories, config, context, parent, cardinality, metadata);
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+        return aggregatorSupplier.build(name, factories, config, context, parent, cardinality, metadata);
     }
 }

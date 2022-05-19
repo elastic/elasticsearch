@@ -13,8 +13,6 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.cluster.metadata.Metadata;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -91,7 +89,7 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
      */
     static Automaton buildAutomaton(String pattern) {
         String output = pattern;
-        output = output.replaceAll("\\.", "\\.");
+        output = output.replaceAll("\\.", "\\\\.");
         output = output.replaceAll("\\*", ".*");
         return new RegExp(output).toAutomaton();
     }
@@ -107,14 +105,7 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
      */
     @Override
     public List<String> getMatchingIndices(Metadata metadata) {
-        ArrayList<String> matchingIndices = new ArrayList<>();
-        metadata.indices().keysIt().forEachRemaining(indexName -> {
-            if (matchesIndexPattern(indexName)) {
-                matchingIndices.add(indexName);
-            }
-        });
-
-        return Collections.unmodifiableList(matchingIndices);
+        return metadata.indices().keySet().stream().filter(this::matchesIndexPattern).toList();
     }
 
     /**
@@ -128,10 +119,15 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
 
     @Override
     public String toString() {
-        return "AssociatedIndexDescriptor{" +
-            "indexPattern='" + indexPattern + '\'' +
-            ", description='" + description + '\'' +
-            ", indexPatternAutomaton=" + indexPatternAutomaton +
-            '}';
+        return "AssociatedIndexDescriptor{"
+            + "indexPattern='"
+            + indexPattern
+            + '\''
+            + ", description='"
+            + description
+            + '\''
+            + ", indexPatternAutomaton="
+            + indexPatternAutomaton
+            + '}';
     }
 }

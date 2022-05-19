@@ -35,7 +35,7 @@ final class DissectMatch {
 
     DissectMatch(String appendSeparator, int maxMatches, int maxResults, int appendCount, int referenceCount) {
         if (maxMatches <= 0 || maxResults <= 0) {
-            throw new IllegalArgumentException("Expected results are zero, can not construct DissectMatch");//should never happen
+            throw new IllegalArgumentException("Expected results are zero, can not construct DissectMatch");// should never happen
         }
         this.maxMatches = maxMatches;
         this.maxResults = maxResults;
@@ -60,22 +60,13 @@ final class DissectMatch {
             return;
         }
         switch (key.getModifier()) {
-            case NONE:
-                simpleResults.put(key.getName(), value);
-                break;
-            case APPEND:
-                appendResults.computeIfAbsent(key.getName(), k -> new AppendResult(appendSeparator)).addValue(value, implicitAppendOrder++);
-                break;
-            case APPEND_WITH_ORDER:
-                appendResults.computeIfAbsent(key.getName(),
-                    k -> new AppendResult(appendSeparator)).addValue(value, key.getAppendPosition());
-                break;
-            case FIELD_NAME:
-                referenceResults.computeIfAbsent(key.getName(), k -> new ReferenceResult()).setKey(value);
-                break;
-            case FIELD_VALUE:
-                referenceResults.computeIfAbsent(key.getName(), k -> new ReferenceResult()).setValue(value);
-                break;
+            case NONE -> simpleResults.put(key.getName(), value);
+            case APPEND -> appendResults.computeIfAbsent(key.getName(), k -> new AppendResult(appendSeparator))
+                .addValue(value, implicitAppendOrder++);
+            case APPEND_WITH_ORDER -> appendResults.computeIfAbsent(key.getName(), k -> new AppendResult(appendSeparator))
+                .addValue(value, key.getAppendPosition());
+            case FIELD_NAME -> referenceResults.computeIfAbsent(key.getName(), k -> new ReferenceResult()).setKey(value);
+            case FIELD_VALUE -> referenceResults.computeIfAbsent(key.getName(), k -> new ReferenceResult()).setValue(value);
         }
     }
 
@@ -85,15 +76,15 @@ final class DissectMatch {
 
     /**
      * Checks if results are valid.
-     * @param results the results to check
+     * @param resultsToCheck the results to check
      * @return true if all dissect keys have been matched and the results are of the expected size.
      */
-    boolean isValid(Map<String, String> results) {
-        return fullyMatched() && results.size() == maxResults;
+    boolean isValid(Map<String, String> resultsToCheck) {
+        return fullyMatched() && resultsToCheck.size() == maxResults;
     }
 
     /**
-     * Gets all the current matches. Pass the results of this to isValid to determine if a fully successful match has occured.
+     * Gets all the current matches. Pass the results of this to isValid to determine if a fully successful match has occurred.
      *
      * @return the map of the results.
      */

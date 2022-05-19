@@ -16,8 +16,8 @@ import java.util.function.BiFunction;
  * as long as possible. It's stateful and not even close to thread safe.
  */
 public final class DelayedBucket<B extends InternalMultiBucketAggregation.InternalBucket> {
-    private final BiFunction<List<B>, InternalAggregation.ReduceContext, B> reduce;
-    private final InternalAggregation.ReduceContext reduceContext;
+    private final BiFunction<List<B>, AggregationReduceContext, B> reduce;
+    private final AggregationReduceContext reduceContext;
     /**
      * The buckets to reduce or {@code null} if we've already reduced the buckets.
      */
@@ -40,8 +40,8 @@ public final class DelayedBucket<B extends InternalMultiBucketAggregation.Intern
      * {@link InternalMultiBucketAggregation#reduceBucket}.
      */
     public DelayedBucket(
-        BiFunction<List<B>, InternalAggregation.ReduceContext, B> reduce,
-        InternalAggregation.ReduceContext reduceContext,
+        BiFunction<List<B>, AggregationReduceContext, B> reduce,
+        AggregationReduceContext reduceContext,
         List<B> toReduce
     ) {
         this.reduce = reduce;

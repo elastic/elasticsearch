@@ -11,9 +11,12 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
+import static org.elasticsearch.common.util.PageCacheRecycler.FLOAT_PAGE_SIZE;
 
 /**
  * Float array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
@@ -23,15 +26,17 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
 
     private static final BigFloatArray ESTIMATOR = new BigFloatArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    private int[][] pages;
+    static final VarHandle VH_PLATFORM_NATIVE_FLOAT = MethodHandles.byteArrayViewVarHandle(float[].class, ByteOrder.nativeOrder());
+
+    private byte[][] pages;
 
     /** Constructor. */
     BigFloatArray(long size, BigArrays bigArrays, boolean clearOnResize) {
-        super(INT_PAGE_SIZE, bigArrays, clearOnResize);
+        super(FLOAT_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
-        pages = new int[numPages(size)][];
+        pages = new byte[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newIntPage(i);
+            pages[i] = newBytePage(i);
         }
     }
 
@@ -39,9 +44,9 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
     public float set(long index, float value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final int[] page = pages[pageIndex];
-        final float ret = Float.intBitsToFloat(page[indexInPage]);
-        page[indexInPage] = Float.floatToRawIntBits(value);
+        final byte[] page = pages[pageIndex];
+        final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(page, indexInPage << 2);
+        VH_PLATFORM_NATIVE_FLOAT.set(page, indexInPage << 2, value);
         return ret;
     }
 
@@ -49,15 +54,17 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
     public float increment(long index, float inc) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final int[] page = pages[pageIndex];
-        return page[indexInPage] = Float.floatToRawIntBits(Float.intBitsToFloat(page[indexInPage]) + inc);
+        final byte[] page = pages[pageIndex];
+        final float newVal = (float) VH_PLATFORM_NATIVE_FLOAT.get(page, indexInPage << 2) + inc;
+        VH_PLATFORM_NATIVE_FLOAT.set(page, indexInPage << 2, newVal);
+        return newVal;
     }
 
     @Override
     public float get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return Float.intBitsToFloat(pages[pageIndex][indexInPage]);
+        return (float) VH_PLATFORM_NATIVE_FLOAT.get(pages[pageIndex], indexInPage << 2);
     }
 
     @Override
@@ -73,7 +80,7 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
             pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newIntPage(i);
+            pages[i] = newBytePage(i);
         }
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;
@@ -87,17 +94,23 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
         if (fromIndex > toIndex) {
             throw new IllegalArgumentException();
         }
-        final int intBits = Float.floatToRawIntBits(value);
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);
         if (fromPage == toPage) {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, intBits);
+            fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
         } else {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), pages[fromPage].length, intBits);
+            fill(pages[fromPage], indexInPage(fromIndex), pageSize(), value);
             for (int i = fromPage + 1; i < toPage; ++i) {
-                Arrays.fill(pages[i], intBits);
+                fill(pages[i], 0, pageSize(), value);
             }
-            Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, intBits);
+            fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
+        }
+    }
+
+    public static void fill(byte[] page, int from, int to, float value) {
+        if (from < to) {
+            VH_PLATFORM_NATIVE_FLOAT.set(page, from << 2, value);
+            fillBySelfCopy(page, from << 2, to << 2, Float.BYTES);
         }
     }
 
@@ -106,4 +119,8 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
         return ESTIMATOR.ramBytesEstimated(size);
     }
 
+    @Override
+    public void set(long index, byte[] buf, int offset, int len) {
+        set(index, buf, offset, len, pages, 2);
+    }
 }

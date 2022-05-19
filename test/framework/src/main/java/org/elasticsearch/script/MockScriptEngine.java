@@ -148,10 +148,12 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(BytesRefSortScript.class)) {
             return context.factoryClazz.cast(new MockBytesRefSortScriptFactory(script));
         } else if (context.instanceClazz.equals(IngestScript.class)) {
-            IngestScript.Factory factory = (vars, md) -> new IngestScript(vars, md) {
+            IngestScript.Factory factory = (parameters, metadata) -> new IngestScript(parameters, metadata) {
                 @Override
                 public void execute() {
-                    script.apply(vars);
+                    final Map<String, Object> ctx = getCtx();
+                    ctx.put("params", parameters);
+                    script.apply(ctx);
                 }
             };
             return context.factoryClazz.cast(factory);

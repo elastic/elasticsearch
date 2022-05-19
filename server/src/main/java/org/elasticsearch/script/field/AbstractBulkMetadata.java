@@ -84,7 +84,7 @@ public abstract class AbstractBulkMetadata implements BulkMetadata {
         }
         if (VALID_OPS.contains(raw.op) == false) {
             throw new IllegalArgumentException(
-                "Unsupported operation type [" + raw.str + "], must be one of " + Arrays.toString(VALID_OPS.toArray())
+                "Operation type [" + raw.str + "] not allowed, only " + Arrays.toString(VALID_OPS.toArray()) + " are allowed"
             );
         }
         return raw.op;
@@ -96,7 +96,7 @@ public abstract class AbstractBulkMetadata implements BulkMetadata {
         }
         if (VALID_OPS.contains(op) == false) {
             throw new IllegalArgumentException(
-                "Unsupported operation type [" + op.name + "], must be one of " + Arrays.toString(VALID_OPS.toArray())
+                "Operation type [" + op.name + "] not allowed, only " + Arrays.toString(VALID_OPS.toArray()) + " are allowed"
             );
         }
         store.setOp(op);

@@ -14,14 +14,8 @@ in the LDAP realm, you have to run in
 <<ldap-realm-configuration,_user search_ mode>>. For Active Directory, you need
 to <<ref-ad-settings,configure a `bind_dn` and `secure_bind_password`>>.
 
-.Unsupported realms
-****
-The Kerberos, OpenID Connect, PKI, and SAML realms do not support _run as_.
-Additionally, the `run_as` privilege is supported only when authenticating with
-the `native` or JWT realms, or when using API keys. Tokens that are created with
-the <<security-api-get-token,get token API>> are incompatible with the `run_as`
-privilege because OAuth2 tokens do not support this privilege.
-****
+IMPORTANT: The Kerberos, OpenID Connect, PKI, and SAML realms do not support
+_run as_.
 
 To submit requests on behalf of other users, you need to have the `run_as`
 privilege in your <<defining-roles,roles>>. For example, the following request
@@ -167,6 +161,14 @@ behalf of the `analyst_user`. The following request authenticates to {es} with a
 ----
 curl -s -X GET -H "Authorization: Basic YWRtaW5fdXNlcjpsMG5nLXI0bmQwbS1wQHNzdzByZA==" -H "es-security-runas-user: analyst_user" https://localhost:9200/_security/_authenticate
 ----
+
+[NOTE]
+====
+The `run_as` privilege is supported only when authenticating with the `native`
+or JWT realms, or when using API keys. Tokens that are created with the
+<<security-api-get-token,get token API>> are incompatible with the `run_as`
+privilege because OAuth2 tokens do not support this privilege.
+====
 
 The response indicates that the `analyst_user` submitted this request, using the
 `my_analyst_role` that's assigned to that user. When the `admin_user` submitted

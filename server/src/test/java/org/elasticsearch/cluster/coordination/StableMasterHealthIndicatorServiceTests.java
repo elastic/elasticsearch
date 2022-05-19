@@ -481,8 +481,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         when(localNode.isMasterNode()).thenReturn(false);
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
-        DiscoveryModule discoveryModule = mock(DiscoveryModule.class);
         TransportService transportService = mock(TransportService.class);
-        return new StableMasterHealthIndicatorService(clusterService, discoveryModule, masterHistoryService, transportService);
+        return new StableMasterHealthIndicatorService(clusterService, coordinator, masterHistoryService, transportService);
     }
 }

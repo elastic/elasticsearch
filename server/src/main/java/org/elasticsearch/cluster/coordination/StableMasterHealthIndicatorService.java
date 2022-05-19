@@ -73,7 +73,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     public static final String NAME = "master_is_stable";
 
     private final ClusterService clusterService;
-    private final DiscoveryModule discoveryModule;
+    private final Coordinator coordinator;
     private final MasterHistoryService masterHistoryService;
     private final TransportService transportService;
 
@@ -145,12 +145,12 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     public StableMasterHealthIndicatorService(
         ClusterService clusterService,
-        DiscoveryModule discoveryModule,
+        Coordinator coordinator,
         MasterHistoryService masterHistoryService,
         TransportService transportService
     ) {
         this.clusterService = clusterService;
-        this.discoveryModule = discoveryModule;
+        this.coordinator = coordinator;
         this.masterHistoryService = masterHistoryService;
         this.transportService = transportService;
         this.veryRecentPast = VERY_RECENT_PAST_SETTING.get(clusterService.getSettings());
@@ -397,10 +397,10 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     "recent_masters",
                     localMasterHistory.getNodes().stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList()
                 );
-                details.put("cluster_coordination", discoveryModule.getCoordinator().getClusterFormationState().getDescription());
+                details.put("cluster_coordination", coordinator.getClusterFormationState().getDescription());
             }
         } else {
-            PeerFinder peerFinder = discoveryModule.getCoordinator().getPeerFinder();
+            PeerFinder peerFinder = coordinator.getPeerFinder();
             Optional<DiscoveryNode> currentMaster = peerFinder.getLeader();
             if (currentMaster.isPresent()) {
                 stableMasterStatus = HealthStatus.RED;
@@ -418,7 +418,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                         "recent_masters",
                         recentMasters.stream().filter(Objects::nonNull).map(DiscoveryNodeXContentObject::new).toList()
                     );
-                    details.put("cluster_coordination", discoveryModule.getCoordinator().getClusterFormationState().getDescription());
+                    details.put("cluster_coordination", coordinator.getClusterFormationState().getDescription());
                 }
             } else if (clusterService.localNode().isMasterNode() == false) { // none is elected master and we aren't master eligible
                 // Use StableMasterHealthIndicatorServiceAction
@@ -503,7 +503,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     private Collection<DiscoveryNode> getMasterEligibleNodes() {
         Set<DiscoveryNode> masterEligibleNodes = new HashSet<>();
-        discoveryModule.getCoordinator().getFoundPeers().forEach(node -> {
+        coordinator.getFoundPeers().forEach(node -> {
             if (node.isMasterNode()) {
                 masterEligibleNodes.add(node);
             }

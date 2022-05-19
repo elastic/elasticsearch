@@ -1056,7 +1056,7 @@ public class Node implements Closeable {
         TransportService transportService
     ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
-            new StableMasterHealthIndicatorService(clusterService, discoveryModule, masterHistoryService, transportService)
+            new StableMasterHealthIndicatorService(clusterService, discoveryModule.getCoordinator(), masterHistoryService, transportService)
         );
         var serverHealthIndicatorServices = List.of(
             new RepositoryIntegrityHealthIndicatorService(clusterService),

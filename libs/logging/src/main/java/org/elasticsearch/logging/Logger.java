@@ -8,19 +8,17 @@
 
 package org.elasticsearch.logging;
 
-
 /**
- * Main interface for logging. Most operations are done through this interface (except for deprecations)
+ * Main interface for logging. Most operations are done through this interface.
+ * This is interface heavily influenced by org.apache.logging.log4j2.Logger.
+ * The most notable difference is lack of methods with Marker, LogBuilder and
+ * the message supplier is {@code java.util.function.Supplier<String>}
  */
 public interface Logger {
 
-
-
     void log(Level level, Object message);
 
-
-
-    void log(Level level, java.util.function.Supplier<?> msgSupplier, Throwable thrown);
+    void log(Level level, java.util.function.Supplier<String> msgSupplier, Throwable thrown);
 
     Level getLevel();
 
@@ -43,15 +41,11 @@ public interface Logger {
 
     void fatal(Object message, Throwable thrown);
 
+    void fatal(java.util.function.Supplier<String> msgSupplier);
 
+    void fatal(java.util.function.Supplier<String> msgSupplier, Throwable thrown);
 
-
-
-    void fatal(java.util.function.Supplier<?> msgSupplier);
-
-    void fatal(java.util.function.Supplier<?> msgSupplier, Throwable thrown);
-
-    void fatal(String messagePattern, java.util.function.Supplier<?> paramSupplier);
+    void fatal(String messagePattern, java.util.function.Supplier<String> paramSupplier);
 
     void fatal(String message);
 
@@ -76,15 +70,11 @@ public interface Logger {
 
     void error(Object message, Throwable thrown);
 
+    void error(java.util.function.Supplier<String> msgSupplier);
 
+    void error(java.util.function.Supplier<String> msgSupplier, Throwable thrown);
 
-
-
-    void error(java.util.function.Supplier<?> msgSupplier);
-
-    void error(java.util.function.Supplier<?> msgSupplier, Throwable thrown);
-
-    void error(String messagePattern, java.util.function.Supplier<?> paramSupplier);
+    void error(String messagePattern, java.util.function.Supplier<String> paramSupplier);
 
     void error(String message);
 
@@ -109,15 +99,11 @@ public interface Logger {
 
     void warn(Object message, Throwable thrown);
 
+    void warn(java.util.function.Supplier<String> msgSupplier);
 
+    void warn(java.util.function.Supplier<String> msgSupplier, Throwable thrown);
 
-
-
-    void warn(java.util.function.Supplier<?> msgSupplier);
-
-    void warn(java.util.function.Supplier<?> msgSupplier, Throwable thrown);
-
-    void warn(String messagePattern, java.util.function.Supplier<?> paramSupplier);
+    void warn(String messagePattern, java.util.function.Supplier<String> paramSupplier);
 
     void warn(String message);
 
@@ -142,15 +128,11 @@ public interface Logger {
 
     void info(Object message, Throwable thrown);
 
+    void info(java.util.function.Supplier<String> msgSupplier);
 
+    void info(java.util.function.Supplier<String> msgSupplier, Throwable thrown);
 
-
-
-    void info(java.util.function.Supplier<?> msgSupplier);
-
-    void info(java.util.function.Supplier<?> msgSupplier, Throwable thrown);
-
-    void info(String messagePattern, java.util.function.Supplier<?> paramSupplier);
+    void info(String messagePattern, java.util.function.Supplier<String> paramSupplier);
 
     void info(String message);
 
@@ -175,15 +157,11 @@ public interface Logger {
 
     void debug(Object message, Throwable thrown);
 
+    void debug(java.util.function.Supplier<String> msgSupplier);
 
+    void debug(java.util.function.Supplier<String> msgSupplier, Throwable thrown);
 
-
-
-    void debug(java.util.function.Supplier<?> msgSupplier);
-
-    void debug(java.util.function.Supplier<?> msgSupplier, Throwable thrown);
-
-    void debug(String messagePattern, java.util.function.Supplier<?> paramSupplier);
+    void debug(String messagePattern, java.util.function.Supplier<String> paramSupplier);
 
     void debug(String message);
 
@@ -208,15 +186,11 @@ public interface Logger {
 
     void trace(Object message, Throwable thrown);
 
+    void trace(java.util.function.Supplier<String> msgSupplier);
 
+    void trace(java.util.function.Supplier<String> msgSupplier, Throwable thrown);
 
-
-
-    void trace(java.util.function.Supplier<?> msgSupplier);
-
-    void trace(java.util.function.Supplier<?> msgSupplier, Throwable thrown);
-
-    void trace(String messagePattern, java.util.function.Supplier<?> paramSupplier);
+    void trace(String messagePattern, java.util.function.Supplier<String> paramSupplier);
 
     void trace(String message);
 

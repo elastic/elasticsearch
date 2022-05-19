@@ -36,6 +36,5 @@ public class LogManager {
         return new LoggerImpl(org.apache.logging.log4j.LogManager.getLogger(clazz));
     }
 
-    // TODO PG getRootLogger do we want it?
     private LogManager() {}
 }

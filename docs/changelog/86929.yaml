@@ -1,0 +1,5 @@
+pr: 86929
+summary: "[DRAFT] Script: Add Metadata classes to Write contexts"
+area: Infra/Scripting
+type: enhancement
+issues: []

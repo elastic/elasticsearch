@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
@@ -214,5 +215,27 @@ public abstract class AggregationBuilder
             }
         }
         return false;
+    }
+
+    /**
+     * Called by aggregations whose parents must be sequentially ordered.
+     * @param type the type of the aggregation being validated
+     * @param name the name of the aggregation being validated
+     * @param addValidationError callback to add validation errors
+     */
+    protected void validateSequentiallyOrdered(String type, String name, Consumer<String> addValidationError) {
+        addValidationError.accept(
+            type + " aggregation [" + name + "] must have a histogram, date_histogram or auto_date_histogram as parent"
+        );
+    }
+
+    /**
+     * Called by aggregations whose parents must be sequentially ordered without any gaps.
+     * @param type the type of the aggregation being validated
+     * @param name the name of the aggregation being validated
+     * @param addValidationError callback to add validation errors
+     */
+    protected void validateSequentiallyOrderedWithoutGaps(String type, String name, Consumer<String> addValidationError) {
+        validateSequentiallyOrdered(type, name, addValidationError);
     }
 }

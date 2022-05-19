@@ -146,7 +146,7 @@ setup:
         index: rollup-test
 
   - do:
-      catch: /Rollup index \[rollup-test\] already exists/
+      catch: /resource_already_exists_exception/
       rollup.rollup:
         index: test
         rollup_index: rollup-test

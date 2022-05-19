@@ -230,7 +230,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             ResourceAlreadyExistsException.class,
             () -> rollup(sourceIndex, rollupIndex, config)
         );
-        assertThat(exception.getMessage(), containsString("Rollup index [" + rollupIndex + "] already exists."));
+        assertThat(exception.getMessage(), containsString(rollupIndex));
     }
 
     public void testRollupEmptyIndex() {

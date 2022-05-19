@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -81,15 +80,16 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     /**
      * This is the cluster state task executor for cluster state update actions.
      */
-    private static final ClusterStateTaskExecutor<RollupClusterStateUpdateTask> STATE_UPDATE_TASK_EXECUTOR =
-        (currentState,taskContexts) -> {
+    private static final ClusterStateTaskExecutor<RollupClusterStateUpdateTask> STATE_UPDATE_TASK_EXECUTOR = (
+        currentState,
+        taskContexts) -> {
         ClusterState state = currentState;
-        for(final var taskContext:taskContexts) {
-            try{
-                final var task= taskContext.getTask();
+        for (final var taskContext : taskContexts) {
+            try {
+                final var task = taskContext.getTask();
                 state = task.execute(state);
-                taskContext.success(task.listener.map(ignored->AcknowledgedResponse.TRUE));
-            } catch(Exception e) {
+                taskContext.success(task.listener.map(ignored -> AcknowledgedResponse.TRUE));
+            } catch (Exception e) {
                 taskContext.onFailure(e);
             }
         }
@@ -164,12 +164,9 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             return;
         }
 
-        // Assert rollup index does not exist
         final String rollupIndexName = request.getRollupIndex();
-        if (state.getMetadata().index(rollupIndexName) != null) {
-            listener.onFailure(new ResourceAlreadyExistsException("Rollup index [{}] already exists.", rollupIndexName));
-            return;
-        }
+        // Assert rollup index does not exist
+        MetadataCreateIndexService.validateIndexName(rollupIndexName, state);
 
         // Rollup will perform the following tasks:
         // 1. Extract rollup config from source index field caps
@@ -213,74 +210,85 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any metric fields");
             }
 
+            final String mapping;
             try {
-                final XContentBuilder mapping = createRollupIndexMapping(request.getRollupConfig(), dimensionFieldCaps, metricFieldCaps);
-                // 2. Create rollup index
-                createRollupIndex(sourceIndexMetadata, rollupIndexName, mapping,
-                    ActionListener.wrap(createIndexResp -> {
-                        // 3. Rollup index created. Run rollup indexer
-                        RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(
-                            request,
-                            dimensionFieldCaps.keySet().toArray(new String[0]),
-                            metricFieldCaps.keySet().toArray(new String[0])
-                        );
+                mapping = createRollupIndexMapping(request.getRollupConfig(), dimensionFieldCaps, metricFieldCaps);
+            } catch (IOException e) {
+                listener.onFailure(e);
+                return;
+            }
 
-                        client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
-                            if (indexerResp.isCreated()) {
-                                // 4. Make rollup index read-only and set the correct number of replicas
-                                final Settings settings = Settings.builder()
-                                    .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas())
-                                    .build();
+            // 2. Create rollup index
+            createRollupIndex(rollupIndexName, sourceIndexMetadata, mapping, request, ActionListener.wrap(createIndexResp -> {
+                if (createIndexResp.isAcknowledged()) {
+                    // 3. Rollup index created. Run rollup indexer
+                    RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(
+                        request,
+                        dimensionFieldCaps.keySet().toArray(new String[0]),
+                        metricFieldCaps.keySet().toArray(new String[0])
+                    );
+                    rollupIndexerRequest.setParentTask(clusterService.localNode().getId(), task.getId());
 
-                                UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings, rollupIndexName);
-                                client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
-                                    if (updateSettingsResponse.isAcknowledged()) {
-                                        // 5. Add rollup index to data stream and publish rollup metadata
-                                        updateRollupMetadata(sourceIndexName, rollupIndexName, ActionListener.wrap(resp -> {
-                                            if (resp.isAcknowledged()) {
-                                                // 8. Refresh the rollup index
-                                                refreshIndex(rollupIndexName, listener);
-                                            } else {
-                                                deleteRollupIndex(
-                                                    sourceIndexName,
-                                                    rollupIndexName,
-                                                    listener,
-                                                    new ElasticsearchException("Failed to publish new cluster state with rollup metadata")
-                                                );
-                                            }
-                                        }, e -> {
+                    client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
+                        if (indexerResp.isCreated()) {
+                            // 4. Make rollup index read-only and set the correct number of replicas
+                            final Settings settings = Settings.builder()
+                                .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas())
+                                .build();
+                            UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings, rollupIndexName);
+                            updateSettingsReq.setParentTask(clusterService.localNode().getId(), task.getId());
+                            client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
+                                if (updateSettingsResponse.isAcknowledged()) {
+                                    // 5. Add rollup index to data stream and publish rollup metadata
+                                    updateRollupMetadata(sourceIndexName, rollupIndexName, request, ActionListener.wrap(resp -> {
+                                        if (resp.isAcknowledged()) {
+                                            // 8. Refresh the rollup index
+                                            refreshIndex(rollupIndexName, task, listener);
+                                        } else {
                                             deleteRollupIndex(
                                                 sourceIndexName,
                                                 rollupIndexName,
+                                                task,
                                                 listener,
-                                                new ElasticsearchException("Failed to publish new cluster state with rollup metadata", e)
+                                                new ElasticsearchException("Failed to publish new cluster state with rollup metadata")
                                             );
-                                        }));
-                                    } else {
-                                        deleteRollupIndex(
+                                        }
+                                    },
+                                        e -> deleteRollupIndex(
                                             sourceIndexName,
                                             rollupIndexName,
+                                            task,
                                             listener,
-                                            new ElasticsearchException("Unable to update settings of rollup index [" + rollupIndexName + "]")
-                                        );
-                                    }
-                                }, e -> deleteRollupIndex(sourceIndexName, rollupIndexName, listener, e)));
-                            } else {
-                                deleteRollupIndex(
-                                    sourceIndexName,
-                                    rollupIndexName,
-                                    listener,
-                                    new ElasticsearchException("Unable to index into rollup index [" + rollupIndexName + "]")
-                                );
-                            }
-                        }, e -> deleteRollupIndex(sourceIndexName, rollupIndexName, listener, e)));
+                                            new ElasticsearchException("Failed to publish new cluster state with rollup metadata", e)
+                                        )
+                                    ));
+                                } else {
+                                    deleteRollupIndex(
+                                        sourceIndexName,
+                                        rollupIndexName,
+                                        task,
+                                        listener,
+                                        new ElasticsearchException("Unable to update settings of rollup index [" + rollupIndexName + "]")
+                                    );
+                                }
+                            }, e -> deleteRollupIndex(sourceIndexName, rollupIndexName, task, listener, e)));
+                        } else {
+                            deleteRollupIndex(
+                                sourceIndexName,
+                                rollupIndexName,
+                                task,
+                                listener,
+                                new ElasticsearchException("Unable to index into rollup index [" + rollupIndexName + "]")
+                            );
+                        }
+                    }, e -> deleteRollupIndex(sourceIndexName, rollupIndexName, task, listener, e)));
 
-                    }, listener::onFailure));
-            } catch (IOException e) {
-                listener.onFailure(e);
-            }
-        }));
+                } else {
+                    listener.onFailure(new ElasticsearchException("Failed to create rollup index [" + rollupIndexName + "]"));
+                }
+            }, listener::onFailure));
+        }, listener::onFailure));
     }
 
     @Override
@@ -301,7 +309,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      *
      * @return the mapping of the rollup index
      */
-    public static XContentBuilder createRollupIndexMapping(
+    public static String createRollupIndexMapping(
         final RollupActionConfig config,
         final Map<String, FieldCapabilities> dimensionFieldCaps,
         final Map<String, FieldCapabilities> metricFieldCaps
@@ -354,7 +362,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         }
 
         builder.endObject();
-        return builder.endObject();
+        builder.endObject();
+        return XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
     }
 
     /**
@@ -413,11 +422,12 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     }
 
     private void createRollupIndex(
-        IndexMetadata sourceIndexMetadata,
         String rollupIndexName,
-        XContentBuilder mapping,
+        IndexMetadata sourceIndexMetadata,
+        String mapping,
+        RollupAction.Request request,
         ActionListener<AcknowledgedResponse> listener
-    ) throws IOException {
+    ) {
         CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest = new CreateIndexClusterStateUpdateRequest(
             "rollup",
             rollupIndexName,
@@ -434,7 +444,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetadata.INDEX_ROLLUP_STATUS.getKey(), IndexMetadata.RollupTaskStatus.STARTED)
                 .build()
-        ).mappings(XContentHelper.convertToJson(BytesReference.bytes(mapping), false, XContentType.JSON));
+        ).mappings(mapping);
         clusterService.submitStateUpdateTask("create-rollup-index [" + rollupIndexName + "]", new RollupClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
@@ -446,13 +456,20 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     (builder, rollupIndexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, rollupIndexMetadata))
                 );
             }
-        }, ClusterStateTaskConfig.build(Priority.URGENT, null), STATE_UPDATE_TASK_EXECUTOR);
+        }, ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()), STATE_UPDATE_TASK_EXECUTOR);
     }
 
-    private void updateRollupMetadata(String sourceIndexName, String rollupIndexName, ActionListener<AcknowledgedResponse> listener) {
-        // Update cluster state for the rollup metadata. If source index belongs to a data stream,
-        // add the rollup index and remove the source index
-
+    private void updateRollupMetadata(
+        String sourceIndexName,
+        String rollupIndexName,
+        RollupAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        // Update cluster state for the rollup metadata changing the following things:
+        // - If source index belongs to a data stream, add the rollup index and remove the source index
+        // - Mark rollup index as completed successfully
+        // - Delete the source index
+        // The above operations happen within a single state update request, so they are all performed atomically.
         clusterService.submitStateUpdateTask(
             "update-rollup-metadata [" + rollupIndexName + "]",
             new RollupClusterStateUpdateTask(listener) {
@@ -489,16 +506,18 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     return metadataDeleteIndexService.deleteIndices(currentState, Collections.singleton(sourceIndex));
                 }
             },
-            ClusterStateTaskConfig.build(Priority.URGENT, null),
+            ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
             STATE_UPDATE_TASK_EXECUTOR
         );
     }
 
-    private void refreshIndex(String index, ActionListener<AcknowledgedResponse> listener) {
+    private void refreshIndex(String index, Task task, ActionListener<AcknowledgedResponse> listener) {
+        RefreshRequest request = new RefreshRequest(index);
+        request.setParentTask(clusterService.localNode().getId(), task.getId());
         client.admin()
             .indices()
             .refresh(
-                new RefreshRequest(index),
+                request,
                 ActionListener.wrap(
                     refreshResponse -> listener.onResponse(AcknowledgedResponse.TRUE),
                     e -> listener.onFailure(new ElasticsearchException("Failed to refresh index [" + index + "]", e))
@@ -506,8 +525,16 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             );
     }
 
-    private void deleteRollupIndex(String sourceIndex, String rollupIndex, ActionListener<AcknowledgedResponse> listener, Exception e) {
-        client.admin().indices().delete(new DeleteIndexRequest(rollupIndex), new ActionListener<>() {
+    private void deleteRollupIndex(
+        String sourceIndex,
+        String rollupIndex,
+        Task task,
+        ActionListener<AcknowledgedResponse> listener,
+        Exception e
+    ) {
+        DeleteIndexRequest request = new DeleteIndexRequest(rollupIndex);
+        request.setParentTask(clusterService.localNode().getId(), task.getId());
+        client.admin().indices().delete(request, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 if (e == null && acknowledgedResponse.isAcknowledged()) {

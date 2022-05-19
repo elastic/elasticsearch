@@ -298,7 +298,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         Builder builder = new Builder(index);
 
         int size = in.readVInt();
-        builder.ensureShardArray(size - 1);
+        builder.ensureShardArray(size);
         for (int i = 0; i < size; i++) {
             builder.addIndexShard(IndexShardRoutingTable.Builder.readFromThin(in, index));
         }
@@ -542,7 +542,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
             assert indexShard.shardId().getIndex().equals(index)
                 : "cannot add shard routing table for " + indexShard.shardId() + " to index routing table for " + index;
             final int sid = indexShard.shardId().id();
-            ensureShardArray(sid);
+            ensureShardArray(sid + 1);
             shards[sid] = indexShard;
             return this;
         }
@@ -554,7 +554,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         public Builder addShard(ShardRouting shard) {
             assert shard.index().equals(index) : "cannot add [" + shard + "] to routing table for " + index;
             int shardId = shard.id();
-            ensureShardArray(shardId);
+            ensureShardArray(shardId + 1);
             IndexShardRoutingTable.Builder indexShard = shards[shardId];
             if (indexShard == null) {
                 shards[shardId] = IndexShardRoutingTable.builder(shard.shardId()).addShard(shard);
@@ -564,11 +564,11 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
             return this;
         }
 
-        void ensureShardArray(int shardId) {
+        void ensureShardArray(int shardCount) {
             if (shards == null) {
-                shards = new IndexShardRoutingTable.Builder[shardId + 1];
-            } else if (shards.length < shardId + 1) {
-                IndexShardRoutingTable.Builder[] updated = new IndexShardRoutingTable.Builder[shardId + 1];
+                shards = new IndexShardRoutingTable.Builder[shardCount];
+            } else if (shards.length < shardCount) {
+                IndexShardRoutingTable.Builder[] updated = new IndexShardRoutingTable.Builder[shardCount];
                 System.arraycopy(shards, 0, updated, 0, shards.length);
                 shards = updated;
             }

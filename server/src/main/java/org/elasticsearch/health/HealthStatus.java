@@ -41,7 +41,7 @@ public enum HealthStatus implements Writeable {
      * @return true if the HealthStatus is YELLOW or RED.
      */
     public boolean indicatesHealthProblem() {
-        return value > 1;
+        return value > UNKNOWN.value();
     }
 
     public static HealthStatus merge(Stream<HealthStatus> statuses) {

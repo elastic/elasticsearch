@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -471,6 +472,7 @@ public class IndexShardRoutingTable {
     }
 
     public Set<String> getAllAllocationIds() {
+        assert MasterService.assertNotMasterUpdateThread("not using this on the master thread so we don't have to pre-compute this");
         Set<String> allAllocationIds = new HashSet<>();
         for (ShardRouting shard : shards) {
             if (shard.relocating()) {

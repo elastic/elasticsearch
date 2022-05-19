@@ -59,6 +59,7 @@ import static java.lang.String.format;
 import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_ACTION;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_TYPE;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState.FAILED;
 import static org.elasticsearch.xpack.ml.MachineLearning.ML_PYTORCH_MODEL_INFERENCE_FEATURE;
 
 public class TrainedModelAssignmentNodeService implements ClusterStateListener {
@@ -476,10 +477,11 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             new RoutingStateAndReason(RoutingState.FAILED, reason),
             ActionListener.wrap(
                 r -> logger.debug(
-                    new ParameterizedMessage(
-                        "[{}] Successfully updating assignment state to [{}] with reason [{}]",
+                    () -> format(
+                        ROOT,
+                        "[%s] Successfully updating assignment state to [%s] with reason [%s]",
                         task.getModelId(),
-                        RoutingState.FAILED,
+                        FAILED,
                         reason
                     )
                 ),

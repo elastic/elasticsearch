@@ -92,6 +92,8 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -487,8 +489,9 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     logger.error(
-                        new ParameterizedMessage(
-                            "[{}] timed out when starting task after [{}]. Assignment explanation [{}]",
+                        () -> format(
+                            ROOT,
+                            "[%s] timed out when starting task after [%s]. Assignment explanation [%s]",
                             task.getParams().getId(),
                             timeout,
                             predicate.assignmentExplanation

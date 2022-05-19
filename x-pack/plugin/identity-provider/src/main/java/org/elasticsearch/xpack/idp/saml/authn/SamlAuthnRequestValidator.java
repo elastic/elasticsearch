@@ -50,6 +50,8 @@ import java.util.zip.InflaterInputStream;
 
 import javax.xml.parsers.DocumentBuilder;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
 import static org.opensaml.saml.saml2.core.NameIDType.UNSPECIFIED;
 
@@ -126,7 +128,7 @@ public class SamlAuthnRequestValidator {
         if (parameters.isEmpty()) {
             throw new ElasticsearchSecurityException("Invalid Authentication Request query string (zero parameters)");
         }
-        logger.trace(new ParameterizedMessage("Parsed the following parameters from the query string: {}", parameters));
+        logger.trace(() -> format(ROOT, "Parsed the following parameters from the query string: %s", parameters));
         final String samlRequest = parameters.get("SAMLRequest");
         if (null == samlRequest) {
             throw new ElasticsearchSecurityException(
@@ -218,11 +220,7 @@ public class SamlAuthnRequestValidator {
             authnState
         );
         logger.trace(
-            new ParameterizedMessage(
-                "Validated AuthnResponse from queryString [{}] and extracted [{}]",
-                parsedQueryString.queryString,
-                response
-            )
+            () -> format(ROOT, "Validated AuthnResponse from queryString [%s] and extracted [%s]", parsedQueryString.queryString, response)
         );
         listener.onResponse(response);
     }

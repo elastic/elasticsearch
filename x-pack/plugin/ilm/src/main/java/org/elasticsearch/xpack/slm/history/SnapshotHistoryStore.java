@@ -22,6 +22,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME;
@@ -65,8 +67,9 @@ public class SnapshotHistoryStore {
         if (metadata.dataStreams().containsKey(SLM_HISTORY_DATA_STREAM) == false
             && metadata.templatesV2().containsKey(SLM_TEMPLATE_NAME) == false) {
             logger.error(
-                new ParameterizedMessage(
-                    "failed to index snapshot history item, data stream [{}] and template [{}] don't exist",
+                () -> format(
+                    ROOT,
+                    "failed to index snapshot history item, data stream [%s] and template [%s] don't exist",
                     SLM_HISTORY_DATA_STREAM,
                     SLM_TEMPLATE_NAME
                 )

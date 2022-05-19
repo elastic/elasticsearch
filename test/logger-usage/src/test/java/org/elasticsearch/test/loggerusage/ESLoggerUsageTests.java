@@ -29,6 +29,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -138,7 +140,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkFailArraySize(String... arr) {
-        logger.debug(new ParameterizedMessage("text {}", (Object[]) arr));
+        logger.debug(() -> format(ROOT, "text %s", (Object[]) arr));
     }
 
     public void checkNumberOfArguments1() {
@@ -171,19 +173,19 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkNumberOfArgumentsParameterizedMessage1() {
-        logger.info(new ParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
+        logger.info(() -> format(ROOT, "Hello %s, %s, %s", "world", 2, "third argument"));
     }
 
     public void checkFailNumberOfArgumentsParameterizedMessage1() {
-        logger.info(new ParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
+        logger.info(() -> format(ROOT, "Hello %s, %s", "world", 2, "third argument"));
     }
 
     public void checkNumberOfArgumentsParameterizedMessage2() {
-        logger.info(new ParameterizedMessage("Hello {}, {}", "world", 2));
+        logger.info(() -> format(ROOT, "Hello %s, %s", "world", 2));
     }
 
     public void checkFailNumberOfArgumentsParameterizedMessage2() {
-        logger.info(new ParameterizedMessage("Hello {}, {}, {}", "world", 2));
+        logger.info(() -> format(ROOT, "Hello %s, %s, %s", "world", 2));
     }
 
     public void checkNumberOfArgumentsParameterizedMessage3() {

@@ -845,8 +845,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                 if (latch.await(PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC, TimeUnit.SECONDS) == false) {
                     logger.error(
-                        new ParameterizedMessage(
-                            "[{}] Timed out ({}s) waiting for transform state to be stored.",
+                        () -> format(
+                            ROOT,
+                            "[%s] Timed out (%ss) waiting for transform state to be stored.",
                             getJobId(),
                             PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC
                         )

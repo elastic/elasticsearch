@@ -29,6 +29,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
@@ -233,8 +235,9 @@ public final class PhaseCacheManagement {
         final Set<Step.StepKey> newPhaseStepKeys = readStepKeys(xContentRegistry, client, peiJson, currentPhase, licenseState);
         if (newPhaseStepKeys == null) {
             logger.debug(
-                new ParameterizedMessage(
-                    "[{}] unable to parse phase definition for policy [{}] " + "to determine if it could be refreshed",
+                () -> format(
+                    ROOT,
+                    "[%s] unable to parse phase definition for policy [%s] " + "to determine if it could be refreshed",
                     index,
                     policyId
                 )

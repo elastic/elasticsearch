@@ -612,9 +612,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         });
         if (type.equals(repository.getMetadata().type()) == false) {
             logger.warn(
-                new ParameterizedMessage(
-                    "internal repository [{}][{}] already registered. this prevented the registration of "
-                        + "internal repository [{}][{}].",
+                () -> format(
+                    ROOT,
+                    "internal repository [%s][%s] already registered. this prevented the registration of "
+                        + "internal repository [%s][%s].",
                     name,
                     repository.getMetadata().type(),
                     name,
@@ -623,9 +624,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             );
         } else if (repositories.containsKey(name)) {
             logger.warn(
-                new ParameterizedMessage(
-                    "non-internal repository [{}] already registered. this repository will block the "
-                        + "usage of internal repository [{}][{}].",
+                () -> format(
+                    ROOT,
+                    "non-internal repository [%s] already registered. this repository will block the "
+                        + "usage of internal repository [%s][%s].",
                     name,
                     metadata.type(),
                     name

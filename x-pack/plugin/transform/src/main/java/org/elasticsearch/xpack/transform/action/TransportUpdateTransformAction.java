@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -50,6 +49,8 @@ import org.elasticsearch.xpack.transform.transforms.TransformTask;
 import java.util.List;
 import java.util.Map;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class TransportUpdateTransformAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
@@ -189,7 +190,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         List<String> warnings = TransformConfigLinter.getWarnings(function, config.getSource(), config.getSyncConfig());
 
         for (String warning : warnings) {
-            logger.warn(new ParameterizedMessage("[{}] {}", config.getId(), warning));
+            logger.warn(() -> format(ROOT, "[%s] %s", config.getId(), warning));
             auditor.warning(config.getId(), warning);
         }
     }

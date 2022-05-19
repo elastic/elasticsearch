@@ -15,7 +15,6 @@ import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -34,6 +33,11 @@ import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 
 import java.util.function.Supplier;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
+import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.BIND_DN;
+import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.HEALTH_CHECK_DN;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.SECURE_BIND_PASSWORD;
 
@@ -187,11 +191,12 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
                     pool.setHealthCheckIntervalMillis(healthCheckInterval);
                 } else {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] and [{}} have not been specified or are not valid distinguished names,"
+                        () -> format(
+                            ROOT,
+                            "[%s] and [%s} have not been specified or are not valid distinguished names,"
                                 + "so connection health checking is disabled",
-                            RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
-                            RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.HEALTH_CHECK_DN)
+                            getFullSettingKey(config, BIND_DN),
+                            getFullSettingKey(config, HEALTH_CHECK_DN)
                         )
                     );
                 }

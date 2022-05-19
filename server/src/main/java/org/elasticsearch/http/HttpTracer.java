@@ -22,6 +22,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
+
 /**
  * Http request trace logger. See {@link #maybeTraceRequest(RestRequest, Exception)} for details.
  */
@@ -89,8 +92,9 @@ class HttpTracer {
         boolean success
     ) {
         logger.trace(
-            new ParameterizedMessage(
-                "[{}][{}][{}][{}][{}] sent response to [{}] success [{}]",
+            () -> format(
+                ROOT,
+                "[%s][%s][%s][%s][%s] sent response to [%s] success [%s]",
                 requestId,
                 opaqueHeader,
                 restResponse.status(),

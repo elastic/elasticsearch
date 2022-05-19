@@ -54,6 +54,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
 
@@ -192,8 +194,9 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         );
                     }
                     logger.warn(
-                        new ParameterizedMessage(
-                            "resuming system index migration with index [{}], which does not match index given in last task state [{}]",
+                        () -> format(
+                            ROOT,
+                            "resuming system index migration with index [%s], which does not match index given in last task state [%s]",
                             nextMigrationInfo.getCurrentIndexName(),
                             stateIndexName
                         )

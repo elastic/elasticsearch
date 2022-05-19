@@ -651,7 +651,7 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
-    public void testSecurityPluginInstallsRestHandlerWrapperEvenIfSecurityIsDisabled() throws IllegalAccessException {
+    public void testSecurityPluginInstallsRestHandlerInterceptorEvenIfSecurityIsDisabled() throws IllegalAccessException {
         Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", createTempDir()).build();
         SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
@@ -659,7 +659,7 @@ public class SecurityTests extends ESTestCase {
         try {
             UsageService usageService = new UsageService();
             Security security = new Security(settings);
-            assertTrue(security.getRestHandlerWrapper(threadPool.getThreadContext()) != null);
+            assertTrue(security.getRestHandlerInterceptor(threadPool.getThreadContext()) != null);
 
         } finally {
             threadPool.shutdown();
@@ -667,7 +667,7 @@ public class SecurityTests extends ESTestCase {
 
     }
 
-    public void testSecurityRestHandlerWrapperCanBeInstalled() throws IllegalAccessException {
+    public void testSecurityRestHandlerInterceptorCanBeInstalled() throws IllegalAccessException {
         final Logger amLogger = LogManager.getLogger(ActionModule.class);
         Loggers.setLevel(amLogger, Level.DEBUG);
         final MockLogAppender appender = new MockLogAppender();
@@ -682,14 +682,14 @@ public class SecurityTests extends ESTestCase {
             UsageService usageService = new UsageService();
             Security security = new Security(settings);
 
-            // Verify Security rest wrapper is about to be installed
-            // We will throw later if another wrapper is already installed
+            // Verify Security rest interceptor is about to be installed
+            // We will throw later if another interceptor is already installed
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "Security rest wrapper",
+                    "Security rest interceptor",
                     ActionModule.class.getName(),
                     Level.DEBUG,
-                    "Using REST wrapper from plugin org.elasticsearch.xpack.security.Security"
+                    "Using REST interceptor from plugin org.elasticsearch.xpack.security.Security"
                 )
             );
 

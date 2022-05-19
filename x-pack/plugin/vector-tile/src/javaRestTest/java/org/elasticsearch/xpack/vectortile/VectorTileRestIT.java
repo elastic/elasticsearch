@@ -31,11 +31,14 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
 /**
- * Rest test for _mvt end point. The test only check that the structure of the vector tiles is sound in
- * respect to the number of layers returned and the number of features abd tags in each layer.
+ * Rest test for _mvt end point. The tests only check that the structure of the vector tiles is sound in
+ * respect to the number of layers returned and the number of features and tags in each layer.
  */
 public class VectorTileRestIT extends ESRestTestCase {
 
@@ -315,6 +318,137 @@ public class VectorTileRestIT extends ESRestTestCase {
             final ResponseException ex = expectThrows(ResponseException.class, () -> execute(mvtRequest));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_BAD_REQUEST));
         }
+    }
+
+    public void testWithLabels() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("{\"size\" : 100, \"with_labels\": true}");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        // CHeck that double the points are returned (one extra label position for each point)
+        assertLayer(tile, HITS_LAYER, 4096, 66, 3, "_id", "_index", "_mvt_label_position");
+        assertLayer(tile, AGGS_LAYER, 4096, 2, 3);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+        // Check that features exist for label positions
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index");
+        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "_index", "_mvt_label_position");
+        assertFeatureTags(tile, HITS_LAYER, 64, "_id", "_index");
+        assertFeatureTags(tile, HITS_LAYER, 65, "_id", "_index", "_mvt_label_position");
+        // Check that aggs layer also has label position features
+        assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "_count", "_mvt_label_position");
+    }
+
+    public void testWithLabelsAndFieldsAndAggs() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("""
+            {
+              "size" : 100,
+              "with_labels": true,
+              "fields": ["name", "value1"],
+              "aggs": {
+                "minVal": {
+                  "min": {"field": "value1"}
+                }
+              }
+            }""");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        // CHeck that double the points are returned (one extra label position for each point)
+        assertLayer(tile, HITS_LAYER, 4096, 66, 5, "_id", "_index", "_mvt_label_position", "name", "value1");
+        assertLayer(tile, AGGS_LAYER, 4096, 2, 4);
+        assertLayer(tile, META_LAYER, 4096, 1, 18); // 5 extra tags for each new aggregation defined
+        // Check that features exist for label positions
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index", "name", "value1");
+        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "_index", "_mvt_label_position", "name", "value1");
+        assertFeatureTags(tile, HITS_LAYER, 64, "_id", "_index", "name", "value1");
+        assertFeatureTags(tile, HITS_LAYER, 65, "_id", "_index", "_mvt_label_position", "name", "value1");
+        // Check that aggs layer also has label position features
+        assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count", "minVal.value");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "_count", "minVal.value", "_mvt_label_position");
+    }
+
+    public void testBasicShapeWithLabels() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("{\"with_labels\": true }");
+        final int numAggsFeatures = 2 * 256 * 256; // Twice as many due to additional label position features
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        // Check that there is an extra feature returned, a point label position
+        assertLayer(tile, HITS_LAYER, 4096, 2, 3, "_id", "_index", "_mvt_label_position");
+        assertLayer(tile, AGGS_LAYER, 4096, numAggsFeatures, 3);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", INDEX_POLYGON);
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_id", "polygon");
+        // Check that the polygon and label features have the right tags
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index");
+        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "_index", "_mvt_label_position");
+        // Check that aggs layer also has label position features
+        assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "_count", "_mvt_label_position");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 2, "_key", "_count");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 1, "_key", "_count", "_mvt_label_position");
+    }
+
+    public void testBasicShapeWithLabelsAndFieldsAndAggs() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("""
+            {
+              "size" : 100,
+              "with_labels": true,
+              "fields": ["name", "value1"],
+              "aggs": {
+                "minVal": {
+                  "min": {"field": "value1"}
+                }
+              }
+            }""");
+        final int numAggsFeatures = 2 * 256 * 256; // Twice as many due to additional label position features
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        // Check that there is an extra feature returned, a point label position
+        assertLayer(tile, HITS_LAYER, 4096, 2, 5, "_id", "_index", "_mvt_label_position", "name", "value1");
+        assertLayer(tile, AGGS_LAYER, 4096, numAggsFeatures, 4);
+        assertLayer(tile, META_LAYER, 4096, 1, 18); // 5 extra tags for each new aggregation defined
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", INDEX_POLYGON);
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_id", "polygon");
+        // Check that the polygon and label features have the right tags
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index", "name", "value1");
+        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "_index", "_mvt_label_position", "name", "value1");
+        // Check that aggs layer also has label position features
+        assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count", "minVal.value");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "_count", "minVal.value", "_mvt_label_position");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 2, "_key", "_count", "minVal.value");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 1, "_key", "_count", "minVal.value", "_mvt_label_position");
+    }
+
+    public void testMultipolygonWithLabels() throws Exception {
+        final String index = "multipolygon";
+        final Rectangle r1 = new Rectangle(-10, -5, 10, -10);
+        final Rectangle r2 = new Rectangle(5, 10, 10, -10);
+        // Centroid should be outside both polygons, and around 0,0
+        createIndexAndPutGeometry(index, new MultiPolygon(List.of(toPolygon(r1), toPolygon(r2))), "multi_polygon");
+        final Request mvtRequest = new Request(getHttpMethod(), index + "/_mvt/location/0/0/0?grid_precision=1");
+        mvtRequest.setJsonEntity("{\"with_labels\": true }");
+        final int numAggsFeatures = 2 * 2 * 2; // Twice as many due to additional label position features
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 2, 3);
+        assertLayer(tile, AGGS_LAYER, 4096, numAggsFeatures, 3);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", index);
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_id", "multi_polygon");
+        // Check that the polygon and label features have the right tags
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index");
+        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "_index", "_mvt_label_position");
+        // Check that aggs layer also has label position features
+        assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "_count", "_mvt_label_position");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 2, "_key", "_count");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 1, "_key", "_count", "_mvt_label_position");
+
+        final Response response = client().performRequest(new Request(HttpDelete.METHOD_NAME, index));
+        assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
     }
 
     public void testGeoTileGrid() throws Exception {
@@ -715,8 +849,8 @@ public class VectorTileRestIT extends ESRestTestCase {
     }
 
     public void testOverlappingMultipolygon() throws Exception {
-        // Overlapping multipolygon are accepted by Elasticsearch but is invalid for JTS. This
-        // causes and error in the mvt library that gets logged using slf4j
+        // Overlapping multipolygon are accepted by Elasticsearch but is invalid for JTS.
+        // This causes an error in the mvt library that gets logged using slf4j
         final String index = "overlapping_multipolygon";
         final Rectangle r1 = new Rectangle(-160, 160, 80, -80);
         final Rectangle r2 = new Rectangle(-159, 161, 79, -81);
@@ -742,11 +876,41 @@ public class VectorTileRestIT extends ESRestTestCase {
         }
     }
 
-    private void assertLayer(VectorTile.Tile tile, String name, int extent, int numFeatures, int numTags) {
+    private void assertFeatureTags(VectorTile.Tile tile, String name, int featureIndex, String... tags) {
         final VectorTile.Tile.Layer layer = getLayer(tile, name);
-        assertThat(layer.getExtent(), Matchers.equalTo(extent));
-        assertThat(layer.getFeaturesCount(), Matchers.equalTo(numFeatures));
-        assertThat(layer.getKeysCount(), Matchers.equalTo(numTags));
+        VectorTile.Tile.Feature feature = layer.getFeatures(featureIndex);
+        for (String tag : tags) {
+            boolean found = false;
+            ArrayList<String> featureTags = new ArrayList<>();
+            for (int i = 0; i < feature.getTagsCount(); i += 2) {
+                String key = layer.getKeys(feature.getTags(i));
+                VectorTile.Tile.Value value = layer.getValues(feature.getTags(i + 1));
+                featureTags.add(key + "=" + value.toString().trim());
+                if (tag.equals(key)) {
+                    found = true;
+                }
+            }
+            assertTrue(
+                "Feature " + featureIndex + " did not contain expected tag " + tag + " but contained instead: " + featureTags,
+                found
+            );
+        }
+        assertThat("Feature " + featureIndex + " tag count does not match", feature.getTagsCount(), Matchers.equalTo(2 * tags.length));
+    }
+
+    private void assertLayer(VectorTile.Tile tile, String name, int extent, int numFeatures, int numTags, String... tags) {
+        final VectorTile.Tile.Layer layer = getLayer(tile, name);
+        assertThat("Layer " + name + " extent does not match", layer.getExtent(), Matchers.equalTo(extent));
+        assertThat("Layer " + name + " feature count does not match", layer.getFeaturesCount(), Matchers.equalTo(numFeatures));
+        assertThat("Layer " + name + " tag count does not match", layer.getKeysCount(), Matchers.equalTo(numTags));
+        if (tags.length > 0) {
+            HashSet<String> expected = new HashSet<>();
+            Arrays.stream(tags).forEach(t -> expected.add(t));
+            for (int i = 0; i < layer.getKeysCount(); i++) {
+                String key = layer.getKeys(i);
+                assertTrue("Layer contains unexpected tag " + key, expected.contains(key));
+            }
+        }
     }
 
     private void assertSintTag(VectorTile.Tile.Layer layer, VectorTile.Tile.Feature feature, String tag, long value) {

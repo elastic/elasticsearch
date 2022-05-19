@@ -133,4 +133,26 @@ public class GeoHexAggregatorTests extends GeoGridAggregatorTestCase<InternalGeo
             iw -> iw.addDocument(Collections.singletonList(field))
         );
     }
+
+    public void testHexContainsNorthPole() throws IOException {
+        GeoBoundingBox bbox = new GeoBoundingBox(new GeoPoint(90, 0), new GeoPoint(89, 10));
+        LatLonDocValuesField fieldNorth = new LatLonDocValuesField("bar", 90, -5);
+        LatLonDocValuesField fieldSouth = new LatLonDocValuesField("bar", -90, -5);
+        testCase(new MatchAllDocsQuery(), "bar", 0, bbox, geoGrid -> {
+            assertTrue(AggregationInspectionHelper.hasValue(geoGrid));
+            assertEquals(1, geoGrid.getBuckets().size());
+            assertEquals(1, geoGrid.getBuckets().get(0).getDocCount());
+        }, iw -> iw.addDocument(List.of(fieldNorth, fieldSouth)));
+    }
+
+    public void testHexContainsSouthPole() throws IOException {
+        GeoBoundingBox bbox = new GeoBoundingBox(new GeoPoint(-89, 0), new GeoPoint(-90, 10));
+        LatLonDocValuesField fieldNorth = new LatLonDocValuesField("bar", 90, -5);
+        LatLonDocValuesField fieldSouth = new LatLonDocValuesField("bar", -90, -5);
+        testCase(new MatchAllDocsQuery(), "bar", 0, bbox, geoGrid -> {
+            assertTrue(AggregationInspectionHelper.hasValue(geoGrid));
+            assertEquals(1, geoGrid.getBuckets().size());
+            assertEquals(1, geoGrid.getBuckets().get(0).getDocCount());
+        }, iw -> iw.addDocument(List.of(fieldNorth, fieldSouth)));
+    }
 }

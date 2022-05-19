@@ -63,8 +63,10 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             IndexMode.TIME_SERIES
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
-            .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES))
+            .template(
+                new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
+            )
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
@@ -161,8 +163,10 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             dsIndexMode
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
-            .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES))
+            .template(
+                new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
+            )
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
@@ -245,8 +249,10 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             IndexMode.TIME_SERIES
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
-            .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, randomBoolean() ? IndexMode.STANDARD : null))
+            .template(
+                new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
+            )
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);

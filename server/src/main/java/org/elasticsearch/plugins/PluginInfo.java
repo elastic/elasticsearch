@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -445,52 +446,29 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     public String toString(String prefix) {
-        final StringBuilder information = new StringBuilder().append(prefix)
-            .append("- Plugin information:\n")
-            .append(prefix)
-            .append("Name: ")
-            .append(name)
-            .append("\n")
-            .append(prefix)
-            .append("Description: ")
-            .append(description)
-            .append("\n")
-            .append(prefix)
-            .append("Version: ")
-            .append(version)
-            .append("\n")
-            .append(prefix)
-            .append("Elasticsearch Version: ")
-            .append(elasticsearchVersion)
-            .append("\n")
-            .append(prefix)
-            .append("Java Version: ")
-            .append(javaVersion)
-            .append("\n")
-            .append(prefix)
-            .append("Native Controller: ")
-            .append(hasNativeController)
-            .append("\n")
-            .append(prefix)
-            .append("Licensed: ")
-            .append(isLicensed)
-            .append("\n")
-            .append(prefix)
-            .append("Type: ")
-            .append(type)
-            .append("\n");
+        final List<String> lines = new ArrayList<>();
+
+        appendLine(lines, prefix, "- Plugin information:", "");
+        appendLine(lines, prefix, "Name: ", name);
+        appendLine(lines, prefix, "Description: ", description);
+        appendLine(lines, prefix, "Version: ", version);
+        appendLine(lines, prefix, "Elasticsearch Version: ", elasticsearchVersion);
+        appendLine(lines, prefix, "Java Version: ", javaVersion);
+        appendLine(lines, prefix, "Native Controller: ", hasNativeController);
+        appendLine(lines, prefix, "Licensed: ", isLicensed);
+        appendLine(lines, prefix, "Type: ", type);
 
         if (type == PluginType.BOOTSTRAP) {
-            information.append(prefix).append("Java Opts: ").append(javaOpts).append("\n");
+            appendLine(lines, prefix, "Java Opts: ", javaOpts);
         }
 
-        information.append(prefix)
-            .append("Extended Plugins: ")
-            .append(extendedPlugins)
-            .append("\n")
-            .append(prefix)
-            .append(" * Classname: ")
-            .append(classname);
-        return information.toString();
+        appendLine(lines, prefix, "Extended Plugins: ", extendedPlugins.toString());
+        appendLine(lines, prefix, " * Classname: ", classname);
+
+        return String.join(System.lineSeparator(), lines);
+    }
+
+    private static void appendLine(List<String> builder, String prefix, String field, Object value) {
+        builder.add(prefix + field + value);
     }
 }

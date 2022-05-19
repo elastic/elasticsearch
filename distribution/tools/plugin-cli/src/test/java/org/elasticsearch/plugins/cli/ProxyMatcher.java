@@ -8,7 +8,7 @@
 
 package org.elasticsearch.plugins.cli;
 
-import org.elasticsearch.cli.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 

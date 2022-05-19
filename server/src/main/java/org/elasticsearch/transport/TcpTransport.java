@@ -653,7 +653,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 List<TcpServerChannel> channels = entry.getValue();
                 ActionListener<Void> closeFailLogger = ActionListener.wrap(
                     c -> {},
-                    e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e)
+                    e -> logger.warn(() -> "Error closing serverChannel for profile [" + profile + "]", e)
                 );
                 channels.forEach(c -> c.addCloseListener(closeFailLogger));
                 CloseableChannel.closeChannels(channels, true);
@@ -707,9 +707,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     );
                 }
             } else if (isConnectException(e)) {
-                logger.debug(() -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
+                logger.debug(() -> "connect exception caught on transport layer [" + channel + "]", e);
             } else if (e instanceof BindException) {
-                logger.debug(() -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
+                logger.debug(() -> "bind exception caught on transport layer [" + channel + "]", e);
             } else if (e instanceof CancelledKeyException) {
                 logger.debug(
                     () -> new ParameterizedMessage(
@@ -733,7 +733,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             } else if (e instanceof TransportNotReadyException) {
                 logger.debug(() -> new ParameterizedMessage("{} on [{}], closing connection", e.getMessage(), channel));
             } else {
-                logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
+                logger.warn(() -> "exception caught on transport layer [" + channel + "], closing connection", e);
             }
         } finally {
             if (closeChannel) {
@@ -744,9 +744,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     protected static void onServerException(TcpServerChannel channel, Exception e) {
         if (e instanceof BindException) {
-            logger.debug(() -> new ParameterizedMessage("bind exception from server channel caught on transport layer [{}]", channel), e);
+            logger.debug(() -> "bind exception from server channel caught on transport layer [" + channel + "]", e);
         } else {
-            logger.error(new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
+            logger.error(() -> "exception from server channel caught on transport layer [" + channel + "]", e);
         }
     }
 

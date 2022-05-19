@@ -14,7 +14,6 @@ import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,8 +36,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-
 /**
  * Permits the testing of async processes by interleaving all the tasks on a single thread in a pseudo-random (deterministic) fashion,
  * letting each task spawn future tasks, and simulating the passage of time. Tasks can be scheduled directly via {@link #scheduleNow} and
@@ -52,7 +49,6 @@ public class DeterministicTaskQueue {
 
     public static final String NODE_ID_LOG_CONTEXT_KEY = "nodeId";
 
-    private final Settings settings;
     private final List<Runnable> runnableTasks = new ArrayList<>();
     private final Random random;
     private List<DeferredTask> deferredTasks = new ArrayList<>();
@@ -61,17 +57,12 @@ public class DeterministicTaskQueue {
     private long executionDelayVariabilityMillis;
     private long latestDeferredExecutionTime;
 
-    public DeterministicTaskQueue(Settings settings, Random random) {
-        this.settings = settings;
+    public DeterministicTaskQueue(Random random) {
         this.random = random;
     }
 
     public DeterministicTaskQueue() {
-        this(
-            // the node name is required by the thread pool but is unused since the thread pool in question doesn't create any threads
-            Settings.builder().put(NODE_NAME_SETTING.getKey(), "deterministic-task-queue").build(),
-            ESTestCase.random()
-        );
+        this(ESTestCase.random());
     }
 
     public long getExecutionDelayVariabilityMillis() {
@@ -220,12 +211,7 @@ public class DeterministicTaskQueue {
      * @return A <code>ThreadPool</code> that uses this task queue and wraps <code>Runnable</code>s in the given wrapper.
      */
     public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
-        return new ThreadPool(settings) {
-
-            {
-                stopCachedTimeThread();
-            }
-
+        return new ThreadPool() {
             private final Map<String, ThreadPool.Info> infos = new HashMap<>();
 
             private final ExecutorService forkingExecutor = new ExecutorService() {

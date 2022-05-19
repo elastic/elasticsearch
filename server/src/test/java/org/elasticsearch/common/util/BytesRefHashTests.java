@@ -325,7 +325,7 @@ public class BytesRefHashTests extends ESTestCase {
     private void assertAllIn(Set<String> strings, BytesRefHash hash) {
         BytesRefBuilder ref = new BytesRefBuilder();
         BytesRef scratch = new BytesRef();
-        long count = hash.size();
+        long count = strings.size();
         for (String string : strings) {
             ref.copyChars(string);
             long key = hash.add(ref.get()); // add again to check duplicates
@@ -345,6 +345,8 @@ public class BytesRefHashTests extends ESTestCase {
         BytesRef scratch = new BytesRef();
         int numberOfOriginalKeys = 0;
         int numberOfCopyKeys = 0;
+
+        assertEquals(original.size(), copy.size);
 
         // check that all keys of original can be found in the copy
         for (int i = 0; i < original.capacity(); ++i) {

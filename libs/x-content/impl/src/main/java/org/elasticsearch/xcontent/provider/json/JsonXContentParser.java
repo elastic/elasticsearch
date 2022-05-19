@@ -64,6 +64,15 @@ public class JsonXContentParser extends AbstractXContentParser {
     }
 
     @Override
+    public String nextFieldName() throws IOException {
+        try {
+            return parser.nextFieldName();
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
+    }
+
+    @Override
     public void skipChildren() throws IOException {
         parser.skipChildren();
     }

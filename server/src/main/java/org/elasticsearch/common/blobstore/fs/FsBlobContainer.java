@@ -22,7 +22,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.FileNotFoundException;
-import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -270,7 +269,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         throws IOException {
         final Path file = path.resolve(blobName);
         try {
-            try (OutputStream out = new BlobOutputStream(file)) {
+            try (OutputStream out = blobOutputStream(file)) {
                 writer.accept(out);
             }
         } catch (FileAlreadyExistsException faee) {
@@ -278,7 +277,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 throw faee;
             }
             deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
-            try (OutputStream out = new BlobOutputStream(file)) {
+            try (OutputStream out = blobOutputStream(file)) {
                 writer.accept(out);
             }
         }
@@ -352,15 +351,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         return blobName.startsWith(TEMP_FILE_PREFIX);
     }
 
-    private static class BlobOutputStream extends FilterOutputStream {
-
-        BlobOutputStream(Path file) throws IOException {
-            super(Files.newOutputStream(file, StandardOpenOption.CREATE_NEW));
-        }
-
-        @Override
-        public void write(byte[] b, int off, int len) throws IOException {
-            out.write(b, off, len);
-        }
+    private static OutputStream blobOutputStream(Path file) throws IOException {
+        return Files.newOutputStream(file, StandardOpenOption.CREATE_NEW);
     }
 }

@@ -119,7 +119,7 @@ tasks.named("thirdPartyAudit").configure {
     'com.aayushatharva.brotli4j.Brotli4jLoader',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
-    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoders',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
 

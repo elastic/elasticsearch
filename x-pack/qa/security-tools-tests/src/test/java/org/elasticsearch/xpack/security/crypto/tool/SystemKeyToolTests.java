@@ -13,6 +13,7 @@ import com.google.common.jimfs.Jimfs;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
@@ -49,7 +50,7 @@ public class SystemKeyToolTests extends CommandTestCase {
     protected Command newCommand() {
         return new SystemKeyTool() {
             @Override
-            protected Environment createEnv(OptionSet options) {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) {
                 // it would be better to mock the system properties here, but our generated file permissions
                 // do not play nice with jimfs...
                 Settings settings = Settings.builder().put("path.home", homeDir.toString()).build();

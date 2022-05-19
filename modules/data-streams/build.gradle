@@ -15,7 +15,7 @@ esplugin {
 restResources {
   restApi {
     include 'bulk', 'count', 'search', '_common', 'indices', 'index', 'cluster', 'rank_eval', 'reindex', 'update_by_query', 'delete_by_query',
-      'eql', 'data_stream', 'ingest'
+      'eql', 'data_stream', 'ingest', 'cat'
   }
 }
 
@@ -47,6 +47,9 @@ if (BuildParams.inFipsJvm){
 
 if (BuildParams.isSnapshotBuild() == false) {
   tasks.named("internalClusterTest").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+  tasks.named("test").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
 }

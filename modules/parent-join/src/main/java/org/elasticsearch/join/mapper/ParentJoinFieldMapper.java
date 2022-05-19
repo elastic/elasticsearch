@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -213,10 +214,15 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         boolean eagerGlobalOrdinals,
         List<Relations> relations
     ) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
         this.parentIdFields = parentIdFields;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         this.relations = relations;
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

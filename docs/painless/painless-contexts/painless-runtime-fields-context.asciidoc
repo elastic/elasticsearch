@@ -15,7 +15,7 @@ about how to use runtime fields.
         Accepts the values from the script valuation. Scripts can call the
         `emit` method multiple times to emit multiple values.
 +
-The `emit` method applies only to scripts used in a 
+The `emit` method applies only to scripts used in a
 <<painless-execute-runtime-context,runtime fields context>>.
 +
 IMPORTANT: The `emit` method cannot accept `null` values. Do not call this
@@ -30,7 +30,7 @@ The signature for `emit` depends on the `type` of the field.
 `boolean`::   `emit(boolean)`
 `date`::      `emit(long)`
 `double`::    `emit(double)`
-`geo_point`:: `emit(double lat, double long)`
+`geo_point`:: `emit(double lat, double lon)`
 `ip`::        `emit(String)`
 `long`::      `emit(long)`
 `keyword`::   `emit(String)`

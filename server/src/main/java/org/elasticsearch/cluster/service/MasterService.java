@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
@@ -150,7 +151,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         @Override
-        protected void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary) {
+        protected void run(Object batchingKey, List<? extends BatchedTask> tasks, BatchSummary tasksSummary) {
             runTasks((ClusterStateTaskExecutor<ClusterStateTaskListener>) batchingKey, (List<UpdateTask>) tasks, tasksSummary);
         }
 
@@ -183,14 +184,6 @@ public class MasterService extends AbstractLifecycleComponent {
                 } catch (Exception inner) {
                     inner.addSuppressed(e);
                     logger.error("exception thrown by listener notifying of failure", inner);
-                }
-            }
-
-            public void onNoLongerMaster() {
-                try (ThreadContext.StoredContext ignore = threadContextSupplier.get()) {
-                    listener.onNoLongerMaster();
-                } catch (Exception e) {
-                    logger.error("exception thrown by listener while notifying no longer master", e);
                 }
             }
 
@@ -231,7 +224,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private void runTasks(
         ClusterStateTaskExecutor<ClusterStateTaskListener> executor,
         List<Batcher.UpdateTask> updateTasks,
-        String summary
+        BatchSummary summary
     ) {
         if (lifecycle.started() == false) {
             logger.debug("processing [{}]: ignoring, master service not started", summary);
@@ -243,7 +236,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         if (previousClusterState.nodes().isLocalNodeElectedMaster() == false && executor.runOnlyOnMaster()) {
             logger.debug("failing [{}]: local node is no longer master", summary);
-            updateTasks.forEach(Batcher.UpdateTask::onNoLongerMaster);
+            updateTasks.forEach(t -> t.onFailure(new NotMasterException("no longer master, failing [" + t.source() + "]")));
             return;
         }
 
@@ -422,7 +415,7 @@ public class MasterService extends AbstractLifecycleComponent {
         );
     }
 
-    private void handleException(String summary, long startTimeMillis, ClusterState newClusterState, Exception e) {
+    private void handleException(BatchSummary summary, long startTimeMillis, ClusterState newClusterState, Exception e) {
         final TimeValue executionTime = getTimeSince(startTimeMillis);
         final long version = newClusterState.version();
         final String stateUUID = newClusterState.stateUUID();
@@ -587,7 +580,7 @@ public class MasterService extends AbstractLifecycleComponent {
         return threadPoolExecutor.getMaxTaskWaitTime();
     }
 
-    private void logExecutionTime(TimeValue executionTime, String activity, String summary) {
+    private void logExecutionTime(TimeValue executionTime, String activity, BatchSummary summary) {
         if (executionTime.getMillis() > slowTaskLoggingThreshold.getMillis()) {
             logger.warn(
                 "took [{}/{}ms] to {} for [{}], which exceeds the warn threshold of [{}]",
@@ -898,7 +891,7 @@ public class MasterService extends AbstractLifecycleComponent {
         ClusterState previousClusterState,
         List<ExecutionResult<ClusterStateTaskListener>> executionResults,
         ClusterStateTaskExecutor<ClusterStateTaskListener> executor,
-        String summary
+        BatchSummary summary
     ) {
         final var resultingState = innerExecuteTasks(previousClusterState, executionResults, executor, summary);
         if (previousClusterState != resultingState
@@ -926,7 +919,7 @@ public class MasterService extends AbstractLifecycleComponent {
         ClusterState previousClusterState,
         List<ExecutionResult<ClusterStateTaskListener>> executionResults,
         ClusterStateTaskExecutor<ClusterStateTaskListener> executor,
-        String summary
+        BatchSummary summary
     ) {
         final var taskContexts = castTaskContexts(executionResults);
         try {
@@ -1098,4 +1091,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
+    public static boolean isPublishFailureException(Exception e) {
+        return e instanceof NotMasterException || e instanceof FailedToCommitClusterStateException;
+    }
 }

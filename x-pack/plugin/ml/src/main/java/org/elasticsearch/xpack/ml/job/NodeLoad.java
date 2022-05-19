@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.Objects;
@@ -24,12 +25,12 @@ public class NodeLoad {
     private final String nodeId;
     private final boolean useMemory;
     private final String error;
-    private final long numAssignedJobs;
+    private final int numAssignedJobs;
     private final long assignedNativeCodeOverheadMemory;
     private final long assignedAnomalyDetectorMemory;
     private final long assignedDataFrameAnalyticsMemory;
     private final long assignedNativeInferenceMemory;
-    private final long numAllocatingJobs;
+    private final int numAllocatingJobs;
 
     NodeLoad(
         long maxMemory,
@@ -37,12 +38,12 @@ public class NodeLoad {
         String nodeId,
         boolean useMemory,
         String error,
-        long numAssignedJobs,
+        int numAssignedJobs,
         long assignedNativeCodeOverheadMemory,
         long assignedAnomalyDetectorMemory,
         long assignedDataFrameAnalyticsMemory,
         long assignedNativeInferenceMemory,
-        long numAllocatingJobs
+        int numAllocatingJobs
     ) {
         this.maxMemory = maxMemory;
         this.maxJobs = maxJobs;
@@ -60,7 +61,7 @@ public class NodeLoad {
     /**
      * @return The total number of assigned jobs
      */
-    public long getNumAssignedJobs() {
+    public int getNumAssignedJobs() {
         return numAssignedJobs;
     }
 
@@ -70,6 +71,13 @@ public class NodeLoad {
     public long getAssignedJobMemory() {
         return assignedNativeCodeOverheadMemory + assignedAnomalyDetectorMemory + assignedDataFrameAnalyticsMemory
             + assignedNativeInferenceMemory;
+    }
+
+    /**
+     * @return The total memory in bytes used by all assigned jobs excluding the per-node overhead.
+     */
+    public long getAssignedJobMemoryExcludingPerNodeOverhead() {
+        return assignedAnomalyDetectorMemory + assignedDataFrameAnalyticsMemory + assignedNativeInferenceMemory;
     }
 
     /**
@@ -136,10 +144,23 @@ public class NodeLoad {
     }
 
     /**
+     * @return The available memory on the node, taking into account the effect of the per-node overhead that
+     *         is required if any ML process is running on the node. Effectively, this means unconditionally
+     *         subtracting the per-node overhead from the available memory, regardless of whether any ML process
+     *         is currently running.
+     */
+    public long getFreeMemoryExcludingPerNodeOverhead() {
+        return Math.max(
+            maxMemory - getAssignedJobMemoryExcludingPerNodeOverhead() - MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
+            0L
+        );
+    }
+
+    /**
      * @return The number of jobs that can still be assigned to the node
      */
     public int remainingJobs() {
-        return Math.max(maxJobs - (int) numAssignedJobs, 0);
+        return Math.max(maxJobs - numAssignedJobs, 0);
     }
 
     /**
@@ -153,7 +174,7 @@ public class NodeLoad {
     /**
      * @return The current number of jobs allocating to the node
      */
-    public long getNumAllocatingJobs() {
+    public int getNumAllocatingJobs() {
         return numAllocatingJobs;
     }
 
@@ -206,12 +227,12 @@ public class NodeLoad {
         private final String nodeId;
         private boolean useMemory;
         private String error;
-        private long numAssignedJobs;
+        private int numAssignedJobs;
         private long assignedNativeCodeOverheadMemory;
         private long assignedAnomalyDetectorMemory;
         private long assignedDataFrameAnalyticsMemory;
         private long assignedNativeInferenceMemory;
-        private long numAllocatingJobs;
+        private int numAllocatingJobs;
 
         public Builder(NodeLoad nodeLoad) {
             this.maxMemory = nodeLoad.maxMemory;
@@ -232,18 +253,22 @@ public class NodeLoad {
         }
 
         public long getFreeMemory() {
-            return Math.max(maxMemory - assignedAnomalyDetectorMemory, 0L);
+            return Math.max(
+                maxMemory - assignedNativeCodeOverheadMemory - assignedAnomalyDetectorMemory - assignedDataFrameAnalyticsMemory
+                    - assignedNativeInferenceMemory,
+                0L
+            );
         }
 
         public int remainingJobs() {
-            return Math.max(maxJobs - (int) numAssignedJobs, 0);
+            return Math.max(maxJobs - numAssignedJobs, 0);
         }
 
         public String getNodeId() {
             return nodeId;
         }
 
-        public long getNumAssignedJobs() {
+        public int getNumAssignedJobs() {
             return numAssignedJobs;
         }
 

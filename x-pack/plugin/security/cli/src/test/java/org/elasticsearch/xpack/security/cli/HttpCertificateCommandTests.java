@@ -17,15 +17,18 @@ import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DLSequence;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
+import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequest;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.ssl.PemUtils;
@@ -87,6 +90,7 @@ import static org.elasticsearch.test.FileMatchers.isDirectory;
 import static org.elasticsearch.test.FileMatchers.isRegularFile;
 import static org.elasticsearch.test.FileMatchers.pathExists;
 import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.guessFileType;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -125,7 +129,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(outFile);
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput("y"); // generate CSR
 
@@ -153,7 +157,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final Environment env = newEnvironment();
         final OptionSet options = command.getParser().parse(new String[0]);
-        command.execute(terminal, options, env);
+        command.execute(terminal, options, env, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
 
         Path zipRoot = getZipRoot(outFile);
 
@@ -236,7 +240,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(outFile);
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't generate CSR
         terminal.addTextInput("y"); // existing CA
@@ -284,7 +288,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final Environment env = newEnvironment();
         final OptionSet options = command.getParser().parse(new String[0]);
-        command.execute(terminal, options, env);
+        command.execute(terminal, options, env, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
 
         if (password.length() > 50) {
             assertThat(terminal.getOutput(), containsString("OpenSSL"));
@@ -357,7 +361,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(outFile);
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't generate CSR
         terminal.addTextInput(randomBoolean() ? "n" : ""); // no existing CA
@@ -430,8 +434,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
         // randomly enter an incorrect password here which will fail the "enter twice" check and prompt to try again
         if (randomBoolean()) {
             String wrongPassword = randomAlphaOfLengthBetween(8, 20);
-            terminal.addSecretInput(wrongPassword);
-            terminal.addSecretInput("__" + wrongPassword);
+            terminal.addTextInput(wrongPassword);
+            terminal.addTextInput("__" + wrongPassword);
         }
         terminal.addSecretInput(password);
         if ("".equals(password) == false) {
@@ -442,7 +446,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final Environment env = newEnvironment();
         final OptionSet options = command.getParser().parse(new String[0]);
-        command.execute(terminal, options, env);
+        command.execute(terminal, options, env, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
 
         if (expectLongPasswordWarning) {
             assertThat(terminal.getOutput(), containsString("OpenSSL"));
@@ -513,7 +517,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
     public void testParsingValidityPeriod() throws Exception {
         final HttpCertificateCommand command = new HttpCertificateCommand();
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput("2y");
         assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofYears(2)));
@@ -578,7 +582,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testGuessFileType() throws Exception {
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
 
         final Path caCert = getDataPath("ca.crt");
         final Path caKey = getDataPath("ca.key");
@@ -686,9 +690,11 @@ public class HttpCertificateCommandTests extends ESTestCase {
         assertThat(extensionAttributes[0].getAttributeValues(), arrayWithSize(1));
         assertThat(extensionAttributes[0].getAttributeValues()[0], instanceOf(DLSequence.class));
 
-        // We register 1 extension - the subject alternative names
+        // We register 1 extension with the subject alternative names and extended key usage
         final Extensions extensions = Extensions.getInstance(extensionAttributes[0].getAttributeValues()[0]);
         assertThat(extensions, notNullValue());
+        assertThat(extensions.getExtensionOIDs(), arrayWithSize(2));
+
         final GeneralNames names = GeneralNames.fromExtensions(extensions, Extension.subjectAlternativeName);
         assertThat(names.getNames(), arrayWithSize(hostNames.size() + ipAddresses.size()));
         for (GeneralName name : names.getNames()) {
@@ -701,6 +707,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
                 assertThat(ip, in(ipAddresses));
             }
         }
+
+        ExtendedKeyUsage extendedKeyUsage = ExtendedKeyUsage.fromExtensions(extensions);
+        assertThat(extendedKeyUsage.getUsages(), arrayContainingInAnyOrder(KeyPurposeId.id_kp_serverAuth));
     }
 
     private void verifyCertificate(

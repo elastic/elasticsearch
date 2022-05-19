@@ -1,0 +1,6 @@
+pr: 86359
+summary: Less jank in after-key parsing for unmapped fields
+area: Aggregations
+type: bug
+issues:
+ - 85928

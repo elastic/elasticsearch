@@ -11,11 +11,11 @@ setup:
         name: my-template1
         body:
           index_patterns: [k8s*]
-          data_stream:
-            index_mode : time_series
+          data_stream: {}
           template:
             settings:
               index:
+                mode: time_series
                 number_of_replicas: 0
                 number_of_shards: 2
                 routing_path: [metricset, time_series_dimension]
@@ -103,6 +103,8 @@ created the data stream:
   - match: { data_streams.0.template: 'my-template1' }
   - match: { data_streams.0.hidden: false }
   - match: { data_streams.0.system: false }
+  - match: { data_streams.0.time_series.temporal_ranges.0.start: 2021-04-28T00:00:00.000Z }
+  - match: { data_streams.0.time_series.temporal_ranges.0.end: 2021-04-29T00:00:00.000Z }
   - set:  { data_streams.0.indices.0.index_name: backing_index }
 
   - do:
@@ -113,6 +115,15 @@ created the data stream:
   - match: { $body.$backing_index.settings.index.mode: 'time_series' }
   - match: { $body.$backing_index.settings.index.time_series.start_time: '2021-04-28T00:00:00Z' }
   - match: { $body.$backing_index.settings.index.time_series.end_time: '2021-04-29T00:00:00Z' }
+
+  - do:
+      cat.indices:
+        index: k8s
+        h: index
+
+  - match:
+      $body: |
+        /^\.ds-k8s-\d{4}\.\d{2}\.\d{2}-000001\n$/
 
 ---
 fetch the tsid:

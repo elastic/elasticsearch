@@ -48,6 +48,9 @@ Valid columns are:
 `heap.percent`, `hp`, `heapPercent`::
 (Default) Maximum configured heap, such as `7`.
 
+`heap.max`, `hm`, `heapMax`::
+(Default) Total heap, such as `4gb`.
+
 `ram.percent`, `rp`, `ramPercent`::
 (Default) Used total memory percentage, such as `47`.
 

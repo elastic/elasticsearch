@@ -12,6 +12,7 @@ import joptsimple.OptionSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
@@ -40,8 +42,9 @@ import static org.hamcrest.Matchers.notNullValue;
 public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, boolean abort) throws Exception {
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         final OptionSet options = command.getParser().parse();
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
         final String input;
 
         if (abort) {
@@ -53,7 +56,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         terminal.addTextInput(input);
 
         try {
-            command.execute(terminal, options, environment);
+            command.execute(terminal, options, environment, processInfo);
         } finally {
             assertThat(terminal.getOutput(), containsString(ElasticsearchNodeCommand.STOP_WARNING_MSG));
         }

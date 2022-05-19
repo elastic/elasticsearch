@@ -54,6 +54,7 @@ grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
 
 grant codeBase "${codebase.elasticsearch-core}" {
   permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "getClassLoader";
 };
 
 grant codeBase "${codebase.elasticsearch-cli}" {

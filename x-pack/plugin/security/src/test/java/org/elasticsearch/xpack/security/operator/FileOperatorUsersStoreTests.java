@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -38,7 +37,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -107,11 +105,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
         );
 
         // user operator_1 with non realm auth type is not an operator
-        assertFalse(
-            fileOperatorUsersStore.isOperatorUser(
-                new Authentication(operator_1, fileRealm, fileRealm, Version.CURRENT, Authentication.AuthenticationType.TOKEN, Map.of())
-            )
-        );
+        assertFalse(fileOperatorUsersStore.isOperatorUser(Authentication.newRealmAuthentication(operator_1, fileRealm).token()));
     }
 
     public void testFileAutoReload() throws Exception {

@@ -447,7 +447,7 @@ public class ResultsPersisterService {
         @Override
         public boolean shouldRetry(Exception e) {
             if (isIrrecoverable(e)) {
-                LOGGER.warn(new ParameterizedMessage("[{}] experienced failure that cannot be automatically retried", jobId), e);
+                LOGGER.warn(() -> "[" + jobId + "] experienced failure that cannot be automatically retried", e);
                 return false;
             }
 

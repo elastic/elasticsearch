@@ -13,7 +13,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -49,20 +48,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             CardinalityAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
-            NumericCardinalityAggregator::new,
-            true
-        );
-
-        builder.register(
-            CardinalityAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.GEOPOINT, CoreValuesSourceType.RANGE),
-            BytesCardinalityAggregator::new,
-            true
-        );
-        builder.register(
-            CardinalityAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
+            CoreValuesSourceType.ALL_CORE,
             (name, valuesSourceConfig, precision, context, parent, metadata) -> {
                 // check global ords
                 if (valuesSourceConfig.hasValues()) {
@@ -79,12 +65,10 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                                 metadata
                             );
                         }
-                        // fallback in the default aggregator
-                        return new SegmentOrdinalsCardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
                     }
                 }
-                // If we don't have ordinals, don't try to use an ordinals collector
-                return new BytesCardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
+                // fallback in the default aggregator
+                return new CardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
             },
             true
         );
@@ -107,12 +91,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new CardinalityAggregator(name, config, precision(), context, parent, metadata) {
-            @Override
-            public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-                return new EmptyCollector();
-            }
-        };
+        return new CardinalityAggregator(name, config, precision(), context, parent, metadata);
     }
 
     @Override

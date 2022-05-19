@@ -22,6 +22,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondit
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -59,6 +60,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -85,6 +87,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
     private Path[] dataPaths;
     private Path translogPath;
     private Path indexPath;
+    private ProcessInfo processInfo;
 
     private static final Pattern NUM_CORRUPT_DOCS_PATTERN = Pattern.compile(
         "Corrupted Lucene index segments found -\\s+(?<docs>\\d+) documents will be lost."
@@ -180,19 +183,20 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         translogPath = shardPath.resolveTranslog();
         indexPath = shardPath.resolveIndex();
+        processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
     }
 
     public void testShardLock() throws Exception {
         indexDocs(indexShard, true);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = new MockTerminal();
+        final MockTerminal t = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         // Try running it before the shard is closed, it should flip out because it can't acquire the lock
         try {
             final OptionSet options = parser.parse("-d", indexPath.toString());
-            command.execute(t, options, environment);
+            command.execute(t, options, environment, processInfo);
             fail("expected the command to fail not being able to acquire the lock");
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("Failed to lock shard's directory"));
@@ -204,7 +208,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         // Try running it before the shard is corrupted
         try {
             final OptionSet options = parser.parse("-d", indexPath.toString());
-            command.execute(t, options, environment);
+            command.execute(t, options, environment, processInfo);
             fail("expected the command to fail not being able to find a corrupt file marker");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), startsWith("Shard does not seem to be corrupted at"));
@@ -230,7 +234,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         }
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = new MockTerminal();
+        final MockTerminal t = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         // run command with dry-run
@@ -238,7 +242,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final OptionSet options = parser.parse("-d", indexPath.toString());
         t.setVerbosity(Terminal.Verbosity.VERBOSE);
         try {
-            command.execute(t, options, environment);
+            command.execute(t, options, environment, processInfo);
             fail();
         } catch (ElasticsearchException e) {
             if (corruptSegments) {
@@ -254,7 +258,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
             // run command without dry-run
             t.addTextInput("y");
-            command.execute(t, options, environment);
+            command.execute(t, options, environment, processInfo);
 
             final String output = t.getOutput();
             logger.info("--> output:\n{}", output);
@@ -295,7 +299,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         closeShard(corruptedShard, false); // translog is corrupted already - do not check consistency
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = new MockTerminal();
+        final MockTerminal t = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString());
@@ -303,7 +307,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         t.addTextInput("n"); // mean dry run
         t.setVerbosity(Terminal.Verbosity.VERBOSE);
         try {
-            command.execute(t, options, environment);
+            command.execute(t, options, environment, processInfo);
             fail();
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("aborted by user"));
@@ -315,7 +319,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         // run command without dry-run
         t.reset();
         t.addTextInput("y");
-        command.execute(t, options, environment);
+        command.execute(t, options, environment, processInfo);
 
         final String output = t.getOutput();
         logger.info("--> output:\n{}", output);
@@ -350,7 +354,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         TestTranslog.corruptRandomTranslogFile(logger, random(), translogPath);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = new MockTerminal();
+        final MockTerminal t = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString());
@@ -359,7 +363,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         t.addTextInput("n"); // mean dry run
         t.setVerbosity(Terminal.Verbosity.VERBOSE);
         try {
-            command.execute(t, options, environment);
+            command.execute(t, options, environment, processInfo);
             fail();
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("aborted by user"));
@@ -371,7 +375,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         // run command without dry-run
         t.reset();
         t.addTextInput("y");
-        command.execute(t, options, environment);
+        command.execute(t, options, environment, processInfo);
 
         final String output = t.getOutput();
         logger.info("--> output:\n{}", output);
@@ -428,13 +432,13 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         closeShards(indexShard);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = new MockTerminal();
+        final MockTerminal t = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString());
         t.setVerbosity(Terminal.Verbosity.VERBOSE);
         assertThat(
-            expectThrows(ElasticsearchException.class, () -> command.execute(t, options, environment)).getMessage(),
+            expectThrows(ElasticsearchException.class, () -> command.execute(t, options, environment, processInfo)).getMessage(),
             allOf(containsString("Shard does not seem to be corrupted"), containsString("--" + TRUNCATE_CLEAN_TRANSLOG_FLAG))
         );
         assertThat(t.getOutput(), containsString("Lucene index is clean"));
@@ -446,13 +450,13 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         closeShards(indexShard);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = new MockTerminal();
+        final MockTerminal t = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString(), "--" + TRUNCATE_CLEAN_TRANSLOG_FLAG);
         t.addTextInput("y");
         t.setVerbosity(Terminal.Verbosity.VERBOSE);
-        command.execute(t, options, environment);
+        command.execute(t, options, environment, processInfo);
         assertThat(t.getOutput(), containsString("Lucene index is clean"));
         assertThat(t.getOutput(), containsString("Translog was not analysed and will be truncated"));
         assertThat(t.getOutput(), containsString("Creating new empty translog"));
@@ -472,7 +476,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         closeShards(corruptedShard);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = new MockTerminal();
+        final MockTerminal t = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString());
@@ -481,7 +485,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         t.addTextInput("n"); // mean dry run
         t.setVerbosity(Terminal.Verbosity.VERBOSE);
         try {
-            command.execute(t, options, environment);
+            command.execute(t, options, environment, processInfo);
             fail();
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("aborted by user"));
@@ -495,7 +499,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         t.reset();
         t.addTextInput("y");
         t.addTextInput("y");
-        command.execute(t, options, environment);
+        command.execute(t, options, environment, processInfo);
 
         final String output = t.getOutput();
         logger.info("--> output:\n{}", output);

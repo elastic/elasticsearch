@@ -39,6 +39,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -46,6 +47,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -488,6 +490,27 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         assertEquals(0, connectionManager.size());
         assertEquals(0, nodeConnectedCount.get());
         assertEquals(0, nodeDisconnectedCount.get());
+    }
+
+    public void testConnectAfterClose() {
+        connectionManager.close();
+        final var node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
+
+        final var openConnectionFuture = new PlainActionFuture<Transport.Connection>();
+        connectionManager.openConnection(node, connectionProfile, openConnectionFuture);
+        assertTrue(openConnectionFuture.isDone());
+        assertThat(
+            expectThrows(ExecutionException.class, ConnectTransportException.class, openConnectionFuture::get).getMessage(),
+            containsString("connection manager is closed")
+        );
+
+        final var connectToNodeFuture = new PlainActionFuture<Releasable>();
+        connectionManager.connectToNode(node, connectionProfile, (c, p, l) -> fail("should not be called"), connectToNodeFuture);
+        assertTrue(connectToNodeFuture.isDone());
+        assertThat(
+            expectThrows(ExecutionException.class, ConnectTransportException.class, connectToNodeFuture::get).getMessage(),
+            containsString("connection manager is closed")
+        );
     }
 
     private static class TestConnect extends CloseableConnection {

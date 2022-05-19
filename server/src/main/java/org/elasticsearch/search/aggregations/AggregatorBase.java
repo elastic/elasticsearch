@@ -16,6 +16,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregator;
 import org.elasticsearch.search.aggregations.metrics.MinAggregator;
 import org.elasticsearch.search.aggregations.metrics.SumAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -109,6 +110,9 @@ public abstract class AggregatorBase extends Aggregator {
      * doc values.  Generally, this means that the query has no filters or scripts, the aggregation is
      * top level, and the underlying field is indexed, and the index is sorted in the right order.
      *
+     * Also, using the pointReader is acceptable if within a sampling context and all other requirements are satisfied.
+     * But, this means that the numbers gathered from the point reader must not be scaled when gathered within a sampling context.
+     *
      * If those conditions aren't met, return <code>null</code> to indicate a point reader cannot
      * be used in this case.
      *
@@ -118,7 +122,7 @@ public abstract class AggregatorBase extends Aggregator {
         if (topLevelQuery() != null && topLevelQuery().getClass() != MatchAllDocsQuery.class) {
             return null;
         }
-        if (parent != null) {
+        if (parent != null && parent instanceof RandomSamplerAggregator == false) {
             return null;
         }
         return config.getPointReaderOrNull();
@@ -175,7 +179,7 @@ public abstract class AggregatorBase extends Aggregator {
      * {@link Aggregator} that returns a customer {@linkplain LeafBucketCollector}
      * from this method runs at best {@code O(hits)} time. See the
      * {@link SumAggregator#getLeafCollector(LeafReaderContext, LeafBucketCollector) sum}
-     * {@linkplain Aggregator} for a fairly straight forward example of this.
+     * {@linkplain Aggregator} for a fairly strait forward example of this.
      * <p>
      * Some {@linkplain Aggregator}s are able to correctly collect results on
      * their own, without being iterated by the top level query or the rest

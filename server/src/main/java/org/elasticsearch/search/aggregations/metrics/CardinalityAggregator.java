@@ -40,22 +40,22 @@ import java.util.function.BiConsumer;
 /**
  * An aggregator that computes approximate counts of unique values.
  */
-public abstract class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
+public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
-    protected final int precision;
-    protected final ValuesSourceConfig valuesSourceConfig;
+    private final int precision;
     private final ValuesSource valuesSource;
 
     // Expensive to initialize, so we only initialize it when we have an actual value source
     @Nullable
-    protected final HyperLogLogPlusPlus counts;
+    private HyperLogLogPlusPlus counts;
 
     private Collector collector;
 
-    protected int emptyCollectorsUsed;
-    protected int ordinalsCollectorsUsed;
-    protected int ordinalsCollectorsOverheadTooHigh;
-    protected int stringHashingCollectorsUsed;
+    private int emptyCollectorsUsed;
+    private int numericCollectorsUsed;
+    private int ordinalsCollectorsUsed;
+    private int ordinalsCollectorsOverheadTooHigh;
+    private int stringHashingCollectorsUsed;
 
     public CardinalityAggregator(
         String name,
@@ -68,7 +68,6 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
         super(name, context, parent, metadata);
         // TODO: Stop using nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
-        this.valuesSourceConfig = valuesSourceConfig;
         this.precision = precision;
         this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
     }
@@ -78,10 +77,51 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
         return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
-    @Override
-    public abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException;
+    private Collector pickCollector(LeafReaderContext ctx) throws IOException {
+        if (valuesSource == null) {
+            emptyCollectorsUsed++;
+            return new EmptyCollector();
+        }
 
-    protected void postCollectLastCollector() throws IOException {
+        if (valuesSource instanceof ValuesSource.Numeric source) {
+            MurmurHash3Values hashValues = source.isFloatingPoint()
+                ? MurmurHash3Values.hash(source.doubleValues(ctx))
+                : MurmurHash3Values.hash(source.longValues(ctx));
+            numericCollectorsUsed++;
+            return new DirectCollector(counts, hashValues);
+        }
+
+        if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals source) {
+            final SortedSetDocValues ordinalValues = source.ordinalsValues(ctx);
+            final long maxOrd = ordinalValues.getValueCount();
+            if (maxOrd == 0) {
+                emptyCollectorsUsed++;
+                return new EmptyCollector();
+            }
+
+            final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
+            final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
+            // only use ordinals if they don't increase memory usage by more than 25%
+            if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
+                ordinalsCollectorsUsed++;
+                return new OrdinalsCollector(counts, ordinalValues, bigArrays());
+            }
+            ordinalsCollectorsOverheadTooHigh++;
+        }
+
+        stringHashingCollectorsUsed++;
+        return new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues(ctx)));
+    }
+
+    @Override
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+        postCollectLastCollector();
+
+        collector = pickCollector(ctx);
+        return collector;
+    }
+
+    private void postCollectLastCollector() throws IOException {
         if (collector != null) {
             try {
                 collector.postCollect();
@@ -127,18 +167,19 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         add.accept("empty_collectors_used", emptyCollectorsUsed);
+        add.accept("numeric_collectors_used", numericCollectorsUsed);
         add.accept("ordinals_collectors_used", ordinalsCollectorsUsed);
         add.accept("ordinals_collectors_overhead_too_high", ordinalsCollectorsOverheadTooHigh);
         add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
     }
 
-    protected abstract static class Collector extends LeafBucketCollector implements Releasable {
+    private abstract static class Collector extends LeafBucketCollector implements Releasable {
 
         public abstract void postCollect() throws IOException;
 
     }
 
-    protected static class EmptyCollector extends Collector {
+    private static class EmptyCollector extends Collector {
 
         @Override
         public void collect(int doc, long bucketOrd) {
@@ -156,7 +197,7 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
         }
     }
 
-    protected static class DirectCollector extends Collector {
+    private static class DirectCollector extends Collector {
 
         private final MurmurHash3Values hashes;
         private final HyperLogLogPlusPlus counts;
@@ -188,7 +229,7 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
 
     }
 
-    protected static class OrdinalsCollector extends Collector {
+    private static class OrdinalsCollector extends Collector {
 
         private static final long SHALLOW_FIXEDBITSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
 

@@ -213,6 +213,11 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         super.channelInactive(ctx);
     }
 
+    /**
+     * @param ctx channel handler context
+     *
+     * @return true if a call to this method resulted in a call to {@link ChannelHandlerContext#flush()} on the given {@code ctx}.
+     */
     private boolean doFlush(ChannelHandlerContext ctx) {
         assert ctx.executor().inEventLoop();
         final Channel channel = ctx.channel();
@@ -269,11 +274,11 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private Future<Void> enqueueWrite(HttpObject msg, ChannelHandlerContext ctx) {
         final ChannelPromise p = ctx.newPromise();
-        queueWrite(msg, p, ctx);
+        enqueueWrite(msg, p, ctx);
         return p;
     }
 
-    private void queueWrite(HttpObject msg, ChannelPromise promise, ChannelHandlerContext ctx) {
+    private void enqueueWrite(HttpObject msg, ChannelPromise promise, ChannelHandlerContext ctx) {
         if (ctx.channel().isWritable() && queuedWrites.isEmpty()) {
             ctx.write(msg, promise);
         } else {

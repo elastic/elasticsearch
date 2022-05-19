@@ -201,11 +201,10 @@ public class RunningStats implements Writeable, Cloneable {
     }
 
     /**
-     * Check if two {@link RunningStats} can be merged, which is, if they
-     * both include all fields required by the aggregation.
+     * Get the set of fields required by the aggregation which are missing in at least one document.
      *
      * @param other the other {@link RunningStats} to check
-     * @return true if we can merge the two {@link RunningStats} or false otherwise
+     * @return a set of field names
      */
     public Set<String> missingFieldNames(final RunningStats other) {
         if (other == null || this.docCount == 0 || other.docCount == 0) {

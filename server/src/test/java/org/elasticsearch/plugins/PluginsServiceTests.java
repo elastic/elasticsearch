@@ -41,7 +41,7 @@ public class PluginsServiceTests extends ESTestCase {
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings) {
-        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), List.of());
+        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile());
     }
 
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin> classpathPlugin) {

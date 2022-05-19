@@ -14,7 +14,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -80,18 +79,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     /**
      * Constructs a new PluginService
-     * @param settings The settings of the system
+     *
+     * @param settings         The settings of the system
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
-     * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
-    public PluginsService(
-        Settings settings,
-        Path configPath,
-        Path modulesDirectory,
-        Path pluginsDirectory,
-        Collection<Class<? extends Plugin>> classpathPlugins
-    ) {
+    public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory) {
         this.settings = settings;
         this.configPath = configPath;
 
@@ -99,33 +92,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         List<PluginInfo> pluginsList = new ArrayList<>();
         // we need to build a List of plugins for checking mandatory plugins
         final List<String> pluginsNames = new ArrayList<>();
-
-        assert classpathPlugins.isEmpty() : "We shouldn't pass classpath plugins anymore";
-        // first we load plugins that are on the classpath. this is for tests
-        for (Class<? extends Plugin> pluginClass : classpathPlugins) {
-            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            PluginInfo pluginInfo = new PluginInfo(
-                pluginClass.getName(),
-                "classpath plugin",
-                "NA",
-                Version.CURRENT,
-                "1.8",
-                pluginClass.getName(),
-                null,
-                Collections.emptyList(),
-                false,
-                PluginType.ISOLATED,
-                "",
-                false
-            );
-            if (logger.isTraceEnabled()) {
-                logger.trace("plugin loaded from classpath [{}]", pluginInfo);
-            }
-            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, null));
-            pluginsList.add(pluginInfo);
-            pluginsNames.add(pluginInfo.getName());
-        }
-
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
         List<PluginInfo> modulesList = new ArrayList<>();
         // load modules
@@ -499,12 +465,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @return A function for creating a plugins service.
      */
     public static Function<Settings, PluginsService> getCreatePluginsServiceFunction(Environment environment) {
-        return settings -> new PluginsService(
-            settings,
-            environment.configFile(),
-            environment.modulesFile(),
-            environment.pluginsFile(),
-            List.of()
-        );
+        return settings -> new PluginsService(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
     }
 }

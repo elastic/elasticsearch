@@ -47,6 +47,10 @@ public class MasterHistoryService {
 
     private static final TimeValue DEFAULT_MAX_USABLE_REMOTE_HISTORY_AGE = new TimeValue(5, TimeUnit.MINUTES);
 
+    /**
+     * This is the amount of time that can pass after a RemoteHistoryOrException is returned from the remote master until it is
+     * considered stale and not usable.
+     */
     public static final Setting<TimeValue> MAX_USABLE_REMOTE_HISTORY_AGE_SETTING = Setting.timeSetting(
         "master_history.max_usable_remote_history_age",
         DEFAULT_MAX_USABLE_REMOTE_HISTORY_AGE,

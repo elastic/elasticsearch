@@ -20,13 +20,13 @@ import java.util.Set;
 /**
  * A "bundle" is a group of jars that will be loaded in their own classloader
  */
-public class PluginBundle {
+class PluginBundle {
     public final PluginInfo plugin;
     public final Set<URL> urls;
     public final Set<URL> spiUrls;
     public final Set<URL> allUrls;
 
-    public PluginBundle(PluginInfo plugin, Path dir) throws IOException {
+    PluginBundle(PluginInfo plugin, Path dir) throws IOException {
         this.plugin = Objects.requireNonNull(plugin);
 
         Path spiDir = dir.resolve("spi");

@@ -602,6 +602,49 @@
   - match: { aggregations.tm.top.2.sort: [3] }
 
 ---
+"fetch geo_point":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"s": 1, "location": "POINT(10 20)"}'
+          - '{"index": {}}'
+          - '{"s": 2, "location": "POINT(20 10)"}'
+          - '{"index": {}}'
+          - '{"s": 3, "location": "POINT(0 0)"}'
+
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: location
+                sort:
+                  s: desc
+                size: 3
+  - match: { aggregations.tm.top.0.metrics.location: "0.0, 0.0" }
+  - match: { aggregations.tm.top.0.sort: [3] }
+  - match: { aggregations.tm.top.1.metrics.location: "9.999999990686774, 19.99999998137355" }
+  - match: { aggregations.tm.top.1.sort: [2] }
+  - match: { aggregations.tm.top.2.metrics.location: "19.99999998137355, 9.999999990686774" }
+  - match: { aggregations.tm.top.2.sort: [1] }
+
+---
+
 "fetch runtime keyword fails with nice error message":
   - do:
       bulk:

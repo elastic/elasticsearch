@@ -9,6 +9,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafGeoPointFieldData;
@@ -94,6 +95,11 @@ public class GeoPointScriptFieldData implements IndexGeoPointFieldData {
             @Override
             public MultiGeoPointValues getGeoPointValues() {
                 return new GeoPointScriptDocValues(script);
+            }
+
+            @Override
+            public SortedNumericDocValues getSortedNumericDocValues() {
+                return new GeoPointScriptDocValues.GeoPointScriptSortedNumericDocValues(script);
             }
 
             @Override

@@ -22,6 +22,9 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import java.io.IOException;
 import java.util.function.LongUnaryOperator;
 
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
+
 /**
  * Utility class that allows to return views of {@link ValuesSource}s that
  * replace the missing value with a configured value.
@@ -415,6 +418,12 @@ public enum MissingValues {
             }
 
             @Override
+            public SortedNumericDocValues geoSortedSetValues(LeafReaderContext context) {
+                final SortedNumericDocValues values = valuesSource.geoSortedSetValues(context);
+                return replaceMissing(values, missing);
+            }
+
+            @Override
             public String toString() {
                 return "anon ValuesSource.GeoPoint of [" + super.toString() + "]";
             }
@@ -455,6 +464,48 @@ public enum MissingValues {
             @Override
             public String toString() {
                 return "anon MultiGeoPointValues of [" + super.toString() + "]";
+            }
+        };
+    }
+
+    static SortedNumericDocValues replaceMissing(final SortedNumericDocValues values, final GeoPoint missing) {
+
+        final int latitudeEncoded = encodeLatitude(missing.getLat());
+        final int longitudeEncoded = encodeLongitude(missing.getLon());
+        final long numericMissing = Long.valueOf((((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL));
+        return new AbstractSortedNumericDocValues() {
+
+            private int count;
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                if (values.advanceExact(doc)) {
+                    count = values.docValueCount();
+                } else {
+                    count = 0;
+                }
+                // always return true because we want to return a value even if
+                // the document does not have a value
+                return true;
+            }
+
+            @Override
+            public int docValueCount() {
+                return count == 0 ? 1 : count;
+            }
+
+            @Override
+            public long nextValue() throws IOException {
+                if (count > 0) {
+                    return values.nextValue();
+                } else {
+                    return numericMissing;
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "anon SortedNumericDocValues of [" + super.toString() + "]";
             }
         };
     }

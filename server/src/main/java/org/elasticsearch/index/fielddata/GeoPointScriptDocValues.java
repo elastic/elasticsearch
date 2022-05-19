@@ -15,36 +15,60 @@ import org.elasticsearch.script.GeoPointFieldScript;
 import java.util.Arrays;
 
 public final class GeoPointScriptDocValues extends MultiGeoPointValues {
-    private final GeoPointFieldScript script;
+    private final GeoPointScriptSortedNumericDocValues docValues;
     private final GeoPoint point;
-    private int cursor;
 
     GeoPointScriptDocValues(GeoPointFieldScript script) {
-        this.script = script;
+        this.docValues = new GeoPointScriptSortedNumericDocValues(script);
         this.point = new GeoPoint();
     }
 
     @Override
     public boolean advanceExact(int docId) {
-        script.runForDoc(docId);
-        if (script.count() == 0) {
-            return false;
-        }
-        Arrays.sort(script.values(), 0, script.count());
-        cursor = 0;
-        return true;
+        return docValues.advanceExact(docId);
     }
 
     @Override
     public int docValueCount() {
-        return script.count();
+        return docValues.docValueCount();
     }
 
     @Override
     public GeoPoint nextValue() {
-        final long value = script.values()[cursor++];
+        final long value = docValues.nextValue();
         final int lat = (int) (value >>> 32);
         final int lon = (int) (value & 0xFFFFFFFF);
         return point.reset(GeoEncodingUtils.decodeLatitude(lat), GeoEncodingUtils.decodeLongitude(lon));
+    }
+
+    static final class GeoPointScriptSortedNumericDocValues extends AbstractSortedNumericDocValues {
+
+        private final GeoPointFieldScript script;
+        private int cursor;
+
+        GeoPointScriptSortedNumericDocValues(GeoPointFieldScript script) {
+            this.script = script;
+        }
+
+        @Override
+        public long nextValue() {
+            return script.values()[cursor++];
+        }
+
+        @Override
+        public int docValueCount() {
+            return script.count();
+        }
+
+        @Override
+        public boolean advanceExact(int docId) {
+            script.runForDoc(docId);
+            if (script.count() == 0) {
+                return false;
+            }
+            Arrays.sort(script.values(), 0, script.count());
+            cursor = 0;
+            return true;
+        }
     }
 }

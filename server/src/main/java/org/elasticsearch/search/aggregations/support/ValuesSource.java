@@ -709,6 +709,11 @@ public abstract class ValuesSource {
             }
 
             @Override
+            public SortedNumericDocValues geoSortedSetValues(LeafReaderContext context) {
+                return org.elasticsearch.index.fielddata.FieldData.emptySortedNumericDocValues();
+            }
+
+            @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
             }
@@ -728,6 +733,8 @@ public abstract class ValuesSource {
 
         public abstract MultiGeoPointValues geoPointValues(LeafReaderContext context);
 
+        public abstract SortedNumericDocValues geoSortedSetValues(LeafReaderContext context);
+
         public static class Fielddata extends GeoPoint {
 
             protected final IndexGeoPointFieldData indexFieldData;
@@ -743,6 +750,11 @@ public abstract class ValuesSource {
 
             public org.elasticsearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getGeoPointValues();
+            }
+
+            @Override
+            public SortedNumericDocValues geoSortedSetValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getSortedNumericDocValues();
             }
         }
     }

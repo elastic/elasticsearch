@@ -46,32 +46,38 @@ final class LatLonPointDVLeafFieldData extends AbstractLeafGeoPointFieldData {
     }
 
     @Override
-    public MultiGeoPointValues getGeoPointValues() {
+    public SortedNumericDocValues getSortedNumericDocValues() {
         try {
-            final SortedNumericDocValues numericValues = DocValues.getSortedNumeric(reader, fieldName);
-            return new MultiGeoPointValues() {
-
-                final GeoPoint point = new GeoPoint();
-
-                @Override
-                public boolean advanceExact(int doc) throws IOException {
-                    return numericValues.advanceExact(doc);
-                }
-
-                @Override
-                public int docValueCount() {
-                    return numericValues.docValueCount();
-                }
-
-                @Override
-                public GeoPoint nextValue() throws IOException {
-                    final long encoded = numericValues.nextValue();
-                    point.reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)), GeoEncodingUtils.decodeLongitude((int) encoded));
-                    return point;
-                }
-            };
+            return DocValues.getSortedNumeric(reader, fieldName);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }
+    }
+
+    @Override
+    public MultiGeoPointValues getGeoPointValues() {
+
+        final SortedNumericDocValues numericValues = getSortedNumericDocValues();
+        return new MultiGeoPointValues() {
+
+            final GeoPoint point = new GeoPoint();
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return numericValues.advanceExact(doc);
+            }
+
+            @Override
+            public int docValueCount() {
+                return numericValues.docValueCount();
+            }
+
+            @Override
+            public GeoPoint nextValue() throws IOException {
+                final long encoded = numericValues.nextValue();
+                point.reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)), GeoEncodingUtils.decodeLongitude((int) encoded));
+                return point;
+            }
+        };
     }
 }

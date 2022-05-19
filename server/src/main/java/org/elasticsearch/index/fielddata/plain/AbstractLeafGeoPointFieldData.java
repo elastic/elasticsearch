@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
@@ -55,6 +56,11 @@ public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointField
             @Override
             public MultiGeoPointValues getGeoPointValues() {
                 return FieldData.emptyMultiGeoPoints();
+            }
+
+            @Override
+            public SortedNumericDocValues getSortedNumericDocValues() {
+                return FieldData.emptySortedNumericDocValues();
             }
         };
     }

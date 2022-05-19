@@ -17,34 +17,36 @@ import java.util.List;
 /**
  * Common settings shared by all JwtRealm instances.
  */
-public class AllJwtRealms {
+public class JwtRealms {
 
     private final List<String> principalClaimNames;
-    private final List<JwtRealm> allJwtRealms = new ArrayList<>();
+    private final List<JwtRealm> jwtRealms = new ArrayList<>();
 
     /**
-     * Parse all realm settings passed in from {@link InternalRealms#getFactories}
+     * Parse all xpack settings passed in from {@link InternalRealms#getFactories}
      * @param settings All xpack settings
      */
-    public AllJwtRealms(final Settings settings) {
-        this(JwtRealmsSettings.PRINCIPAL_CLAIMS_SETTING.get(settings));
-    }
-
-    // Package protected for testing
-    // If multiple settings are needed in future, change method signature to accept Settings.
-    AllJwtRealms(final List<String> principalClaimNames) {
-        this.principalClaimNames = Collections.unmodifiableList(principalClaimNames);
+    public JwtRealms(final Settings settings) {
+        this.principalClaimNames = Collections.unmodifiableList(JwtRealmsSettings.PRINCIPAL_CLAIMS_SETTING.get(settings));
     }
 
     public List<String> getPrincipalClaimNames() {
         return this.principalClaimNames;
     }
 
-    public List<JwtRealm> list() {
-        return Collections.unmodifiableList(this.allJwtRealms);
+    public void addRegisteredJwtRealm(final JwtRealm jwtRealm) {
+        this.jwtRealms.add(jwtRealm);
     }
 
-    public void add(JwtRealm jwtRealm) {
-        this.allJwtRealms.add(jwtRealm);
+    public void removeRegisteredJwtRealm(final JwtRealm jwtRealm) {
+        this.jwtRealms.remove(jwtRealm);
+    }
+
+    public void clearRegisteredJwtRealms(final JwtRealm jwtRealm) {
+        this.jwtRealms.clear();
+    }
+
+    public List<JwtRealm> listRegisteredJwtRealms() {
+        return Collections.unmodifiableList(this.jwtRealms);
     }
 }

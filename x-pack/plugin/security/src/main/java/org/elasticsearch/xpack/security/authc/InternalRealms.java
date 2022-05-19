@@ -32,8 +32,8 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.authc.jwt.AllJwtRealms;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
+import org.elasticsearch.xpack.security.authc.jwt.JwtRealms;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
@@ -138,7 +138,7 @@ public final class InternalRealms {
         NativeRoleMappingStore nativeRoleMappingStore,
         SecurityIndexManager securityIndex
     ) {
-        final AllJwtRealms allJwtRealms = new AllJwtRealms(settings);
+        final JwtRealms jwtRealms = new JwtRealms(settings);
         return Map.of(
             // file realm
             FileRealmSettings.TYPE,
@@ -170,7 +170,11 @@ public final class InternalRealms {
             config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService),
             // JWT realm
             JwtRealmSettings.TYPE,
-            config -> new JwtRealm(config, allJwtRealms, sslService, nativeRoleMappingStore)
+            config -> {
+                final JwtRealm jetRealm = new JwtRealm(config, jwtRealms, sslService, nativeRoleMappingStore);
+                jwtRealms.addRegisteredJwtRealm(jetRealm);
+                return jetRealm;
+            }
         );
     }
 

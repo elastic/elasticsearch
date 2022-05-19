@@ -61,8 +61,8 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
         final String issuer = randomAlphaOfLengthBetween(8, 24);
         final String audience = randomAlphaOfLengthBetween(6, 12);
 
-        final String principalClaim = randomValueOtherThan("sub", () -> randomAlphaOfLength(3));
-        final String principalValue = randomAlphaOfLengthBetween(8, 32);
+        final String principalClaimName = randomValueOtherThan("sub", () -> randomAlphaOfLength(3));
+        final String principalClaimValue = randomAlphaOfLengthBetween(8, 32);
 
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
         final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm);
@@ -74,9 +74,9 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
             null, // jwtID
             issuer,
             List.of(audience),
-            null,
-            principalClaim,
-            principalValue,
+            null, // sub claim value
+            principalClaimName, // principal claim name
+            principalClaimValue, // principal claim value
             null, // groups claim
             List.of(), // groups
             Date.from(now.minusSeconds(randomLongBetween(10, 20))), // auth_time
@@ -88,8 +88,8 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
         );
         final SecureString jwt = JwtValidateUtil.signJwt(jwk, unsignedJwt);
 
-        final List<String> principalClaimNames = List.of(randomAlphaOfLength(4), "sub", principalClaim);
+        final List<String> principalClaimNames = List.of(randomAlphaOfLength(4), "sub", principalClaimName);
         final JwtAuthenticationToken jwtAuthenticationToken = new JwtAuthenticationToken(principalClaimNames, jwt, null);
-        Assert.assertEquals(issuer + "/" + audience + "/" + principalValue, jwtAuthenticationToken.principal());
+        Assert.assertEquals(issuer + "/" + audience + "/" + principalClaimValue, jwtAuthenticationToken.principal());
     }
 }

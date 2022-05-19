@@ -46,7 +46,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
      */
     public void testJwtAuthcRealmAuthenticateWithEmptyRoles() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
-            this.generateAllJwtRealmsConfig(),
+            this.createJwtRealmsSettingsBuilder(),
             new MinMax(1, 1), // realmsRange
             new MinMax(0, 1), // authzRange
             new MinMax(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
@@ -70,7 +70,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
      */
     public void testJwtAuthcRealmAuthenticateWithoutAuthzRealms() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
-            this.generateAllJwtRealmsConfig(),
+            this.createJwtRealmsSettingsBuilder(),
             new MinMax(1, 3), // realmsRange
             new MinMax(0, 0), // authzRange
             new MinMax(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
@@ -96,7 +96,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
      */
     public void testJwtAuthcRealmAuthenticateWithAuthzRealms() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
-            this.generateAllJwtRealmsConfig(),
+            this.createJwtRealmsSettingsBuilder(),
             new MinMax(1, 3), // realmsRange
             new MinMax(1, 3), // authzRange
             new MinMax(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
@@ -147,19 +147,20 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
      * @throws Exception Unexpected test failure
      */
     public void testPkcJwkSetUrlNotFound() throws Exception {
-        final String principalClaimName = "sub";
-        final AllJwtRealms allJwtRealms = new AllJwtRealms(List.of(principalClaimName));
+        final JwtRealms jwtRealms = this.createJwtRealms(this.createJwtRealmsSettingsBuilder());
+        final String principalClaimName = randomFrom(jwtRealms.getPrincipalClaimNames());
+
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
         final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 12, 1, 1, 1, true);
         assertThat(jwtIssuer.httpsServer, is(notNullValue()));
         try {
-            final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder = this.createJwtRealmSettings(jwtIssuer, 0, 0);
-            final String configKey = RealmSettings.getFullSettingKey(realmNameAndSettingsBuilder.name(), JwtRealmSettings.PKC_JWKSET_PATH);
+            final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = this.createJwtRealmSettingsBuilder(jwtIssuer, 0, 0);
+            final String configKey = RealmSettings.getFullSettingKey(jwtRealmSettingsBuilder.name(), JwtRealmSettings.PKC_JWKSET_PATH);
             final String configValue = jwtIssuer.httpsServer.url.replace("/valid/", "/invalid");
-            realmNameAndSettingsBuilder.settingsBuilder().put(configKey, configValue);
+            jwtRealmSettingsBuilder.settingsBuilder().put(configKey, configValue);
             final Exception exception = expectThrows(
                 SettingsException.class,
-                () -> this.createJwtRealm(allRealms, allJwtRealms, jwtIssuer, realmNameAndSettingsBuilder)
+                () -> this.createJwtRealm(allRealms, jwtRealms, jwtIssuer, jwtRealmSettingsBuilder)
             );
             assertThat(exception.getMessage(), equalTo("Can't get contents for setting [" + configKey + "] value [" + configValue + "]."));
             assertThat(exception.getCause().getMessage(), equalTo("Get [" + configValue + "] failed, status [404], reason [Not Found]."));
@@ -174,7 +175,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
      */
     public void testJwtValidationSuccessAndFailure() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
-            this.generateAllJwtRealmsConfig(),
+            this.createJwtRealmsSettingsBuilder(),
             new MinMax(1, 1), // realmsRange
             new MinMax(0, 0), // authzRange
             new MinMax(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
@@ -317,10 +318,11 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
      * @throws Exception Unexpected test failure
      */
     public void testSameIssuerTwoRealmsDifferentClientSecrets() throws Exception {
+        final JwtRealms jwtRealms = this.createJwtRealms(this.createJwtRealmsSettingsBuilder());
+        final String principalClaimName = randomFrom(jwtRealms.getPrincipalClaimNames());
+
         final int realmsCount = 2;
         final List<Realm> allRealms = new ArrayList<>(realmsCount); // two identical realms for same issuer, except different client secret
-        final String principalClaimName = "sub";
-        final AllJwtRealms allJwtRealms = new AllJwtRealms(List.of(principalClaimName));
         final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 12, 1, 1, 1, false);
         this.jwtIssuerAndRealms = new ArrayList<>(realmsCount);
         for (int i = 0; i < realmsCount; i++) {
@@ -365,10 +367,10 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
                 clientSecret
             );
             authcSettings.setSecureSettings(secureSettings);
-            final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder = new JwtRealmNameAndSettingsBuilder(realmName, authcSettings);
-            final JwtRealm jwtRealm = this.createJwtRealm(allRealms, allJwtRealms, jwtIssuer, realmNameAndSettingsBuilder);
+            final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = new JwtRealmSettingsBuilder(realmName, authcSettings);
+            final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtRealms, jwtIssuer, jwtRealmSettingsBuilder);
             jwtRealm.initialize(allRealms, super.licenseState);
-            final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, realmNameAndSettingsBuilder);
+            final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
             this.jwtIssuerAndRealms.add(jwtIssuerAndRealm); // add them so the test will clean them up
         }
 

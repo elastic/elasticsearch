@@ -72,7 +72,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public static final String HEADER_END_USER_AUTHENTICATION_SCHEME = "Bearer";
     public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
 
-    private final AllJwtRealms allJwtRealms;
+    private final JwtRealms jwtRealms;
     final UserRoleMapper userRoleMapper;
     final String allowedIssuer;
     final List<String> allowedAudiences;
@@ -95,12 +95,12 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     public JwtRealm(
         final RealmConfig realmConfig,
-        final AllJwtRealms allJwtRealms,
+        final JwtRealms jwtRealms,
         final SSLService sslService,
         final UserRoleMapper userRoleMapper
     ) throws SettingsException {
         super(realmConfig);
-        this.allJwtRealms = allJwtRealms; // common configuration settings shared by all JwtRealm instances
+        this.jwtRealms = jwtRealms; // common configuration settings shared by all JwtRealm instances
         this.userRoleMapper = userRoleMapper;
         this.userRoleMapper.refreshRealmOnChange(this);
         this.allowedIssuer = realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER);
@@ -119,7 +119,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.jwtCacheHelper = (this.jwtCache == null) ? null : new CacheIteratorHelper<>(this.jwtCache);
 
         // Validate this realm uses a principal claim that is in the allowlist for all JWT realms
-        if (this.allJwtRealms.getPrincipalClaimNames().contains(this.claimParserPrincipal.getClaimName()) == false) {
+        if (this.jwtRealms.getPrincipalClaimNames().contains(this.claimParserPrincipal.getClaimName()) == false) {
             throw new SettingsException(
                 "JWT Realm setting ["
                     + realmConfig.getSetting(JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim())
@@ -128,7 +128,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     + "] is not in the allow-list JWT Realms setting ["
                     + JwtRealmsSettings.PRINCIPAL_CLAIMS_SETTING.getRawKey()
                     + "] value ["
-                    + String.join(",", this.allJwtRealms.getPrincipalClaimNames())
+                    + String.join(",", this.jwtRealms.getPrincipalClaimNames())
                     + "]"
             );
         }
@@ -177,7 +177,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.close();
             throw t;
         }
-        this.allJwtRealms.add(this);
     }
 
     private Cache<BytesKey, ExpiringUser> buildJwtCache() {
@@ -365,11 +364,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
             true
         );
-        return new JwtAuthenticationToken(
-            this.allJwtRealms.getPrincipalClaimNames(),
-            authenticationParameterValue,
-            clientAuthenticationSharedSecretValue
-        );
+        // final List<JwtRealm> jwtRealmList = this.jwtRealms.listRegisteredJwtRealms();
+        // final List<String> actualPrincipalClaimNames = jwtRealmList.stream().map(r -> r.claimParserPrincipal.getClaimName()).toList();
+        final List<String> allowedPrincipalClaimNames = this.jwtRealms.getPrincipalClaimNames();
+        return new JwtAuthenticationToken(allowedPrincipalClaimNames, authenticationParameterValue, clientAuthenticationSharedSecretValue);
     }
 
     @Override

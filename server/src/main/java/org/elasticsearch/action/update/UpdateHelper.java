@@ -18,7 +18,6 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -33,6 +32,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateScript;
+import org.elasticsearch.script.field.Op;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -87,26 +87,10 @@ public class UpdateHelper {
      * Execute a scripted upsert, where there is an existing upsert document and a script to be executed. The script is executed and a new
      * Tuple of operation and updated {@code _source} is returned.
      */
-    Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Map<String, Object> upsertDoc, Script script, LongSupplier nowInMillis) {
-        // TODO(stu): this should use InsertScript
-        Map<String, Object> ctx = Maps.newMapWithExpectedSize(3);
+    Tuple<Op, Map<String, Object>> executeScriptedUpsert(Map<String, Object> upsertDoc, Script script, LongSupplier nowInMillis) {
         // Tell the script that this is a create and not an update
-        ctx.put(ContextFields.OP, UpdateOpType.CREATE.toString());
-        ctx.put(ContextFields.SOURCE, upsertDoc);
-        ctx.put(ContextFields.NOW, nowInMillis.getAsLong());
-        ctx = executeScript(script, ctx);
-
-        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, script.getIdOrCode());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> newSource = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
-
-        if (operation != UpdateOpType.CREATE && operation != UpdateOpType.NONE) {
-            // Only valid options for an upsert script are "create" (the default) or "none", meaning abort upsert
-            logger.warn("Invalid upsert operation [{}] for script [{}], doing nothing...", operation, script.getIdOrCode());
-            operation = UpdateOpType.NONE;
-        }
-
-        return new Tuple<>(operation, newSource);
+        UpdateScript.Metadata md = executeScript(script, new UpdateScript.Metadata(Op.CREATE, nowInMillis.getAsLong(), upsertDoc));
+        return new Tuple<>(lenientGetOp(md, logger, script.getIdOrCode()), md.getSource());
     }
 
     /**
@@ -121,14 +105,10 @@ public class UpdateHelper {
         if (request.scriptedUpsert() && request.script() != null) {
             // Run the script to perform the create logic
             IndexRequest upsert = request.upsertRequest();
-            Tuple<UpdateOpType, Map<String, Object>> upsertResult = executeScriptedUpsert(
-                upsert.sourceAsMap(),
-                request.script,
-                nowInMillis
-            );
+            Tuple<Op, Map<String, Object>> upsertResult = executeScriptedUpsert(upsert.sourceAsMap(), request.script, nowInMillis);
             switch (upsertResult.v1()) {
                 case CREATE -> indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
-                case NONE -> {
+                case NOOP -> {
                     UpdateResponse update = new UpdateResponse(
                         shardId,
                         getResult.getId(),
@@ -238,26 +218,24 @@ public class UpdateHelper {
         final String routing = calculateRouting(getResult, currentRequest);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
-        final Map<String, Object> sourceAsMap = sourceAndContent.v2();
 
-        Map<String, Object> ctx = Maps.newMapWithExpectedSize(16);
-        ctx.put(ContextFields.OP, UpdateOpType.INDEX.toString()); // The default operation is "index"
-        ctx.put(ContextFields.INDEX, getResult.getIndex());
-        ctx.put(ContextFields.TYPE, MapperService.SINGLE_MAPPING_NAME);
-        ctx.put(ContextFields.ID, getResult.getId());
-        ctx.put(ContextFields.VERSION, getResult.getVersion());
-        ctx.put(ContextFields.ROUTING, routing);
-        ctx.put(ContextFields.SOURCE, sourceAsMap);
-        ctx.put(ContextFields.NOW, nowInMillis.getAsLong());
+        UpdateScript.Metadata md = executeScript(
+            request.script,
+            new UpdateScript.Metadata(
+                getResult.getIndex(),
+                getResult.getId(),
+                getResult.getVersion(),
+                routing,
+                Op.INDEX, // The default operation is "index"
+                nowInMillis.getAsLong(),
+                MapperService.SINGLE_MAPPING_NAME,
+                sourceAndContent.v2()
+            )
+        );
+        Op op = lenientGetOp(md, logger, request.script.getIdOrCode());
+        final Map<String, Object> updatedSourceAsMap = md.getSource();
 
-        ctx = executeScript(request.script, ctx);
-
-        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, request.script.getIdOrCode());
-
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> updatedSourceAsMap = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
-
-        switch (operation) {
+        switch (op) {
             case INDEX -> {
                 final IndexRequest indexRequest = Requests.indexRequest(request.index())
                     .id(request.id())
@@ -308,17 +286,17 @@ public class UpdateHelper {
         }
     }
 
-    private Map<String, Object> executeScript(Script script, Map<String, Object> ctx) {
+    private UpdateScript.Metadata executeScript(Script script, UpdateScript.Metadata metadata) {
         try {
             if (scriptService != null) {
                 UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
-                UpdateScript executableScript = factory.newInstance(script.getParams(), ctx);
+                UpdateScript executableScript = factory.newInstance(script.getParams(), metadata);
                 executableScript.execute();
             }
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to execute script", e);
         }
-        return ctx;
+        return metadata;
     }
 
     /**
@@ -442,6 +420,16 @@ public class UpdateHelper {
         @Override
         public String toString() {
             return name;
+        }
+    }
+
+    protected Op lenientGetOp(UpdateScript.Metadata md, Logger logger, String scriptId) {
+        try {
+            return md.getOp();
+        } catch (IllegalArgumentException err) {
+            // TODO: can we remove this leniency yet?? (this comment from 1907c466, April 2017 -@stu)
+            logger.warn("[{}] for script [{}], doing nothing...", err.getMessage(), scriptId);
+            return Op.NOOP;
         }
     }
 

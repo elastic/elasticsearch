@@ -44,7 +44,7 @@ public abstract class IngestScript {
     public IngestScript(Map<String, Object> params, Map<String, Object> ctx, ZonedDateTime timestamp) {
         this.params = params;
         this.ctx = ctx;
-        this.metadata = new Metadata(ctx, timestamp);
+        this.metadata = (ctx != null) ? new Metadata(ctx, timestamp) : null;
     }
 
     /** Return the parameters for this script. */

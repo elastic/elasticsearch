@@ -8,8 +8,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import java.nio.file.Path;
-
 /**
  * Wrapper exception for checked exceptions thrown during the bootstrap process. Methods invoked
  * during bootstrap should explicitly declare the checked exceptions that they can throw, rather

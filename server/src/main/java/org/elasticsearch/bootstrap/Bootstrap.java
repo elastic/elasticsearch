@@ -282,12 +282,8 @@ final class Bootstrap {
     /**
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
-    static void init(
-        final boolean foreground,
-        final boolean quiet,
-        final Environment initialEnv,
-        SecureString keystorePassword
-    ) throws BootstrapException, NodeValidationException, UserException {
+    static void init(final boolean foreground, final boolean quiet, final Environment initialEnv, SecureString keystorePassword)
+        throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
         BootstrapInfo.init();

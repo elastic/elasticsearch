@@ -28,25 +28,15 @@ import java.nio.file.Path;
  * @param nodeSettings the node settings read from {@code elasticsearch.yml}, the cli and the process environment
  * @param configDir the directory where {@code elasticsearch.yml} and other config exists
  */
-public record ServerArgs(
-    boolean daemonize,
-    boolean quiet,
-    SecureString keystorePassword,
-    Settings nodeSettings,
-    Path configDir
-) implements Writeable {
+public record ServerArgs(boolean daemonize, boolean quiet, SecureString keystorePassword, Settings nodeSettings, Path configDir)
+    implements
+        Writeable {
 
     /**
      * Alternate constructor to read the args from a binary stream.
      */
     public ServerArgs(StreamInput in) throws IOException {
-        this(
-            in.readBoolean(),
-            in.readBoolean(),
-            in.readSecureString(),
-            Settings.readSettingsFromStream(in),
-            resolvePath(in.readString())
-        );
+        this(in.readBoolean(), in.readBoolean(), in.readSecureString(), Settings.readSettingsFromStream(in), resolvePath(in.readString()));
     }
 
     @SuppressForbidden(reason = "reading local path from stream")

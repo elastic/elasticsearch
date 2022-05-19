@@ -80,8 +80,8 @@ class ServerCli extends EnvironmentAwareCommand {
 
         Path pidFile = null;
         if (options.has(pidfileOption)) {
-             pidFile = options.valueOf(pidfileOption);
-             validatePidFile(pidFile);
+            pidFile = options.valueOf(pidfileOption);
+            validatePidFile(pidFile);
         }
 
         if (options.valuesOf(enrollmentTokenOption).size() > 1) {

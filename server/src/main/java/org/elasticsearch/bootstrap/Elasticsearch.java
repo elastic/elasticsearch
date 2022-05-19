@@ -22,7 +22,6 @@ import org.elasticsearch.node.NodeValidationException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
-import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
 

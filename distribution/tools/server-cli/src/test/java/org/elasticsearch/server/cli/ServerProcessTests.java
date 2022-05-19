@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 

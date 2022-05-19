@@ -48,7 +48,7 @@ public class InternalDistributionModuleCheckTaskProvider {
     private static final List<String> ES_JAR_EXCLUDES = List.of("elasticsearch-log4j");
 
     /** List of the current Elasticsearch Java Modules, by name. */
-    private static final List<String> EXPECTED_ES_MODUlES = List.of(
+    private static final List<String> EXPECTED_ES_SERVER_MODULES = List.of(
         "org.elasticsearch.base",
         "org.elasticsearch.cli",
         "org.elasticsearch.geo",
@@ -114,9 +114,9 @@ public class InternalDistributionModuleCheckTaskProvider {
     /** Checks that all expected Elasticsearch modules are present. */
     private static void assertAllModulesPresent(Path libPath) {
         List<String> actualESModules = ModuleFinder.of(libPath).findAll().stream().filter(isESModule).map(toName).sorted().toList();
-        if (actualESModules.equals(EXPECTED_ES_MODUlES) == false) {
+        if (actualESModules.equals(EXPECTED_ES_SERVER_MODULES) == false) {
             throw new GradleException(
-                "expected modules " + listToString(EXPECTED_ES_MODUlES) + ", \nactual modules " + listToString(actualESModules)
+                "expected modules " + listToString(EXPECTED_ES_SERVER_MODULES) + ", \nactual modules " + listToString(actualESModules)
             );
         }
     }

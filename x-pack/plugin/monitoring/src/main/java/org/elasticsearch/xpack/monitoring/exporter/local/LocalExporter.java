@@ -71,6 +71,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -350,8 +352,9 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         if (missingTemplates.isEmpty() == false) {
             // Check to see if the template installation is disabled. If it isn't, then we should say so in the log.
             logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "monitoring index templates [{}] do not exist, so service " + "cannot start (waiting on registered templates)",
+                () -> format(
+                    ROOT,
+                    "monitoring index templates [%s] do not exist, so service " + "cannot start (waiting on registered templates)",
                     missingTemplates
                 )
             );

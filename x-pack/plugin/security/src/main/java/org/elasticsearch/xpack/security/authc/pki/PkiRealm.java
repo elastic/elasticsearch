@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.security.authc.pki;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
@@ -53,6 +51,9 @@ import java.util.regex.Pattern;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.net.ssl.X509TrustManager;
+
+import static java.lang.String.format;
+import static java.util.Locale.ROOT;
 
 public class PkiRealm extends Realm implements CachingRealm {
 
@@ -151,11 +152,7 @@ public class PkiRealm extends Realm implements CachingRealm {
             User user = cache.get(fingerprint);
             if (user != null) {
                 logger.debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "Using cached authentication for DN [{}], as principal [{}]",
-                        token.dn(),
-                        user.principal()
-                    )
+                    () -> format(ROOT, "Using cached authentication for DN [%s], as principal [%s]", token.dn(), user.principal())
                 );
                 if (delegatedRealms.hasDelegation()) {
                     delegatedRealms.resolve(user.principal(), listener);
@@ -173,8 +170,9 @@ public class PkiRealm extends Realm implements CachingRealm {
                 final String principal = getPrincipalFromSubjectDN(principalPattern, token, logger);
                 if (principal == null) {
                     logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "the extracted principal after cert chain validation, from DN [{}], using pattern [{}] is null",
+                        () -> format(
+                            ROOT,
+                            "the extracted principal after cert chain validation, from DN [%s], using pattern [%s] is null",
                             token.dn(),
                             principalPattern.toString()
                         )
@@ -191,8 +189,9 @@ public class PkiRealm extends Realm implements CachingRealm {
                     }, listener::onFailure);
                     if (false == principal.equals(token.principal())) {
                         logger.debug(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "the extracted principal before [{}] and after [{}] cert chain validation, for DN [{}], are different",
+                            () -> format(
+                                ROOT,
+                                "the extracted principal before [%s] and after [%s] cert chain validation, for DN [%s], are different",
                                 token.principal(),
                                 principal,
                                 token.dn()
@@ -242,22 +241,14 @@ public class PkiRealm extends Realm implements CachingRealm {
         Matcher matcher = principalPattern.matcher(dn);
         if (false == matcher.find()) {
             logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "could not extract principal from DN [{}] using pattern [{}]",
-                    dn,
-                    principalPattern.toString()
-                )
+                () -> format(ROOT, "could not extract principal from DN [%s] using pattern [%s]", dn, principalPattern.toString())
             );
             return null;
         }
         String principal = matcher.group(1);
         if (Strings.isNullOrEmpty(principal)) {
             logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "the extracted principal from DN [{}] using pattern [{}] is empty",
-                    dn,
-                    principalPattern.toString()
-                )
+                () -> format(ROOT, "the extracted principal from DN [%s] using pattern [%s] is empty", dn, principalPattern.toString())
             );
             return null;
         }

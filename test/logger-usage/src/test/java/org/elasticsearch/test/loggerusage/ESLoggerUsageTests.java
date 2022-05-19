@@ -189,11 +189,11 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkNumberOfArgumentsParameterizedMessage3() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
+        logger.info(() -> format(ROOT, "Hello %s, %s, %s", "world", 2, "third argument"));
     }
 
     public void checkFailNumberOfArgumentsParameterizedMessage3() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
+        logger.info(() -> format(ROOT, "Hello %s, %s", "world", 2, "third argument"));
     }
 
     public void checkOrderOfExceptionArgument() {

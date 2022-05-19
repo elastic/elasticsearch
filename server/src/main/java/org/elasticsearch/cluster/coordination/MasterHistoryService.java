@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,6 +26,8 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 
 /**
  * This service provides access to this node's view of the master history, as well as access to other nodes' view of master stability.
@@ -33,17 +36,29 @@ public class MasterHistoryService {
     private final TransportService transportService;
     private final MasterHistory localMasterHistory;
     private final ClusterService clusterService;
+    private final LongSupplier currentTimeMillisSupplier;
+    private final TimeValue acceptableRemoteHistoryAge;
     /*
      * This is a view of the master history one a remote node, or the exception that fetching it resulted in. This is populated
-     * asynchronously.
+     * asynchronously. It is non-private for testing.
      */
-    volatile RemoteHistoryOrException remoteHistoryOrException = new RemoteHistoryOrException(null, null); // non-private for testing
+    volatile RemoteHistoryOrException remoteHistoryOrException = new RemoteHistoryOrException(null, null, Long.MIN_VALUE);
     private static final Logger logger = LogManager.getLogger(MasterHistoryService.class);
+
+    private static final TimeValue DEFAULT_MAX_USABLE_REMOTE_HISTORY_AGE = new TimeValue(5, TimeUnit.MINUTES);
+
+    public static final Setting<TimeValue> MAX_USABLE_REMOTE_HISTORY_AGE_SETTING = Setting.timeSetting(
+        "master_history.max_usable_remote_history_age",
+        DEFAULT_MAX_USABLE_REMOTE_HISTORY_AGE,
+        Setting.Property.NodeScope
+    );
 
     public MasterHistoryService(TransportService transportService, ThreadPool threadPool, ClusterService clusterService) {
         this.transportService = transportService;
         this.localMasterHistory = new MasterHistory(threadPool, clusterService);
         this.clusterService = clusterService;
+        this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
+        this.acceptableRemoteHistoryAge = MAX_USABLE_REMOTE_HISTORY_AGE_SETTING.get(clusterService.getSettings());
     }
 
     /**
@@ -68,6 +83,14 @@ public class MasterHistoryService {
     public List<DiscoveryNode> getRemoteMasterHistory() throws Exception {
         // Grabbing a reference to the object in case it is replaced in another thread during this method:
         RemoteHistoryOrException remoteHistoryOrExceptionCopy = remoteHistoryOrException;
+        /*
+         * If the remote history we have is too old, we just return null with the assumption that it is stale and the new one has not
+         * come in yet.
+         */
+        long acceptableRemoteHistoryTime = currentTimeMillisSupplier.getAsLong() - acceptableRemoteHistoryAge.getMillis();
+        if (remoteHistoryOrExceptionCopy.creationTimestamp < acceptableRemoteHistoryTime) {
+            return null;
+        }
         if (remoteHistoryOrExceptionCopy.exception != null) {
             throw remoteHistoryOrExceptionCopy.exception;
         }
@@ -108,13 +131,16 @@ public class MasterHistoryService {
                                 public void onResponse(MasterHistoryAction.Response response) {
                                     long endTime = System.nanoTime();
                                     logger.trace("Received history from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
-                                    remoteHistoryOrException = new RemoteHistoryOrException(response.getMasterHistory());
+                                    remoteHistoryOrException = new RemoteHistoryOrException(
+                                        response.getMasterHistory(),
+                                        currentTimeMillisSupplier.getAsLong()
+                                    );
                                 }
 
                                 @Override
                                 public void onFailure(Exception e) {
                                     logger.warn("Exception in master history request to master node", e);
-                                    remoteHistoryOrException = new RemoteHistoryOrException(e);
+                                    remoteHistoryOrException = new RemoteHistoryOrException(e, currentTimeMillisSupplier.getAsLong());
                                 }
                             }, connection::close), MasterHistoryAction.Response::new)
                         );
@@ -132,13 +158,14 @@ public class MasterHistoryService {
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn("Exception connecting to master node", e);
-                    remoteHistoryOrException = new RemoteHistoryOrException(e);
+                    remoteHistoryOrException = new RemoteHistoryOrException(e, currentTimeMillisSupplier.getAsLong());
                 }
             }
         );
     }
 
-    record RemoteHistoryOrException(List<DiscoveryNode> remoteHistory, Exception exception) { // non-private for testing
+    // non-private for testing
+    record RemoteHistoryOrException(List<DiscoveryNode> remoteHistory, Exception exception, long creationTimestamp) {
 
         public RemoteHistoryOrException {
             if (remoteHistory != null && exception != null) {
@@ -146,12 +173,12 @@ public class MasterHistoryService {
             }
         }
 
-        RemoteHistoryOrException(List<DiscoveryNode> remoteHistory) {
-            this(remoteHistory, null);
+        RemoteHistoryOrException(List<DiscoveryNode> remoteHistory, long creationTimestamp) {
+            this(remoteHistory, null, creationTimestamp);
         }
 
-        RemoteHistoryOrException(Exception exception) {
-            this(null, exception);
+        RemoteHistoryOrException(Exception exception, long creationTimestamp) {
+            this(null, exception, creationTimestamp);
         }
     }
 }

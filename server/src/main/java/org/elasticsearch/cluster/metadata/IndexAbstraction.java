@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -268,6 +269,23 @@ public interface IndexAbstraction {
             this.isHidden = false;
             this.isSystem = false;
             this.dataStreamAlias = true;
+        }
+
+        public Alias(Alias dataStreamAlias, Alias indexAlias) {
+            assert dataStreamAlias.aliasName.equals(indexAlias.aliasName);
+            this.aliasName = dataStreamAlias.aliasName;
+            List<Index> combine = new ArrayList<>(dataStreamAlias.referenceIndices.size() + indexAlias.referenceIndices.size());
+            combine.addAll(dataStreamAlias.referenceIndices);
+            combine.addAll(indexAlias.referenceIndices);
+            this.referenceIndices = Collections.unmodifiableList(combine);
+            // Always overrule writeIndex of dataStreamAlias
+            this.writeIndex = dataStreamAlias.writeIndex;
+            assert dataStreamAlias.isHidden == indexAlias.isHidden;
+            this.isHidden = dataStreamAlias.isHidden;
+            assert dataStreamAlias.isSystem == indexAlias.isSystem;
+            this.isSystem = dataStreamAlias.isSystem;
+            // Alias point to both indices and data streams, so it is data stream related
+            this.dataStreamAlias = dataStreamAlias.dataStreamAlias;
         }
 
         @Override

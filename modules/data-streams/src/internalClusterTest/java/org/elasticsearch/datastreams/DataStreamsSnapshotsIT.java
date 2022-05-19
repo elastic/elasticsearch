@@ -1080,17 +1080,13 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    public void testRestoreDataStreamAliasWithConflictingIndicesAlias() throws Exception {
+    public void testRestoreDataStreamAliasWithIndexAliasWithSameName() throws Exception {
         var snapshotName = "test-snapshot";
         createFullSnapshot(REPO, snapshotName);
         client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet();
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index").alias(new Alias("my-alias"));
         assertAcked(client.admin().indices().create(createIndexRequest).actionGet());
 
-        var e = expectThrows(
-            IllegalStateException.class,
-            () -> client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true).get()
-        );
-        assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (my-alias)"));
+        client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true).get();
     }
 }

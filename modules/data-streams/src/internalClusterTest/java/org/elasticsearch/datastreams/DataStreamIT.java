@@ -47,6 +47,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -856,17 +857,64 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testAddDataStreamAliasesMixedExpressionValidation() throws Exception {
-        createIndex("metrics-myindex");
+        String indexName = "metrics-myindex";
+        createIndex(indexName);
         putComposableIndexTemplate("id1", List.of("metrics-*"));
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
-        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index("metrics-*").aliases("my-alias");
+        String aliasName = "my-alias";
+        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index("metrics-*").aliases(aliasName);
         IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
         aliasesAddRequest.addAliasAction(addAction);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
-        assertThat(e.getMessage(), equalTo("expressions [metrics-*] that match with both data streams and regular indices are disallowed"));
+        assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
+        GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
+        assertThat(
+            response.getDataStreamAliases(),
+            equalTo(Map.of(dataStreamName, List.of(new DataStreamAlias(aliasName, List.of(dataStreamName), null, null))))
+        );
+        assertThat(response.getAliases().size(), equalTo(1));
+        assertThat(response.getAliases().get(indexName).get(0).getAlias(), equalTo(aliasName));
+    }
+
+    public void testIndexAliasAndDataStreamAliasWithTheSameName() throws Exception {
+        String indexName = "metrics-myindex";
+        createIndex(indexName);
+
+        putComposableIndexTemplate("id1", List.of("metrics-*"));
+        String dataStreamName = "metrics-foo";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        client().prepareIndex(indexName)
+            .setId("1")
+            .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"x\"}", XContentType.JSON)
+            .setOpType(DocWriteRequest.OpType.CREATE)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        client().prepareIndex(dataStreamName)
+            .setId("2")
+            .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"y\"}", XContentType.JSON)
+            .setOpType(DocWriteRequest.OpType.CREATE)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        String aliasName = "my-alias";
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index(indexName).aliases(aliasName));
+        aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index(dataStreamName).aliases(aliasName));
+        assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
+        GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
+        assertThat(
+            response.getDataStreamAliases(),
+            equalTo(Map.of(dataStreamName, List.of(new DataStreamAlias(aliasName, List.of(dataStreamName), null, null))))
+        );
+        assertThat(response.getAliases().size(), equalTo(1));
+        assertThat(response.getAliases().get(indexName).get(0).getAlias(), equalTo(aliasName));
+
+        SearchResponse searchResponse = client().prepareSearch(aliasName).get();
+        assertSearchHits(searchResponse, "1", "2");
     }
 
     public void testRemoveDataStreamAliasesMixedExpression() throws Exception {
@@ -1615,8 +1663,7 @@ public class DataStreamIT extends ESIntegTestCase {
             assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
             IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
             aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("logs-es").aliases("logs"));
-            var e = expectThrows(IllegalStateException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
-            assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (logs)"));
+            client().admin().indices().aliases(aliasesAddRequest).actionGet();
         }
         {
             assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet());
@@ -1630,8 +1677,7 @@ public class DataStreamIT extends ESIntegTestCase {
             );
 
             var request = new CreateDataStreamAction.Request("logs-es");
-            var e = expectThrows(IllegalStateException.class, () -> client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
-            assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (logs)"));
+            client().execute(CreateDataStreamAction.INSTANCE, request).actionGet();
         }
     }
 
@@ -1696,17 +1742,15 @@ public class DataStreamIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
 
         {
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index").alias(new Alias("logs"));
-            var e = expectThrows(IllegalStateException.class, () -> client().admin().indices().create(createIndexRequest).actionGet());
-            assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (logs)"));
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index1").alias(new Alias("logs"));
+            assertAcked(client().admin().indices().create(createIndexRequest).actionGet());
         }
         {
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index");
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index2");
             assertAcked(client().admin().indices().create(createIndexRequest).actionGet());
             IndicesAliasesRequest addAliasRequest = new IndicesAliasesRequest();
-            addAliasRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("my-index").aliases("logs"));
-            var e = expectThrows(IllegalStateException.class, () -> client().admin().indices().aliases(addAliasRequest).actionGet());
-            assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (logs)"));
+            addAliasRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("my-index2").aliases("logs"));
+            assertAcked(client().admin().indices().aliases(addAliasRequest).actionGet());
         }
     }
 

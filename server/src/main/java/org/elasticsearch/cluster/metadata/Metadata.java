@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
@@ -1863,9 +1864,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 allDataStreams = dataStreamMetadata.dataStreams().keySet();
                 // Adding data stream aliases:
                 for (String dataStreamAlias : dataStreamMetadata.getDataStreamAliases().keySet()) {
-                    if (indexAliases.contains(dataStreamAlias)) {
-                        duplicates.add("data stream alias and indices alias have the same name (" + dataStreamAlias + ")");
-                    }
                     if (allIndices.contains(dataStreamAlias)) {
                         aliasDuplicatesWithIndices.add(dataStreamAlias);
                     }
@@ -2003,7 +2001,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 assert parent == null || parent.getIndices().stream().anyMatch(index -> name.equals(index.getName()))
                     : "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
                 IndexAbstraction existing = indicesLookup.put(name, new ConcreteIndex(indexMetadata, parent));
-                assert existing == null : "duplicate for " + indexMetadata.getIndex();
+                assert existing == null : "duplicate for index " + indexMetadata.getIndex();
 
                 for (var aliasMetadata : indexMetadata.getAliases().values()) {
                     List<IndexMetadata> aliasIndices = aliasToIndices.computeIfAbsent(aliasMetadata.getAlias(), k -> new ArrayList<>());
@@ -2013,8 +2011,14 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
             for (var entry : aliasToIndices.entrySet()) {
                 AliasMetadata alias = entry.getValue().get(0).getAliases().get(entry.getKey());
-                IndexAbstraction existing = indicesLookup.put(entry.getKey(), new IndexAbstraction.Alias(alias, entry.getValue()));
-                assert existing == null : "duplicate for " + entry.getKey();
+                IndexAbstraction.Alias indexAliasEntry = new IndexAbstraction.Alias(alias, entry.getValue());
+                IndexAbstraction existing = indicesLookup.putIfAbsent(entry.getKey(), indexAliasEntry);
+                if (existing instanceof IndexAbstraction.Alias dataStreamAliasEntry) {
+                    IndexAbstraction.Alias newEntry = new IndexAbstraction.Alias(dataStreamAliasEntry, indexAliasEntry);
+                    indicesLookup.put(entry.getKey(), newEntry);
+                } else {
+                    assert existing == null : "duplicate for alias " + entry.getKey();
+                }
             }
 
             return Collections.unmodifiableSortedMap(indicesLookup);

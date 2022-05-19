@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.security.profile;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -26,27 +27,25 @@ public class ProfileDocumentTests extends ESTestCase {
 
     // Same uid should be used for the same username and domain definition (if domain is configured) or realm
     public void testSameUid() {
+        // only username matters
         final String username = randomAlphaOfLengthBetween(5, 12);
-
-        final RealmDomain realmDomain = randomFrom(AuthenticationTests.randomDomain(true), null);
-        final Authentication.RealmRef realmRefWithoutDomain = AuthenticationTests.randomRealmRef(false);
 
         final Set<String> allUids = new HashSet<>();
         IntStream.range(0, 10).forEach(i -> {
-            Authentication.RealmRef realmRef;
-            if (realmDomain == null) {
-                realmRef = realmRefWithoutDomain;
-            } else {
-                final RealmConfig.RealmIdentifier realmIdentifier = randomFrom(realmDomain.realms());
-                realmRef = new Authentication.RealmRef(
-                    realmIdentifier.getName(),
-                    realmIdentifier.getType(),
-                    randomAlphaOfLengthBetween(3, 8),
-                    realmDomain
-                );
-            }
-            realmRef = maybeMutateRealmRef(realmRef);
-            final ProfileDocument profileDocument = ProfileDocument.fromSubject(new Subject(new User(username), realmRef));
+            final Authentication.RealmRef realmRef = AuthenticationTestHelper.randomRealmRef(randomBoolean());
+            final User user = new User(
+                username,
+                randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)),
+                randomAlphaOfLengthBetween(3, 18),
+                randomAlphaOfLengthBetween(8, 18),
+                randomMap(
+                    0,
+                    5,
+                    () -> new Tuple<>(randomAlphaOfLengthBetween(3, 8), randomFrom(randomAlphaOfLengthBetween(3, 8), randomInt()))
+                ),
+                randomBoolean()
+            );
+            final ProfileDocument profileDocument = ProfileDocument.fromSubject(new Subject(user, realmRef));
             allUids.add(profileDocument.uid());
         });
         assertThat(allUids, hasSize(1));

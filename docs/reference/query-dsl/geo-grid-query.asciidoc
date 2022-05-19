@@ -53,7 +53,7 @@ PUT /my_locations/_doc/3?refresh
 --------------------------------------------------
 // TESTSETUP
 
-
+[[query-dsl-geo-grid-query-geohash]]
 ==== geohash grid
 
 Using a geohash_grid aggregation, it is possible to group documents depending on their geohash value:
@@ -165,6 +165,7 @@ GET /my_locations/_search
 // TESTRESPONSE[s/"took" : 1/"took" : $body.took/]
 
 
+[[query-dsl-geo-grid-query-geotile]]
 ==== geotile grid
 
 Using a geotile_grid aggregation, it is possible to group documents depending on their geotile value:
@@ -277,7 +278,7 @@ GET /my_locations/_search
 // TESTRESPONSE[s/"took" : 1/"took" : $body.took/]
 
 
-
+[[query-dsl-geo-grid-query-geohex]]
 ==== geohex grid
 
 Using a geohex_grid aggregation, it is possible to group documents depending on their geohex value:

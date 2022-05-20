@@ -181,7 +181,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getName(), equalTo("my-alias"));
         assertThat(
             getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{\"boost\":1.0}}")
+            equalTo("{\"match_all\":{}}")
         );
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getWriteDataStream(), equalTo("other-ds"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
@@ -189,7 +189,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds"));
         assertThat(
             getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{\"boost\":1.0}}")
+            equalTo("{\"match_all\":{}}")
         );
     }
 
@@ -370,7 +370,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
                         "my-alias",
                         List.of(dataStreamToSnapshot),
                         "other-ds".equals(dataStreamToSnapshot) ? "other-ds" : null,
-                        Map.of("match_all", Map.of("boost", 1f))
+                        Map.of("match_all", Collections.emptyMap())
                     )
                 )
             )
@@ -419,7 +419,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getWriteDataStream(), equalTo("other-ds"));
         assertThat(
             getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{\"boost\":1.0}}")
+            equalTo("{\"match_all\":{}}")
         );
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getName(), equalTo("my-alias"));
@@ -427,7 +427,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds"));
         assertThat(
             getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{\"boost\":1.0}}")
+            equalTo("{\"match_all\":{}}")
         );
 
         DeleteDataStreamAction.Request r = new DeleteDataStreamAction.Request(new String[] { "*" });
@@ -473,7 +473,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getDataStreams(), containsInAnyOrder("ds", "other-ds"));
         assertThat(
             getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{\"boost\":1.0}}")
+            equalTo("{\"match_all\":{}}")
         );
 
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
@@ -482,7 +482,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getDataStreams(), containsInAnyOrder("ds", "other-ds"));
         assertThat(
             getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{\"boost\":1.0}}")
+            equalTo("{\"match_all\":{}}")
         );
 
         assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" })).get());
@@ -567,21 +567,21 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds2").get(0).getName(), equalTo("my-alias"));
         assertThat(
             getAliasesResponse.getDataStreamAliases().get("ds2").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{\"boost\":1.0}}")
+            equalTo("{\"match_all\":{}}")
         );
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getName(), equalTo("my-alias"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getWriteDataStream(), equalTo("other-ds"));
         assertThat(
             getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{\"boost\":1.0}}")
+            equalTo("{\"match_all\":{}}")
         );
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getName(), equalTo("my-alias"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds"));
         assertThat(
             getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{\"boost\":1.0}}")
+            equalTo("{\"match_all\":{}}")
         );
     }
 
@@ -621,21 +621,21 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds2").get(0).getWriteDataStream(), equalTo("other-ds2"));
         assertThat(
             getAliasesResponse.getDataStreamAliases().get("other-ds2").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{\"boost\":1.0}}")
+            equalTo("{\"match_all\":{}}")
         );
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getName(), equalTo("my-alias"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getWriteDataStream(), equalTo("other-ds2"));
         assertThat(
             getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{\"boost\":1.0}}")
+            equalTo("{\"match_all\":{}}")
         );
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getName(), equalTo("my-alias"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds2"));
         assertThat(
             getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{\"boost\":1.0}}")
+            equalTo("{\"match_all\":{}}")
         );
     }
 

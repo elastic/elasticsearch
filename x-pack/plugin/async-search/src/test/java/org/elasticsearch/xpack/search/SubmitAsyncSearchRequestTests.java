@@ -131,7 +131,7 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
         Task task = request.createTask(1, "type", "action", null, Collections.emptyMap());
         assertEquals(
             "waitForCompletionTimeout[1s], keepOnCompletion[false] keepAlive[5d], request=indices[index], "
-                + "search_type[QUERY_THEN_FETCH], source[{\"query\":{\"match_all\":{\"boost\":1.0}}}]",
+                + "search_type[QUERY_THEN_FETCH], source[{\"query\":{\"match_all\":{}}}]",
             task.getDescription()
         );
     }

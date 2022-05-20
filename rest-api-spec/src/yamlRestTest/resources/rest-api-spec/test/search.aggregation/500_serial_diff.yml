@@ -1,4 +1,8 @@
 basic:
+  - skip:
+      version: " - 7.1.99"
+      reason: fixed_interval added in 7.2
+
   - do:
       bulk:
         index: test
@@ -37,6 +41,9 @@ basic:
 
 ---
 lag:
+      - skip:
+          version: " - 7.1.99"
+          reason: fixed_interval added in 7.2
       - do:
           bulk:
             index: test
@@ -80,6 +87,10 @@ lag:
 
 ---
 parent has gap:
+  - skip:
+      version: " - 7.1.99"
+      reason: fixed_interval added in 7.2
+
   - do:
       bulk:
         index: test
@@ -122,8 +133,8 @@ parent has gap:
 ---
 parent has min_doc_count:
   - skip:
-      version: " - 8.2.99"
-      reason: allowed in 8.3.0
+      version: " - 7.17.3"
+      reason: allowed in 7.17.4
 
   - do:
       bulk:

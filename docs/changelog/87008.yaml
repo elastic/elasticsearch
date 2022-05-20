@@ -1,5 +1,0 @@
-pr: 87008
-summary: Check for null parent in `initPid`
-area: Infra/Core
-type: bug
-issues: []

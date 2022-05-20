@@ -43,7 +43,7 @@ public class MockPluginsService extends PluginsService {
 
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            PluginInfo pluginInfo = new PluginInfo(
+            PluginDescriptor pluginInfo = new PluginDescriptor(
                 pluginClass.getName(),
                 "classpath plugin",
                 "NA",
@@ -73,6 +73,6 @@ public class MockPluginsService extends PluginsService {
 
     @Override
     public PluginsAndModules info() {
-        return new PluginsAndModules(this.classpathPlugins.stream().map(LoadedPlugin::info).toList(), List.of());
+        return new PluginsAndModules(this.classpathPlugins.stream().map(LoadedPlugin::descriptor).toList(), List.of());
     }
 }

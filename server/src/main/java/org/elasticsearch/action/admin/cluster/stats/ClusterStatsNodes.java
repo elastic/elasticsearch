@@ -25,7 +25,8 @@ import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -52,7 +53,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
     private final ProcessStats process;
     private final JvmStats jvm;
     private final FsInfo.Path fs;
-    private final Set<PluginInfo> plugins;
+    private final Set<PluginRuntimeInfo> plugins;
     private final NetworkTypes networkTypes;
     private final DiscoveryTypes discoveryTypes;
     private final PackagingTypes packagingTypes;
@@ -118,7 +119,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         return fs;
     }
 
-    public Set<PluginInfo> getPlugins() {
+    public Set<PluginRuntimeInfo> getPlugins() {
         return plugins;
     }
 
@@ -161,7 +162,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         fs.toXContent(builder, params);
 
         builder.startArray(Fields.PLUGINS);
-        for (PluginInfo pluginInfo : plugins) {
+        for (PluginRuntimeInfo pluginInfo : plugins) {
             pluginInfo.toXContent(builder, params);
         }
         builder.endArray();

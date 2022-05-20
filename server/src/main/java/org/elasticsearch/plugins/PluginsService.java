@@ -57,7 +57,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param instance The constructed instance of the plugin's main class
      * @param loader   The classloader for the plugin
      */
-    record LoadedPlugin(PluginInfo info, Plugin instance, ClassLoader loader) {}
+    record LoadedPlugin(PluginDescriptor info, Plugin instance, ClassLoader loader) {}
 
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
 
@@ -95,14 +95,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         this.configPath = configPath;
 
         List<LoadedPlugin> pluginsLoaded = new ArrayList<>();
-        List<PluginInfo> pluginsList = new ArrayList<>();
+        List<PluginDescriptor> pluginsList = new ArrayList<>();
         // we need to build a List of plugins for checking mandatory plugins
         final List<String> pluginsNames = new ArrayList<>();
 
         // first we load plugins that are on the classpath. this is for tests
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            PluginInfo pluginInfo = new PluginInfo(
+            PluginDescriptor pluginDescriptor = new PluginDescriptor(
                 pluginClass.getName(),
                 "classpath plugin",
                 "NA",
@@ -117,15 +117,15 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 false
             );
             if (logger.isTraceEnabled()) {
-                logger.trace("plugin loaded from classpath [{}]", pluginInfo);
+                logger.trace("plugin loaded from classpath [{}]", pluginDescriptor);
             }
-            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, null));
-            pluginsList.add(pluginInfo);
-            pluginsNames.add(pluginInfo.getName());
+            pluginsLoaded.add(new LoadedPlugin(pluginDescriptor, plugin, null));
+            pluginsList.add(pluginDescriptor);
+            pluginsNames.add(pluginDescriptor.getName());
         }
 
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
-        List<PluginInfo> modulesList = new ArrayList<>();
+        List<PluginDescriptor> modulesList = new ArrayList<>();
         // load modules
         if (modulesDirectory != null) {
             try {
@@ -168,7 +168,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         // we don't log jars in lib/ we really shouldn't log modules,
         // but for now: just be transparent so we can debug any potential issues
         logPluginInfo(info.getModuleInfos(), "module", logger);
-        logPluginInfo(info.getPluginInfos(), "plugin", logger);
+        logPluginInfo(pluginsList, "plugin", logger);
     }
 
     // package-private for testing
@@ -188,16 +188,18 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private static void logPluginInfo(final List<PluginInfo> pluginInfos, final String type, final Logger logger) {
-        assert pluginInfos != null;
-        if (pluginInfos.isEmpty()) {
+    private static void logPluginInfo(final List<PluginDescriptor> pluginDescriptors, final String type, final Logger logger) {
+        assert pluginDescriptors != null;
+        if (pluginDescriptors.isEmpty()) {
             logger.info("no " + type + "s loaded");
         } else {
-            for (final String name : pluginInfos.stream().map(PluginInfo::getName).sorted().toList()) {
+            for (final String name : pluginDescriptors.stream().map(PluginDescriptor::getName).sorted().toList()) {
                 logger.info("loaded " + type + " [" + name + "]");
             }
         }
     }
+
+    private static PluginsAndModules createInfo()
 
     /**
      * Map a function over all plugins

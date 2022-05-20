@@ -377,10 +377,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
     }
 
     public void testBackoffDepletion() {
-        final Subject subject = new Subject(
-            new User(randomAlphaOfLengthBetween(5, 12)),
-            AuthenticationTests.randomRealmRef(randomBoolean())
-        );
+        final Subject subject = new Subject(new User(randomAlphaOfLengthBetween(5, 12)), randomRealmRef());
         final ProfileDocument profileDocument = ProfileDocument.fromSubject(subject);
 
         final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
@@ -396,7 +393,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         if (randomBoolean()) {
             authentication = authentication.token();
         } else {
-            authentication = authentication.runAs(AuthenticationTests.randomUser(), AuthenticationTests.randomRealmRef(randomBoolean()));
+            authentication = authentication.runAs(AuthenticationTests.randomUser(), randomRealmRef());
             if (randomBoolean()) {
                 authentication = authentication.token();
             }
@@ -424,7 +421,11 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                 realmRef.getNodeName(),
                 new RealmDomain(
                     "my_domain",
-                    Set.of(new RealmConfig.RealmIdentifier("file", "file"), new RealmConfig.RealmIdentifier("native", "index"))
+                    Set.of(
+                        new RealmConfig.RealmIdentifier("file", "file"),
+                        new RealmConfig.RealmIdentifier("native", "index"),
+                        new RealmConfig.RealmIdentifier(realmRef.getType(), realmRef.getName())
+                    )
                 )
             );
         }

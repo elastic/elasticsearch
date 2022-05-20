@@ -218,6 +218,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
     /**
      * Make sure that we don't hit StackOverflow if responses are replied on the same thread.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85760")
     public void testManyShards() {
         DiscoveryNodes discoNodes = newNodes(10);
         int numberOfShards = randomIntBetween(200, 10000);

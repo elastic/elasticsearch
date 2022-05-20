@@ -117,7 +117,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             builder = deleteResponseBuilder;
             itemParser = (deleteParser) -> DeleteResponse.parseXContentFields(deleteParser, deleteResponseBuilder);
         } else {
-            throwUnknownField(currentFieldName, parser.getTokenLocation());
+            throwUnknownField(currentFieldName, parser);
         }
 
         RestStatus status = null;

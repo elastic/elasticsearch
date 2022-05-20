@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -59,10 +60,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -1212,23 +1213,22 @@ public final class InternalTestCluster extends TestCluster {
         }
         logger.trace("validating cluster formed, expecting {}", expectedNodes);
 
-        try {
-            // use waiting via the cluster service first to save on some busy-waiting and sleeping before entering the busy assert below
-            ClusterServiceUtils.awaitClusterState(
-                logger,
-                state -> state.nodes().getMasterNodeId() != null && state.nodes().getSize() == expectedNodes.size(),
-                getInstance(ClusterService.class)
-            );
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
+        assertFalse(
+            client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setWaitForNodes(Integer.toString(expectedNodes.size()))
+                .get()
+                .isTimedOut()
+        );
         try {
             assertBusy(() -> {
                 final List<ClusterState> states = nodes.values()
                     .stream()
                     .map(node -> getInstanceFromNode(ClusterService.class, node.node()))
                     .map(ClusterService::state)
-                    .collect(Collectors.toList());
+                    .toList();
                 final String debugString = ", expected nodes: " + expectedNodes + " and actual cluster states " + states;
                 // all nodes have a master
                 assertTrue("Missing master" + debugString, states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null));

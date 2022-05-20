@@ -275,6 +275,17 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         this.cachedTimeThread.start();
     }
 
+    // for subclassing by tests that don't actually use any of the machinery that the regular constructor sets up
+    protected ThreadPool() {
+        this.builders = Map.of();
+        this.executors = Map.of();
+        this.cachedTimeThread = null;
+        this.threadPoolInfo = new ThreadPoolInfo(List.of());
+        this.slowSchedulerWarnThresholdNanos = 0L;
+        this.threadContext = new ThreadContext(Settings.EMPTY);
+        this.scheduler = null;
+    }
+
     /**
      * Returns a value of milliseconds that may be used for relative time calculations.
      *

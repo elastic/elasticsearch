@@ -1,0 +1,5 @@
+pr: 85826
+summary: Refactor array part into a `BytesRefArray` which can be serialized and …
+area: "Infra/Core"
+type: enhancement
+issues: []

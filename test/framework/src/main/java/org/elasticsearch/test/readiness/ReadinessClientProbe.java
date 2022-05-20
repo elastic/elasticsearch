@@ -20,7 +20,8 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
-import static org.junit.Assert.assertEquals;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.fail;
 
 /**
@@ -66,7 +67,7 @@ public interface ReadinessClientProbe {
         try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 String message = expectThrows(IOException.class, () -> channelConnect(channel, socketAddress)).getMessage();
-                assertEquals("Connection refused", message);
+                assertThat(message, containsString("Connection refused"));
                 return null;
             });
         }

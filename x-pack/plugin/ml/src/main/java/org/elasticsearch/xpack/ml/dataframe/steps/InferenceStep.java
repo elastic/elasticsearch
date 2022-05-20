@@ -83,9 +83,7 @@ public class InferenceStep extends AbstractDataFrameAnalyticsStep {
             } else {
                 // no need to run inference at all so let us skip
                 // loading the model in memory.
-                LOGGER.debug(
-                    () -> new ParameterizedMessage("[{}] Inference step completed immediately as there are no test docs", config.getId())
-                );
+                LOGGER.debug(() -> "[" + config.getId() + "] Inference step completed immediately as there are no test docs");
                 task.getStatsHolder().getProgressTracker().updateInferenceProgress(100);
                 listener.onResponse(new StepResponse(isTaskStopping()));
                 return;

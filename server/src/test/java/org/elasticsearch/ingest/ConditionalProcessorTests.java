@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
@@ -94,6 +95,11 @@ public class ConditionalProcessorTests extends ESTestCase {
                 public String getDescription() {
                     return null;
                 }
+
+                @Override
+                public boolean isAsync() {
+                    return false;
+                }
             },
             relativeTimeProvider
         );
@@ -102,7 +108,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         String falseValue = "falsy";
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue(conditionalField, falseValue);
-        processor.execute(ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
         assertThat(ingestDocument.getSourceAndMetadata().get(conditionalField), is(falseValue));
         assertThat(ingestDocument.getSourceAndMetadata(), not(hasKey("foo")));
         assertStats(processor, 0, 0, 0);
@@ -111,13 +117,13 @@ public class ConditionalProcessorTests extends ESTestCase {
         ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue(conditionalField, falseValue);
         ingestDocument.setFieldValue("error", true);
-        processor.execute(ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
         assertStats(processor, 0, 0, 0);
 
         // true, always call processor and increments metrics
         ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue(conditionalField, trueValue);
-        processor.execute(ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
         assertThat(ingestDocument.getSourceAndMetadata().get(conditionalField), is(trueValue));
         assertThat(ingestDocument.getSourceAndMetadata().get("foo"), is("bar"));
         assertStats(processor, 1, 0, 1);
@@ -127,7 +133,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         ingestDocument.setFieldValue("error", true);
         IngestDocument finalIngestDocument = ingestDocument;
         Exception holder[] = new Exception[1];
-        processor.execute(finalIngestDocument, (result, e) -> { holder[0] = e; });
+        execProcessor(processor, finalIngestDocument, (result, e) -> { holder[0] = e; });
         assertThat(holder[0], instanceOf(RuntimeException.class));
         assertStats(processor, 2, 1, 2);
     }
@@ -187,7 +193,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         );
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
-        processor.execute(ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
         assertWarnings("[types removal] Looking up doc types [_type] in scripts is deprecated.");
     }
 
@@ -219,12 +225,12 @@ public class ConditionalProcessorTests extends ESTestCase {
             }
         }, storedScripts);
         Script script = new Script(ScriptType.STORED, null, "foo", Map.of());
-        var processor = new ConditionalProcessor(null, null, script, scriptService, null);
+        var processor = new ConditionalProcessor(null, null, script, scriptService, new FakeProcessor(null, null, null, null));
         fail.set(true);
         // must change the script source or the cached version will be used
         storedScripts.put("foo", new StoredScriptSource("lang", "changed", Map.of()));
         IngestDocument ingestDoc = new IngestDocument(Map.of(), Map.of());
-        processor.execute(ingestDoc, (doc, e) -> { assertThat(e.getMessage(), equalTo("bad script")); });
+        execProcessor(processor, ingestDoc, (doc, e) -> { assertThat(e.getMessage(), equalTo("bad script")); });
     }
 
     public void testRuntimeError() {
@@ -239,9 +245,9 @@ public class ConditionalProcessorTests extends ESTestCase {
             Map.of()
         );
         Script script = new Script(ScriptType.INLINE, "lang", "foo", Map.of());
-        var processor = new ConditionalProcessor(null, null, script, scriptService, null);
+        var processor = new ConditionalProcessor(null, null, script, scriptService, new FakeProcessor(null, null, null, null));
         IngestDocument ingestDoc = new IngestDocument(Map.of(), Map.of());
-        processor.execute(ingestDoc, (doc, e) -> { assertThat(e.getMessage(), equalTo("runtime problem")); });
+        execProcessor(processor, ingestDoc, (doc, e) -> { assertThat(e.getMessage(), equalTo("runtime problem")); });
     }
 
     private static void assertMutatingCtxThrows(Consumer<Map<String, Object>> mutation) throws Exception {
@@ -269,11 +275,11 @@ public class ConditionalProcessorTests extends ESTestCase {
             "desription",
             new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap()),
             scriptService,
-            null
+            new FakeProcessor(null, null, null, null)
         );
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue("listField", new ArrayList<>());
-        processor.execute(ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
         Exception e = expectedException.get();
         assertThat(e, instanceOf(UnsupportedOperationException.class));
         assertEquals("Mutating ingest documents in conditionals is not supported", e.getMessage());
@@ -287,4 +293,18 @@ public class ConditionalProcessorTests extends ESTestCase {
         assertThat(stats.getIngestFailedCount(), equalTo(failed));
         assertThat(stats.getIngestTimeInMillis(), greaterThanOrEqualTo(time));
     }
+
+    private static void execProcessor(Processor processor, IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {
+        if (processor.isAsync()) {
+            processor.execute(doc, handler);
+        } else {
+            try {
+                IngestDocument result = processor.execute(doc);
+                handler.accept(result, null);
+            } catch (Exception e) {
+                handler.accept(null, e);
+            }
+        }
+    }
+
 }

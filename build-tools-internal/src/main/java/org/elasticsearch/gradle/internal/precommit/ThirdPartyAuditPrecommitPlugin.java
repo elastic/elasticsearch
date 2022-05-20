@@ -48,7 +48,7 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements I
         TaskProvider<ThirdPartyAuditTask> audit = project.getTasks().register("thirdPartyAudit", ThirdPartyAuditTask.class);
         // usually only one task is created. but this construct makes our integTests easier to setup
         project.getTasks().withType(ThirdPartyAuditTask.class).configureEach(t -> {
-            Configuration runtimeConfiguration = getRuntimeConfiguration(project);
+            Configuration runtimeConfiguration = project.getConfigurations().getByName("runtimeClasspath");
             Configuration compileOnly = project.getConfigurations()
                 .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
             t.setClasspath(runtimeConfiguration.plus(compileOnly));
@@ -68,11 +68,4 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements I
         return audit;
     }
 
-    private Configuration getRuntimeConfiguration(Project project) {
-        Configuration runtime = project.getConfigurations().findByName("runtimeClasspath");
-        if (runtime == null) {
-            return project.getConfigurations().getByName("testCompileClasspath");
-        }
-        return runtime;
-    }
 }

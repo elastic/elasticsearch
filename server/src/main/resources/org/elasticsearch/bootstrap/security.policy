@@ -52,8 +52,14 @@ grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
   permission java.lang.RuntimePermission "createClassLoader";
 };
 
-grant codeBase "${codebase.elasticsearch-x-content}" {
+grant codeBase "${codebase.elasticsearch-core}" {
   permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "getClassLoader";
+};
+
+grant codeBase "${codebase.elasticsearch-cli}" {
+  // we don't actually use write, but it is needed to get the entire property map
+  permission java.util.PropertyPermission "*", "read,write";
 };
 
 grant codeBase "${codebase.jna}" {

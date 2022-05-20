@@ -15,7 +15,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -106,7 +105,7 @@ public class LocalAllocateDangledIndices {
                 indexNames[i] = request.indices[i].getIndex().getName();
             }
             final String source = "allocation dangled indices " + Arrays.toString(indexNames);
-            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
+            submitUnbatchedTask(source, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     if (currentState.blocks().disableStatePersistence()) {
@@ -220,7 +219,7 @@ public class LocalAllocateDangledIndices {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                    logger.error(() -> "unexpected failure during [" + source + "]", e);
                     try {
                         channel.sendResponse(e);
                     } catch (Exception inner) {
@@ -237,13 +236,13 @@ public class LocalAllocateDangledIndices {
                         logger.warn("failed send response for allocating dangled", e);
                     }
                 }
-            }, newExecutor());
+            });
         }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     public static class AllocateDangledRequest extends TransportRequest {

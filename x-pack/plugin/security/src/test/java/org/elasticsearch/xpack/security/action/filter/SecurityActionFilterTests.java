@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -116,7 +117,10 @@ public class SecurityActionFilterTests extends ESTestCase {
         ActionListener listener = mock(ActionListener.class);
         Task task = mock(Task.class);
         User user = new User("username", "r1", "r2");
-        Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
         String requestId = UUIDs.randomBase64UUID();
         mockAuthentication(request, authentication, requestId);
         mockAuthorize();
@@ -132,7 +136,10 @@ public class SecurityActionFilterTests extends ESTestCase {
         ActionListener listener = mock(ActionListener.class);
         Task task = mock(Task.class);
         User user = new User("username", "r1", "r2");
-        Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
         String requestId = UUIDs.randomBase64UUID();
         mockAuthentication(request, authentication, requestId);
         mockAuthorize();
@@ -153,7 +160,10 @@ public class SecurityActionFilterTests extends ESTestCase {
         ActionRequest request = mock(ActionRequest.class);
         ActionListener listener = mock(ActionListener.class);
         User user = new User("username", "r1", "r2");
-        Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
         SetOnce<Authentication> authenticationSetOnce = new SetOnce<>();
         SetOnce<IndicesAccessControl> accessControlSetOnce = new SetOnce<>();
         SetOnce<String> requestIdOnActionHandler = new SetOnce<>();
@@ -216,7 +226,10 @@ public class SecurityActionFilterTests extends ESTestCase {
         ActionListener listener = mock(ActionListener.class);
         Task task = mock(Task.class);
         User user = new User("username", "r1", "r2");
-        Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
         ActionResponse actionResponse = mock(ActionResponse.class);
         mockChain(task, action, request, actionResponse);
         SetOnce<String> requestIdFromAuthn = new SetOnce<>();
@@ -259,7 +272,10 @@ public class SecurityActionFilterTests extends ESTestCase {
         RuntimeException exception = new RuntimeException("process-error");
         Task task = mock(Task.class);
         User user = new User("username", "r1", "r2");
-        Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
         doAnswer(i -> {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(4));

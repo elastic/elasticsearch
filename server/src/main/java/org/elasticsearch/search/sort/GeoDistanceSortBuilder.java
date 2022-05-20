@@ -448,9 +448,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                         );
                     }
                     fieldName = currentName;
-                    GeoPoint point = new GeoPoint();
-                    GeoUtils.parseGeoPoint(parser, point);
-                    geoPoints.add(point);
+                    geoPoints.add(GeoUtils.parseGeoPoint(parser));
                 }
             } else if (token.isValue()) {
                 if (parser.getRestApiVersion() == RestApiVersion.V_7
@@ -728,13 +726,9 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     );
                 }
                 double lat = parser.doubleValue();
-                GeoPoint point = new GeoPoint();
-                point.reset(lat, lon);
-                geoPoints.add(point);
+                geoPoints.add(new GeoPoint(lat, lon));
             } else {
-                GeoPoint point = new GeoPoint();
-                GeoUtils.parseGeoPoint(parser, point);
-                geoPoints.add(point);
+                geoPoints.add(GeoUtils.parseGeoPoint(parser));
             }
 
         }

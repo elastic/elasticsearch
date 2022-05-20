@@ -259,9 +259,7 @@ public class AsyncTaskManagementService<
                 ActionListener.wrap(
                     // We should only unregister after the result is saved
                     resp -> {
-                        logger.trace(
-                            () -> new ParameterizedMessage("stored eql search results for [{}]", searchTask.getExecutionId().getEncoded())
-                        );
+                        logger.trace(() -> "stored eql search results for [" + searchTask.getExecutionId().getEncoded() + "]");
                         taskManager.unregister(searchTask);
                         if (storedResponse.getException() != null) {
                             searchTask.onFailure(storedResponse.getException());
@@ -295,10 +293,7 @@ public class AsyncTaskManagementService<
         } catch (Exception exc) {
             taskManager.unregister(searchTask);
             searchTask.onFailure(exc);
-            logger.error(
-                () -> new ParameterizedMessage("failed to store eql search results for [{}]", searchTask.getExecutionId().getEncoded()),
-                exc
-            );
+            logger.error(() -> "failed to store eql search results for [" + searchTask.getExecutionId().getEncoded() + "]", exc);
         }
     }
 

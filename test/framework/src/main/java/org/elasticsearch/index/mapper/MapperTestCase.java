@@ -30,6 +30,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
@@ -38,6 +41,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,6 +49,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -56,6 +61,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -762,5 +768,143 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             + "] was ["
             + mapper.typeName()
             + "].";
+    }
+
+    public record SyntheticSourceExample(Object inputValue, Object result, CheckedConsumer<XContentBuilder, IOException> mapping) {}
+
+    public record SyntheticSourceInvalidExample(Matcher<String> error, CheckedConsumer<XContentBuilder, IOException> mapping) {}
+
+    public interface SyntheticSourceSupport {
+        /**
+         * Examples that should work when source is generated from doc values.
+         */
+        SyntheticSourceExample example() throws IOException;
+
+        /**
+         * Examples of mappings that should be rejected when source is configured to
+         * be loaded from doc values.
+         */
+        List<SyntheticSourceInvalidExample> invalidExample() throws IOException;
+    }
+
+    protected abstract SyntheticSourceSupport syntheticSourceSupport();
+
+    public final void testSyntheticSource() throws IOException {
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example();
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            syntheticSourceExample.mapping().accept(b);
+            b.endObject();
+        }));
+        String expected = Strings.toString(
+            JsonXContent.contentBuilder().startObject().field("field", syntheticSourceExample.result).endObject()
+        );
+        assertThat(syntheticSource(mapper, b -> b.field("field", syntheticSourceExample.inputValue)), equalTo(expected));
+    }
+
+    public final void testNoSyntheticSourceForScript() throws IOException {
+        // Fetch the ingest script support to eagerly assumeFalse if the mapper doesn't support ingest scripts
+        ingestScriptSupport();
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            minimalMapping(b);
+            b.field("script", randomBoolean() ? "empty" : "non-empty");
+            b.endObject();
+        }));
+        assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
+    }
+
+    public final void testSyntheticSourceInObject() throws IOException {
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example();
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("obj").startObject("properties").startObject("field");
+            syntheticSourceExample.mapping().accept(b);
+            b.endObject().endObject().endObject();
+        }));
+        String expected = Strings.toString(
+            JsonXContent.contentBuilder()
+                .startObject()
+                .startObject("obj")
+                .field("field", syntheticSourceExample.result)
+                .endObject()
+                .endObject()
+        );
+        assertThat(
+            syntheticSource(mapper, b -> b.startObject("obj").field("field", syntheticSourceExample.inputValue).endObject()),
+            equalTo(expected)
+        );
+    }
+
+    public final void testSyntheticEmptyList() throws IOException {
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example();
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            syntheticSourceExample.mapping().accept(b);
+            b.endObject();
+        }));
+        assertThat(syntheticSource(mapper, b -> b.startArray("field").endArray()), equalTo("{}"));
+    }
+
+    public final void testSyntheticSourceInvalid() throws IOException {
+        List<SyntheticSourceInvalidExample> examples = new ArrayList<>(syntheticSourceSupport().invalidExample());
+        examples.add(
+            new SyntheticSourceInvalidExample(
+                matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it declares copy_to"),
+                b -> {
+                    syntheticSourceSupport().example().mapping().accept(b);
+                    b.field("copy_to", "bar");
+                }
+            )
+        );
+        for (SyntheticSourceInvalidExample example : examples) {
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                example.toString(),
+                () -> createDocumentMapper(syntheticSourceMapping(b -> {
+                    b.startObject("field");
+                    example.mapping.accept(b);
+                    b.endObject();
+                }))
+            );
+            assertThat(e.getMessage(), example.error);
+        }
+    }
+
+    @Override
+    protected final <T> T compileScript(Script script, ScriptContext<T> context) {
+        return ingestScriptSupport().compileScript(script, context);
+    }
+
+    protected abstract IngestScriptSupport ingestScriptSupport();
+
+    protected abstract class IngestScriptSupport {
+        private <T> T compileScript(Script script, ScriptContext<T> context) {
+            switch (script.getIdOrCode()) {
+                case "empty":
+                    return context.factoryClazz.cast(emptyFieldScript());
+                case "non-empty":
+                    return context.factoryClazz.cast(nonEmptyFieldScript());
+                default:
+                    return compileOtherScript(script, context);
+            }
+        }
+
+        protected <T> T compileOtherScript(Script script, ScriptContext<T> context) {
+            throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+        }
+
+        /**
+         * Create a script that can be run to produce no values for this
+         * field or return {@link Optional#empty()} to signal that this
+         * field doesn't support fields scripts.
+         */
+        abstract ScriptFactory emptyFieldScript();
+
+        /**
+         * Create a script that can be run to produce some value value for this
+         * field or return {@link Optional#empty()} to signal that this
+         * field doesn't support fields scripts.
+         */
+        abstract ScriptFactory nonEmptyFieldScript();
     }
 }

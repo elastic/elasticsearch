@@ -10,29 +10,36 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 
-import java.util.Deque;
+import java.util.Date;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 
 /**
- * Renormalizer that discards outdated quantiles if even newer ones are received while waiting for a prior renormalization to complete.
+ * Renormalizer for one job that discards outdated quantiles if even newer ones are received while waiting for a prior renormalization
+ * to complete. Only one normalization must run at any time for any particular job. Quantiles documents can be large so it's important
+ * that we don't retain them unnecessarily.
  */
 public class ShortCircuitingRenormalizer implements Renormalizer {
 
-    private static final Logger LOGGER = LogManager.getLogger(ShortCircuitingRenormalizer.class);
+    private static final Logger logger = LogManager.getLogger(ShortCircuitingRenormalizer.class);
 
     private final String jobId;
     private final ScoresUpdater scoresUpdater;
     private final ExecutorService executorService;
-    private final Deque<QuantilesWithLatch> quantilesDeque = new ConcurrentLinkedDeque<>();
-    private final Deque<CountDownLatch> latchDeque = new ConcurrentLinkedDeque<>();
     /**
-     * Each job may only have 1 normalization in progress at any time; the semaphore enforces this
+     * Each job may only have 1 normalization in progress at any time; the semaphore enforces this.
+     * Modifications must be synchronized.
      */
     private final Semaphore semaphore = new Semaphore(1);
+    // Access to both of these must be synchronized.
+    private AugmentedQuantiles latestQuantilesHolder;
+    private Future<?> latestTask;
 
     public ShortCircuitingRenormalizer(String jobId, ScoresUpdater scoresUpdater, ExecutorService executorService) {
         this.jobId = jobId;
@@ -51,35 +58,49 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
             return;
         }
 
-        // This will throw NPE if quantiles is null, so do it first
-        QuantilesWithLatch quantilesWithLatch = new QuantilesWithLatch(quantiles, new CountDownLatch(1));
         // Needed to ensure work is not added while the tryFinishWork() method is running
-        synchronized (quantilesDeque) {
-            // Must add to latchDeque before quantilesDeque
-            latchDeque.addLast(quantilesWithLatch.getLatch());
-            quantilesDeque.addLast(quantilesWithLatch);
-            executorService.submit(() -> doRenormalizations());
+        synchronized (this) {
+            latestQuantilesHolder = (latestQuantilesHolder == null)
+                ? new AugmentedQuantiles(quantiles, null, new CountDownLatch(1))
+                : new AugmentedQuantiles(quantiles, latestQuantilesHolder.getEvictedTimestamp(), latestQuantilesHolder.getLatch());
+            tryStartWork();
         }
     }
 
     @Override
-    public void waitUntilIdle() {
-        try {
-            // We cannot tolerate more than one thread running this loop at any time,
-            // but need a different lock to the other synchronized parts of the code
-            synchronized (latchDeque) {
-                for (CountDownLatch latchToAwait = latchDeque.pollFirst(); latchToAwait != null; latchToAwait = latchDeque.pollFirst()) {
-                    latchToAwait.await();
+    public void waitUntilIdle() throws InterruptedException {
+        CountDownLatch latch;
+        Future<?> taskToWaitFor;
+        do {
+            // The first bit waits for any not-yet-started renormalization to complete.
+            synchronized (this) {
+                latch = (latestQuantilesHolder != null) ? latestQuantilesHolder.getLatch() : null;
+            }
+            if (latch != null) {
+                latch.await();
+            }
+            // This next bit waits for any thread that's been started to run doRenormalizations() to exit the loop in that method.
+            // If no doRenormalizations() thread is running then we'll wait for the previous phase, and a call to do that should
+            // return immediately.
+            synchronized (this) {
+                taskToWaitFor = latestTask;
+            }
+            if (taskToWaitFor != null) {
+                try {
+                    taskToWaitFor.get();
+                } catch (ExecutionException e) {
+                    // This shouldn't happen, because we catch normalization errors inside the normalization loop
+                    logger.error("[" + jobId + "] Error propagated from normalization", e);
+                } catch (CancellationException e) {
+                    // Convert cancellations to interruptions to simplify the interface
+                    throw new InterruptedException("Normalization cancelled");
                 }
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-        }
+        } while (latch != null || taskToWaitFor != null);
     }
 
     @Override
-    public void shutdown() {
+    public void shutdown() throws InterruptedException {
         scoresUpdater.shutdown();
         // We have to wait until idle to avoid a raft of exceptions as other parts of the
         // system are stopped after this method returns. However, shutting down the
@@ -88,130 +109,109 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         waitUntilIdle();
     }
 
-    private Quantiles getEarliestQuantiles() {
-        QuantilesWithLatch earliestQuantilesWithLatch = quantilesDeque.peekFirst();
-        return (earliestQuantilesWithLatch != null) ? earliestQuantilesWithLatch.getQuantiles() : null;
+    private synchronized AugmentedQuantiles getLatestAugmentedQuantilesAndClear() {
+        AugmentedQuantiles latest = latestQuantilesHolder;
+        latestQuantilesHolder = null;
+        return latest;
     }
 
-    private QuantilesWithLatch getLatestQuantilesWithLatchAndClear() {
-        // We discard all but the latest quantiles
-        QuantilesWithLatch latestQuantilesWithLatch = null;
-        for (QuantilesWithLatch quantilesWithLatch = quantilesDeque.pollFirst(); quantilesWithLatch != null; quantilesWithLatch =
-            quantilesDeque.pollFirst()) {
-            // Count down the latches associated with any discarded quantiles
-            if (latestQuantilesWithLatch != null) {
-                latestQuantilesWithLatch.getLatch().countDown();
-            }
-            latestQuantilesWithLatch = quantilesWithLatch;
+    private synchronized boolean tryStartWork() {
+        if (latestQuantilesHolder == null) {
+            return false;
         }
-        return latestQuantilesWithLatch;
-    }
-
-    private boolean tryStartWork() {
-        return semaphore.tryAcquire();
-    }
-
-    private boolean tryFinishWork() {
-        // We cannot tolerate new work being added in between the isEmpty() check and releasing the semaphore
-        synchronized (quantilesDeque) {
-            if (quantilesDeque.isEmpty() == false) {
+        // Don't start a thread if another normalization thread is still working. The existing thread will
+        // do this normalization when it finishes its current one. This means we serialise normalizations
+        // without hogging threads or queuing up many large quantiles documents.
+        if (semaphore.tryAcquire()) {
+            try {
+                latestTask = executorService.submit(this::doRenormalizations);
+            } catch (RejectedExecutionException e) {
+                latestQuantilesHolder.getLatch().countDown();
+                latestQuantilesHolder = null;
+                latestTask = null;
+                semaphore.release();
+                logger.warn("[{}] Normalization discarded as threadpool is shutting down", jobId);
                 return false;
             }
-            semaphore.release();
             return true;
         }
+        return false;
     }
 
-    private void forceFinishWork() {
-        // We cannot allow new quantiles to be added while we are failing from a previous renormalization failure.
-        synchronized (quantilesDeque) {
-            // We discard all but the earliest quantiles, if they exist
-            QuantilesWithLatch earliestQuantileWithLatch = null;
-            for (QuantilesWithLatch quantilesWithLatch = quantilesDeque.pollFirst(); quantilesWithLatch != null; quantilesWithLatch =
-                quantilesDeque.pollFirst()) {
-                if (earliestQuantileWithLatch == null) {
-                    earliestQuantileWithLatch = quantilesWithLatch;
-                }
-                // Count down all the latches as they no longer matter since we failed
-                quantilesWithLatch.latch.countDown();
-            }
-            // Keep the earliest quantile so that the next call to doRenormalizations() will include as much as the failed normalization
-            // window as possible.
-            // Since this latch is already countedDown, there is no reason to put it in the `latchDeque` again
-            if (earliestQuantileWithLatch != null) {
-                quantilesDeque.addLast(earliestQuantileWithLatch);
-            }
-            semaphore.release();
+    private synchronized boolean tryFinishWork() {
+        // Synchronized because we cannot tolerate new work being added in between the null check and releasing the semaphore
+        if (latestQuantilesHolder != null) {
+            return false;
         }
+        semaphore.release();
+        latestTask = null;
+        return true;
     }
 
     private void doRenormalizations() {
-        // Exit immediately if another normalization is in progress. This means we don't hog threads.
-        if (tryStartWork() == false) {
-            return;
-        }
-
-        CountDownLatch latch = null;
-        try {
-            do {
-                // Note that if there is only one set of quantiles in the queue then both these references will point to the same quantiles.
-                Quantiles earliestQuantiles = getEarliestQuantiles();
-                QuantilesWithLatch latestQuantilesWithLatch = getLatestQuantilesWithLatchAndClear();
-                // We could end up with latestQuantilesWithLatch being null if the thread running this method
-                // was preempted before the tryStartWork() call, another thread already running this method
-                // did the work and exited, and then this thread got true returned by tryStartWork().
-                if (latestQuantilesWithLatch != null) {
-                    Quantiles latestQuantiles = latestQuantilesWithLatch.getQuantiles();
-                    latch = latestQuantilesWithLatch.getLatch();
-                    // We could end up with earliestQuantiles being null if quantiles were
-                    // added between getting the earliest and latest quantiles.
-                    if (earliestQuantiles == null) {
-                        earliestQuantiles = latestQuantiles;
-                    }
-                    long earliestBucketTimeMs = earliestQuantiles.getTimestamp().getTime();
-                    long latestBucketTimeMs = latestQuantiles.getTimestamp().getTime();
-                    // If we're going to skip quantiles, renormalize using the latest quantiles
-                    // over the time ranges implied by all quantiles that were provided.
-                    long windowExtensionMs = latestBucketTimeMs - earliestBucketTimeMs;
-                    if (windowExtensionMs < 0) {
-                        LOGGER.warn(
-                            "[{}] Quantiles not supplied in time order - {} after {}",
-                            jobId,
-                            latestBucketTimeMs,
-                            earliestBucketTimeMs
-                        );
-                        windowExtensionMs = 0;
-                    }
-                    scoresUpdater.update(latestQuantiles.getQuantileState(), latestBucketTimeMs, windowExtensionMs);
+        do {
+            AugmentedQuantiles latestAugmentedQuantiles = getLatestAugmentedQuantilesAndClear();
+            assert latestAugmentedQuantiles != null;
+            if (latestAugmentedQuantiles != null) { // TODO: remove this if the assert doesn't trip in CI over the next year or so
+                Quantiles latestQuantiles = latestAugmentedQuantiles.getQuantiles();
+                CountDownLatch latch = latestAugmentedQuantiles.getLatch();
+                try {
+                    scoresUpdater.update(
+                        latestQuantiles.getQuantileState(),
+                        latestQuantiles.getTimestamp().getTime(),
+                        latestAugmentedQuantiles.getWindowExtensionMs()
+                    );
+                } catch (Exception e) {
+                    logger.error("[" + jobId + "] Normalization failed", e);
+                } finally {
                     latch.countDown();
-                    latch = null;
                 }
-                // Loop if more work has become available while we were working, because the
-                // tasks originally submitted to do that work will have exited early.
-            } while (tryFinishWork() == false);
-        } catch (Exception e) {
-            LOGGER.error("[" + jobId + "] Normalization failed", e);
-            if (latch != null) {
-                latch.countDown();
+            } else {
+                logger.warn("[{}] request to normalize null quantiles", jobId);
             }
-            forceFinishWork();
-        }
+            // Loop if more work has become available while we were working, because the
+            // tasks originally submitted to do that work will have exited early.
+        } while (tryFinishWork() == false);
     }
 
     /**
-     * Simple grouping of a {@linkplain Quantiles} object with its corresponding {@linkplain CountDownLatch} object.
+     * Grouping of a {@linkplain Quantiles} object with its corresponding {@linkplain CountDownLatch} object.
+     * Also stores the earliest timestamp that any set of discarded quantiles held, to allow the normalization
+     * window to be extended if multiple normalization requests are combined.
      */
-    private static class QuantilesWithLatch {
+    private class AugmentedQuantiles {
         private final Quantiles quantiles;
+        private final Date earliestEvictedTimestamp;
         private final CountDownLatch latch;
 
-        QuantilesWithLatch(Quantiles quantiles, CountDownLatch latch) {
+        AugmentedQuantiles(Quantiles quantiles, Date earliestEvictedTimestamp, CountDownLatch latch) {
             this.quantiles = Objects.requireNonNull(quantiles);
+            this.earliestEvictedTimestamp = earliestEvictedTimestamp;
             this.latch = Objects.requireNonNull(latch);
         }
 
         Quantiles getQuantiles() {
             return quantiles;
+        }
+
+        Date getEvictedTimestamp() {
+            return (earliestEvictedTimestamp != null) ? earliestEvictedTimestamp : quantiles.getTimestamp();
+        }
+
+        long getWindowExtensionMs() {
+            if (earliestEvictedTimestamp == null) {
+                return 0;
+            }
+            long earliestTimeMs = earliestEvictedTimestamp.getTime();
+            long latestTimeMs = quantiles.getTimestamp().getTime();
+            // If we're going to skip quantiles, renormalize using the latest quantiles
+            // over the time ranges implied by all quantiles that were provided.
+            long windowExtensionMs = latestTimeMs - earliestTimeMs;
+            if (windowExtensionMs < 0) {
+                logger.warn("[{}] Quantiles not supplied in time order - {} after {}", jobId, latestTimeMs, earliestTimeMs);
+                return 0;
+            }
+            return windowExtensionMs;
         }
 
         CountDownLatch getLatch() {

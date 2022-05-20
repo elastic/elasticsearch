@@ -12,7 +12,3 @@
   - match:   { components.cluster_coordination.status: "green" }
   - match:   { components.cluster_coordination.indicators.instance_has_master.status: "green" }
   - match:   { components.cluster_coordination.indicators.instance_has_master.summary: "Health coordinating instance has a master node." }
-  - is_true: components.cluster_coordination.indicators.instance_has_master.details.coordinating_node.node_id
-  - is_true: components.cluster_coordination.indicators.instance_has_master.details.coordinating_node.name
-  - is_true: components.cluster_coordination.indicators.instance_has_master.details.master_node.node_id
-  - is_true: components.cluster_coordination.indicators.instance_has_master.details.master_node.name

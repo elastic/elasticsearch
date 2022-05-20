@@ -1,6 +1,6 @@
 [role="xpack"]
 [[set-up-lifecycle-policy]]
-== Configure a lifecycle policy [[ilm-policy-definition]]
+== Configure a lifecycle policy
 
 For {ilm-init} to manage an index, a valid policy 
 must be specified in the `index.lifecycle.name` index setting. 

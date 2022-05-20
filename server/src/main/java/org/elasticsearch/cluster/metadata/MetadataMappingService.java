@@ -24,8 +24,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -105,7 +105,7 @@ public class MetadataMappingService {
                         for (Index index : request.indices()) {
                             final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
                             if (indexMapperServices.containsKey(indexMetadata.getIndex()) == false) {
-                                MapperService mapperService = indicesService.createIndexMapperService(indexMetadata);
+                                MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
                                 indexMapperServices.put(index, mapperService);
                                 // add mappings for all types, we need them for cross-type validation
                                 mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
@@ -225,9 +225,9 @@ public class MetadataMappingService {
         for (Index index : request.indices()) {
             final IndexMetadata indexMetadata = metadata.index(index);
             if (indexMetadata == null) {
-                // local store recovery sends a mapping update request during application of a cluster state on t he data node which
-                // might we receive here before the CS update that created the index has been applied on all nodes and thus the index
-                // isn't found in the state yet but will be visible to the CS update below
+                // local store recovery sends a mapping update request during application of a cluster state on the data node which we might
+                // receive here before the CS update that created the index has been applied on all nodes and thus the index isn't found in
+                // the state yet, but will be visible to the CS update below
                 noop = false;
                 break;
             }

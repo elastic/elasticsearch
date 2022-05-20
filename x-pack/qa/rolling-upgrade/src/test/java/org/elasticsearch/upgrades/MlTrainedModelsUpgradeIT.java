@@ -53,7 +53,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
         assumeTrue("We should only test if old cluster is after trained models we GA", UPGRADE_FROM_VERSION.after(Version.V_7_13_0));
         switch (CLUSTER_TYPE) {
             case OLD -> {
-                createIndex(INDEX_NAME);
+                createIndexWithName(INDEX_NAME);
                 indexData(INDEX_NAME, 1000);
                 createAndRunClassificationJob();
                 createAndRunRegressionJob();
@@ -218,7 +218,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
         client().performRequest(putRequest);
     }
 
-    void createIndex(String index) throws IOException {
+    void createIndexWithName(String index) throws IOException {
         String mapping = """
             "properties": {
                 "%s": {

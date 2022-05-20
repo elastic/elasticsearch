@@ -185,10 +185,6 @@ You should only force merge an index if it is no longer being written to.
 * You can't run an approximate kNN search on a `dense_vector` field within a
 <<nested,`nested`>> mapping.
 
-* You can't currently use the Query DSL to filter documents for an approximate
-kNN search. If you need to filter the documents, consider using exact kNN
-instead.
-
 * {blank}
 +
 include::{es-repo-dir}/search/knn-search.asciidoc[tag=hnsw-algorithm]

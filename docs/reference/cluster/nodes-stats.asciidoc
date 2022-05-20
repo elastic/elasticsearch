@@ -1827,6 +1827,11 @@ The total number of kilobytes read for the device since starting {es}.
 `write_kilobytes` (Linux only)::
 (integer)
 The total number of kilobytes written for the device since starting {es}.
+
+`io_time_in_millis` (Linux only)::
+(integer)
+The total time in milliseconds spent performing I/O operations for the device 
+since starting {es}.
 ========
 
 `operations` (Linux only)::
@@ -1853,6 +1858,11 @@ The total number of kilobytes written for the device since starting {es}.
     (integer)
     The total number of kilobytes written across all devices used by {es} since
     starting {es}.
+
+`io_time_in_millis` (Linux only)::
+    (integer)
+    The total time in milliseconds spent performing I/O operations across all 
+    devices used by {es} since starting {es}.
 =======
 ======
 

@@ -100,7 +100,7 @@ public class DataFrameDataExtractor {
     }
 
     public void cancel() {
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Data extractor was cancelled", context.jobId));
+        LOGGER.debug(() -> "[" + context.jobId + "] Data extractor was cancelled");
         isCancelled = true;
     }
 
@@ -173,7 +173,7 @@ public class DataFrameDataExtractor {
             // We've set allow_partial_search_results to false which means if something
             // goes wrong the request will throw.
             SearchResponse searchResponse = request.get();
-            LOGGER.trace(() -> new ParameterizedMessage("[{}] Search response was obtained", context.jobId));
+            LOGGER.trace(() -> "[" + context.jobId + "] Search response was obtained");
 
             List<Row> rows = processSearchResponse(searchResponse);
 
@@ -185,7 +185,7 @@ public class DataFrameDataExtractor {
             if (hasPreviousSearchFailed) {
                 throw e;
             }
-            LOGGER.warn(new ParameterizedMessage("[{}] Search resulted to failure; retrying once", context.jobId), e);
+            LOGGER.warn(() -> "[" + context.jobId + "] Search resulted to failure; retrying once", e);
             markScrollAsErrored();
             return nextSearch();
         }

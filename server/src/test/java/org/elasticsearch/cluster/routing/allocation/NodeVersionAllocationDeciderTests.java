@@ -373,7 +373,6 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                                     allocationId1R
                                 )
                             )
-                            .build()
                     )
             )
             .add(
@@ -401,7 +400,6 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                                     allocationId2R
                                 )
                             )
-                            .build()
                     )
             )
             .build();

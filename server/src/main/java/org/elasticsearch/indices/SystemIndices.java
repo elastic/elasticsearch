@@ -84,27 +84,29 @@ public class SystemIndices {
 
     /**
      * Initialize the SystemIndices object
-     * @param features A list of features from which we will load system indices
+     * @param pluginAndModuleFeatures A list of features from which we will load system indices.
+     *                                These features come from plugins and modules. Non-plugin system
+     *                                features such as Tasks will be added automatically.
      */
-    public SystemIndices(List<Feature> features) {
-        this.features = buildFullFeatureList(features);
-        indexDescriptors = this.features.stream().flatMap(f -> f.getIndexDescriptors().stream()).toArray(SystemIndexDescriptor[]::new);
-        dataStreamDescriptors = this.features.stream()
+    public SystemIndices(List<Feature> pluginAndModuleFeatures) {
+        features = buildFullFeatureList(pluginAndModuleFeatures);
+        indexDescriptors = features.stream().flatMap(f -> f.getIndexDescriptors().stream()).toArray(SystemIndexDescriptor[]::new);
+        dataStreamDescriptors = features.stream()
             .flatMap(f -> f.getDataStreamDescriptors().stream())
             .collect(Collectors.toUnmodifiableMap(SystemDataStreamDescriptor::getDataStreamName, Function.identity()));
-        checkForOverlappingPatterns(this.features);
-        ensurePatternsAllowSuffix(this.features);
+        checkForOverlappingPatterns(features);
+        ensurePatternsAllowSuffix(features);
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
-        Automaton systemIndexAutomata = buildIndexAutomaton(this.features);
+        Automaton systemIndexAutomata = buildIndexAutomaton(features);
         this.systemIndexRunAutomaton = new CharacterRunAutomaton(systemIndexAutomata);
-        Automaton systemDataStreamIndicesAutomata = buildDataStreamBackingIndicesAutomaton(this.features);
+        Automaton systemDataStreamIndicesAutomata = buildDataStreamBackingIndicesAutomaton(features);
         this.systemDataStreamIndicesRunAutomaton = new CharacterRunAutomaton(systemDataStreamIndicesAutomata);
-        this.systemDataStreamPredicate = buildDataStreamNamePredicate(this.features);
-        this.netNewSystemIndexAutomaton = buildNetNewIndexCharacterRunAutomaton(this.features);
-        this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(this.features);
+        this.systemDataStreamPredicate = buildDataStreamNamePredicate(features);
+        this.netNewSystemIndexAutomaton = buildNetNewIndexCharacterRunAutomaton(features);
+        this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(features);
         this.executorSelector = new ExecutorSelector(this);
         this.systemNameAutomaton = MinimizationOperations.minimize(
-            Operations.union(List.of(systemIndexAutomata, systemDataStreamIndicesAutomata, buildDataStreamAutomaton(this.features))),
+            Operations.union(List.of(systemIndexAutomata, systemDataStreamIndicesAutomata, buildDataStreamAutomaton(features))),
             Integer.MAX_VALUE
         );
         this.systemNameRunAutomaton = new CharacterRunAutomaton(systemNameAutomaton);

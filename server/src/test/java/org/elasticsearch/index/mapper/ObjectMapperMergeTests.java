@@ -135,7 +135,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
         assertTrue(result.isIncludeInRoot());
     }
 
-    public void testMergeFieldWithDotsSubobjectsFalseAtRoot() {
+    public void testMergedFieldNamesFieldWithDotsSubobjectsFalseAtRoot() {
         RootObjectMapper mergeInto = createRootSubobjectFalseLeafWithDots();
         RootObjectMapper mergeWith = createRootSubobjectFalseLeafWithDots();
 
@@ -146,7 +146,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
         assertEquals("host.name", keywordFieldMapper.simpleName());
     }
 
-    public void testMergeFieldWithDotsSubobjectsFalse() {
+    public void testMergedFieldNamesFieldWithDotsSubobjectsFalse() {
         RootObjectMapper mergeInto = createRootObjectMapper(
             "_doc",
             true,
@@ -167,7 +167,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
         assertEquals("host.name", keywordFieldMapper.simpleName());
     }
 
-    public void testMergeMultiFields() {
+    public void testMergedFieldNamesMultiFields() {
         RootObjectMapper mergeInto = createRootObjectMapper(
             "_doc",
             true,
@@ -189,7 +189,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
         assertEquals("keyword", keyword.simpleName());
     }
 
-    public void testMergeMultiFieldsWithinSubobjectsFalse() {
+    public void testMergedFieldNamesMultiFieldsWithinSubobjectsFalse() {
         RootObjectMapper mergeInto = createRootObjectMapper(
             "_doc",
             true,

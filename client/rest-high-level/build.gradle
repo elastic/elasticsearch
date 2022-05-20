@@ -89,7 +89,7 @@ tasks.named("javaRestTest").configure {
   systemProperty 'tests.rest.cluster.password', clusterPasswordProvider.get()
 }
 
-TaskProvider<RestIntegTestTask> asyncJavaRestTest = tasks.register("asyncIntegTest", RestIntegTestTask) {
+TaskProvider<RestIntegTestTask> asyncJavaRestTest = tasks.register("asyncJavaRestTest", RestIntegTestTask) {
     systemProperty 'tests.rest.async', 'true'
     systemProperty 'tests.rest.cluster.username', clusterUserNameProvider.get()
     systemProperty 'tests.rest.cluster.password', clusterPasswordProvider.get()
@@ -98,7 +98,7 @@ TaskProvider<RestIntegTestTask> asyncJavaRestTest = tasks.register("asyncIntegTe
 }
 
 tasks.named("check").configure {
-  dependsOn(asyncIntegTest)
+  dependsOn(asyncJavaRestTest)
 }
 
 testClusters.configureEach {

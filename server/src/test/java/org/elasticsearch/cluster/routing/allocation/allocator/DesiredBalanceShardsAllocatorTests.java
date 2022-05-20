@@ -51,7 +51,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -466,10 +465,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
     public void testConcurrency() throws Exception {
 
-        var createdIndices = new CopyOnWriteArraySet<String>();
-        var allocatedIndices = new CopyOnWriteArraySet<String>();
-        var reroutedIndices = new CopyOnWriteArraySet<String>();
-
         var threadPool = new TestThreadPool(getTestName());
         var rerouteServiceSupplier = new SetOnce<RerouteService>();
         var clusterService = ClusterServiceUtils.createClusterService(createInitialClusterState(), threadPool);
@@ -482,7 +477,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                 while (unassignedIterator.hasNext()) {
                     final var indexName = unassignedIterator.next().getIndexName();
                     if (randomBoolean() || (madeProgress == false && unassignedIterator.hasNext() == false)) {
-                        allocatedIndices.add(indexName);
                         unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
                         madeProgress = true;
                     } else {
@@ -523,9 +517,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             clusterService.submitUnbatchedStateUpdateTask("test-desired-balance-reroute", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    for (IndexRoutingTable indexRoutingTable : currentState.getRoutingTable()) {
-                        reroutedIndices.add(indexRoutingTable.getIndex().getName());
-                    }
                     return allocationService.reroute(currentState, "test-desired-balance-reroute", l.map(ignore -> null));
                 }
 
@@ -547,7 +538,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         var indexName = "index-" + indexNameGenerator.incrementAndGet();
-                        createdIndices.add(indexName);
                         var newState = createIndex(currentState, indexName);
                         return allocationService.reroute(newState, "test-create-index", ActionListener.wrap(response -> {
                             var unassigned = clusterService.state().getRoutingTable().index(indexName).primaryShardsUnassigned();
@@ -585,9 +575,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
         try {
             assertTrue("Should call all listeners", listenersCountdown.await(10, TimeUnit.SECONDS));
-            // Might be skipped due to outdated input
-            // assertThat("Allocated indexes", allocatedIndices, containsInAnyOrder(createdIndices.toArray(String[]::new)));
-            assertThat("Rerouted indexes", reroutedIndices, containsInAnyOrder(createdIndices.toArray(String[]::new)));
         } finally {
             clusterService.close();
             terminate(threadPool);

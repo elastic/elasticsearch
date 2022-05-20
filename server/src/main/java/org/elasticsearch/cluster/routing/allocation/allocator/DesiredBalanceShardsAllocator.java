@@ -106,14 +106,14 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                     lastConvergedIndex
                 );
 
-                // if (isFresh) {
-                if (shouldReroute) {
-                    rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
-                } else if (allocating == false) {
-                    logger.trace("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
-                    executeListeners(lastConvergedIndex, desiredBalanceInput.routingAllocation().nodes().isLocalNodeElectedMaster());
+                if (isFresh) {
+                    if (shouldReroute) {
+                        rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
+                    } else if (allocating == false) {
+                        logger.trace("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
+                        executeListeners(lastConvergedIndex, desiredBalanceInput.routingAllocation().nodes().isLocalNodeElectedMaster());
+                    }
                 }
-                // }
             }
 
             @Override

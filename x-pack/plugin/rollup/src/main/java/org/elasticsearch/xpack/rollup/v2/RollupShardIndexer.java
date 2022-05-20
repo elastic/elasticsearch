@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.rollup.v2;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
@@ -43,6 +44,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeriesIndexSearcher;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
+import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -64,6 +66,8 @@ import java.util.stream.Collectors;
  */
 class RollupShardIndexer {
     private static final Logger logger = LogManager.getLogger(RollupShardIndexer.class);
+    public static final int ROLLUP_BULK_ACTIONS = 10000;
+    public static final ByteSizeValue ROLLUP_BULK_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
 
     private final IndexShard indexShard;
     private final Client client;
@@ -121,7 +125,7 @@ class RollupShardIndexer {
         }
     }
 
-    public long execute() throws IOException {
+    public RollupIndexerAction.ShardRollupResponse execute() throws IOException {
         BulkProcessor bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             // TODO: add cancellations
@@ -142,10 +146,16 @@ class RollupShardIndexer {
 
         if (numIndexed.get() != numSent.get()) {
             throw new ElasticsearchException(
-                "Failed to index all rollup documents. Sent [" + numSent.get() + "], indexed [" + numIndexed.get() + "]."
+                "Shard ["
+                    + indexShard.shardId()
+                    + "] failed to index all rollup documents. Sent ["
+                    + numSent.get()
+                    + "], indexed ["
+                    + numIndexed.get()
+                    + "]."
             );
         }
-        return numIndexed.get();
+        return new RollupIndexerAction.ShardRollupResponse(indexShard.shardId(), numIndexed.get());
     }
 
     private BulkProcessor createBulkProcessor() {
@@ -169,7 +179,7 @@ class RollupShardIndexer {
                             )
                         );
                     numFailed.addAndGet(failures.size());
-                    logger.error("Shard {} failed to populate rollup index: [{}]", indexShard.shardId(), failures);
+                    logger.error("Shard [{}] failed to populate rollup index. Failures: [{}]", indexShard.shardId(), failures);
                 }
             }
 
@@ -177,14 +187,18 @@ class RollupShardIndexer {
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
                 if (failure != null) {
                     long items = request.numberOfActions();
-                    numSent.addAndGet(-items);
                     numFailed.addAndGet(items);
+                    logger.error(
+                        () -> new ParameterizedMessage("Shard [{}] failed to populate rollup index.", indexShard.shardId()),
+                        failure
+                    );
                 }
             }
         };
+
         return BulkProcessor.builder(client::bulk, listener, "rollup-shard-indexer")
-            .setBulkActions(10000)
-            .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.MB))
+            .setBulkActions(ROLLUP_BULK_ACTIONS)
+            .setBulkSize(ROLLUP_BULK_SIZE)
             // execute the bulk request on the same thread
             .setConcurrentRequests(0)
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))

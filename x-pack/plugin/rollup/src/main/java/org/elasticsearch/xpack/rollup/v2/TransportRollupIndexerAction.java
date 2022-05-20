@@ -44,8 +44,8 @@ import static org.elasticsearch.xpack.rollup.Rollup.TASK_THREAD_POOL_NAME;
 public class TransportRollupIndexerAction extends TransportBroadcastAction<
     RollupIndexerAction.Request,
     RollupIndexerAction.Response,
-    RollupIndexerAction.ShardRequest,
-    RollupIndexerAction.ShardResponse> {
+    RollupIndexerAction.ShardRollupRequest,
+    RollupIndexerAction.ShardRollupResponse> {
 
     private final Client client;
     private final ClusterService clusterService;
@@ -67,7 +67,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
             actionFilters,
             indexNameExpressionResolver,
             RollupIndexerAction.Request::new,
-            RollupIndexerAction.ShardRequest::new,
+            RollupIndexerAction.ShardRollupRequest::new,
             TASK_THREAD_POOL_NAME
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
@@ -112,12 +112,17 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
     }
 
     @Override
-    protected RollupIndexerAction.ShardRequest newShardRequest(int numShards, ShardRouting shard, RollupIndexerAction.Request request) {
-        return new RollupIndexerAction.ShardRequest(shard.shardId(), request);
+    protected RollupIndexerAction.ShardRollupRequest newShardRequest(
+        int numShards,
+        ShardRouting shard,
+        RollupIndexerAction.Request request
+    ) {
+        return new RollupIndexerAction.ShardRollupRequest(shard.shardId(), request);
     }
 
     @Override
-    protected RollupIndexerAction.ShardResponse shardOperation(RollupIndexerAction.ShardRequest request, Task task) throws IOException {
+    protected RollupIndexerAction.ShardRollupResponse shardOperation(RollupIndexerAction.ShardRollupRequest request, Task task)
+        throws IOException {
         IndexService indexService = indicesService.indexService(request.shardId().getIndex());
         RollupShardIndexer indexer = new RollupShardIndexer(
             client,
@@ -128,13 +133,12 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
             request.getDimensionFields(),
             request.getMetricFields()
         );
-        indexer.execute();
-        return new RollupIndexerAction.ShardResponse(request.shardId());
+        return indexer.execute();
     }
 
     @Override
-    protected RollupIndexerAction.ShardResponse readShardResponse(StreamInput in) throws IOException {
-        return new RollupIndexerAction.ShardResponse(in);
+    protected RollupIndexerAction.ShardRollupResponse readShardResponse(StreamInput in) throws IOException {
+        return new RollupIndexerAction.ShardRollupResponse(in);
     }
 
     @Override
@@ -143,15 +147,23 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         AtomicReferenceArray<?> shardsResponses,
         ClusterState clusterState
     ) {
+        long numIndexed = 0;
+        int successfulShards = 0;
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
                 throw new ElasticsearchException("missing shard");
-            } else if (shardResponse instanceof Exception) {
-                throw new ElasticsearchException((Exception) shardResponse);
+            } else if (shardResponse instanceof RollupIndexerAction.ShardRollupResponse r) {
+                successfulShards++;
+                numIndexed += r.getNumIndexed();
+            } else if (shardResponse instanceof Exception e) {
+                throw new ElasticsearchException(e);
+            } else {
+                assert false : "unknown response [" + shardResponse + "]";
+                throw new IllegalStateException("unknown response [" + shardResponse + "]");
             }
         }
-        return new RollupIndexerAction.Response(true);
+        return new RollupIndexerAction.Response(true, shardsResponses.length(), successfulShards, 0, numIndexed);
     }
 
     private class Async extends AsyncBroadcastAction {

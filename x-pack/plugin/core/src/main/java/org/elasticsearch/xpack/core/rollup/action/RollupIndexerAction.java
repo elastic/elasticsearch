@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response> {
+
     public static final RollupIndexerAction INSTANCE = new RollupIndexerAction();
     public static final String NAME = "indices:admin/xpack/rollup_indexer";
 
@@ -138,29 +139,39 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
     public static class Response extends BroadcastResponse implements Writeable, ToXContentObject {
         private final boolean created;
 
-        public Response(boolean created) {
-            super(0, 0, 0, null);
+        private final long numIndexed;
+
+        public Response(boolean created, int totalShards, int successfulShards, int failedShards, long numIndexed) {
+            super(totalShards, successfulShards, failedShards, null);
             this.created = created;
+            this.numIndexed = numIndexed;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             created = in.readBoolean();
+            numIndexed = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(created);
+            out.writeLong(numIndexed);
         }
 
         public boolean isCreated() {
             return created;
         }
 
+        public long getNumIndexed() {
+            return numIndexed;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("created", created);
+            builder.field("indexed", numIndexed);
             builder.endObject();
             return builder;
         }
@@ -168,26 +179,32 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if ((o instanceof Response) == false) return false;
+
             Response response = (Response) o;
-            return created == response.created;
+
+            if (created != response.created) return false;
+            return numIndexed == response.numIndexed;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(created);
+            return Objects.hash(created, numIndexed);
         }
     }
 
-    public static class ShardRequest extends BroadcastShardRequest {
+    /**
+     * Internal rollup request executed directly against a specific index shard.
+     */
+    public static class ShardRollupRequest extends BroadcastShardRequest {
         private final Request request;
 
-        public ShardRequest(StreamInput in) throws IOException {
+        public ShardRollupRequest(StreamInput in) throws IOException {
             super(in);
             this.request = new Request(in);
         }
 
-        public ShardRequest(ShardId shardId, Request request) {
+        public ShardRollupRequest(ShardId shardId, Request request) {
             super(shardId, request);
             this.request = request;
         }
@@ -215,13 +232,28 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         }
     }
 
-    public static class ShardResponse extends BroadcastShardResponse {
-        public ShardResponse(StreamInput in) throws IOException {
-            super(in);
+    public static class ShardRollupResponse extends BroadcastShardResponse {
+
+        private final long numIndexed;
+
+        public ShardRollupResponse(ShardId shardId, long numIndexed) {
+            super(shardId);
+            this.numIndexed = numIndexed;
         }
 
-        public ShardResponse(ShardId shardId) {
-            super(shardId);
+        public ShardRollupResponse(StreamInput in) throws IOException {
+            super(in);
+            numIndexed = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeLong(numIndexed);
+        }
+
+        public long getNumIndexed() {
+            return numIndexed;
         }
     }
 }

@@ -69,7 +69,7 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
     }
 
     public DesiredNodes(StreamInput in) throws IOException {
-        this(in.readString(), in.readLong(), in.readList(DesiredNode::new));
+        this(in.readString(), in.readLong(), in.readList(DesiredNode::readFrom));
     }
 
     @Override

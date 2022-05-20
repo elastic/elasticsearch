@@ -49,6 +49,7 @@
 ---
 "Root without subobjects":
   - skip:
+      features: allowed_warnings_regex
       version: " - 8.2.99"
       reason: added in 8.3.0
 
@@ -64,6 +65,8 @@
                 type: keyword
 
   - do:
+      allowed_warnings_regex:
+        - "index \\[test-1\\] matches multiple legacy templates \\[global, test\\], composable templates will only match a single template"
       index:
         index: test-1
         id: 1

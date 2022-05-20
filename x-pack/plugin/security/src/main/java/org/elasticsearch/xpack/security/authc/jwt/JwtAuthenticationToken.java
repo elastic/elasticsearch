@@ -97,9 +97,9 @@ public class JwtAuthenticationToken implements AuthenticationToken {
                 throw new IllegalArgumentException(
                     "Allowed principal claim name '"
                         + principalClaimName
-                        + "' exists but cannot be used due to non-string value type '"
-                        + claimValue.getClass().getCanonicalName()
-                        + "'"
+                        + "' exists but cannot be used because the value of that claim must be a string, but instead it was a ['"
+                        + claimValue.getClass().getSimpleName()
+                        + "']"
                 );
             }
         }

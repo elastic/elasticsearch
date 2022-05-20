@@ -24,7 +24,7 @@ The low-level client's features include:
 
 --
 
-:doc-tests: {elasticsearch-root}/client/rest/src/javaRestTest/java/org/elasticsearch/client/documentation
+:doc-tests: {elasticsearch-root}/client/rest/src/test/java/org/elasticsearch/client/documentation
 include::usage.asciidoc[]
 include::configuration.asciidoc[]
 

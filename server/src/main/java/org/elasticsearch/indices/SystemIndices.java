@@ -100,18 +100,13 @@ public class SystemIndices {
         this.systemDataStreamIndicesRunAutomaton = new CharacterRunAutomaton(systemDataStreamIndicesAutomata);
         this.systemDataStreamPredicate = buildDataStreamNamePredicate(featureDescriptors);
         this.netNewSystemIndexAutomaton = buildNetNewIndexCharacterRunAutomaton(featureDescriptors);
-        this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(toMap(featureDescriptors));
+        this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(featureDescriptors);
         this.executorSelector = new ExecutorSelector(this);
         this.systemNameAutomaton = MinimizationOperations.minimize(
             Operations.union(List.of(systemIndexAutomata, systemDataStreamIndicesAutomata, buildDataStreamAutomaton(featureDescriptors))),
             Integer.MAX_VALUE
         );
         this.systemNameRunAutomaton = new CharacterRunAutomaton(systemNameAutomaton);
-    }
-
-    @Deprecated
-    private static Map<String, Feature> toMap(List<Feature> features) {
-        return features.stream().collect(Collectors.toMap(Feature::getName, Function.identity()));
     }
 
     static void ensurePatternsAllowSuffix(List<Feature> features) {
@@ -164,9 +159,9 @@ public class SystemIndices {
         }
     }
 
-    private static Map<String, CharacterRunAutomaton> getProductToSystemIndicesMap(Map<String, Feature> descriptors) {
+    private static Map<String, CharacterRunAutomaton> getProductToSystemIndicesMap(List<Feature> features) {
         Map<String, Automaton> productToSystemIndicesMap = new HashMap<>();
-        for (Feature feature : descriptors.values()) {
+        for (Feature feature : features) {
             feature.getIndexDescriptors().forEach(systemIndexDescriptor -> {
                 if (systemIndexDescriptor.isExternal()) {
                     systemIndexDescriptor.getAllowedElasticProductOrigins()
@@ -332,7 +327,7 @@ public class SystemIndices {
     }
 
     public Map<String, Feature> getFeatures() {
-        return toMap(featureDescriptors);
+        return featureDescriptors.stream().collect(Collectors.toMap(Feature::getName, Function.identity()));
     }
 
     private static Automaton buildIndexAutomaton(List<Feature> features) {

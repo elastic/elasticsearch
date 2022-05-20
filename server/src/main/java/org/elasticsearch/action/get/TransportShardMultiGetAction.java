@@ -21,7 +21,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -112,25 +114,26 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         }
 
         MultiGetShardResponse response = new MultiGetShardResponse();
-        for (int i = 0; i < request.locations.size(); i++) {
-            MultiGetRequest.Item item = request.items.get(i);
-            try {
-                GetResult getResult = indexShard.getService()
-                    .get(item.id(), item.storedFields(), request.realtime(), item.version(), item.versionType(), item.fetchSourceContext());
-                response.add(request.locations.get(i), new GetResponse(getResult));
-            } catch (RuntimeException e) {
-                if (TransportActions.isShardNotAvailableException(e)) {
-                    throw e;
-                } else {
+        ShardGetService getService = indexShard.getService();
+        try (Engine.Searcher searcher = indexShard.acquireSearcher("mget")) {
+            for (int i = 0; i < request.locations.size(); i++) {
+                MultiGetRequest.Item item = request.items.get(i);
+                try {
+                    GetResult getResult = getService.getFromSearcher(searcher, item.id(), item.storedFields(), item.fetchSourceContext());
+                    response.add(request.locations.get(i), new GetResponse(getResult));
+                } catch (RuntimeException e) {
+                    if (TransportActions.isShardNotAvailableException(e)) {
+                        throw e;
+                    } else {
+                        logger.debug(() -> new ParameterizedMessage("{} failed to execute multi_get for [{}]", shardId, item.id()), e);
+                        response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
+                    }
+                } catch (IOException e) {
                     logger.debug(() -> new ParameterizedMessage("{} failed to execute multi_get for [{}]", shardId, item.id()), e);
                     response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
                 }
-            } catch (IOException e) {
-                logger.debug(() -> new ParameterizedMessage("{} failed to execute multi_get for [{}]", shardId, item.id()), e);
-                response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
             }
         }
-
         return response;
     }
 

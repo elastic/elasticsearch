@@ -8,10 +8,12 @@
 
 package org.elasticsearch.index.get;
 
+import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -23,11 +25,13 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -173,6 +177,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     ) throws IOException {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
 
+        long now = System.nanoTime();
         Engine.GetResult get = indexShard.get(
             new Engine.Get(realtime, realtime, id).version(version)
                 .versionType(versionType)
@@ -192,6 +197,30 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             return innerGetLoadFromStoredFields(id, gFields, fetchSourceContext, get);
         } finally {
             get.close();
+        }
+    }
+
+    public GetResult getFromSearcher(Engine.Searcher searcher, String id, String[] gFields, FetchSourceContext fetchSourceContext)
+        throws IOException {
+        currentMetric.inc();
+        try {
+            fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
+            final long now = System.nanoTime();
+            final DocIdAndVersion docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
+                searcher.getDirectoryReader(),
+                new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
+                true
+            );
+            if (docIdAndVersion == null) {
+                missingMetric.inc(System.nanoTime() - now);
+                return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
+            }
+            final Engine.GetResult get = new Engine.GetResult(searcher, docIdAndVersion);
+            GetResult getResult = innerGetLoadFromStoredFields(id, gFields, fetchSourceContext, get);
+            existsMetric.inc(System.nanoTime() - now);
+            return getResult;
+        } finally {
+            currentMetric.dec();
         }
     }
 

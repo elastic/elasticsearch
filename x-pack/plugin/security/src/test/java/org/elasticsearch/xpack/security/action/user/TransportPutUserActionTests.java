@@ -275,11 +275,7 @@ public class TransportPutUserActionTests extends ESTestCase {
     }
 
     private static char chooseValidNonWhitespaceCharacter() {
-        char c = chooseValidCharacter();
-        while (c == ' ') {
-            c = chooseValidCharacter();
-        }
-        return c;
+        return randomValueOtherThan(' ', () -> chooseValidCharacter());
     }
 
     public void testException() {

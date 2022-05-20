@@ -890,7 +890,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         void onPublishFailure(FailedToCommitClusterStateException e) {
-            if (publishedStateConsumer == null) {
+            if (publishedStateConsumer == null && onPublicationSuccess == null) {
                 assert failure != null;
                 return;
             }

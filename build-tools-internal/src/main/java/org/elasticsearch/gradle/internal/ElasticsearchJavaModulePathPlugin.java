@@ -159,6 +159,7 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
             }
             if (isModuleProject) {
                 extraArgs.add("--module-version=" + VersionProperties.getElasticsearch());
+                extraArgs.add("-Xlint:-module,-exports,-requires-automatic,-requires-transitive-automatic,-missing-explicit-ctor");
             }
             return List.copyOf(extraArgs);
         }

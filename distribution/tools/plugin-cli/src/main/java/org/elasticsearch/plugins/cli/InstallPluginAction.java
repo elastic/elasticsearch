@@ -32,15 +32,15 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.PluginsUtils;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -72,7 +72,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -851,12 +850,12 @@ public class InstallPluginAction implements Closeable {
         if (info.hasNativeController()) {
             throw new IllegalStateException("plugins can not have native controllers");
         }
-        PluginsService.verifyCompatibility(info);
+        PluginsUtils.verifyCompatibility(info);
 
         // checking for existing version of the plugin
         verifyPluginName(env.pluginsFile(), info.getName());
 
-        PluginsService.checkForFailedPluginRemovals(env.pluginsFile());
+        PluginsUtils.checkForFailedPluginRemovals(env.pluginsFile());
 
         terminal.println(VERBOSE, info.toString());
 
@@ -884,22 +883,7 @@ public class InstallPluginAction implements Closeable {
                 throw new AssertionError(e);
             }
         }).collect(Collectors.toSet());
-
-        // read existing bundles. this does some checks on the installation too.
-        Set<PluginsService.Bundle> bundles = new HashSet<>(PluginsService.getPluginBundles(pluginsDir));
-        bundles.addAll(PluginsService.getModuleBundles(modulesDir));
-        bundles.add(new PluginsService.Bundle(candidateInfo, candidateDir));
-        List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
-
-        // check jarhell of all plugins so we know this plugin and anything depending on it are ok together
-        // TODO: optimize to skip any bundles not connected to the candidate plugin?
-        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
-        for (PluginsService.Bundle bundle : sortedBundles) {
-            PluginsService.checkBundleJarHell(classpath, bundle, transitiveUrls);
-        }
-
-        // TODO: no jars should be an error
-        // TODO: verify the classname exists in one of the jars!
+        PluginsUtils.preInstallJarHellCheck(candidateInfo, candidateDir, pluginsDir, modulesDir, classpath);
     }
 
     /**

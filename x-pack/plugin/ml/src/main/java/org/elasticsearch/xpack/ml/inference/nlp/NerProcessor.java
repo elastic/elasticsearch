@@ -207,12 +207,14 @@ public class NerProcessor extends NlpTask.Processor {
 
             List<NerResults.EntityGroup> entities = groupTaggedTokens(
                 taggedTokens,
-                ignoreCase ? tokenization.getTokenization(0).input().toLowerCase(Locale.ROOT) : tokenization.getTokenization(0).input()
+                ignoreCase
+                    ? tokenization.getTokenization(0).input().get(0).toLowerCase(Locale.ROOT)
+                    : tokenization.getTokenization(0).input().get(0)
             );
 
             return new NerResults(
                 resultsField,
-                buildAnnotatedText(tokenization.getTokenization(0).input(), entities),
+                buildAnnotatedText(tokenization.getTokenization(0).input().get(0), entities),
                 entities,
                 tokenization.anyTruncated()
             );
@@ -255,7 +257,7 @@ public class NerProcessor extends NlpTask.Processor {
                 int maxScoreIndex = NlpHelpers.argmax(avgScores);
                 double score = avgScores[maxScoreIndex];
                 taggedTokens.add(
-                    new TaggedToken(tokenization.tokens().get(startTokenIndex - numSpecialTokens), iobMap[maxScoreIndex], score)
+                    new TaggedToken(tokenization.tokens().get(0).get(startTokenIndex - numSpecialTokens), iobMap[maxScoreIndex], score)
                 );
                 startTokenIndex = endTokenIndex + 1;
             }

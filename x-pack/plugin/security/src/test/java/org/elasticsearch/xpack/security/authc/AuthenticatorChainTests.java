@@ -24,6 +24,7 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -95,8 +96,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         when(realms.getActiveRealms()).thenReturn(List.of(mock(Realm.class)));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
         final User user = new User(randomAlphaOfLength(8));
-        authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
+        authentication = AuthenticationTestHelper.builder().user(user).build(false);
         fallbackUser = mock(User.class);
         authenticatorChain = new AuthenticatorChain(
             settings,
@@ -130,7 +130,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
         when(auditableRestRequest.tamperedRequest()).thenReturn(e);
         final Authenticator.Context context = createAuthenticatorContext(auditableRestRequest);
-        when(authenticationContextSerializer.readFromContext(any())).thenReturn(mock(Authentication.class));
+        when(authenticationContextSerializer.readFromContext(any())).thenReturn(AuthenticationTestHelper.builder().build());
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         authenticatorChain.authenticateAsync(context, future);

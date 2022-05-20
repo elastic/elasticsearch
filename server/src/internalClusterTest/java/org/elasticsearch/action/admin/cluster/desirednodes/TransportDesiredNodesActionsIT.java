@@ -13,7 +13,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.DesiredNode;
@@ -364,7 +363,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final CountDownLatch unblockClusterStateUpdateTask = new CountDownLatch(1);
         final CountDownLatch blockingClusterStateUpdateTaskExecuting = new CountDownLatch(1);
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        clusterService.submitStateUpdateTask("blocking-task", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+        clusterService.submitUnbatchedStateUpdateTask("blocking-task", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 blockingClusterStateUpdateTaskExecuting.countDown();
@@ -377,7 +376,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
                 blockingClusterStateUpdateTaskExecuting.countDown();
                 assert false : e.getMessage();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
 
         assertTrue(blockingClusterStateUpdateTaskExecuting.await(10, TimeUnit.SECONDS));
         return unblockClusterStateUpdateTask::countDown;

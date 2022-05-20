@@ -50,7 +50,7 @@ public class ClientYamlTestExecutionContext {
 
     private final boolean randomizeContentType;
 
-    ClientYamlTestExecutionContext(
+    public ClientYamlTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient,
         boolean randomizeContentType

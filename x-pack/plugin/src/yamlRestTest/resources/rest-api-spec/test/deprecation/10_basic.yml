@@ -6,9 +6,6 @@ setup:
 
 ---
 "Test Deprecations":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/85806"
   - do:
       migration.deprecations:
         index: "*"

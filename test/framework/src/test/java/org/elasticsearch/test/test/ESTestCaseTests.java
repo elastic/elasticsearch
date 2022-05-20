@@ -160,6 +160,11 @@ public class ESTestCaseTests extends ESTestCase {
         assertThat(randomUnique(() -> randomAlphaOfLengthBetween(1, 20), 10), hasSize(greaterThan(0)));
     }
 
+    public void testRandomNonEmptySubsetOfThrowsOnEmptyCollection() {
+        final var ex = expectThrows(IllegalArgumentException.class, () -> randomNonEmptySubsetOf(Collections.emptySet()));
+        assertThat(ex.getMessage(), equalTo("Can't pick non-empty subset of an empty collection"));
+    }
+
     public void testRandomValueOtherThan() {
         // "normal" way of calling where the value is not null
         int bad = randomInt();

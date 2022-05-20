@@ -117,7 +117,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(exception.getMessage(), containsString("Invalid settings"));
 
-        verify(clusterService, never()).submitStateUpdateTask(any(), any(), any());
+        verify(clusterService, never()).submitUnbatchedStateUpdateTask(any(), any());
     }
 
     public void testUpdateDesiredNodes() {
@@ -145,7 +145,10 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             request = new UpdateDesiredNodesRequest(desiredNodes.historyID(), desiredNodes.version() + 1, updatedNodes);
         }
 
-        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
+        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.replaceDesiredNodes(
+            currentClusterState,
+            TransportUpdateDesiredNodesAction.updateDesiredNodes(DesiredNodes.latestFromClusterState(currentClusterState), request)
+        );
         final DesiredNodesMetadata desiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
         assertThat(desiredNodesMetadata, is(notNullValue()));
 
@@ -157,13 +160,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
     }
 
     public void testUpdatesAreIdempotent() {
-        final DesiredNodesMetadata desiredNodesMetadata = randomDesiredNodesMetadata();
-        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10)))
-            .metadata(Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, desiredNodesMetadata).build())
-            .build();
-
-        final DesiredNodes latestDesiredNodes = desiredNodesMetadata.getLatestDesiredNodes();
-
+        final DesiredNodes latestDesiredNodes = randomDesiredNodesMetadata().getLatestDesiredNodes();
         final List<DesiredNode> equivalentDesiredNodesList = new ArrayList<>(latestDesiredNodes.nodes());
         if (randomBoolean()) {
             Collections.shuffle(equivalentDesiredNodesList, random());
@@ -174,19 +171,11 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             equivalentDesiredNodesList
         );
 
-        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
-        final DesiredNodesMetadata updatedDesiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
-        assertThat(updatedDesiredNodesMetadata, is(notNullValue()));
-        assertThat(updatedDesiredNodesMetadata.getLatestDesiredNodes(), is(notNullValue()));
-        assertThat(updatedDesiredNodesMetadata.getLatestDesiredNodes(), is(equalTo(latestDesiredNodes)));
+        assertSame(latestDesiredNodes, TransportUpdateDesiredNodesAction.updateDesiredNodes(latestDesiredNodes, request));
     }
 
     public void testUpdateSameHistoryAndVersionWithDifferentContentsFails() {
         final DesiredNodesMetadata desiredNodesMetadata = randomDesiredNodesMetadata();
-        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10)))
-            .metadata(Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, desiredNodesMetadata).build())
-            .build();
-
         final DesiredNodes latestDesiredNodes = desiredNodesMetadata.getLatestDesiredNodes();
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             latestDesiredNodes.historyID(),
@@ -196,17 +185,13 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request)
+            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(latestDesiredNodes, request)
         );
         assertThat(exception.getMessage(), containsString("already exists with a different definition"));
     }
 
     public void testBackwardUpdatesFails() {
         final DesiredNodesMetadata desiredNodesMetadata = randomDesiredNodesMetadata();
-        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10)))
-            .metadata(Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, desiredNodesMetadata).build())
-            .build();
-
         final DesiredNodes latestDesiredNodes = desiredNodesMetadata.getLatestDesiredNodes();
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             latestDesiredNodes.historyID(),
@@ -216,7 +201,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
 
         VersionConflictException exception = expectThrows(
             VersionConflictException.class,
-            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request)
+            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(latestDesiredNodes, request)
         );
         assertThat(exception.getMessage(), containsString("has been superseded by version"));
     }

@@ -787,8 +787,8 @@ public final class RepositoryData {
         Map<String, String> indexMetaIdentifiers = null;
         String uuid = MISSING_UUID;
         String clusterUUID = MISSING_UUID;
-        while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-            final String field = parser.currentName();
+        String field;
+        while ((field = parser.nextFieldName()) != null) {
             switch (field) {
                 case SNAPSHOTS -> parseSnapshots(parser, snapshots, snapshotsDetails, indexMetaLookup);
                 case INDICES -> parseIndices(parser, fixBrokenShardGens, snapshots, indexSnapshots, indexLookup, shardGenerations);

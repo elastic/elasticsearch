@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -182,7 +181,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                     .map(InferenceProcessor::getModelId)
                     .forEach(allReferencedModelKeys::add);
             } catch (Exception ex) {
-                logger.warn(new ParameterizedMessage("failed to load pipeline [{}]", pipelineId), ex);
+                logger.warn(() -> "failed to load pipeline [" + pipelineId + "]", ex);
             }
         }
         return allReferencedModelKeys;
@@ -210,7 +209,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         List<String> modelAliases,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        logger.debug(() -> new ParameterizedMessage("[{}] Deleting model", request.getId()));
+        logger.debug(() -> "[" + request.getId() + "] Deleting model");
 
         ActionListener<AcknowledgedResponse> nameDeletionListener = ActionListener.wrap(
             ack -> trainedModelProvider.deleteTrainedModel(request.getId(), ActionListener.wrap(r -> {
@@ -227,7 +226,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
             return;
         }
 
-        clusterService.submitStateUpdateTask("delete-trained-model-alias", new AckedClusterStateUpdateTask(request, nameDeletionListener) {
+        submitUnbatchedTask("delete-trained-model-alias", new AckedClusterStateUpdateTask(request, nameDeletionListener) {
             @Override
             public ClusterState execute(final ClusterState currentState) {
                 final ClusterState.Builder builder = ClusterState.builder(currentState);
@@ -244,12 +243,12 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                 );
                 return builder.build();
             }
-        }, newExecutor());
+        });
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     @Override

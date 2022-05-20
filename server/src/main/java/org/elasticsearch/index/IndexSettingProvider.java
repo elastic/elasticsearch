@@ -21,10 +21,9 @@ public interface IndexSettingProvider {
     /**
      * Returns explicitly set default index {@link Settings} for the given index. This should not
      * return null.
-     *
      * @param indexName         The name of the new index being created
      * @param dataStreamName    The name of the data stream if the index being created is part of a data stream otherwise <code>null</code>
-     * @param templateIndexMode The index mode from the data stream template of the matching template.
+     * @param timeSeries        Whether the template is in time series mode.
      * @param metadata          The current metadata instance that doesn't yet contain the index to be created
      * @param resolvedAt        The time the request to create this new index was accepted.
      * @param allSettings       All the setting resolved from the template that matches and any setting defined on the create index request
@@ -32,7 +31,7 @@ public interface IndexSettingProvider {
     Settings getAdditionalIndexSettings(
         String indexName,
         String dataStreamName,
-        IndexMode templateIndexMode,
+        boolean timeSeries,
         Metadata metadata,
         Instant resolvedAt,
         Settings allSettings

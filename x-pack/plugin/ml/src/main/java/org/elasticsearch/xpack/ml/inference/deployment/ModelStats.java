@@ -18,8 +18,8 @@ public record ModelStats(
     int errorCount,
     int rejectedExecutionCount,
     int timeoutCount,
-    Integer inferenceThreads,
-    Integer modelThreads,
+    Integer threadsPerAllocation,
+    Integer numberOfAllocations,
     long peakThroughput,
     long throughputLastPeriod,
     Double avgInferenceTimeLastPeriod

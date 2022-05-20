@@ -681,12 +681,34 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Read a {@link Map} using the given key and value readers. The return Map is immutable.
+     *
+     * @param keyReader Method to read a key. Must not return null.
+     * @param valueReader Method to read a value. Must not return null.
+     * @return The immutable map
+     */
+    public <K, V> Map<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
+        final int size = readVInt();
+        if (size == 0) {
+            return Map.of();
+        } else if (size == 1) {
+            return Map.of(keyReader.read(this), valueReader.read(this));
+        }
+        @SuppressWarnings({ "rawtypes", "unchecked" })
+        Map.Entry<K, V> entries[] = new Map.Entry[size];
+        for (int i = 0; i < size; ++i) {
+            entries[i] = Map.entry(keyReader.read(this), valueReader.read(this));
+        }
+        return Map.ofEntries(entries);
+    }
+
+    /**
      * Read {@link ImmutableOpenMap} using given key and value readers.
      *
      * @param keyReader   key reader
      * @param valueReader value reader
      */
-    public <K, V> ImmutableOpenMap<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
+    public <K, V> ImmutableOpenMap<K, V> readImmutableOpenMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
         throws IOException {
         final int size = readVInt();
         if (size == 0) {
@@ -1125,6 +1147,32 @@ public abstract class StreamInput extends InputStream {
      */
     public <T> List<T> readList(final Writeable.Reader<T> reader) throws IOException {
         return readCollection(reader, ArrayList::new, Collections.emptyList());
+    }
+
+    /**
+     * Reads an list of objects. The list is expected to have been written using {@link StreamOutput#writeList(List)}.
+     * The returned list is immutable.
+     *
+     * @return the list of objects
+     * @throws IOException if an I/O exception occurs reading the list
+     */
+    public <T> List<T> readImmutableList(final Writeable.Reader<T> reader) throws IOException {
+        int count = readArraySize();
+        // special cases small arrays, just like in java.util.List.of(...)
+        if (count == 0) {
+            return List.of();
+        } else if (count == 1) {
+            return List.of(reader.read(this));
+        } else if (count == 2) {
+            return List.of(reader.read(this), reader.read(this));
+        }
+        Object[] entries = new Object[count];
+        for (int i = 0; i < count; i++) {
+            entries[i] = reader.read(this);
+        }
+        @SuppressWarnings("unchecked")
+        T[] typedEntries = (T[]) entries;
+        return List.of(typedEntries);
     }
 
     /**

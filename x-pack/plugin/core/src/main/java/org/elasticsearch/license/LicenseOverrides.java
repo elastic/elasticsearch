@@ -35,7 +35,7 @@ class LicenseOverrides {
         assert TEST_LICENSE_ID_HASH.equals("d180f3dedf21b96eea4021d373ab990cba53eeb6c44832261417e828fcb278f1");
 
         ZonedDateTime EXPIRED = ZonedDateTime.ofStrict(LocalDateTime.of(1970, 1, 1, 0, 0, 42, 0), ZoneOffset.UTC, ZoneOffset.UTC);
-        LICENSE_OVERRIDES = Map.ofEntries(
+        LICENSE_OVERRIDES = Map.<String, ZonedDateTime>ofEntries(
             Map.entry(TEST_LICENSE_ID_HASH, EXPIRED),
             Map.entry("bef6c45f0b1d964e0509bcd3e3ae74513346fbd39fdc9ead6d06b714979f59f0", EXPIRED),
             Map.entry("87ff1c3f4a318f255da0a38110f3abf1869948a5e77bbf5cd422ba81cdfc1006", EXPIRED),
@@ -158,7 +158,11 @@ class LicenseOverrides {
             Map.entry("2f73c8b3eaa602011fec7a081e7c712df8ef12d67f328b8e5e58a8548e22f840", EXPIRED),
             Map.entry("ac4969409175c64eefc885770f1378f56c8491236fb105319d9f48f037a03c8f", EXPIRED),
             Map.entry("602696f0ea936bfe0d331d694fc9eba7760c8747974ee1edbdafb371b0f9680f", EXPIRED),
-            Map.entry("98c34dd8b8e9d73862e095aea7ae1f259856a06ff63e78e2bb2dba33e56b7f3e", EXPIRED)
+            Map.entry("98c34dd8b8e9d73862e095aea7ae1f259856a06ff63e78e2bb2dba33e56b7f3e", EXPIRED),
+            Map.entry("815e7855f6d368620d993455993992fd6ac033a836155871d817cd6f9b5a59c2", EXPIRED),
+            Map.entry("6017293796d20658ae8a39535961e6460ccd65bce7f7dd1a10259c52500287b3", EXPIRED),
+            Map.entry("ad300cbe3673033316b78227a3f3a89d5ff3bf9db5f51b1be0de913551788999", EXPIRED),
+            Map.entry("a47c23d69a88b14e2fe2177b39165c1c20f45dd6a16fb54f20d448c6b830f9b4", EXPIRED)
         );
     }
 

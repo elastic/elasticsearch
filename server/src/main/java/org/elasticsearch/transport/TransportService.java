@@ -32,10 +32,10 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
@@ -960,7 +960,7 @@ public class TransportService extends AbstractLifecycleComponent
             channel.sendResponse(e);
         } catch (Exception inner) {
             inner.addSuppressed(e);
-            logger.warn(() -> new ParameterizedMessage("failed to notify channel of error message for action [{}]", action), inner);
+            logger.warn(() -> "failed to notify channel of error message for action [" + action + "]", inner);
         }
     }
 
@@ -1209,7 +1209,7 @@ public class TransportService extends AbstractLifecycleComponent
             @Override
             public void onFailure(Exception e) {
                 assert false : e;
-                logger.warn(() -> new ParameterizedMessage("failed to notify response handler on connection close [{}]", connection), e);
+                logger.warn(() -> "failed to notify response handler on connection close [" + connection + "]", e);
             }
 
             @Override

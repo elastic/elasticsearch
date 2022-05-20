@@ -78,8 +78,8 @@ public class TokenListCategorizer implements Accountable {
         float threshold
     ) {
 
-        if (threshold < 0.01f || threshold > 0.99f) {
-            throw new IllegalArgumentException("threshold must be between 0.01 and 0.99: got " + threshold);
+        if (threshold < 0.01f || threshold > 1.0f) {
+            throw new IllegalArgumentException("threshold must be between 0.01 and 1.0: got " + threshold);
         }
 
         this.bytesRefHash = bytesRefHash;

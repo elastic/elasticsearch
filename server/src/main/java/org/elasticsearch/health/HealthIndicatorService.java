@@ -22,7 +22,7 @@ public interface HealthIndicatorService {
 
     String component();
 
-    HealthIndicatorResult calculate(boolean calculateDetails);
+    HealthIndicatorResult calculate(boolean explain);
 
     /**
      * This method creates a HealthIndicatorResult with the given information. Note that it sorts the impacts by severity (the lower the
@@ -37,12 +37,13 @@ public interface HealthIndicatorService {
         HealthStatus status,
         String summary,
         HealthIndicatorDetails details,
-        Collection<HealthIndicatorImpact> impacts
+        Collection<HealthIndicatorImpact> impacts,
+        List<UserAction> userActions
     ) {
         List<HealthIndicatorImpact> impactsList = impacts.stream()
             .sorted(Comparator.comparingInt(HealthIndicatorImpact::severity))
             .limit(3)
             .collect(Collectors.toList());
-        return new HealthIndicatorResult(name(), component(), status, summary, details, impactsList);
+        return new HealthIndicatorResult(name(), component(), status, summary, details, impactsList, userActions);
     }
 }

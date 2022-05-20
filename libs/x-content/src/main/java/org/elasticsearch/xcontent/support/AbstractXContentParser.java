@@ -10,6 +10,7 @@ package org.elasticsearch.xcontent.support;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -276,18 +277,16 @@ public abstract class AbstractXContentParser implements XContentParser {
     public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
         throws IOException {
         final Map<String, T> map = mapFactory.get();
-        if (findNonEmptyMapStart(this) == false) {
+        String fieldName = findNonEmptyMapStart(this);
+        if (fieldName == null) {
             return map;
         }
         assert currentToken() == Token.FIELD_NAME : "Expected field name but saw [" + currentToken() + "]";
         do {
-            // Must point to field name
-            String fieldName = currentName();
-            // And then the value...
             nextToken();
             T value = mapValueParser.apply(this);
             map.put(fieldName, value);
-        } while (nextToken() == XContentParser.Token.FIELD_NAME);
+        } while ((fieldName = nextFieldName()) != null);
         return map;
     }
 
@@ -309,23 +308,20 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     private static Map<String, Object> readMapSafe(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
         final Map<String, Object> map = mapFactory.get();
-        return findNonEmptyMapStart(parser) ? readMapEntries(parser, mapFactory, map) : map;
+        final String firstKey = findNonEmptyMapStart(parser);
+        return firstKey == null ? map : readMapEntries(parser, mapFactory, map, firstKey);
     }
 
-    // Read a map without bounds checks from a parser that is assumed to be at the map's first field's name token
     private static Map<String, Object> readMapEntries(
         XContentParser parser,
         Supplier<Map<String, Object>> mapFactory,
-        Map<String, Object> map
+        Map<String, Object> map,
+        String currentFieldName
     ) throws IOException {
-        assert parser.currentToken() == Token.FIELD_NAME : "Expected field name but saw [" + parser.currentToken() + "]";
         do {
-            // Must point to field name
-            String fieldName = parser.currentName();
-            // And then the value...
             Object value = readValueUnsafe(parser.nextToken(), parser, mapFactory);
-            map.put(fieldName, value);
-        } while (parser.nextToken() == Token.FIELD_NAME);
+            map.put(currentFieldName, value);
+        } while ((currentFieldName = parser.nextFieldName()) != null);
         return map;
     }
 
@@ -334,17 +330,18 @@ public abstract class AbstractXContentParser implements XContentParser {
      * Skips to the next token if the parser does not yet have a current token (i.e. {@link #currentToken()} returns {@code null}) and then
      * checks it.
      *
-     * @return true if a map start for a non-empty map is found
+     * @return the first key in the map if a non-empty map start is found
      */
-    private static boolean findNonEmptyMapStart(XContentParser parser) throws IOException {
+    @Nullable
+    private static String findNonEmptyMapStart(XContentParser parser) throws IOException {
         Token token = parser.currentToken();
         if (token == null) {
             token = parser.nextToken();
         }
         if (token == XContentParser.Token.START_OBJECT) {
-            token = parser.nextToken();
+            return parser.nextFieldName();
         }
-        return token == Token.FIELD_NAME;
+        return token == Token.FIELD_NAME ? parser.currentName() : null;
     }
 
     // Skips the current parser to the next array start. Assumes that the parser is either positioned before an array field's name token or
@@ -399,7 +396,8 @@ public abstract class AbstractXContentParser implements XContentParser {
                 return parser.booleanValue();
             case START_OBJECT: {
                 final Map<String, Object> map = mapFactory.get();
-                return parser.nextToken() != Token.FIELD_NAME ? map : readMapEntries(parser, mapFactory, map);
+                final String nextFieldName = parser.nextFieldName();
+                return nextFieldName == null ? map : readMapEntries(parser, mapFactory, map, nextFieldName);
             }
             case START_ARRAY:
                 return readListUnsafe(parser, mapFactory);

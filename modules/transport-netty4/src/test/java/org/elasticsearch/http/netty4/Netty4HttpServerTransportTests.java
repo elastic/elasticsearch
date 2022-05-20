@@ -33,7 +33,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -43,8 +42,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
@@ -53,7 +52,6 @@ import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -89,14 +87,14 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
     private NetworkService networkService;
     private ThreadPool threadPool;
-    private MockBigArrays bigArrays;
+    private PageCacheRecycler recycler;
     private ClusterSettings clusterSettings;
 
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
-        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        recycler = new MockPageCacheRecycler(Settings.EMPTY);
         clusterSettings = randomClusterSettings();
     }
 
@@ -107,7 +105,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         }
         threadPool = null;
         networkService = null;
-        bigArrays = null;
+        recycler = null;
         clusterSettings = null;
     }
 
@@ -158,10 +156,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
             @Override
             public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                logger.error(
-                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
-                    cause
-                );
+                logger.error(() -> "--> Unexpected bad request [" + FakeRestRequest.requestToString(channel.request()) + "]", cause);
                 throw new AssertionError();
             }
         };
@@ -169,7 +164,6 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
@@ -218,7 +212,6 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 initialSettings,
                 networkService,
-                bigArrays,
                 threadPool,
                 xContentRegistry(),
                 new NullDispatcher(),
@@ -236,7 +229,6 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Netty4HttpServerTransport otherTransport = new Netty4HttpServerTransport(
                     settings,
                     networkService,
-                    bigArrays,
                     threadPool,
                     xContentRegistry(),
                     new NullDispatcher(),
@@ -288,7 +280,6 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
@@ -337,10 +328,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
             @Override
             public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                logger.error(
-                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
-                    cause
-                );
+                logger.error(() -> "--> Unexpected bad request [" + FakeRestRequest.requestToString(channel.request()) + "]", cause);
                 throw new AssertionError();
             }
 
@@ -350,7 +338,6 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 Settings.EMPTY,
                 networkService,
-                bigArrays,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
@@ -402,10 +389,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
             @Override
             public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                logger.error(
-                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
-                    cause
-                );
+                logger.error(() -> "--> Unexpected bad request [" + FakeRestRequest.requestToString(channel.request()) + "]", cause);
                 throw new AssertionError();
             }
 
@@ -419,7 +403,6 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
@@ -473,10 +456,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
             @Override
             public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                logger.error(
-                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
-                    cause
-                );
+                logger.error(() -> "--> Unexpected bad request [" + FakeRestRequest.requestToString(channel.request()) + "]", cause);
                 throw new AssertionError("Should not have received a dispatched request");
             }
 
@@ -492,7 +472,6 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,

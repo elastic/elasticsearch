@@ -1464,7 +1464,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withRunAsSubject(Authentication authentication) {
-            logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getUser().authenticatedUser().principal())
+            logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
                 .with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName())
                 .with(PRINCIPAL_RUN_AS_FIELD_NAME, authentication.getUser().principal());
             if (authentication.getLookedUpBy() != null) {
@@ -1547,9 +1547,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
                 }
             } else {
-                if (authentication.getUser().isRunAs()) {
+                if (authentication.isRunAs()) {
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getLookedUpBy().getName())
-                        .with(PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getUser().authenticatedUser().principal())
+                        .with(PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getAuthenticatingSubject().getUser().principal())
                         // API key can run-as, when that happens, the following field will be _es_api_key,
                         // not the API key owner user's realm.
                         .with(PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());

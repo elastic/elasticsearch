@@ -161,6 +161,23 @@ public final class DataStreamTestHelper {
             }""".formatted(timestampFieldName);
     }
 
+    public static String generateTsdbMapping() {
+        return """
+            {
+              "_doc":{
+                "properties": {
+                  "@timestamp": {
+                    "type": "date"
+                  },
+                  "uid": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  }
+                }
+              }
+            }""";
+    }
+
     public static String generateMapping(String timestampFieldName, String type) {
         return "{\n"
             + "      \""

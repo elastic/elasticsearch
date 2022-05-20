@@ -12,8 +12,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
@@ -28,13 +29,17 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.function.BiConsumer;
 
 import static java.lang.String.format;
 
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, UpdateDesiredNodesResponse> {
+
     private final DesiredNodesSettingsValidator settingsValidator;
-    private final ClusterStateTaskExecutor<ClusterStateUpdateTask> taskExecutor;
+
+    private final ClusterStateTaskExecutor<UpdateDesiredNodesTask> taskExecutor = new UpdateDesiredNodesExecutor();
 
     @Inject
     public TransportUpdateDesiredNodesAction(
@@ -58,7 +63,6 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             ThreadPool.Names.SAME
         );
         this.settingsValidator = settingsValidator;
-        this.taskExecutor = new DesiredNodesClusterStateTaskExecutor();
     }
 
     @Override
@@ -75,32 +79,10 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     ) throws Exception {
         try {
             settingsValidator.validate(request.getNodes());
-
             clusterService.submitStateUpdateTask(
                 "update-desired-nodes",
-                new ClusterStateUpdateTask(Priority.URGENT, request.masterNodeTimeout()) {
-                    volatile boolean replacedExistingHistoryId = false;
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        final ClusterState updatedState = updateDesiredNodes(currentState, request);
-                        final DesiredNodes previousDesiredNodes = DesiredNodes.latestFromClusterState(currentState);
-                        final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(updatedState);
-                        replacedExistingHistoryId = previousDesiredNodes != null
-                            && previousDesiredNodes.hasSameHistoryId(latestDesiredNodes) == false;
-                        return updatedState;
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                        listener.onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId));
-                    }
-                },
+                new UpdateDesiredNodesTask(request, listener),
+                ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
                 taskExecutor
             );
         } catch (Exception e) {
@@ -108,14 +90,18 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         }
     }
 
-    static ClusterState updateDesiredNodes(ClusterState currentState, UpdateDesiredNodesRequest request) {
-        final DesiredNodesMetadata desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(currentState);
-        final DesiredNodes latestDesiredNodes = desiredNodesMetadata.getLatestDesiredNodes();
+    static ClusterState replaceDesiredNodes(ClusterState clusterState, DesiredNodes newDesiredNodes) {
+        return clusterState.copyAndUpdateMetadata(
+            metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(newDesiredNodes))
+        );
+    }
+
+    static DesiredNodes updateDesiredNodes(DesiredNodes latestDesiredNodes, UpdateDesiredNodesRequest request) {
         final DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
 
         if (latestDesiredNodes != null) {
             if (latestDesiredNodes.equals(proposedDesiredNodes)) {
-                return currentState;
+                return latestDesiredNodes;
             }
 
             if (latestDesiredNodes.hasSameVersion(proposedDesiredNodes)) {
@@ -139,8 +125,46 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             }
         }
 
-        return currentState.copyAndUpdateMetadata(
-            metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(proposedDesiredNodes))
-        );
+        return proposedDesiredNodes;
+    }
+
+    private record UpdateDesiredNodesTask(UpdateDesiredNodesRequest request, ActionListener<UpdateDesiredNodesResponse> listener)
+        implements
+            ClusterStateTaskListener {
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static class UpdateDesiredNodesExecutor implements ClusterStateTaskExecutor<UpdateDesiredNodesTask> {
+
+        private static final BiConsumer<ActionListener<UpdateDesiredNodesResponse>, ClusterState> SUCCESS_SAME_HISTORY_ID = (l, s) -> l
+            .onResponse(new UpdateDesiredNodesResponse(false));
+        private static final BiConsumer<ActionListener<UpdateDesiredNodesResponse>, ClusterState> SUCCESS_NEW_HISTORY_ID = (l, s) -> l
+            .onResponse(new UpdateDesiredNodesResponse(true));
+
+        @Override
+        public ClusterState execute(ClusterState currentState, List<TaskContext<UpdateDesiredNodesTask>> taskContexts) throws Exception {
+            final var initialDesiredNodes = DesiredNodesMetadata.fromClusterState(currentState).getLatestDesiredNodes();
+            var desiredNodes = initialDesiredNodes;
+            for (final var taskContext : taskContexts) {
+                final var previousDesiredNodes = desiredNodes;
+                try {
+                    desiredNodes = updateDesiredNodes(desiredNodes, taskContext.getTask().request());
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
+                    continue;
+                }
+                final var replacedExistingHistoryId = previousDesiredNodes != null
+                    && previousDesiredNodes.hasSameHistoryId(desiredNodes) == false;
+                taskContext.success(
+                    taskContext.getTask()
+                        .listener()
+                        .delegateFailure(replacedExistingHistoryId ? SUCCESS_NEW_HISTORY_ID : SUCCESS_SAME_HISTORY_ID)
+                );
+            }
+            return desiredNodes == initialDesiredNodes ? currentState : replaceDesiredNodes(currentState, desiredNodes);
+        }
     }
 }

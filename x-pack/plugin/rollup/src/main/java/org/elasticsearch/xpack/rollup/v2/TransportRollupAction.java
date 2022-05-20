@@ -21,7 +21,6 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -181,7 +180,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             }
 
             // 2.
-            clusterService.submitStateUpdateTask("rollup create index", new ClusterStateUpdateTask() {
+            submitUnbatchedTask("rollup create index", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     return metadataCreateIndexService.applyCreateIndexRequest(
@@ -246,7 +245,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
-            }, newExecutor());
+            });
         }, listener::onFailure));
     }
 
@@ -334,7 +333,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         ActionListener<AcknowledgedResponse> listener
     ) {
         // Update rollup metadata to include this index
-        clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
+        submitUnbatchedTask("update-rollup-metadata", new ClusterStateUpdateTask() {
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 // Everything went well, time to delete the temporary index
@@ -381,7 +380,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     new ElasticsearchException("failed to publish new cluster state with rollup metadata", e)
                 );
             }
-        }, newExecutor());
+        });
     }
 
     private void deleteTmpIndex(String originalIndex, String tmpIndex, ActionListener<AcknowledgedResponse> listener, Exception e) {
@@ -403,7 +402,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

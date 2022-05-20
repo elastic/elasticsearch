@@ -11,6 +11,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.Nullable;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -143,7 +145,7 @@ public interface IndexAbstraction {
      */
     class ConcreteIndex implements IndexAbstraction {
 
-        private final Index concreteIndexName;
+        private final Index concreteIndex;
         private final boolean isHidden;
         private final boolean isSystem;
         private final List<String> aliases;
@@ -151,7 +153,7 @@ public interface IndexAbstraction {
 
         public ConcreteIndex(IndexMetadata indexMetadata, DataStream dataStream) {
             // note: don't capture a reference to the indexMetadata here
-            this.concreteIndexName = indexMetadata.getIndex();
+            this.concreteIndex = indexMetadata.getIndex();
             this.isHidden = indexMetadata.isHidden();
             this.isSystem = indexMetadata.isSystem();
             this.aliases = indexMetadata.getAliases() != null ? List.copyOf(indexMetadata.getAliases().keySet()) : null;
@@ -164,7 +166,7 @@ public interface IndexAbstraction {
 
         @Override
         public String getName() {
-            return concreteIndexName.getName();
+            return concreteIndex.getName();
         }
 
         @Override
@@ -174,12 +176,12 @@ public interface IndexAbstraction {
 
         @Override
         public List<Index> getIndices() {
-            return List.of(concreteIndexName);
+            return List.of(concreteIndex);
         }
 
         @Override
         public Index getWriteIndex() {
-            return concreteIndexName;
+            return concreteIndex;
         }
 
         @Override
@@ -209,14 +211,14 @@ public interface IndexAbstraction {
             ConcreteIndex that = (ConcreteIndex) o;
             return isHidden == that.isHidden
                 && isSystem == that.isSystem
-                && concreteIndexName.equals(that.concreteIndexName)
+                && concreteIndex.equals(that.concreteIndex)
                 && Objects.equals(aliases, that.aliases)
                 && Objects.equals(dataStream, that.dataStream);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(concreteIndexName, isHidden, isSystem, aliases, dataStream);
+            return Objects.hash(concreteIndex, isHidden, isSystem, aliases, dataStream);
         }
     }
 
@@ -382,27 +384,11 @@ public interface IndexAbstraction {
             }
 
             Instant timestamp;
-            final var formatter = TIMESTAMP_FORMATTER;
-            XContent xContent = request.getContentType().xContent();
-            try (XContentParser parser = xContent.createParser(TS_EXTRACT_CONFIG, request.source().streamInput())) {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-                switch (parser.nextToken()) {
-                    case VALUE_STRING -> timestamp = DateFormatters.from(formatter.parse(parser.text()), formatter.locale()).toInstant();
-                    case VALUE_NUMBER -> timestamp = Instant.ofEpochMilli(parser.longValue());
-                    default -> throw new ParsingException(
-                        parser.getTokenLocation(),
-                        String.format(
-                            Locale.ROOT,
-                            "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
-                            XContentParser.Token.VALUE_STRING,
-                            XContentParser.Token.VALUE_NUMBER,
-                            parser.currentToken()
-                        )
-                    );
-                }
-            } catch (Exception e) {
-                throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
+            Object rawTimestamp = request.getRawTimestamp();
+            if (rawTimestamp != null) {
+                timestamp = getTimeStampFromRaw(rawTimestamp);
+            } else {
+                timestamp = getTimestampFromParser(request.source(), request.getContentType());
             }
             timestamp = timestamp.truncatedTo(ChronoUnit.SECONDS);
             Index result = dataStream.selectTimeSeriesWriteIndex(timestamp, metadata);
@@ -429,6 +415,45 @@ public interface IndexAbstraction {
                 );
             }
             return result;
+        }
+
+        static Instant getTimeStampFromRaw(Object rawTimestamp) {
+            try {
+                if (rawTimestamp instanceof Long lTimestamp) {
+                    return Instant.ofEpochMilli(lTimestamp);
+                } else if (rawTimestamp instanceof String sTimestamp) {
+                    return DateFormatters.from(TIMESTAMP_FORMATTER.parse(sTimestamp), TIMESTAMP_FORMATTER.locale()).toInstant();
+                } else {
+                    throw new IllegalArgumentException("timestamp [" + rawTimestamp + "] type [" + rawTimestamp.getClass() + "] error");
+                }
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Error get data stream timestamp field: " + e.getMessage(), e);
+            }
+        }
+
+        static Instant getTimestampFromParser(BytesReference source, XContentType xContentType) {
+            XContent xContent = xContentType.xContent();
+            try (XContentParser parser = xContent.createParser(TS_EXTRACT_CONFIG, source.streamInput())) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+                return switch (parser.nextToken()) {
+                    case VALUE_STRING -> DateFormatters.from(TIMESTAMP_FORMATTER.parse(parser.text()), TIMESTAMP_FORMATTER.locale())
+                        .toInstant();
+                    case VALUE_NUMBER -> Instant.ofEpochMilli(parser.longValue());
+                    default -> throw new ParsingException(
+                        parser.getTokenLocation(),
+                        String.format(
+                            Locale.ROOT,
+                            "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
+                            XContentParser.Token.VALUE_STRING,
+                            XContentParser.Token.VALUE_NUMBER,
+                            parser.currentToken()
+                        )
+                    );
+                };
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
+            }
         }
 
         @Override

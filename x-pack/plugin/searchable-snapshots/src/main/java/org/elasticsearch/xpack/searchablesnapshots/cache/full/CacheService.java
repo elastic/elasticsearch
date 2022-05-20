@@ -24,8 +24,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.repositories.IndexId;
@@ -586,10 +586,7 @@ public class CacheService extends AbstractLifecycleComponent {
                                         shouldPersist = true;
                                     } catch (Exception e) {
                                         if (cacheDirsSyncExceptionsLogs.putIfAbsent(cacheDir, startTimeNanos) == null) {
-                                            logger.warn(
-                                                () -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir),
-                                                e
-                                            );
+                                            logger.warn(() -> "failed to synchronize cache directory [" + cacheDir + "]", e);
                                         }
                                         assert e instanceof IOException : e;
                                         shouldPersist = false;

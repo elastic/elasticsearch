@@ -591,7 +591,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 assert false : inner;
-                logger.error(new ParameterizedMessage("exception thrown by listener notifying of failure from [{}]", source), inner);
+                logger.error(() -> "exception thrown by listener notifying of failure from [" + source + "]", inner);
             }
         }
 
@@ -601,10 +601,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 listener.onResponse(null);
             } catch (Exception e) {
                 assert false : e;
-                logger.error(
-                    new ParameterizedMessage("exception thrown by listener while notifying of cluster state processed from [{}]", source),
-                    e
-                );
+                logger.error(() -> "exception thrown by listener while notifying of cluster state processed from [" + source + "]", e);
             }
         }
     }

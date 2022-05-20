@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization2;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
@@ -34,7 +33,6 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85903")
 public class InternalCategorizationAggregationTests extends InternalMultiBucketAggregationTestCase<InternalCategorizationAggregation> {
 
     private CategorizationBytesRefHash bytesRefHash;

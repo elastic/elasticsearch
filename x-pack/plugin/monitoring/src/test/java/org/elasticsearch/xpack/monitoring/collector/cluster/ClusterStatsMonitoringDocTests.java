@@ -275,7 +275,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             transportAddress,
             singletonMap("attr", "value"),
             singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            Version.CURRENT,
+            "_external_id"
         );
 
         final ClusterState testClusterState = ClusterState.builder(testClusterName)
@@ -331,6 +332,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             Version.CURRENT,
             "1.8",
             "_plugin_class",
+            null,
             Collections.emptyList(),
             false,
             PluginType.ISOLATED,
@@ -708,6 +710,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "name": "_node_name",
                     "ephemeral_id": "_ephemeral_id",
                     "transport_address": "0.0.0.0:9300",
+                    "external_id": "_external_id",
                     "attributes": {
                       "attr": "value"
                     },

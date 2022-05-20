@@ -1,0 +1,5 @@
+pr: 85999
+summary: Rewrite `match_all` inside `must_not`
+area: Search
+type: bug
+issues: []

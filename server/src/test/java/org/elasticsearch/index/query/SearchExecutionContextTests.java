@@ -457,7 +457,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         when(mapperService.parserContext()).thenReturn(
             new MappingParserContext(
                 null,
-                mapperRegistry.getMapperParsers()::get,
+                type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
                 mapperRegistry.getRuntimeFieldParsers()::get,
                 indexSettings.getIndexVersionCreated(),
                 searchExecutionContextSupplier,

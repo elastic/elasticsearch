@@ -74,7 +74,7 @@ public abstract class MappedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        this.name = Objects.requireNonNull(name);
+        this.name = Mapper.internFieldName(name);
         this.isIndexed = isIndexed;
         this.isStored = isStored;
         this.docValues = hasDocValues;

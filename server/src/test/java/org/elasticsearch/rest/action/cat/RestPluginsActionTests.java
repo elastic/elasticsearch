@@ -158,6 +158,6 @@ public class RestPluginsActionTests extends ESTestCase {
     }
 
     private PluginInfo plugin(String name, PluginType type) {
-        return new PluginInfo(name, name + " description", "1.0", null, null, null, List.of(), false, type, null, false);
+        return new PluginInfo(name, name + " description", "1.0", null, null, null, null, List.of(), false, type, null, false);
     }
 }

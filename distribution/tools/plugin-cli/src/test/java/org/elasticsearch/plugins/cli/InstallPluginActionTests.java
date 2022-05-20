@@ -35,6 +35,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -87,6 +88,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
@@ -142,7 +144,7 @@ public class InstallPluginActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         pluginDir = createPluginDir(temp);
-        terminal = new MockTerminal();
+        terminal = MockTerminal.create();
         env = createEnv(temp);
         skipJarHellAction = new InstallPluginAction(terminal, null, false) {
             @Override
@@ -793,8 +795,8 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testOfficialPluginsHelpSortedAndMissingObviouslyWrongPlugins() throws Exception {
-        MockTerminal mockTerminal = new MockTerminal();
-        new MockInstallPluginCommand().main(new String[] { "--help" }, mockTerminal);
+        MockTerminal mockTerminal = MockTerminal.create();
+        new MockInstallPluginCommand().main(new String[] { "--help" }, mockTerminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
         try (BufferedReader reader = new BufferedReader(new StringReader(mockTerminal.getOutput()))) {
             String line = reader.readLine();
 

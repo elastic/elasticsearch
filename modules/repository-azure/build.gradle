@@ -23,10 +23,10 @@ esplugin {
 }
 
 versions << [
-  'azure': '12.14.4',
-  'azureCommon': '12.14.3',
-  'azureCore': '1.25.0',
-  'azureCoreHttpNetty': '1.11.7',
+  'azure': '12.16.0',
+  'azureCommon': '12.15.1',
+  'azureCore': '1.27.0',
+  'azureCoreHttpNetty': '1.11.9',
   'azureJackson': '2.13.2',
   'azureJacksonDatabind': '2.13.2.2',
 
@@ -35,8 +35,8 @@ versions << [
   'stax2API': '4.2.1',
   'woodstox': '6.2.7',
 
-  'reactorNetty': '1.0.14',
-  'reactorCore': '3.4.13',
+  'reactorNetty': '1.0.15',
+  'reactorCore': '3.4.14',
   'reactiveStreams': '1.0.3',
 ]
 
@@ -119,7 +119,7 @@ tasks.named("thirdPartyAudit").configure {
     'com.aayushatharva.brotli4j.Brotli4jLoader',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
-    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoders',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
 

@@ -1,0 +1,5 @@
+pr: 86304
+summary: Fix using `FilterOutputStream` without overriding bulk write
+area: Infra/Core
+type: bug
+issues: []

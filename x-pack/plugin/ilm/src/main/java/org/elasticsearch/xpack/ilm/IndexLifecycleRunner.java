@@ -279,7 +279,7 @@ class IndexLifecycleRunner {
             // we can afford to drop these requests if they timeout as on the next {@link
             // IndexLifecycleRunner#runPeriodicStep} run the policy will still be in the ERROR step, as we haven't been able
             // to move it back into the failed step, so we'll try again
-            clusterService.submitStateUpdateTask(
+            submitUnbatchedTask(
                 String.format(
                     Locale.ROOT,
                     "ilm-retry-failed-step {policy [%s], index [%s], failedStep [%s]}",
@@ -330,8 +330,7 @@ class IndexLifecycleRunner {
                             }
                         }
                     }
-                },
-                newExecutor()
+                }
             );
         } else {
             logger.debug("policy [{}] for index [{}] on an error step after a terminal error, skipping execution", policy, index);
@@ -668,8 +667,7 @@ class IndexLifecycleRunner {
      * TODO: refactor ILM logic so that this is not required any longer. It is unreasonably expensive to only filter out duplicate tasks at
      *       this point given how these tasks are mostly set up on the cluster state applier thread.
      *
-     * @param source source string as used in {@link ClusterService#submitStateUpdateTask(String, ClusterStateTaskConfig,
-     *               ClusterStateTaskExecutor)}
+     * @param source source string as used in {@link ClusterService#submitUnbatchedStateUpdateTask}
      * @param task   task to submit unless already tracked in {@link #executingTasks}.
      */
     private void submitUnlessAlreadyQueued(String source, IndexLifecycleClusterStateUpdateTask task) {
@@ -689,7 +687,7 @@ class IndexLifecycleRunner {
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

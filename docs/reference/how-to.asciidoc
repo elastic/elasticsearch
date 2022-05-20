@@ -30,3 +30,4 @@ include::how-to/fix-common-cluster-issues.asciidoc[]
 include::how-to/size-your-shards.asciidoc[]
 
 include::how-to/use-elasticsearch-for-time-series-data.asciidoc[]
+

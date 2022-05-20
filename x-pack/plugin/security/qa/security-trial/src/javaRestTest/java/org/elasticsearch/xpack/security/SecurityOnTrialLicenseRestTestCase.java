@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -23,9 +22,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
-@SuppressWarnings("removal")
 public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase {
-    private RestHighLevelClient highLevelAdminClient;
     private TestSecurityClient securityClient;
 
     @Override
@@ -87,13 +84,5 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
     protected ApiKey getApiKey(String id) throws IOException {
         final TestSecurityClient client = getSecurityClient();
         return client.getApiKey(id);
-    }
-
-    private RestHighLevelClient getHighLevelAdminClient() {
-        if (highLevelAdminClient == null) {
-            highLevelAdminClient = new RestHighLevelClient(adminClient(), ignore -> {}, List.of()) {
-            };
-        }
-        return highLevelAdminClient;
     }
 }

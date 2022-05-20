@@ -40,7 +40,7 @@ class PluginBundle {
         this.allUrls = allUrls;
     }
 
-    public PluginDescriptor plugin() {
+    public PluginDescriptor pluginDescriptor() {
         return this.plugin;
     }
 

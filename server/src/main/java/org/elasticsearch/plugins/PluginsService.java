@@ -121,7 +121,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (modulesDirectory != null) {
             try {
                 Set<PluginBundle> modules = PluginsUtils.getModuleBundles(modulesDirectory);
-                modules.stream().map(PluginBundle::plugin).forEach(modulesList::add);
+                modules.stream().map(PluginBundle::pluginDescriptor).forEach(modulesList::add);
                 seenBundles.addAll(modules);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
@@ -136,7 +136,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
                     Set<PluginBundle> plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
-                    plugins.stream().map(PluginBundle::plugin).forEach(pluginsList::add);
+                    plugins.stream().map(PluginBundle::pluginDescriptor).forEach(pluginsList::add);
                     seenBundles.addAll(plugins);
                 }
             } catch (IOException ex) {

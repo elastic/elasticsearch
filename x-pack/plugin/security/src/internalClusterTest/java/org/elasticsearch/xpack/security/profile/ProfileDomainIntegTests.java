@@ -269,7 +269,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         final String existingUid;
         // Manually create a collision document
         if (existingCollision) {
-            final Authentication authentication = assembleAuthentication(username, AuthenticationTests.randomRealmRef(randomBoolean()));
+            final Authentication authentication = assembleAuthentication(username, randomRealmRef());
             final PlainActionFuture<Profile> future = new PlainActionFuture<>();
             getInstanceFromRandomNode(ProfileService.class).activateProfile(authentication, future);
             existingUid = future.actionGet().uid();
@@ -295,10 +295,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
                 try {
-                    final Authentication authentication = assembleAuthentication(
-                        username,
-                        AuthenticationTests.randomRealmRef(randomBoolean())
-                    );
+                    final Authentication authentication = assembleAuthentication(username, randomRealmRef());
                     final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
                     final PlainActionFuture<Profile> future = new PlainActionFuture<>();
                     profileService.activateProfile(authentication, future);
@@ -395,10 +392,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
     }
 
     public void testProfileDocumentPassCanAccessResourceCheck() {
-        Authentication authentication = Authentication.newRealmAuthentication(
-            AuthenticationTests.randomUser(),
-            AuthenticationTests.randomRealmRef(randomBoolean())
-        );
+        Authentication authentication = Authentication.newRealmAuthentication(AuthenticationTests.randomUser(), randomRealmRef());
         if (randomBoolean()) {
             authentication = authentication.token();
         } else {
@@ -419,6 +413,22 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         final ProfileDocument profileDocument = future2.actionGet().doc();
         assertThat(profileDocument.uid(), equalTo(uid));
         assertThat(subject.canAccessResourcesOf(profileDocument.user().toSubject()), is(true));
+    }
+
+    private Authentication.RealmRef randomRealmRef() {
+        Authentication.RealmRef realmRef = AuthenticationTests.randomRealmRef(false);
+        if (randomBoolean()) {
+            realmRef = new Authentication.RealmRef(
+                realmRef.getName(),
+                realmRef.getType(),
+                realmRef.getNodeName(),
+                new RealmDomain(
+                    "my_domain",
+                    Set.of(new RealmConfig.RealmIdentifier("file", "file"), new RealmConfig.RealmIdentifier("native", "index"))
+                )
+            );
+        }
+        return realmRef;
     }
 
     private String indexDocument() {

@@ -509,7 +509,8 @@ public class DynamicMappingIT extends ESIntegTestCase {
               }
             }""").get());
 
-        IndexRequest request = new IndexRequest("test").source("host.name", "localhost", "host.id", 111, "time", 100, "time.max", 1000);
+        IndexRequest request = new IndexRequest("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .source("host.name", "localhost", "host.id", 111, "time", 100, "time.max", 1000);
         IndexResponse indexResponse = client().index(request).actionGet();
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
@@ -541,7 +542,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
               }
             }""").get());
 
-        IndexRequest request = new IndexRequest("test").source(
+        IndexRequest request = new IndexRequest("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).source(
             "foo.metrics.host.name",
             "localhost",
             "foo.metrics.host.id",

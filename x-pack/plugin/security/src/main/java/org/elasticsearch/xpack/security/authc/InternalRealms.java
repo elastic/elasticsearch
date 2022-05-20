@@ -138,7 +138,7 @@ public final class InternalRealms {
         NativeRoleMappingStore nativeRoleMappingStore,
         SecurityIndexManager securityIndex
     ) {
-        final JwtRealms jwtRealms = new JwtRealms(settings);
+        final JwtRealms jwtRealms = new JwtRealms(settings); // parse shared settings needed by all JwtRealm instances
         return Map.of(
             // file realm
             FileRealmSettings.TYPE,
@@ -171,9 +171,9 @@ public final class InternalRealms {
             // JWT realm
             JwtRealmSettings.TYPE,
             config -> {
-                final JwtRealm jetRealm = new JwtRealm(config, jwtRealms, sslService, nativeRoleMappingStore);
-                jwtRealms.addRegisteredJwtRealm(jetRealm);
-                return jetRealm;
+                final JwtRealm jwtRealm = new JwtRealm(config, jwtRealms, sslService, nativeRoleMappingStore);
+                jwtRealms.addRegisteredJwtRealm(jwtRealm);
+                return jwtRealm;
             }
         );
     }

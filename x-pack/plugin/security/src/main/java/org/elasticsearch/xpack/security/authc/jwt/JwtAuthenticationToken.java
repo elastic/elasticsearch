@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsSettings;
 
 import java.text.ParseException;
 import java.util.List;
@@ -35,9 +36,9 @@ public class JwtAuthenticationToken implements AuthenticationToken {
 
     /**
      * Store a mandatory JWT and optional Shared Secret. Parse the JWT, and extract the header, claims set, and signature.
-     * Compute a token principal, for use as a realm order cache key. Default for OIDC ID Tokens is iss/aud/sub.
-     * For other JWTs, the principalClaimNames supports using other claims to replace sub.
-     * Throws IllegalArgumentException if endUserIfClaimNames is empty, JWT is missing, or if JWT parsing fails.
+     * Compute a token principal, for use as a realm order cache key. For OIDC ID Tokens, cache key is iss/aud/sub.
+     * For other JWTs, {@link JwtRealmsSettings#PRINCIPAL_CLAIMS_SETTING} supports alternative claims for sub.
+     * Throws IllegalArgumentException if principalClaimNames is empty, JWT is missing, or if JWT parsing fails.
      * @param principalClaimNames Ordered list of string claims to use for principalClaimValue. The first one found is used (ex: sub).
      * @param endUserSignedJwt Base64Url-encoded JWT for End-user authentication. Required by all JWT realms.
      * @param clientAuthenticationSharedSecret URL-safe Shared Secret for Client authentication. Required by some JWT realms.
@@ -74,7 +75,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         }
 
         // get and validate sub claim, or the first configured backup claim (if sub is absent)
-        final String principalClaimValue = resolvePrincipalClaimName(jwtClaimsSet, principalClaimNames);
+        final String principalClaimValue = this.resolvePrincipalClaimName(jwtClaimsSet, principalClaimNames);
         this.principal = issuer + "/" + String.join(",", new TreeSet<>(audiences)) + "/" + principalClaimValue;
     }
 
@@ -82,16 +83,17 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         for (final String principalClaimName : principalClaimNames) {
             final Object claimValue = jwtClaimsSet.getClaim(principalClaimName);
             if (claimValue instanceof String principalClaimValue) {
+                // found an allowed string claim name
                 if (principalClaimValue.isEmpty()) {
                     throw new IllegalArgumentException(
-                        "Principal claim name '" + principalClaimName + "' exists but cannot be used due to empty string value"
+                        "Allowed principal claim name '" + principalClaimName + "' exists but cannot be used due to empty string value"
                     );
                 }
-                LOGGER.trace("Found principal claim name [{}] with value [{}]", principalClaimName, principalClaimValue);
+                LOGGER.trace("Found allowed principal claim name [{}] with value [{}]", principalClaimName, principalClaimValue);
                 return principalClaimValue;
             } else if (claimValue != null) {
                 throw new IllegalArgumentException(
-                    "Principal claim name '"
+                    "Allowed principal claim name '"
                         + principalClaimName
                         + "' exists but cannot be used due to non-string value type '"
                         + claimValue.getClass().getCanonicalName()
@@ -101,7 +103,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         }
 
         // at this point, none of the principalClaimNames were found
-        // throw an exception with a detailed log message about available claims with string values
+        // throw an exception with a detailed log message about which string claims were available in the JWT
         final String allClaimNamesWithStringValues = jwtClaimsSet.getClaims()
             .entrySet()
             .stream()

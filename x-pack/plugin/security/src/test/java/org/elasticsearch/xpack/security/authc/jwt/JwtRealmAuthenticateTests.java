@@ -44,7 +44,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
      * Test with empty roles.
      * @throws Exception Unexpected test failure
      */
-    public void testJwtAuthcRealmAuthenticateWithEmptyRoles() throws Exception {
+    public void testJwtAuthcRealmAuthcAuthzWithEmptyRoles() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
             this.createJwtRealmsSettingsBuilder(),
             new MinMax(1, 1), // realmsRange
@@ -61,14 +61,14 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
         final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
         final MinMax jwtAuthcRange = new MinMax(2, 3);
-        this.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
     }
 
     /**
      * Test with no authz realms.
      * @throws Exception Unexpected test failure
      */
-    public void testJwtAuthcRealmAuthenticateWithoutAuthzRealms() throws Exception {
+    public void testJwtAuthcRealmAuthcAuthzWithoutAuthzRealms() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
             this.createJwtRealmsSettingsBuilder(),
             new MinMax(1, 3), // realmsRange
@@ -87,14 +87,14 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
         final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
         final MinMax jwtAuthcRange = new MinMax(2, 3);
-        this.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
     }
 
     /**
      * Test with authz realms.
      * @throws Exception Unexpected test failure
      */
-    public void testJwtAuthcRealmAuthenticateWithAuthzRealms() throws Exception {
+    public void testJwtAuthcRealmAuthcAuthzWithAuthzRealms() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
             this.createJwtRealmsSettingsBuilder(),
             new MinMax(1, 3), // realmsRange
@@ -113,10 +113,10 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
         final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
         final MinMax jwtAuthcRange = new MinMax(2, 3);
-        this.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
 
-        // For user, realm authc'd OK and delegated authz'd OK.
-        // For otherUser, realm should authc OK, but delegated authz should fail.
+        // After the above success path test, do a negative path test for an authc user that does not exist in any authz realm.
+        // In other words, above the `user` was found in an authz realm, but below `otherUser` will not be found in any authz realm.
         {
             final String otherUsername = randomValueOtherThanMany(
                 candidate -> jwtIssuerAndRealm.issuer().principals.containsKey(candidate),
@@ -143,20 +143,21 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     }
 
     /**
-     * Test realm successfully connects to HTTPS server, and correctly handles an HTTP 404 Not Found response.
+     * Verify that a JWT realm successfully connects to HTTPS server, and can handle an HTTP 404 Not Found response correctly.
      * @throws Exception Unexpected test failure
      */
     public void testPkcJwkSetUrlNotFound() throws Exception {
-        final JwtRealms jwtRealms = this.createJwtRealms(this.createJwtRealmsSettingsBuilder());
+        final JwtRealms jwtRealms = this.generateJwtRealms(this.createJwtRealmsSettingsBuilder());
         final String principalClaimName = randomFrom(jwtRealms.getPrincipalClaimNames());
 
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
-        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 12, 1, 1, 1, true);
+        final boolean createHttpsServer = true; // force issuer to create HTTPS server for its PKC JWKSet
+        final JwtIssuer jwtIssuer = this.createJwtIssuer(0, principalClaimName, 12, 1, 1, 1, createHttpsServer);
         assertThat(jwtIssuer.httpsServer, is(notNullValue()));
         try {
             final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = this.createJwtRealmSettingsBuilder(jwtIssuer, 0, 0);
             final String configKey = RealmSettings.getFullSettingKey(jwtRealmSettingsBuilder.name(), JwtRealmSettings.PKC_JWKSET_PATH);
-            final String configValue = jwtIssuer.httpsServer.url.replace("/valid/", "/invalid");
+            final String configValue = jwtIssuer.httpsServer.url.replace("/valid/", "/invalid"); // right host, wrong path
             jwtRealmSettingsBuilder.settingsBuilder().put(configKey, configValue);
             final Exception exception = expectThrows(
                 SettingsException.class,
@@ -173,7 +174,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
      * Test token parse failures and authentication failures.
      * @throws Exception Unexpected test failure
      */
-    public void testJwtValidationSuccessAndFailure() throws Exception {
+    public void testJwtValidationFailures() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
             this.createJwtRealmsSettingsBuilder(),
             new MinMax(1, 1), // realmsRange
@@ -192,9 +193,12 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final MinMax jwtAuthcRange = new MinMax(2, 3);
 
         // Indirectly verify authentication works before performing any failure scenarios
-        this.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
 
-        {   // Directly verify SUCCESS scenario for token() and authenticate() validation, before checking any failure tests.
+        // The above confirmed JWT realm authc/authz is working.
+        // Now perform negative path tests to confirm JWT validation rejects invalid JWTs for different scenarios.
+
+        {   // Do one more direct SUCCESS scenario by checking token() and authenticate() directly before moving on to FAILURE scenarios.
             final ThreadContext requestThreadContext = super.createThreadContext(jwt, clientSecret);
             final JwtAuthenticationToken token = (JwtAuthenticationToken) jwtIssuerAndRealm.realm().token(requestThreadContext);
             final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = PlainActionFuture.newFuture();
@@ -203,7 +207,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             assertThat(plainActionFuture.get().isAuthenticated(), is(true));
         }
 
-        // Directly verify FAILURE scenarios for token() parsing and authenticate() validation.
+        // Directly verify FAILURE scenarios for token() parsing failures and authenticate() validation failures.
 
         // Null JWT
         final ThreadContext tc1 = super.createThreadContext(null, clientSecret);
@@ -314,11 +318,11 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
     /**
      * Configure two realms for same issuer. Use identical realm config, except different client secrets.
-     * Generate a JWT which is valid for both realms, but verify authentication only succeeds for second realm due to the client secret.
+     * Generate a JWT which is valid for both realms, but verify authentication only succeeds for second realm with correct client secret.
      * @throws Exception Unexpected test failure
      */
     public void testSameIssuerTwoRealmsDifferentClientSecrets() throws Exception {
-        final JwtRealms jwtRealms = this.createJwtRealms(this.createJwtRealmsSettingsBuilder());
+        final JwtRealms jwtRealms = this.generateJwtRealms(this.createJwtRealmsSettingsBuilder());
         final String principalClaimName = randomFrom(jwtRealms.getPrincipalClaimNames());
 
         final int realmsCount = 2;
@@ -380,6 +384,6 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
         final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
         final MinMax jwtAuthcRange = new MinMax(2, 3);
-        this.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
     }
 }

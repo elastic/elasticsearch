@@ -491,7 +491,7 @@ public abstract class JwtTestCase extends ESTestCase {
         return JwtValidateUtil.buildUnsignedJwt(jwtHeader, jwtClaimsSet);
     }
 
-    public static SecureString randomJwt(final JWK jwk, final String signatureAlgorithm) throws Exception {
+    public static SecureString randomBespokeJwt(final JWK jwk, final String signatureAlgorithm) throws Exception {
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
             randomBoolean() ? null : JOSEObjectType.JWT.toString(),
@@ -499,9 +499,9 @@ public abstract class JwtTestCase extends ESTestCase {
             randomAlphaOfLengthBetween(10, 20), // jwtID
             randomFrom("https://www.example.com/", "") + "iss1" + randomIntBetween(0, 99),
             randomFrom(List.of("rp_client1"), List.of("aud1", "aud2", "aud3")),
-            randomBoolean() ? "principal1" : "subject1",
-            randomFrom("sub", "uid", "custom"),
-            "principal1",
+            randomBoolean() ? "principal1" : "subject1", // sub claim value
+            randomFrom("sub", "uid", "custom", "oid", "client_id", "azp", "appid", "email"), // principal claim name
+            "principal1", // principal claim value
             randomBoolean() ? null : randomFrom("groups", "roles", "other"),
             randomFrom(List.of(""), List.of("grp1"), List.of("rol1", "rol2", "rol3"), List.of("per1")),
             Date.from(now.minusSeconds(randomLongBetween(10, 20))), // auth_time

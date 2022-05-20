@@ -29,7 +29,7 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
         final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm);
 
-        final SecureString jwt = JwtTestCase.randomJwt(jwk, signatureAlgorithm);
+        final SecureString jwt = JwtTestCase.randomBespokeJwt(jwk, signatureAlgorithm); // bespoke JWT, not tied to any JWT realm
         final SecureString clientSharedSecret = randomBoolean() ? null : new SecureString(randomAlphaOfLengthBetween(10, 20).toCharArray());
 
         final List<String> principalClaimNames = List.of(randomAlphaOfLength(4), "sub", randomAlphaOfLength(4));

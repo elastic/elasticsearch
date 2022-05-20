@@ -14,7 +14,10 @@ Fields of type `geo_point` accept latitude-longitude pairs, which can be used:
 * to integrate distance into a document's <<query-dsl-function-score-query,relevance score>>.
 * to <<geo-sorting,sort>> documents by distance.
 
-There are six ways that a geopoint may be specified, as demonstrated below:
+As with <<geo-shape, geo_shape>> and <<point, point>>, `geo_point` can be specified in http://geojson.org[GeoJSON]
+and https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text] formats.
+However, there are a number of additional formats that are supported for convenience and historical reasons.
+In total there are six ways that a geopoint may be specified, as demonstrated below:
 
 [source,console]
 --------------------------------------------------
@@ -31,44 +34,44 @@ PUT my-index-000001
 
 PUT my-index-000001/_doc/1
 {
-  "text": "Geopoint as an object with 'lat' and 'lon' keys",
-  "location": { <1>
-    "lat": 41.12,
-    "lon": -71.34
-  }
-}
-
-PUT my-index-000001/_doc/2
-{
   "text": "Geopoint as an object using GeoJSON format",
-  "location": { <2>
+  "location": { <1>
     "type": "Point",
     "coordinates": [-71.34, 41.12]
   }
 }
 
+PUT my-index-000001/_doc/2
+{
+  "text": "Geopoint as a WKT POINT primitive",
+  "location" : "POINT (-71.34 41.12)" <2>
+}
+
 PUT my-index-000001/_doc/3
 {
-  "text": "Geopoint as a string",
-  "location": "41.12,-71.34" <3>
+  "text": "Geopoint as an object with 'lat' and 'lon' keys",
+  "location": { <3>
+    "lat": 41.12,
+    "lon": -71.34
+  }
 }
 
 PUT my-index-000001/_doc/4
 {
-  "text": "Geopoint as a geohash",
-  "location": "drm3btev3e86" <4>
+  "text": "Geopoint as an array",
+  "location": [ -71.34, 41.12 ] <4>
 }
 
 PUT my-index-000001/_doc/5
 {
-  "text": "Geopoint as an array",
-  "location": [ -71.34, 41.12 ] <5>
+  "text": "Geopoint as a string",
+  "location": "41.12,-71.34" <5>
 }
 
 PUT my-index-000001/_doc/6
 {
-  "text": "Geopoint as a WKT POINT primitive",
-  "location" : "POINT (-71.34 41.12)" <6>
+  "text": "Geopoint as a geohash",
+  "location": "drm3btev3e86" <6>
 }
 
 GET my-index-000001/_search
@@ -90,13 +93,13 @@ GET my-index-000001/_search
 }
 --------------------------------------------------
 
-<1> Geopoint expressed as an object, with `lat` and `lon` keys.
-<2> Geopoint expressed as an object, in https://geojson.org/[GeoJSON] format, with `type` and `coordinates` keys.
-<3> Geopoint expressed as a string with the format: `"lat,lon"`.
-<4> Geopoint expressed as a geohash.
-<5> Geopoint expressed as an array with the format: [ `lon`, `lat`]
-<6> Geopoint expressed as a https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
+<1> Geopoint expressed as an object, in https://geojson.org/[GeoJSON] format, with `type` and `coordinates` keys.
+<2> Geopoint expressed as a https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
 POINT with the format: `"POINT(lon lat)"`
+<3> Geopoint expressed as an object, with `lat` and `lon` keys.
+<4> Geopoint expressed as an array with the format: [ `lon`, `lat`]
+<5> Geopoint expressed as a string with the format: `"lat,lon"`.
+<6> Geopoint expressed as a geohash.
 <7> A geo-bounding box query which finds all geopoints that fall inside the box.
 
 [IMPORTANT]

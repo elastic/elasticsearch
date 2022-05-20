@@ -67,6 +67,9 @@ public class NestedObjectMapper extends ObjectMapper {
                     iterator.remove();
                 }
             }
+            if (builder.subobjects.explicit()) {
+                throw new MapperParsingException("Nested type [" + name + "] does not support [subobjects] parameter");
+            }
             return builder;
         }
 
@@ -92,7 +95,7 @@ public class NestedObjectMapper extends ObjectMapper {
     private final Query nestedTypeFilter;
 
     NestedObjectMapper(String name, String fullPath, Map<String, Mapper> mappers, Builder builder) {
-        super(name, fullPath, builder.enabled, builder.dynamic, mappers);
+        super(name, fullPath, builder.enabled, Explicit.IMPLICIT_TRUE, builder.dynamic, mappers);
         if (builder.indexCreatedVersion.before(Version.V_8_0_0)) {
             this.nestedTypePath = "__" + fullPath;
         } else {
@@ -167,7 +170,7 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public ObjectMapper merge(Mapper mergeWith, MapperService.MergeReason reason) {
+    public ObjectMapper merge(Mapper mergeWith, MapperService.MergeReason reason, MapperBuilderContext mapperBuilderContext) {
         if ((mergeWith instanceof NestedObjectMapper) == false) {
             throw new IllegalArgumentException("can't merge a non nested mapping [" + mergeWith.name() + "] with a nested mapping");
         }
@@ -188,7 +191,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
             }
         }
-        toMerge.doMerge(mergeWithObject, reason);
+        toMerge.doMerge(mergeWithObject, reason, mapperBuilderContext);
         return toMerge;
     }
 

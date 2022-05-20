@@ -105,6 +105,7 @@ public class RootObjectMapper extends ObjectMapper {
             return new RootObjectMapper(
                 name,
                 enabled,
+                subobjects,
                 dynamic,
                 buildMappers(true, context),
                 runtimeFields,
@@ -251,6 +252,7 @@ public class RootObjectMapper extends ObjectMapper {
     RootObjectMapper(
         String name,
         Explicit<Boolean> enabled,
+        Explicit<Boolean> subobjects,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
         Map<String, RuntimeField> runtimeFields,
@@ -259,7 +261,7 @@ public class RootObjectMapper extends ObjectMapper {
         Explicit<Boolean> dateDetection,
         Explicit<Boolean> numericDetection
     ) {
-        super(name, name, enabled, dynamic, mappers);
+        super(name, name, enabled, subobjects, dynamic, mappers);
         this.runtimeFields = runtimeFields;
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
@@ -278,6 +280,7 @@ public class RootObjectMapper extends ObjectMapper {
     public RootObjectMapper.Builder newBuilder(Version indexVersionCreated) {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder(name());
         builder.enabled = enabled;
+        builder.subobjects = subobjects;
         builder.dynamic = dynamic;
         return builder;
     }
@@ -319,13 +322,13 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason) {
-        return (RootObjectMapper) super.merge(mergeWith, reason);
+    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
+        return (RootObjectMapper) super.merge(mergeWith, reason, mapperBuilderContext);
     }
 
     @Override
-    protected void doMerge(ObjectMapper mergeWith, MergeReason reason) {
-        super.doMerge(mergeWith, reason);
+    protected void doMerge(ObjectMapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
+        super.doMerge(mergeWith, reason, mapperBuilderContext);
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (mergeWithObject.numericDetection.explicit()) {
             this.numericDetection = mergeWithObject.numericDetection;

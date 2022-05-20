@@ -413,7 +413,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             for (int k = 0; k < indexMetadata.getNumberOfReplicas(); k++) {
                 indexShardRoutingBuilder.addShard(newShardRouting(shardId, randomAlphaOfLength(10), false, ShardRoutingState.STARTED));
             }
-            indexRoutingTable.addIndexShard(indexShardRoutingBuilder.build());
+            indexRoutingTable.addIndexShard(indexShardRoutingBuilder);
         }
         clusterStateBuilder.routingTable(RoutingTable.builder(currentState.routingTable()).add(indexRoutingTable).build());
 

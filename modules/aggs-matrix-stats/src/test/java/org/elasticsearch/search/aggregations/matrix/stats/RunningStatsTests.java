@@ -42,7 +42,7 @@ public class RunningStatsTests extends BaseMatrixStatsTestCase {
         actualStats.assertNearlyEqual(results);
     }
 
-    public void testEmptyMergeRunningStats() throws Exception {
+    public void testEmptyRunningStatsMissingFieldNames() throws Exception {
         final List<RunningStats> runningStats = Arrays.asList(
             new RunningStats(new String[] { "b", "a", "c" }, new double[] { 10.0d, 30.0d, 25.0d }), // if moving this item change last two
                                                                                                     // assertions
@@ -72,7 +72,7 @@ public class RunningStatsTests extends BaseMatrixStatsTestCase {
         }
     }
 
-    public void testMergeRunningStatsMissingFieldNames() throws Exception {
+    public void testRunningStatsMissingFieldNames() throws Exception {
         final RunningStats a = new RunningStats(new String[] { "x", "y", "z" }, new double[] { 11.0d, 35.0d, 20.0d });
         final RunningStats b = new RunningStats(new String[] { "x", "a", "c" }, new double[] { 2.0d, 5.0d, 7.0d });
 

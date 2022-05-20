@@ -6,7 +6,10 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsSettings;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 
@@ -16,6 +19,7 @@ import java.util.List;
 
 /**
  * Common settings shared by all JwtRealm instances.
+ * Common token parsing code shared by all JwtRealm instances.
  * @see JwtRealm
  */
 public class JwtRealms {
@@ -37,6 +41,34 @@ public class JwtRealms {
      */
     public List<String> getPrincipalClaimNames() {
         return this.principalClaimNames;
+    }
+
+    /**
+     * Call order is request => JwtRealm.token() => JwtRealms.token()
+     * @param threadContext Request headers and parameters
+     * @return JwtAuthenticationToken containing mandatory JWT header, optional client secret, and a realm order cache key
+     */
+    AuthenticationToken token(final ThreadContext threadContext) {
+        // extract value from Authorization header with Bearer scheme prefix
+        final SecureString authenticationParameterValue = JwtUtil.getHeaderValue(
+            threadContext,
+            JwtRealm.HEADER_END_USER_AUTHENTICATION,
+            JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
+            false
+        );
+        if (authenticationParameterValue == null) {
+            return null;
+        }
+        // extract value from ES-Client-Authentication header with SharedSecret scheme prefix
+        final SecureString clientAuthenticationSharedSecretValue = JwtUtil.getHeaderValue(
+            threadContext,
+            JwtRealm.HEADER_CLIENT_AUTHENTICATION,
+            JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
+            true
+        );
+        // final List<JwtRealm> jwtRealmList = this.jwtRealms.listRegisteredJwtRealms();
+        // final List<String> actualPrincipalClaimNames = jwtRealmList.stream().map(r -> r.claimParserPrincipal.getClaimName()).toList();
+        return new JwtAuthenticationToken(this.principalClaimNames, authenticationParameterValue, clientAuthenticationSharedSecretValue);
     }
 
     /**

@@ -348,26 +348,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     @Override
     public AuthenticationToken token(final ThreadContext threadContext) {
         this.ensureInitialized();
-        final SecureString authenticationParameterValue = JwtUtil.getHeaderValue(
-            threadContext,
-            JwtRealm.HEADER_END_USER_AUTHENTICATION,
-            JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
-            false
-        );
-        if (authenticationParameterValue == null) {
-            return null;
-        }
-        // Get all other possible parameters. A different JWT realm may do the actual authentication.
-        final SecureString clientAuthenticationSharedSecretValue = JwtUtil.getHeaderValue(
-            threadContext,
-            JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-            JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
-            true
-        );
-        // final List<JwtRealm> jwtRealmList = this.jwtRealms.listRegisteredJwtRealms();
-        // final List<String> actualPrincipalClaimNames = jwtRealmList.stream().map(r -> r.claimParserPrincipal.getClaimName()).toList();
-        final List<String> allowedPrincipalClaimNames = this.jwtRealms.getPrincipalClaimNames();
-        return new JwtAuthenticationToken(allowedPrincipalClaimNames, authenticationParameterValue, clientAuthenticationSharedSecretValue);
+        // Token parsing is common code for all realms
+        // First JWT realm will parse in a way that is compatible with all JWT realms,
+        // taking into consideration each JWT realm might have a different principal claim name
+        return this.jwtRealms.token(threadContext);
     }
 
     @Override

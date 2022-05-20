@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;

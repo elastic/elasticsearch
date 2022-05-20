@@ -251,7 +251,7 @@ public class ServerCliTests extends CommandTestCase {
     public void testKeystorePassword() throws Exception {
         assertKeystorePassword(null); // no keystore exists
         assertKeystorePassword("");
-        assertKeystorePassword("dummypassword");
+        assertKeystorePassword("a-dummy-password");
     }
 
     public void testCloseStopsServer() throws Exception {

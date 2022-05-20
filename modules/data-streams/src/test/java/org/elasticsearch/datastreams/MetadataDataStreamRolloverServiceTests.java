@@ -26,9 +26,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -92,7 +94,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 dataStream,
                 testThreadPool,
-                Set.of(new DataStreamIndexSettingsProvider()),
+                Set.of(createSettingsProvider(xContentRegistry())),
                 xContentRegistry()
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
@@ -187,7 +189,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 dataStream,
                 testThreadPool,
-                Set.of(new DataStreamIndexSettingsProvider()),
+                Set.of(createSettingsProvider(xContentRegistry())),
                 xContentRegistry()
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
@@ -278,7 +280,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 dataStream,
                 testThreadPool,
-                Set.of(new DataStreamIndexSettingsProvider()),
+                Set.of(createSettingsProvider(xContentRegistry())),
                 xContentRegistry()
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
@@ -326,6 +328,12 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         } finally {
             testThreadPool.shutdown();
         }
+    }
+
+    static DataStreamIndexSettingsProvider createSettingsProvider(NamedXContentRegistry xContentRegistry) {
+        return new DataStreamIndexSettingsProvider(
+            im -> MapperTestUtils.newMapperService(xContentRegistry, createTempDir(), im.getSettings(), im.getIndex().getName())
+        );
     }
 
 }

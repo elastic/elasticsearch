@@ -129,6 +129,13 @@ public class ServerProcess {
     }
 
     /**
+     * Return the process id of the server.
+     */
+    public long pid() {
+        return jvmProcess.pid();
+    }
+
+    /**
      * Detaches the server process from the current process, enabling the current process to exit.
      *
      * @throws IOException If an I/O error occured while reading stderr or closing any of the standard streams

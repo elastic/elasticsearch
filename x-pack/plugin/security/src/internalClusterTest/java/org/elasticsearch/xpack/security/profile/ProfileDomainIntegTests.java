@@ -264,13 +264,12 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         indexDocument();
 
         final String username = randomAlphaOfLengthBetween(5, 12);
-        final Authentication.RealmRef realmRef = AuthenticationTests.randomRealmRef(randomBoolean());
 
         final boolean existingCollision = randomBoolean();
         final String existingUid;
         // Manually create a collision document
         if (existingCollision) {
-            final Authentication authentication = assembleAuthentication(username, realmRef);
+            final Authentication authentication = assembleAuthentication(username, AuthenticationTests.randomRealmRef(randomBoolean()));
             final PlainActionFuture<Profile> future = new PlainActionFuture<>();
             getInstanceFromRandomNode(ProfileService.class).activateProfile(authentication, future);
             existingUid = future.actionGet().uid();
@@ -296,7 +295,10 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
                 try {
-                    final Authentication authentication = assembleAuthentication(username, realmRef);
+                    final Authentication authentication = assembleAuthentication(
+                        username,
+                        AuthenticationTests.randomRealmRef(randomBoolean())
+                    );
                     final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
                     final PlainActionFuture<Profile> future = new PlainActionFuture<>();
                     profileService.activateProfile(authentication, future);

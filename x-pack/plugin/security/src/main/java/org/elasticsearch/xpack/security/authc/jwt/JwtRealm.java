@@ -93,12 +93,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final CacheIteratorHelper<BytesKey, ExpiringUser> jwtCacheHelper;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
 
-    JwtRealm(
-        final RealmConfig realmConfig,
-        final JwtRealms jwtRealms,
-        final SSLService sslService,
-        final UserRoleMapper userRoleMapper
-    ) throws SettingsException {
+    JwtRealm(final RealmConfig realmConfig, final JwtRealms jwtRealms, final SSLService sslService, final UserRoleMapper userRoleMapper)
+        throws SettingsException {
         super(realmConfig);
         this.jwtRealms = jwtRealms; // common configuration settings shared by all JwtRealm instances
         this.userRoleMapper = userRoleMapper;

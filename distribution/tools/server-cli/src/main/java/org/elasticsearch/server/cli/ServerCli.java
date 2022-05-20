@@ -30,6 +30,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
@@ -163,13 +164,26 @@ class ServerCli extends EnvironmentAwareCommand {
             env = createEnv(options, processInfo);
         }
         return env;
-
     }
 
-    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword) {
+    private void validatePidFile(Path pidFile) throws UserException {
+        Path parent = pidFile.getParent();
+        if (parent != null && Files.exists(parent) && Files.isDirectory(parent) == false) {
+            throw new UserException(ExitCodes.USAGE, "pid file parent [" + parent + "] exists but is not a directory");
+        }
+        if (Files.exists(pidFile) && Files.isRegularFile(pidFile) == false) {
+            throw new UserException(ExitCodes.USAGE, pidFile + " exists but is not a regular file");
+        }
+    }
+
+    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword) throws UserException {
         boolean daemonize = options.has(daemonizeOption);
         boolean quiet = options.has(quietOption);
-        Path pidFile = options.valueOf(pidfileOption);
+        Path pidFile = null;
+        if (options.has(pidfileOption)) {
+            pidFile = options.valueOf(pidfileOption);
+            validatePidFile(pidFile);
+        }
         return new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());
     }
 

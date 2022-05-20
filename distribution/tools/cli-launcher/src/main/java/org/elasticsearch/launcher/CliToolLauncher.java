@@ -78,7 +78,9 @@ class CliToolLauncher {
 
             if (sysprops.get("os.name").startsWith("Windows")) {
                 int dotIndex = toolname.indexOf(".bat"); // strip off .bat
-                toolname = toolname.substring(0, dotIndex);
+                if (dotIndex != -1) {
+                    toolname = toolname.substring(0, dotIndex);
+                }
             }
         }
         return toolname;

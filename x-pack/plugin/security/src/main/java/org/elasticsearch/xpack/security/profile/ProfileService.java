@@ -16,7 +16,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -37,7 +36,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -188,11 +186,7 @@ public class ProfileService {
                     createNewProfile(subject, ProfileDocument.computeBaseUidForSubject(subject) + "_0", listener);
                 } else {
                     assert domainConfig.suffix() != null;
-                    final ValidationException validationException = validateUsername(subject);
-                    if (validationException != null) {
-                        listener.onFailure(validationException);
-                        return;
-                    }
+                    validateUsername(subject);
                     createNewProfile(subject, "u_" + subject.getUser().principal() + "_" + domainConfig.suffix(), listener);
                 }
             } else {
@@ -496,7 +490,7 @@ public class ProfileService {
         + "The username can contain alphanumeric characters (a-z, A-Z, 0-9), spaces, punctuation, "
         + "and printable symbols in the Basic Latin (ASCII) block.";
 
-    private ValidationException validateUsername(Subject subject) {
+    private void validateUsername(Subject subject) {
         final RealmDomain realmDomain = subject.getRealm().getDomain();
         assert realmDomain != null;
         assert domainConfigLookup.apply(realmDomain.name()) != null;
@@ -506,15 +500,14 @@ public class ProfileService {
         assert username != null;
 
         if (username.length() < 1 || username.length() > 490) {
-            return ValidateActions.addValidationError(String.format(Locale.ROOT, INVALID_USERNAME_MESSAGE, realmDomain.name()));
+            throw new ElasticsearchException(String.format(Locale.ROOT, INVALID_USERNAME_MESSAGE, realmDomain.name()));
         }
 
         for (char character : username.toCharArray()) {
             if (VALID_NAME_CHARS.contains(character) == false) {
-                return ValidateActions.addValidationError(String.format(Locale.ROOT, INVALID_USERNAME_MESSAGE, realmDomain.name()));
+                throw new ElasticsearchException(String.format(Locale.ROOT, INVALID_USERNAME_MESSAGE, realmDomain.name()));
             }
         }
-        return null;
     }
 
     // Package private for testing
@@ -627,8 +620,9 @@ public class ProfileService {
         }
 
         final DomainConfig domainConfig = getDomainConfigForSubject(subject);
-        if (domainConfig != null && differentiatorString.equals(domainConfig.suffix())) {
-            // Should not increment
+        // The user is from a domain that is configured to have a fixed suffix and should not auto-increment for clashing UID
+        if (domainConfig != null && domainConfig.suffix() != null) {
+            assert differentiatorString.equals(domainConfig.suffix());
             listener.onFailure(
                 new ElasticsearchException(
                     "cannot create new profile for ["

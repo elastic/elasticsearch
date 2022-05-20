@@ -159,31 +159,17 @@ public class RealmSettings {
             if (false == domainRealmsSetting.exists(globalSettings)) {
                 throw new IllegalArgumentException("[" + domainRealmsSetting.getKey() + "] must exist for security domain configuration");
             }
-            final List<String> memberRealmNames = domainRealmsSetting.get(globalSettings);
+            final Set<String> memberRealmNames = Set.copyOf(domainRealmsSetting.get(globalSettings));
             // TODO: Does it make sense to have empty realms for a domain?
 
-            final Setting<Boolean> literalUsernameSetting = DOMAIN_UID_LITERAL_USERNAME_SETTING.getConcreteSettingForNamespace(domainName);
-            final boolean literalUsername = literalUsernameSetting.get(globalSettings);
+            final boolean literalUsername = DOMAIN_UID_LITERAL_USERNAME_SETTING.getConcreteSettingForNamespace(domainName)
+                .get(globalSettings);
             final Setting<String> suffixSetting = DOMAIN_UID_SUFFIX_SETTING.getConcreteSettingForNamespace(domainName);
             final String suffix = suffixSetting.exists(globalSettings) ? suffixSetting.get(globalSettings) : null;
 
-            if (literalUsername && suffix == null) {
-                throw new IllegalArgumentException(
-                    "[" + suffixSetting.getKey() + "] must be configured when [" + literalUsernameSetting.getKey() + "] is set to [true]"
-                );
-            } else if (false == literalUsername && suffix != null) {
-                throw new IllegalArgumentException(
-                    "["
-                        + suffixSetting.getKey()
-                        + "] must not be configured when ["
-                        + literalUsernameSetting.getKey()
-                        + "] is set to [false]"
-                );
-            }
-
+            final DomainConfig domainConfig = new DomainConfig(domainName, memberRealmNames, literalUsername, suffix);
             for (String realmName : memberRealmNames) {
-                realmToDomainsMap.computeIfAbsent(realmName, k -> new TreeSet<>())
-                    .add(new DomainConfig(domainName, memberRealmNames, literalUsername, suffix));
+                realmToDomainsMap.computeIfAbsent(realmName, k -> new TreeSet<>()).add(domainConfig);
             }
         }
         final StringBuilder realmToMultipleDomainsErrorMessageBuilder = new StringBuilder(

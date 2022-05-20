@@ -7,14 +7,30 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
-import java.util.List;
+import org.elasticsearch.common.settings.Setting;
 
-public record DomainConfig(String name, List<String> memberRealmNames, boolean literalUsername, String suffix)
+import java.util.Set;
+
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_UID_LITERAL_USERNAME_SETTING;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_UID_SUFFIX_SETTING;
+
+public record DomainConfig(String name, Set<String> memberRealmNames, boolean literalUsername, String suffix)
     implements
         Comparable<DomainConfig> {
 
     public DomainConfig {
-        assert (literalUsername && suffix != null) || (false == literalUsername && suffix == null);
+        final Setting<String> suffixSetting = DOMAIN_UID_SUFFIX_SETTING.getConcreteSettingForNamespace(name);
+        final Setting<Boolean> literalUsernameSetting = DOMAIN_UID_LITERAL_USERNAME_SETTING.getConcreteSettingForNamespace(name);
+
+        if (literalUsername && suffix == null) {
+            throw new IllegalArgumentException(
+                "[" + suffixSetting.getKey() + "] must be configured when [" + literalUsernameSetting.getKey() + "] is set to [true]"
+            );
+        } else if (false == literalUsername && suffix != null) {
+            throw new IllegalArgumentException(
+                "[" + suffixSetting.getKey() + "] must not be configured when [" + literalUsernameSetting.getKey() + "] is set to [false]"
+            );
+        }
     }
 
     @Override

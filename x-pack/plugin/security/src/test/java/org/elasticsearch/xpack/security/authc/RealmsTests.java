@@ -295,7 +295,10 @@ public class RealmsTests extends ESTestCase {
                             domain,
                             new DomainConfig(
                                 domain,
-                                realmsForDomain.get(domain).stream().map(RealmConfig.RealmIdentifier::getName).toList(),
+                                realmsForDomain.get(domain)
+                                    .stream()
+                                    .map(RealmConfig.RealmIdentifier::getName)
+                                    .collect(Collectors.toUnmodifiableSet()),
                                 false,
                                 null
                             )
@@ -308,7 +311,10 @@ public class RealmsTests extends ESTestCase {
                             domain,
                             new DomainConfig(
                                 domain,
-                                realmsForDomain.get(domain).stream().map(RealmConfig.RealmIdentifier::getName).toList(),
+                                realmsForDomain.get(domain)
+                                    .stream()
+                                    .map(RealmConfig.RealmIdentifier::getName)
+                                    .collect(Collectors.toUnmodifiableSet()),
                                 true,
                                 domain + "suffix"
                             )

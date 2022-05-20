@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.Loggers;
@@ -194,7 +193,7 @@ public class ProfileServiceTests extends ESTestCase {
             client,
             profileIndex,
             clusterService,
-            name -> new DomainConfig(name, List.of(), false, null),
+            name -> new DomainConfig(name, Set.of(), false, null),
             threadPool
         );
     }
@@ -475,7 +474,7 @@ public class ProfileServiceTests extends ESTestCase {
             client,
             profileIndex,
             mock(ClusterService.class),
-            domainName -> new DomainConfig(domainName, List.of(), true, "suffix"),
+            domainName -> new DomainConfig(domainName, Set.of(), true, "suffix"),
             threadPool
         );
         final PlainActionFuture<Profile> future = new PlainActionFuture<>();
@@ -627,9 +626,9 @@ public class ProfileServiceTests extends ESTestCase {
         final ProfileService service = spy(
             new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, mock(ClusterService.class), domainName -> {
                 if (domainName.startsWith("hash")) {
-                    return new DomainConfig(domainName, List.of(), false, null);
+                    return new DomainConfig(domainName, Set.of(), false, null);
                 } else {
-                    return new DomainConfig(domainName, List.of(), true, "suffix");
+                    return new DomainConfig(domainName, Set.of(), true, "suffix");
                 }
             }, threadPool)
         );
@@ -726,7 +725,7 @@ public class ProfileServiceTests extends ESTestCase {
         final PlainActionFuture<Profile> future3 = new PlainActionFuture<>();
         service.activateProfile(authentication3, future3);
 
-        final ValidationException e3 = expectThrows(ValidationException.class, future3::actionGet);
+        final ElasticsearchException e3 = expectThrows(ElasticsearchException.class, future3::actionGet);
         assertThat(
             e3.getMessage(),
             containsString("Security domain [" + realmRef3.getDomain().name() + "] is configured to use literal username.")

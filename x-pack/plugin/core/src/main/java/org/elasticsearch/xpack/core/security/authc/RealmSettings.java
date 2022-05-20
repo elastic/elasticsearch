@@ -49,7 +49,7 @@ public class RealmSettings {
         key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
     );
 
-    private static final Pattern VALID_FIXED_SUFFIX = Pattern.compile("^[a-zA-Z][a-zA-Z0-9_-]{1,10}$");
+    private static final Pattern VALID_FIXED_SUFFIX = Pattern.compile("^[a-zA-Z][a-zA-Z0-9_-]{0,9}$");
     public static final Setting.AffixSetting<String> DOMAIN_UID_SUFFIX_SETTING = Setting.affixKeySetting(
         DOMAIN_SETTING_PREFIX,
         "uid_generation.suffix",
@@ -60,7 +60,7 @@ public class RealmSettings {
                         + v
                         + "] for ["
                         + key
-                        + "]. Fixed-string suffix must begin with a letter and followed a either letters, digits, dash or underscore and"
+                        + "]. Fixed-string suffix must begin with a letter and followed by either letters, digits, dash or underscore and"
                         + "the total length must be between 1 and 10 characters (inclusive)."
                 );
             }

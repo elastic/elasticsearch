@@ -253,17 +253,7 @@ public class TransportPutUserActionTests extends ESTestCase {
         for (int i = 0; i < length; i++) {
             username.append(randomFrom(Validation.VALID_NAME_CHARS));
         }
-        char c = Validation.VALID_NAME_CHARS.iterator().next();
-        final char c2 = randomValueOtherThan(' ', () -> randomFrom(Validation.VALID_NAME_CHARS));
-
-        final Character[] characters = randomArray(10, Character[]::new, () -> randomFrom(Validation.VALID_NAME_CHARS));
-
         return username.toString();
-    }
-
-    public void test() {
-        final char c2 = randomValueOtherThan(' ', () -> randomFrom(Validation.VALID_NAME_CHARS));
-        System.out.println(c2);
     }
 
     public void testException() {

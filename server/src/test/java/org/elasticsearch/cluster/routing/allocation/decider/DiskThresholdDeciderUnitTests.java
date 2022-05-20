@@ -42,6 +42,8 @@ import java.util.HashSet;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -477,6 +479,61 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             assertEquals(100L, sizeOfRelocatingShards(allocation, node, false, "/dev/null"));
             assertEquals(90L, sizeOfRelocatingShards(allocation, node, true, "/dev/null"));
         }
+    }
+
+    public void testTakesIntoAccountExpectedSizeForInitializingRelocatingSearchableSnapshots() {
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(
+                        settings(Version.CURRENT).put("index.uuid", "1234")
+                            .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                    )
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+            )
+            .build();
+
+        ShardRouting shard = ShardRoutingHelper.relocate(
+            ShardRoutingHelper.moveToStarted(
+                ShardRoutingHelper.initialize(
+                    ShardRouting.newUnassigned(
+                        new ShardId(new Index("test", "1234"), 0),
+                        false,
+                        PeerRecoverySource.INSTANCE,
+                        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
+                    ),
+                    "node1",
+                    20
+                ),
+                metadata
+            ),
+            "node2",
+            20
+        );
+
+        assertEquals(
+            20L,
+            sizeOfRelocatingShards(
+                new RoutingAllocation(
+                    null,
+                    ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                        .metadata(metadata)
+                        .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+                        .build(),
+                    new DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of()),
+                    null,
+                    0
+                ),
+                new RoutingNode(
+                    "node1",
+                    new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                    shard.getTargetRelocatingShard()
+                ),
+                false,
+                "/dev/null"
+            )
+        );
     }
 
     public long sizeOfRelocatingShards(RoutingAllocation allocation, RoutingNode node, boolean subtractShardsMovingAway, String dataPath) {

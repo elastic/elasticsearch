@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 
 /**
@@ -25,6 +26,10 @@ public class ShardRoutingHelper {
 
     public static ShardRouting moveToStarted(ShardRouting routing) {
         return routing.moveToStarted();
+    }
+
+    public static ShardRouting moveToStarted(ShardRouting routing, Metadata metadata) {
+        return routing.moveToStarted(metadata);
     }
 
     public static ShardRouting initialize(ShardRouting routing, String nodeId) {

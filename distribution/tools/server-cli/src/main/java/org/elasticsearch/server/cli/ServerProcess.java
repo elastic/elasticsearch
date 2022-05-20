@@ -221,11 +221,10 @@ public class ServerProcess {
         boolean isWindows = processInfo.sysprops().get("os.name").startsWith("Windows");
         command.add(javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString());
         command.addAll(jvmOptions);
-        command.add("-cp");
-        // The '*' isn't allowed by the windows filesystem, so we need to force it into the classpath after converting to a string.
-        // Thankfully this will all go away when switching to modules, which take the directory instead of a glob.
-        command.add(esHome.resolve("lib") + (isWindows ? "\\" : "/") + "*");
-        command.add("org.elasticsearch.bootstrap.Elasticsearch");
+        command.add("--module-path");
+        command.add(esHome.resolve("lib").toString());
+        command.add("-m");
+        command.add("org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch");
 
         var builder = new ProcessBuilder(command);
         builder.environment().putAll(envVars);

@@ -321,7 +321,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public abstract Builder getMergeBuilder();
 
     @Override
-    public final FieldMapper merge(Mapper mergeWith) {
+    public final FieldMapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
         if (mergeWith == this) {
             return this;
         }
@@ -343,9 +343,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return (FieldMapper) mergeWith;
         }
         Conflicts conflicts = new Conflicts(name());
-        builder.merge((FieldMapper) mergeWith, conflicts);
+        builder.merge((FieldMapper) mergeWith, conflicts, mapperBuilderContext);
         conflicts.check();
-        return builder.build(MapperBuilderContext.forPath(Builder.parentPath(name())));
+        return builder.build(mapperBuilderContext);
     }
 
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
@@ -408,7 +408,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     add(toMerge);
                 } else {
                     FieldMapper existing = mapperBuilders.get(toMerge.simpleName()).apply(context);
-                    add(existing.merge(toMerge));
+                    add(existing.merge(toMerge, context));
                 }
                 return this;
             }
@@ -1138,12 +1138,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        protected void merge(FieldMapper in, Conflicts conflicts) {
+        protected void merge(FieldMapper in, Conflicts conflicts, MapperBuilderContext mapperBuilderContext) {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
+            MapperBuilderContext childContext = mapperBuilderContext.createChildContext(in.simpleName());
             for (FieldMapper newSubField : in.multiFields.mappers) {
-                multiFieldsBuilder.update(newSubField, MapperBuilderContext.forPath(parentPath(newSubField.name())));
+                multiFieldsBuilder.update(newSubField, childContext);
             }
             this.copyTo.reset(in.copyTo);
             validate();

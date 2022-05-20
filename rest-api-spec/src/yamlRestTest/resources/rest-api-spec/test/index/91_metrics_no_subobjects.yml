@@ -80,8 +80,8 @@
         fields: [host*, time*]
   - match: {fields.host\.name.keyword.searchable: true}
   - match: {fields.host\.name.keyword.aggregatable: true}
-  - match: {fields.host\.id.keyword.searchable: true}
-  - match: {fields.host\.id.keyword.aggregatable: true}
+  - match: {fields.host\.id.long.searchable: true}
+  - match: {fields.host\.id.long.aggregatable: true}
   - match: {fields.time.long.searchable: true}
   - match: {fields.time.long.aggregatable: true}
   - match: {fields.time\.max.long.searchable: true}

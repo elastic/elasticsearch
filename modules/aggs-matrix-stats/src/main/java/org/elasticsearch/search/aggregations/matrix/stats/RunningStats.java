@@ -334,9 +334,18 @@ public class RunningStats implements Writeable, Cloneable {
     }
 
     public Set<String> getAllFieldNames() {
-        // NOTE: here we assume all maps used to store values hold the same set of keys (field names).
-        // As a result, we just need to read the set of keys from one of them.
-        return Collections.unmodifiableSet(this.counts.keySet());
+        final Set<String> allFieldNames = Collections.unmodifiableSet(this.counts.keySet());
+        assert allFieldNames.containsAll(this.variances.keySet())
+            && this.variances.keySet().containsAll(allFieldNames)
+            && allFieldNames.containsAll(this.fieldSum.keySet())
+            && this.fieldSum.keySet().containsAll(allFieldNames)
+            && allFieldNames.containsAll(this.means.keySet())
+            && this.means.keySet().containsAll(allFieldNames)
+            && allFieldNames.containsAll(this.kurtosis.keySet())
+            && this.kurtosis.keySet().containsAll(allFieldNames)
+            && allFieldNames.containsAll(this.skewness.keySet())
+            && this.skewness.keySet().containsAll(allFieldNames);
+        return allFieldNames;
     }
 
     @Override

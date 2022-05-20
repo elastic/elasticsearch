@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.env.NodeEnvironment.SEARCHABLE_SHARED_CACHE_FILE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -214,6 +215,13 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                 assertThat(ise.getMessage(), containsString("target folder already exists during data folder upgrade"));
                 Files.delete(conflictingFolder);
             }
+        }
+
+        // simulate a frozen node with a shared cache file
+        if (rarely()) {
+            final Path randomDataPath = randomFrom(dataPaths);
+            final Path sharedCache = randomDataPath.resolve("nodes").resolve("0").resolve(SEARCHABLE_SHARED_CACHE_FILE);
+            Files.createFile(sharedCache);
         }
 
         // check that upgrade works

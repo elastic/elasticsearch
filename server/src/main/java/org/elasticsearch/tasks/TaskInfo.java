@@ -176,8 +176,7 @@ public record TaskInfo(
         PARSER.declareString(constructorArg(), new ParseField("type"));
         PARSER.declareString(constructorArg(), new ParseField("action"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
-        ObjectParserHelper<TaskInfo, Void> parserHelper = new ObjectParserHelper<>();
-        parserHelper.declareRawObject(PARSER, optionalConstructorArg(), new ParseField("status"));
+        ObjectParserHelper.declareRawObject(PARSER, optionalConstructorArg(), new ParseField("status"));
         PARSER.declareLong(constructorArg(), new ParseField("start_time_in_millis"));
         PARSER.declareLong(constructorArg(), new ParseField("running_time_in_nanos"));
         PARSER.declareBoolean(constructorArg(), new ParseField("cancellable"));

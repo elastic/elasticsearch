@@ -1,0 +1,5 @@
+pr: 85120
+summary: Support GeoJSON for `geo_point`
+area: Geo
+type: enhancement
+issues: []

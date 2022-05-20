@@ -46,7 +46,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         this.path = path;
         this.format = Objects.requireNonNull(format, "Certificate format cannot be null");
         this.alias = alias;
-        this.subjectDn = Objects.requireNonNull(certificate.getSubjectDN().getName());
+        this.subjectDn = Objects.requireNonNull(extractSubjectDn(certificate));
         this.serialNumber = certificate.getSerialNumber().toString(16);
         this.hasPrivateKey = hasPrivateKey;
         this.expiry = certificate.getNotAfter().toInstant().atZone(ZoneOffset.UTC);
@@ -158,5 +158,13 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
     @Override
     public int compareTo(CertificateInfo o) {
         return COMPARATOR.compare(this, o);
+    }
+
+    private static String extractSubjectDn(X509Certificate certificate) {
+        /* We use X500Principal#toString instead of the more canonical X500Principal#getName for backwards compatibility:
+        * Previously, we used a deprecated approach getSubjectDN().getName() to extract the subject DN.
+        * getSubjectX500Principal().getName() applies additional formatting such as omitting spaces between DNs which would result
+        * in a breaking change to our /_ssl API.*/
+        return certificate.getSubjectX500Principal().toString();
     }
 }

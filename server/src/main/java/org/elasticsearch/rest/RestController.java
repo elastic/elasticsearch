@@ -11,20 +11,19 @@ package org.elasticsearch.rest;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.internal.io.Streams;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
@@ -308,7 +307,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 channel.sendResponse(new BytesRestResponse(channel, e));
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.error(() -> new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
+                logger.error(() -> "failed to send failure response for uri [" + request.uri() + "]", inner);
             }
         }
     }
@@ -399,7 +398,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * see https://www.elastic.co/blog/strict-content-type-checking-for-elasticsearch-rest-requests
      * @param request
      */
-    private boolean isContentTypeDisallowed(RestRequest request) {
+    private static boolean isContentTypeDisallowed(RestRequest request) {
         return request.getParsedContentType() != null
             && SAFELISTED_MEDIA_TYPES.contains(request.getParsedContentType().mediaTypeWithoutParameters());
     }
@@ -423,7 +422,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return false;
     }
 
-    private void sendContentTypeErrorMessage(@Nullable List<String> contentTypeHeader, RestChannel channel) throws IOException {
+    private static void sendContentTypeErrorMessage(@Nullable List<String> contentTypeHeader, RestChannel channel) throws IOException {
         final String errorMessage;
         if (contentTypeHeader == null) {
             errorMessage = "Content-Type header is missing";
@@ -478,7 +477,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         handleBadRequest(uri, requestMethod, channel);
     }
 
-    private void validateErrorTrace(RestRequest request, RestChannel channel) {
+    private static void validateErrorTrace(RestRequest request, RestChannel channel) {
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed
         if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
@@ -534,7 +533,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * <a href="https://tools.ietf.org/html/rfc2616#section-10.4.6">HTTP/1.1 -
      * 10.4.6 - 405 Method Not Allowed</a>).
      */
-    private void handleUnsupportedHttpMethod(
+    private static void handleUnsupportedHttpMethod(
         String uri,
         @Nullable RestRequest.Method method,
         final RestChannel channel,
@@ -570,7 +569,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * <a href="https://tools.ietf.org/html/rfc2616#section-9.2">HTTP/1.1 - 9.2
      * - Options</a>).
      */
-    private void handleOptionsRequest(RestChannel channel, Set<RestRequest.Method> validMethodSet) {
+    private static void handleOptionsRequest(RestChannel channel, Set<RestRequest.Method> validMethodSet) {
         BytesRestResponse bytesRestResponse = new BytesRestResponse(OK, TEXT_CONTENT_TYPE, BytesArray.EMPTY);
         // When we have an OPTIONS HTTP request and no valid handlers, simply send OK by default (with the Access Control Origin header
         // which gets automatically added).
@@ -584,7 +583,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Handle a requests with no candidate handlers (return a 400 Bad Request
      * error).
      */
-    private void handleBadRequest(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
+    private static void handleBadRequest(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             builder.startObject();
             {
@@ -644,7 +643,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
-        public BytesStreamOutput bytesOutput() {
+        public BytesStream bytesOutput() {
             return delegate.bytesOutput();
         }
 

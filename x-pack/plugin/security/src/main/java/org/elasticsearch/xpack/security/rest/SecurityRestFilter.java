@@ -120,7 +120,7 @@ public class SecurityRestFilter implements RestHandler {
         }
     }
 
-    protected void handleException(ActionType actionType, RestRequest request, RestChannel channel, Exception e) {
+    protected static void handleException(ActionType actionType, RestRequest request, RestChannel channel, Exception e) {
         logger.debug(new ParameterizedMessage("{} failed for REST request [{}]", actionType, request.uri()), e);
         final RestStatus restStatus = ExceptionsHelper.status(e);
         try {
@@ -148,10 +148,7 @@ public class SecurityRestFilter implements RestHandler {
             });
         } catch (Exception inner) {
             inner.addSuppressed(e);
-            logger.error(
-                (Supplier<?>) () -> new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()),
-                inner
-            );
+            logger.error((Supplier<?>) () -> "failed to send failure response for uri [" + request.uri() + "]", inner);
         }
     }
 

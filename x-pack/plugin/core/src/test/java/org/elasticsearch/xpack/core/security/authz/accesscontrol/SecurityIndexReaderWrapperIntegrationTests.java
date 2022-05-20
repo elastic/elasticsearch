@@ -46,10 +46,10 @@ import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
-import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.HashSet;
 import java.util.List;
@@ -78,9 +78,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
 
-        final Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(mock(User.class));
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // don't care as long as it's not null
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
@@ -215,9 +213,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        final Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(mock(User.class));
-        when(authentication.encode()).thenReturn(randomAlphaOfLength(24)); // don't care as long as it's not null
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
         new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
 
         final boolean noFilteredIndexPermissions = randomBoolean();

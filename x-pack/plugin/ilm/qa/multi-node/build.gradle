@@ -25,7 +25,8 @@ testClusters.configureEach {
   numberOfNodes = 4
 
   setting 'path.repo', repoDir.absolutePath
-  setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
+  setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'

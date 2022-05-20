@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.BufferedReader;
 import java.io.FilterInputStream;
-import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -173,7 +172,7 @@ public abstract class Streams {
      * Fully consumes the input stream, throwing the bytes away. Returns the number of bytes consumed.
      */
     public static long consumeFully(InputStream inputStream) throws IOException {
-        return org.elasticsearch.core.internal.io.Streams.copy(inputStream, NULL_OUTPUT_STREAM);
+        return org.elasticsearch.core.Streams.copy(inputStream, NULL_OUTPUT_STREAM);
     }
 
     public static List<String> readAllLines(InputStream input) throws IOException {
@@ -207,27 +206,6 @@ public abstract class Streams {
     }
 
     /**
-     * Wraps an {@link OutputStream} such that it's {@code close} method becomes a noop
-     *
-     * @param stream {@code OutputStream} to wrap
-     * @return wrapped {@code OutputStream}
-     */
-    public static OutputStream noCloseStream(OutputStream stream) {
-        return new FilterOutputStream(stream) {
-
-            @Override
-            public void write(byte[] b, int off, int len) throws IOException {
-                out.write(b, off, len);
-            }
-
-            @Override
-            public void close() {
-                // noop
-            }
-        };
-    }
-
-    /**
      * Wraps the given {@link BytesStream} in a {@link StreamOutput} that simply flushes when
      * close is called.
      */
@@ -240,7 +218,7 @@ public abstract class Streams {
      */
     public static BytesReference readFully(InputStream in) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        org.elasticsearch.core.internal.io.Streams.copy(in, out);
+        org.elasticsearch.core.Streams.copy(in, out);
         return out.bytes();
     }
 

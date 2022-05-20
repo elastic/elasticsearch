@@ -24,6 +24,9 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.Sync;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.process.ExecOperations;
 
 import java.io.File;
@@ -143,6 +146,14 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         }
     }
 
+    public void setReadinessEnabled(boolean enabled) {
+        if (enabled) {
+            for (ElasticsearchNode node : nodes) {
+                node.setting("readiness.port", "0"); // ephemeral port
+            }
+        }
+    }
+
     @Internal
     public ElasticsearchNode getFirstNode() {
         return nodes.getAt(clusterName + "-0");
@@ -190,12 +201,22 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    public void plugin(TaskProvider<Zip> plugin) {
+        nodes.all(each -> each.plugin(plugin));
+    }
+
+    @Override
     public void plugin(String pluginProjectPath) {
         nodes.all(each -> each.plugin(pluginProjectPath));
     }
 
     @Override
     public void module(Provider<RegularFile> module) {
+        nodes.all(each -> each.module(module));
+    }
+
+    @Override
+    public void module(TaskProvider<Sync> module) {
         nodes.all(each -> each.module(module));
     }
 
@@ -444,6 +465,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     @Internal
+    public String getReadinessPortURI() {
+        waitForAllConditions();
+        return getFirstNode().getReadinessPortURI();
+    }
+
+    @Override
+    @Internal
     public List<String> getAllHttpSocketURI() {
         waitForAllConditions();
         return nodes.stream().flatMap(each -> each.getAllHttpSocketURI().stream()).collect(Collectors.toList());
@@ -454,6 +482,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     public List<String> getAllTransportPortURI() {
         waitForAllConditions();
         return nodes.stream().flatMap(each -> each.getAllTransportPortURI().stream()).collect(Collectors.toList());
+    }
+
+    @Override
+    @Internal
+    public List<String> getAllReadinessPortURI() {
+        waitForAllConditions();
+        return nodes.stream().flatMap(each -> each.getAllReadinessPortURI().stream()).collect(Collectors.toList());
     }
 
     public void waitForAllConditions() {

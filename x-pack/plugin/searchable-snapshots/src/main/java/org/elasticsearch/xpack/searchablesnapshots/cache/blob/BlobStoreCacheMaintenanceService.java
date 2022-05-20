@@ -390,10 +390,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
         @Override
         public void onFailure(Exception e) {
-            logger.warn(
-                () -> new ParameterizedMessage("snapshot blob cache maintenance task failed for cluster state update [{}]", event.source()),
-                e
-            );
+            logger.warn(() -> "snapshot blob cache maintenance task failed for cluster state update [" + event.source() + "]", e);
         }
     }
 
@@ -671,7 +668,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn(() -> new ParameterizedMessage("failed to close point-in-time id [{}]", pitId), e);
+                            logger.warn(() -> "failed to close point-in-time id [" + pitId + "]", e);
                         }
                     }, () -> Releasables.close(releasable)));
                     waitForRelease = true;

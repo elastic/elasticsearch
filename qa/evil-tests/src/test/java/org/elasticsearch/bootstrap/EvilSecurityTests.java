@@ -77,7 +77,6 @@ public class EvilSecurityTests extends ESTestCase {
         );
         settingsBuilder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), esHome.resolve("custom").toString());
         settingsBuilder.put(Environment.PATH_LOGS_SETTING.getKey(), esHome.resolve("logs").toString());
-        settingsBuilder.put(Environment.NODE_PIDFILE_SETTING.getKey(), esHome.resolve("test.pid").toString());
         Settings settings = settingsBuilder.build();
 
         Path fakeTmpDir = createTempDir();
@@ -123,8 +122,6 @@ public class EvilSecurityTests extends ESTestCase {
         assertExactPermissions(new FilePermission(environment.logsFile().toString(), "read,readlink,write,delete"), permissions);
         // temp dir: r/w
         assertExactPermissions(new FilePermission(fakeTmpDir.toString(), "read,readlink,write,delete"), permissions);
-        // PID file: delete only (for the shutdown hook)
-        assertExactPermissions(new FilePermission(environment.pidFile().toString(), "delete"), permissions);
     }
 
     public void testDuplicateDataPaths() throws IOException {

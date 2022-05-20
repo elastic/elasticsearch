@@ -24,7 +24,6 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -361,7 +360,6 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             .put(
                 DataStreamTestHelper.newInstance(
                     dataStreamName,
-                    createTimestampField("@timestamp"),
                     List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())
                 )
             );

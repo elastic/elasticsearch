@@ -94,7 +94,7 @@ public class RestPutMappingAction extends BaseRestHandler {
         return channel -> client.admin().indices().putMapping(putMappingRequest, new RestToXContentListener<>(channel));
     }
 
-    private Map<String, Object> prepareV7Mappings(boolean includeTypeName, Map<String, Object> mappings) {
+    private static Map<String, Object> prepareV7Mappings(boolean includeTypeName, Map<String, Object> mappings) {
         if (includeTypeName && mappings != null && mappings.size() == 1) {
             String typeName = mappings.keySet().iterator().next();
             if (Strings.hasText(typeName) == false) {

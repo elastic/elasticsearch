@@ -26,7 +26,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -48,6 +47,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -104,6 +104,7 @@ public class CompositeRolesStore {
     private final RoleDescriptorStore roleReferenceResolver;
     private final Role superuserRole;
     private final Role xpackSecurityRole;
+    private final Role securityProfileRole;
     private final Role xpackUserRole;
     private final Role asyncSearchUserRole;
     private final RestrictedIndices restrictedIndices;
@@ -154,6 +155,7 @@ public class CompositeRolesStore {
         this.superuserRole = Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices)
             .build();
         xpackSecurityRole = Role.builder(XPackSecurityUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
+        securityProfileRole = Role.builder(SecurityProfileUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
         xpackUserRole = Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
         asyncSearchUserRole = Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
 
@@ -170,11 +172,10 @@ public class CompositeRolesStore {
     }
 
     public void getRoles(Authentication authentication, ActionListener<Tuple<Role, Role>> roleActionListener) {
-        final AuthenticationContext authenticationContext = AuthenticationContext.fromAuthentication(authentication);
-        getRole(authenticationContext.getEffectiveSubject(), ActionListener.wrap(role -> {
-            if (authenticationContext.isRunAs()) {
+        getRole(authentication.getEffectiveSubject(), ActionListener.wrap(role -> {
+            if (authentication.isRunAs()) {
                 getRole(
-                    authenticationContext.getAuthenticatingSubject(),
+                    authentication.getAuthenticatingSubject(),
                     ActionListener.wrap(
                         authenticatingRole -> roleActionListener.onResponse(new Tuple<>(role, authenticatingRole)),
                         roleActionListener::onFailure
@@ -210,15 +211,17 @@ public class CompositeRolesStore {
         final User user = subject.getUser();
         if (SystemUser.is(user)) {
             throw new IllegalArgumentException(
-                "the user [" + user.principal() + "] is the system user and we should never try to get its" + " roles"
+                "the user [" + user.principal() + "] is the system user and we should never try to get its roles"
             );
         }
         if (XPackUser.is(user)) {
-            assert XPackUser.INSTANCE.roles().length == 1;
             return xpackUserRole;
         }
         if (XPackSecurityUser.is(user)) {
             return xpackSecurityRole;
+        }
+        if (SecurityProfileUser.is(user)) {
+            return securityProfileRole;
         }
         if (AsyncSearchUser.is(user)) {
             return asyncSearchUserRole;
@@ -240,22 +243,7 @@ public class CompositeRolesStore {
         final Role existing = roleCache.get(roleKey);
         if (existing == null) {
             final long invalidationCounter = numInvalidation.get();
-            roleReference.resolve(roleReferenceResolver, ActionListener.wrap(rolesRetrievalResult -> {
-                if (RolesRetrievalResult.EMPTY == rolesRetrievalResult) {
-                    roleActionListener.onResponse(Role.EMPTY);
-                } else if (RolesRetrievalResult.SUPERUSER == rolesRetrievalResult) {
-                    roleActionListener.onResponse(superuserRole);
-                } else {
-                    buildThenMaybeCacheRole(
-                        roleKey,
-                        rolesRetrievalResult.getRoleDescriptors(),
-                        rolesRetrievalResult.getMissingRoles(),
-                        rolesRetrievalResult.isSuccess(),
-                        invalidationCounter,
-                        roleActionListener
-                    );
-                }
-            }, e -> {
+            final Consumer<Exception> failureHandler = e -> {
                 // Because superuser does not have write access to restricted indices, it is valid to mix superuser with other roles to
                 // gain addition access. However, if retrieving those roles fails for some reason, then that could leave admins in a
                 // situation where they are unable to administer their cluster (in order to resolve the problem that is leading to failures
@@ -274,13 +262,29 @@ public class CompositeRolesStore {
                 } else {
                     roleActionListener.onFailure(e);
                 }
-            }));
+            };
+            roleReference.resolve(roleReferenceResolver, ActionListener.wrap(rolesRetrievalResult -> {
+                if (RolesRetrievalResult.EMPTY == rolesRetrievalResult) {
+                    roleActionListener.onResponse(Role.EMPTY);
+                } else if (RolesRetrievalResult.SUPERUSER == rolesRetrievalResult) {
+                    roleActionListener.onResponse(superuserRole);
+                } else {
+                    buildThenMaybeCacheRole(
+                        roleKey,
+                        rolesRetrievalResult.getRoleDescriptors(),
+                        rolesRetrievalResult.getMissingRoles(),
+                        rolesRetrievalResult.isSuccess(),
+                        invalidationCounter,
+                        ActionListener.wrap(roleActionListener::onResponse, failureHandler)
+                    );
+                }
+            }, failureHandler));
         } else {
             roleActionListener.onResponse(existing);
         }
     }
 
-    private boolean includesSuperuserRole(RoleReference roleReference) {
+    private static boolean includesSuperuserRole(RoleReference roleReference) {
         if (roleReference instanceof RoleReference.NamedRoleReference namedRoles) {
             return Arrays.asList(namedRoles.getRoleNames()).contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
         } else {
@@ -301,6 +305,16 @@ public class CompositeRolesStore {
     // for testing
     Role getAsyncSearchUserRole() {
         return asyncSearchUserRole;
+    }
+
+    // for testing
+    Role getXpackSecurityRole() {
+        return xpackSecurityRole;
+    }
+
+    // for testing
+    Role getSecurityProfileRole() {
+        return securityProfileRole;
     }
 
     private void buildThenMaybeCacheRole(
@@ -363,7 +377,8 @@ public class CompositeRolesStore {
         );
     }
 
-    private Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
+    // Package private for testing
+    static Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
         final User user = subject.getUser();
         if (SystemUser.is(user)) {
             throw new IllegalArgumentException(
@@ -375,6 +390,9 @@ public class CompositeRolesStore {
         }
         if (XPackSecurityUser.is(user)) {
             return Optional.of(XPackSecurityUser.ROLE_DESCRIPTOR);
+        }
+        if (SecurityProfileUser.is(user)) {
+            return Optional.of(SecurityProfileUser.ROLE_DESCRIPTOR);
         }
         if (AsyncSearchUser.is(user)) {
             return Optional.of(AsyncSearchUser.ROLE_DESCRIPTOR);

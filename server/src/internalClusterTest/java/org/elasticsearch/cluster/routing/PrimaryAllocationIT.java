@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -286,7 +285,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         boolean useStaleReplica = randomBoolean(); // if true, use stale replica, otherwise a completely empty copy
         logger.info("--> explicitly promote old primary shard");
         final String idxName = "test";
-        ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = client().admin()
+        Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = client().admin()
             .indices()
             .prepareShardStores(idxName)
             .get()

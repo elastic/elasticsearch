@@ -20,8 +20,6 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
 
-  requiresFeature 'es.jwt_realm_feature_flag_enabled', Version.fromString("8.2.0")
-
   extraConfigFile 'http-server.key', file('src/javaRestTest/resources/ssl/http-server.key')
   extraConfigFile 'http-server.crt', file('src/javaRestTest/resources/ssl/http-server.crt')
   extraConfigFile 'http-client-ca.crt', file('src/javaRestTest/resources/ssl/http-client-ca.crt')

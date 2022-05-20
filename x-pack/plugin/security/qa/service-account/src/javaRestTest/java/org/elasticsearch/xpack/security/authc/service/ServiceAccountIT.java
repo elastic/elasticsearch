@@ -171,6 +171,16 @@ public class ServiceAccountIT extends ESRestTestCase {
                         "write"
                     ],
                     "allow_restricted_indices": false
+                },
+                {
+                    "names": [
+                        "search-*"
+                    ],
+                    "privileges": [
+                        "read",
+                        "view_index_metadata"
+                    ],
+                    "allow_restricted_indices": false
                 }
             ],
             "applications": [],

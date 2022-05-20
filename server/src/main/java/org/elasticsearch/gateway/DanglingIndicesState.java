@@ -82,7 +82,7 @@ public class DanglingIndicesState {
      * Importing dangling indices with aliases is dangerous, it could for instance result in inability to write to an existing alias if it
      * previously had only one index with any is_write_index indication.
      */
-    private IndexMetadata stripAliases(IndexMetadata indexMetadata) {
+    private static IndexMetadata stripAliases(IndexMetadata indexMetadata) {
         if (indexMetadata.getAliases().isEmpty()) {
             return indexMetadata;
         } else {

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.cache.bitset;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
@@ -261,9 +260,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
                                     );
                             }
                         } catch (Exception e) {
-                            indexShard.warmerService()
-                                .logger()
-                                .warn(() -> new ParameterizedMessage("failed to load " + "bitset for [{}]", filterToWarm), e);
+                            indexShard.warmerService().logger().warn(() -> "failed to load " + "bitset for [" + filterToWarm + "]", e);
                         } finally {
                             latch.countDown();
                         }

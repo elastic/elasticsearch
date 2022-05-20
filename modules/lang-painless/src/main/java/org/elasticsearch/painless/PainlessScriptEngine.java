@@ -402,6 +402,9 @@ public final class PainlessScriptEngine implements ScriptEngine {
                 }
             }, COMPILATION_CONTEXT);
             // Note that it is safe to catch any of the following errors since Painless is stateless.
+        } catch (SecurityException e) {
+            // security exceptions are rethrown so that they can propagate to the ES log, they are not user errors
+            throw e;
         } catch (OutOfMemoryError | StackOverflowError | LinkageError | Exception e) {
             throw convertToScriptException(source, e);
         }

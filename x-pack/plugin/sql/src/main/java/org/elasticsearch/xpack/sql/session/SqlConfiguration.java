@@ -43,6 +43,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     @Nullable
     private final Map<String, Object> runtimeMappings;
+    private final boolean allowPartialSearchResults;
 
     public SqlConfiguration(
         ZoneId zi,
@@ -60,7 +61,8 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         boolean multiValueFieldLeniency,
         boolean includeFrozen,
         @Nullable TaskId taskId,
-        @Nullable SqlQueryTask task
+        @Nullable SqlQueryTask task,
+        boolean allowPartialSearchResults
     ) {
         super(zi, username, clusterName, x -> Collections.emptySet());
 
@@ -77,6 +79,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.includeFrozenIndices = includeFrozen;
         this.taskId = taskId;
         this.task = task;
+        this.allowPartialSearchResults = allowPartialSearchResults;
     }
 
     public String catalog() {
@@ -129,5 +132,9 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public SqlQueryTask task() {
         return task;
+    }
+
+    public boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
     }
 }

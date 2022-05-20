@@ -109,7 +109,7 @@ import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
@@ -319,7 +319,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 StartDataFrameAnalyticsAction.INSTANCE,
                 EvaluateDataFrameAction.INSTANCE,
                 ExplainDataFrameAnalyticsAction.INSTANCE,
-                InternalInferModelAction.INSTANCE,
+                InferModelAction.INSTANCE,
+                InferModelAction.EXTERNAL_INSTANCE,
                 GetTrainedModelsAction.INSTANCE,
                 DeleteTrainedModelAction.INSTANCE,
                 GetTrainedModelsStatsAction.INSTANCE,

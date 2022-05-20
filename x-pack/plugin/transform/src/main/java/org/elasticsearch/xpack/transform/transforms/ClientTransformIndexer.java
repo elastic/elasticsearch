@@ -327,7 +327,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     );
                     assert false : "[" + getJobId() + "] updating stats of transform failed, unexpected version conflict of internal state";
                 } else {
-                    logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.", transformConfig.getId()), statsExc);
+                    logger.error(() -> "[" + transformConfig.getId() + "] updating stats of transform failed.", statsExc);
                     auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
                 }
                 listener.onFailure(statsExc);
@@ -399,7 +399,7 @@ class ClientTransformIndexer extends TransformIndexer {
             closePitRequest,
             ActionListener.wrap(response -> { logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit); }, e -> {
                 // note: closing the pit should never throw, even if the pit is invalid
-                logger.error(new ParameterizedMessage("[{}] Failed to close point in time reader", getJobId()), e);
+                logger.error(() -> "[" + getJobId() + "] Failed to close point in time reader", e);
             })
         );
     }

@@ -398,7 +398,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
             }
         }
 
-        private boolean shardActive(IndexShard indexShard) {
+        private static boolean shardActive(IndexShard indexShard) {
             if (indexShard != null) {
                 return ACTIVE_STATES.contains(indexShard.state());
             }

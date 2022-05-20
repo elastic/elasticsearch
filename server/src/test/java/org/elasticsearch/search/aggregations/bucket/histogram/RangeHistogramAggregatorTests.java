@@ -24,7 +24,7 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 
 import java.io.IOException;
@@ -497,10 +497,10 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 for (int innerIdx = 0; innerIdx < 22; innerIdx++) {
                     InternalHistogram.Bucket innerBucket = inner.getBuckets().get(innerIdx);
                     assertThat(innerBucket.getKey(), equalTo(5.0 * innerIdx));
-                    InternalMin min = innerBucket.getAggregations().get("min");
+                    Min min = innerBucket.getAggregations().get("min");
                     int minOuterIdxWithOverlappingRange = Math.max(0, outerIdx - 2);
                     int minInnerIdxWithOverlappingRange = Math.max(0, innerIdx - 2);
-                    assertThat(min.getValue(), equalTo(minOuterIdxWithOverlappingRange * 5.0 + minInnerIdxWithOverlappingRange * 500.0));
+                    assertThat(min.value(), equalTo(minOuterIdxWithOverlappingRange * 5.0 + minInnerIdxWithOverlappingRange * 500.0));
                 }
             }
         };

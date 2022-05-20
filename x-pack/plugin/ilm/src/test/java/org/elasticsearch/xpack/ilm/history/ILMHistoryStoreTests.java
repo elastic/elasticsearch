@@ -26,7 +26,9 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -38,6 +40,7 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -59,7 +62,11 @@ public class ILMHistoryStoreTests extends ESTestCase {
     public void setup() {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
-        clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING))
+        );
+        clusterService = ClusterServiceUtils.createClusterService(threadPool, settings);
         ILMHistoryTemplateRegistry registry = new ILMHistoryTemplateRegistry(
             clusterService.getSettings(),
             clusterService,
@@ -74,7 +81,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 .metadata(Metadata.builder(state.metadata()).indexTemplates(registry.getComposableTemplateConfigs()))
                 .build()
         );
-        historyStore = new ILMHistoryStore(Settings.EMPTY, client, clusterService, threadPool);
+        historyStore = new ILMHistoryStore(client, clusterService, threadPool);
     }
 
     @After
@@ -86,21 +93,23 @@ public class ILMHistoryStoreTests extends ESTestCase {
     }
 
     public void testNoActionIfDisabled() throws Exception {
-        Settings settings = Settings.builder().put(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build();
-        try (ILMHistoryStore disabledHistoryStore = new ILMHistoryStore(settings, client, null, threadPool)) {
-            String policyId = randomAlphaOfLength(5);
-            final long timestamp = randomNonNegativeLong();
-            ILMHistoryItem record = ILMHistoryItem.success("index", policyId, timestamp, null, null);
+        ClusterState state = clusterService.state();
+        Metadata.Builder metadata = Metadata.builder(state.metadata())
+            .persistentSettings(Settings.builder().put(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build());
+        ClusterServiceUtils.setState(clusterService, ClusterState.builder(state).metadata(metadata));
 
-            CountDownLatch latch = new CountDownLatch(1);
-            client.setVerifier((a, r, l) -> {
-                fail("the history store is disabled, no action should have been taken");
-                latch.countDown();
-                return null;
-            });
-            disabledHistoryStore.putAsync(record);
-            latch.await(10, TimeUnit.SECONDS);
-        }
+        String policyId = randomAlphaOfLength(5);
+        final long timestamp = randomNonNegativeLong();
+        ILMHistoryItem record = ILMHistoryItem.success("index", policyId, timestamp, null, null);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        client.setVerifier((a, r, l) -> {
+            fail("the history store is disabled, no action should have been taken");
+            latch.countDown();
+            return null;
+        });
+        historyStore.putAsync(record);
+        latch.await(10, TimeUnit.SECONDS);
     }
 
     public void testPut() throws Exception {

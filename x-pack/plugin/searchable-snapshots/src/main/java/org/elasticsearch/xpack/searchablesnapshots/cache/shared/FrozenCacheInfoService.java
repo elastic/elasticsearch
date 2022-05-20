@@ -109,7 +109,7 @@ public class FrozenCacheInfoService {
                     @Override
                     public void onResponse(FrozenCacheInfoResponse response) {
                         updateEntry(response.hasFrozenCache() ? NodeState.HAS_CACHE : NodeState.NO_CACHE);
-                        rerouteService.reroute("frozen cache state retrieved", Priority.LOW, ActionListener.wrap(() -> {}));
+                        rerouteService.reroute("frozen cache state retrieved", Priority.LOW, ActionListener.noop());
                     }
 
                     @Override
@@ -122,7 +122,7 @@ public class FrozenCacheInfoService {
 
         @Override
         public void onFailure(Exception e) {
-            logger.debug(new ParameterizedMessage("--> failed fetching frozen cache info from [{}]", discoveryNode), e);
+            logger.debug(() -> "--> failed fetching frozen cache info from [" + discoveryNode + "]", e);
             // Failed even to execute the nodes info action, just give up
             updateEntry(NodeState.FAILED);
         }

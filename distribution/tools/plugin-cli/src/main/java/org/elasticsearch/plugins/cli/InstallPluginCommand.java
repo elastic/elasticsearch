@@ -11,6 +11,7 @@ package org.elasticsearch.plugins.cli;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.env.Environment;
@@ -74,7 +75,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         SyncPluginsAction.ensureNoConfigFile(env);
 
         List<PluginDescriptor> plugins = arguments.values(options)

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.core;
 
-import org.elasticsearch.core.internal.io.IOUtils;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;

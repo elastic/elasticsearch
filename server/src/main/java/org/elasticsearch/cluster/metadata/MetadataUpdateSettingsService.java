@@ -263,7 +263,12 @@ public class MetadataUpdateSettingsService {
             }
         };
 
-        clusterService.submitStateUpdateTask("update-settings " + Arrays.toString(request.indices()), clusterTask, this.executor);
+        clusterService.submitStateUpdateTask(
+            "update-settings " + Arrays.toString(request.indices()),
+            clusterTask,
+            clusterTask,
+            this.executor
+        );
     }
 
     public static void updateIndexSettings(

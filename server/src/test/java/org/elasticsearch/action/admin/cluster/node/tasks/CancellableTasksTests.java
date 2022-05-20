@@ -434,7 +434,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 testAction,
                 childRequest,
                 testNodes[0].transportService.getLocalNodeConnection(),
-                ActionTestUtils.wrapAsTaskListener(ActionListener.wrap(() -> {}))
+                ActionTestUtils.wrapAsTaskListener(ActionListener.noop())
             )
         );
         assertThat(cancelledException.getMessage(), equalTo("task cancelled before starting [test]"));

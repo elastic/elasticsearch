@@ -97,7 +97,7 @@ public class IndexMetadataVerifier {
      * Check that the index version is compatible. Elasticsearch does not support indices created before the
      * previous major version.
      */
-    private void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
+    private static void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
         boolean isSupportedVersion = indexMetadata.getCompatibilityVersion().onOrAfter(minimumIndexCompatibilityVersion);
         if (isSupportedVersion == false) {
             throw new IllegalStateException(
@@ -236,7 +236,7 @@ public class IndexMetadataVerifier {
      * Convert shared_cache searchable snapshot indices to only specify
      * _tier_preference: data_frozen, removing any pre-existing tier allocation rules.
      */
-    IndexMetadata convertSharedCacheTierPreference(IndexMetadata indexMetadata) {
+    static IndexMetadata convertSharedCacheTierPreference(IndexMetadata indexMetadata) {
         // Only remove these settings for a shared_cache searchable snapshot
         if (indexMetadata.isPartialSearchableSnapshot()) {
             final Settings settings = indexMetadata.getSettings();
@@ -261,7 +261,7 @@ public class IndexMetadataVerifier {
     /**
      * Removes index level ._tier allocation filters, if they exist
      */
-    IndexMetadata removeTierFiltering(IndexMetadata indexMetadata) {
+    static IndexMetadata removeTierFiltering(IndexMetadata indexMetadata) {
         final Settings settings = indexMetadata.getSettings();
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         // Clear any allocation rules other than preference for tier

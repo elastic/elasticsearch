@@ -295,10 +295,7 @@ public class MoreTypes {
     public static Class<? extends Member> memberType(Member member) {
         Objects.requireNonNull(member, "member");
 
-        if (member instanceof MemberImpl) {
-            return ((MemberImpl) member).memberType;
-
-        } else if (member instanceof Field) {
+        if (member instanceof Field) {
             return Field.class;
 
         } else if (member instanceof Method) {
@@ -328,12 +325,6 @@ public class MoreTypes {
         } else {
             throw new AssertionError();
         }
-    }
-
-    public static String memberKey(Member member) {
-        Objects.requireNonNull(member, "member");
-
-        return "<NO_MEMBER_KEY>";
     }
 
     /**
@@ -587,52 +578,6 @@ public class MoreTypes {
     private static void checkNotPrimitive(Type type, String use) {
         if (type instanceof Class<?> && ((Class) type).isPrimitive()) {
             throw new IllegalArgumentException("Primitive types are not allowed in " + use + ": " + type);
-        }
-    }
-
-    /**
-     * We cannot serialize the built-in Java member classes, which prevents us from using Members in
-     * our exception types. We workaround this with this serializable implementation. It includes all
-     * of the API methods, plus everything we use for line numbers and messaging.
-     */
-    public static class MemberImpl implements Member {
-        private final Class<?> declaringClass;
-        private final String name;
-        private final int modifiers;
-        private final boolean synthetic;
-        private final Class<? extends Member> memberType;
-
-        private MemberImpl(Member member) {
-            this.declaringClass = member.getDeclaringClass();
-            this.name = member.getName();
-            this.modifiers = member.getModifiers();
-            this.synthetic = member.isSynthetic();
-            this.memberType = memberType(member);
-        }
-
-        @Override
-        public Class<?> getDeclaringClass() {
-            return declaringClass;
-        }
-
-        @Override
-        public String getName() {
-            return name;
-        }
-
-        @Override
-        public int getModifiers() {
-            return modifiers;
-        }
-
-        @Override
-        public boolean isSynthetic() {
-            return synthetic;
-        }
-
-        @Override
-        public String toString() {
-            return MoreTypes.toString(this);
         }
     }
 

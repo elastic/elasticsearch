@@ -311,7 +311,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
             return new ExpressionRoleMapping(name, rules, roles, roleTemplates, metadata, enabled);
         }
 
-        private IllegalStateException missingField(String id, ParseField field) {
+        private static IllegalStateException missingField(String id, ParseField field) {
             return new IllegalStateException("failed to parse role-mapping [" + id + "]. missing field [" + field + "]");
         }
     }

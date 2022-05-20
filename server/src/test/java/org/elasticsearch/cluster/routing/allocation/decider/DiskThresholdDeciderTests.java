@@ -669,7 +669,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 50)); // 50% used
         usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
 
-        DiskUsage node1Usage = decider.averageUsage(rn, usages.build());
+        DiskUsage node1Usage = DiskThresholdDecider.averageUsage(rn, usages.build());
         assertThat(node1Usage.getTotalBytes(), equalTo(100L));
         assertThat(node1Usage.getFreeBytes(), equalTo(25L));
     }
@@ -681,7 +681,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 50)); // 50% used
         usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
 
-        Double after = decider.freeDiskPercentageAfterShardAssigned(
+        Double after = DiskThresholdDecider.freeDiskPercentageAfterShardAssigned(
             new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("node2", "n2", "/dev/null", 100, 30), 0L),
             11L
         );
@@ -923,8 +923,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         RoutingTable.Builder builder = RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(firstRouting.index())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId()).addShard(firstRouting).build())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(secondRouting.shardId()).addShard(secondRouting).build())
+                    .addIndexShard(IndexShardRoutingTable.builder(firstRouting.shardId()).addShard(firstRouting))
+                    .addIndexShard(IndexShardRoutingTable.builder(secondRouting.shardId()).addShard(secondRouting))
             );
         ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         RoutingAllocation routingAllocation = new RoutingAllocation(
@@ -955,8 +955,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         builder = RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(firstRouting.index())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId()).addShard(firstRouting).build())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(secondRouting.shardId()).addShard(secondRouting).build())
+                    .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId()).addShard(firstRouting))
+                    .addIndexShard(new IndexShardRoutingTable.Builder(secondRouting.shardId()).addShard(secondRouting))
             );
         clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         routingAllocation = new RoutingAllocation(
@@ -1115,7 +1115,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         RoutingTable forceAssignedRoutingTable = RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(shardId.getIndex())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(startedShard).build())
+                    .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(startedShard))
             )
             .build();
         clusterState = ClusterState.builder(clusterState).routingTable(forceAssignedRoutingTable).build();

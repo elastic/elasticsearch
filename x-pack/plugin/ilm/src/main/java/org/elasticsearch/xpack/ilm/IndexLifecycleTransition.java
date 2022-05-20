@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyException;
+import org.elasticsearch.xpack.core.ilm.LifecycleExecutionStateUtils;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -92,7 +93,7 @@ public final class IndexLifecycleTransition {
         if (isNewStepCached == false
             && (stepRegistry.stepExists(policyName, newStepKey) == false && newStepKey.equals(TerminalPolicyStep.KEY) == false)) {
             throw new IllegalArgumentException(
-                "step [" + newStepKey + "] for index [" + idxMeta.getIndex().getName() + "] with policy [" + policyName + "] does not exist"
+                "step [" + newStepKey + "] for index [" + indexName + "] with policy [" + policyName + "] does not exist"
             );
         }
     }
@@ -134,9 +135,8 @@ public final class IndexLifecycleTransition {
             nowSupplier,
             forcePhaseDefinitionRefresh
         );
-        ClusterState.Builder newClusterStateBuilder = newClusterStateWithLifecycleState(index, state, newLifecycleState);
 
-        return newClusterStateBuilder.build();
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(state, idxMeta.getIndex(), newLifecycleState);
     }
 
     /**
@@ -197,8 +197,7 @@ public final class IndexLifecycleTransition {
             );
         }
 
-        ClusterState.Builder newClusterStateBuilder = newClusterStateWithLifecycleState(index, clusterState, failedState.build());
-        return newClusterStateBuilder.build();
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(clusterState, idxMeta.getIndex(), failedState.build());
     }
 
     /**
@@ -222,7 +221,7 @@ public final class IndexLifecycleTransition {
         String failedStep = lifecycleState.failedStep();
         if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.getName()) && Strings.isNullOrEmpty(failedStep) == false) {
             Step.StepKey nextStepKey = new Step.StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
-            IndexLifecycleTransition.validateTransition(indexMetadata, currentStepKey, nextStepKey, stepRegistry);
+            validateTransition(indexMetadata, currentStepKey, nextStepKey, stepRegistry);
             IndexLifecycleMetadata ilmMeta = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
 
             LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas().get(indexMetadata.getLifecyclePolicyName());
@@ -252,11 +251,11 @@ public final class IndexLifecycleTransition {
                 // manual retries don't update the retry count
                 retryStepState.setFailedStepRetryCount(lifecycleState.failedStepRetryCount());
             }
-            newState = IndexLifecycleTransition.newClusterStateWithLifecycleState(
-                indexMetadata.getIndex(),
+            newState = LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
                 currentState,
+                indexMetadata.getIndex(),
                 retryStepState.build()
-            ).build();
+            );
         } else {
             throw new IllegalArgumentException(
                 "cannot retry an action for an index [" + index + "] that has not encountered an error when running a Lifecycle Policy"
@@ -339,13 +338,14 @@ public final class IndexLifecycleTransition {
         Client client,
         XPackLicenseState licenseState
     ) {
+        String indexName = indexMetadata.getIndex().getName();
         String policyName = indexMetadata.getLifecyclePolicyName();
         Step.StepKey currentStepKey = Step.getCurrentStepKey(existingState);
         if (currentStepKey == null) {
             logger.warn(
                 "unable to identify what the current step is for index [{}] as part of policy [{}]. the "
                     + "cached phase definition will not be updated for this index",
-                indexMetadata.getIndex().getName(),
+                indexName,
                 policyName
             );
             return existingState;
@@ -359,7 +359,7 @@ public final class IndexLifecycleTransition {
                 "unable to find current step [{}] for index [{}] as part of policy [{}]. the cached phase definition will not be "
                     + "updated for this index",
                 currentStepKey,
-                indexMetadata.getIndex().getName(),
+                indexName,
                 policyName
             );
             return existingState;
@@ -375,13 +375,7 @@ public final class IndexLifecycleTransition {
 
         assert nextStepInActionAfterCurrent.isPresent() : "there should always be a complete step at the end of every phase";
         Step.StepKey nextStep = nextStepInActionAfterCurrent.get().getKey();
-        logger.debug(
-            "moving index [{}] in policy [{}] out of step [{}] to new step [{}]",
-            indexMetadata.getIndex().getName(),
-            policyName,
-            currentStepKey,
-            nextStep
-        );
+        logger.debug("moving index [{}] in policy [{}] out of step [{}] to new step [{}]", indexName, policyName, currentStepKey, nextStep);
 
         long nowAsMillis = nowSupplier.getAsLong();
         LifecycleExecutionState.Builder updatedState = LifecycleExecutionState.builder(existingState);
@@ -403,25 +397,6 @@ public final class IndexLifecycleTransition {
         );
         updatedState.setPhaseDefinition(Strings.toString(phaseExecutionInfo, false, false));
         return updatedState.build();
-    }
-
-    /**
-     * Given a cluster state and lifecycle state, return a new state using the new lifecycle state for the given index.
-     */
-    public static ClusterState.Builder newClusterStateWithLifecycleState(
-        Index index,
-        ClusterState clusterState,
-        LifecycleExecutionState lifecycleState
-    ) {
-        ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
-        newClusterStateBuilder.metadata(
-            Metadata.builder(clusterState.getMetadata())
-                .put(
-                    IndexMetadata.builder(clusterState.getMetadata().index(index))
-                        .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap())
-                )
-        );
-        return newClusterStateBuilder;
     }
 
     /**
@@ -448,8 +423,7 @@ public final class IndexLifecycleTransition {
         }
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder(lifecycleState);
         newState.setStepInfo(stepInfoString);
-        ClusterState.Builder newClusterStateBuilder = newClusterStateWithLifecycleState(index, clusterState, newState.build());
-        return newClusterStateBuilder.build();
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(clusterState, indexMetadata.getIndex(), newState.build());
     }
 
     /**

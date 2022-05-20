@@ -9,6 +9,9 @@ teardown:
       _internal.delete_desired_nodes: {}
 ---
 "Test update desired nodes":
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
   - do:
       cluster.state: {}
 
@@ -49,15 +52,17 @@ teardown:
 
   - do:
       _internal.get_desired_nodes: {}
-  - match:
-      $body:
-        history_id: "test"
-        version: 2
-        nodes:
-          - { settings: { node: { name: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
-          - { settings: { node: { name: "instance-000188" } }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
+
+  - match: { history_id: "test" }
+  - match: { version: 2 }
+  - length: { nodes: 2 }
+  - contains: { nodes: { settings: { node: { name: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { name: "instance-000188" } }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version } }
 ---
 "Test update move to a new history id":
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
   - do:
       cluster.state: {}
 
@@ -97,13 +102,11 @@ teardown:
 
   - do:
       _internal.get_desired_nodes: {}
-  - match:
-      $body:
-        history_id: "new_history"
-        version: 1
-        nodes:
-          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
-          - { settings: { node: { external_id: "instance-000188" } }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
+  - match: { history_id: "new_history" }
+  - match: { version: 1 }
+  - length: { nodes: 2 }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version } }
 ---
 "Test delete desired nodes":
   - do:
@@ -142,6 +145,9 @@ teardown:
   - match: { status: 404 }
 ---
 "Test update desired nodes is idempotent":
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
   - do:
       cluster.state: {}
 
@@ -158,16 +164,17 @@ teardown:
         body:
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000188" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { replaced_existing_history_id: false }
 
   - do:
       _internal.get_desired_nodes: {}
-  - match:
-      $body:
-        history_id: "test"
-        version: 1
-        nodes:
-          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+
+  - match: { history_id: "test" }
+  - match: { version: 1 }
+  - length: { nodes: 2 }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
 
   - do:
       _internal.update_desired_nodes:
@@ -176,16 +183,71 @@ teardown:
         body:
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000188" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+
   - match: { replaced_existing_history_id: false }
 
   - do:
       _internal.get_desired_nodes: {}
-  - match:
-      $body:
+
+  - match: { history_id: "test" }
+  - match: { version: 1 }
+  - length: { nodes: 2 }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+---
+"Test update desired nodes is idempotent with different order":
+  - skip:
+      version: " - 8.2.99"
+      features: contains
+      reason: "Bug fixed in 8.3.0 and uses contains feature"
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      _internal.update_desired_nodes:
         history_id: "test"
         version: 1
-        nodes:
-          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000188" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      _internal.get_desired_nodes: {}
+
+  - match: { history_id: "test" }
+  - match: { version: 1 }
+  - length: { nodes: 2 }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000188" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      _internal.get_desired_nodes: {}
+
+  - match: { history_id: "test" }
+  - match: { version: 1 }
+  - length: { nodes: 2 }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
 ---
 "Test going backwards within the same history is forbidden":
   - do:
@@ -343,6 +405,9 @@ teardown:
   - match: { replaced_existing_history_id: false }
 ---
 "Test external_id or node.name is required":
+  - skip:
+      version: " - 8.2.99"
+      reason: "Change error code in 8.3"
   - do:
       cluster.state: {}
 
@@ -361,11 +426,13 @@ teardown:
           nodes:
             - { settings: { }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { status: 400 }
-  - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "Nodes with ids [<missing>] in positions [0] contain invalid settings" }
-  - match: { error.suppressed.0.reason: "[node.name] or [node.external_id] is missing or empty" }
+  - match: { error.type: x_content_parse_exception }
+  - match: { error.caused_by.caused_by.caused_by.reason: "[node.name] or [node.external_id] is missing or empty" }
 ---
 "Test external_id must have content":
+  - skip:
+      version: " - 8.2.99"
+      reason: "Change error code in 8.3"
   - do:
       cluster.state: {}
 
@@ -384,9 +451,8 @@ teardown:
           nodes:
             - { settings: { "node.external_id": "  " }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { status: 400 }
-  - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "Nodes with ids [<missing>] in positions [0] contain invalid settings" }
-  - match: { error.suppressed.0.reason: "[node.name] or [node.external_id] is missing or empty" }
+  - match: { error.type: x_content_parse_exception }
+  - match: { error.caused_by.caused_by.caused_by.reason: "[node.name] or [node.external_id] is missing or empty" }
 ---
 "Test duplicated external ids are not allowed":
   - do:

@@ -592,10 +592,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         }));
     }
 
-    private void validateIndexName(MetadataCreateIndexService metadataCreateIndexService, String indexName, String errorMessage) {
+    private static void validateIndexName(MetadataCreateIndexService metadataCreateIndexService, String indexName, String errorMessage) {
         InvalidIndexNameException e = expectThrows(
             InvalidIndexNameException.class,
-            () -> metadataCreateIndexService.validateIndexName(
+            () -> MetadataCreateIndexService.validateIndexName(
                 indexName,
                 ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build()
             )

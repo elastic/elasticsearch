@@ -111,7 +111,7 @@ public class PluginCliTests extends PackagingTestCase {
     }
 
     public void test24JavaOpts() throws Exception {
-        sh.getEnv().put("ES_JAVA_OPTS", "-XX:+PrintFlagsFinal");
+        sh.getEnv().put("CLI_JAVA_OPTS", "-XX:+PrintFlagsFinal");
         assertWithExamplePlugin(installResult -> assertThat(installResult.stdout(), containsString("MaxHeapSize")));
     }
 

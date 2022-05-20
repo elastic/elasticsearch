@@ -608,7 +608,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
     }
 
-    private ActionListener<Void> createOrFinishListener(
+    private static ActionListener<Void> createOrFinishListener(
         final RecoveryRef recoveryRef,
         final TransportChannel channel,
         final String action,
@@ -618,7 +618,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     @Nullable
-    private ActionListener<Void> createOrFinishListener(
+    private static ActionListener<Void> createOrFinishListener(
         final RecoveryRef recoveryRef,
         final TransportChannel channel,
         final String action,
@@ -657,17 +657,14 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void onFailure(Exception e) {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
                 if (recoveryRef != null) {
-                    logger.error(() -> new ParameterizedMessage("unexpected error during recovery [{}], failing shard", recoveryId), e);
+                    logger.error(() -> "unexpected error during recovery [" + recoveryId + "], failing shard", e);
                     onGoingRecoveries.failRecovery(
                         recoveryId,
                         new RecoveryFailedException(recoveryRef.target().state(), "unexpected error", e),
                         true // be safe
                     );
                 } else {
-                    logger.debug(
-                        () -> new ParameterizedMessage("unexpected error during recovery, but recovery id [{}] is finished", recoveryId),
-                        e
-                    );
+                    logger.debug(() -> "unexpected error during recovery, but recovery id [" + recoveryId + "] is finished", e);
                 }
             }
         }

@@ -28,11 +28,10 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
@@ -370,11 +369,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 clientInvocationHandler
             );
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
-            List<Setting<?>> additionalSettings = pluginsService.getPluginSettings();
             SettingsModule settingsModule = new SettingsModule(
                 nodeSettings,
-                additionalSettings,
-                pluginsService.getPluginSettingsFilter(),
+                pluginsService.flatMap(Plugin::getSettings).toList(),
+                pluginsService.flatMap(Plugin::getSettingsFilter).toList(),
                 Collections.emptySet()
             );
             searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class));

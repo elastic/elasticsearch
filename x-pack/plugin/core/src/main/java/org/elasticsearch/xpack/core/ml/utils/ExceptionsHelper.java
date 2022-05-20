@@ -53,6 +53,10 @@ public class ExceptionsHelper {
         return new ResourceNotFoundException("No known trained model with deployment with id [{}]", deploymentId);
     }
 
+    public static ResourceNotFoundException missingTrainedModel(String modelId, Exception cause) {
+        return new ResourceNotFoundException("No known trained model with model_id [{}]", cause, modelId);
+    }
+
     public static ElasticsearchException serverError(String msg) {
         return new ElasticsearchException(msg);
     }

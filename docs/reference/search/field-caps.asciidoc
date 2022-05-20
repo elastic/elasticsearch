@@ -78,13 +78,28 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
   Defaults to `false`.
 
 `filters`::
-(Optional, string) Comma-separated list of filters to apply to the response.  The
-following filters are supported: +metadata,-metadata,-parent,-nested,-multifield
+(Optional, string) Comma-separated list of filters to apply to the response.
++
+.Valid values for `filters`
+[%collapsible%open]
+====
+`+metadata`::
+Only include metadata fields
+`-metadata`::
+Exclude metadata fields
+`-parent`::
+Exclude parent fields
+`-nested`::
+Exclude nested fields
+`-multifield`::
+Exclude multifields
+====
 
 `types`::
 (Optional, string) Comma-separated list of field types to include. Any fields that
 do not match one of these types will be excluded from the results.  Defaults to empty,
-meaning that all field types are returned.
+meaning that all field types are returned.  See <<field-caps-field-types,here>> for
+more information about field types in field capabilities requests and responses.
 
 [[search-field-caps-api-request-body]]
 ==== {api-request-body-title}
@@ -103,7 +118,7 @@ same name in the index mappings.
 [[search-field-caps-api-response-body]]
 ==== {api-response-body-title}
 
-
+[[field-caps-field-types]]
 The types used in the response describe _families_ of field types.
 Normally a type family is the same as the field type declared in the mapping,
 but to simplify matters certain field types that behave identically are

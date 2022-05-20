@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -250,7 +249,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug(() -> new ParameterizedMessage("put follow {} failed during the restore process", request), e);
+                    logger.debug(() -> "put follow " + request + " failed during the restore process", e);
                 }
             };
         } else {
@@ -309,7 +308,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             // just copying the data stream is in this case safe.
             return new DataStream(
                 remoteDataStream.getName(),
-                remoteDataStream.getTimeStampField(),
                 List.of(backingIndexToFollow),
                 remoteDataStream.getGeneration(),
                 remoteDataStream.getMetadata(),
@@ -341,7 +339,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
 
             return new DataStream(
                 localDataStream.getName(),
-                localDataStream.getTimeStampField(),
                 backingIndices,
                 remoteDataStream.getGeneration(),
                 remoteDataStream.getMetadata(),

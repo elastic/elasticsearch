@@ -1,0 +1,8 @@
+pr: 80208
+summary: Add support for negtive epoch timestamps
+area: Infra/Core
+type: enhancement
+issues:
+ - 79135
+ - 72123
+ - 40983

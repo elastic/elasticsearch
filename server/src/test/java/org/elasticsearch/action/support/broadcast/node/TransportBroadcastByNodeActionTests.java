@@ -264,7 +264,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 );
                 IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(shardId);
                 indexShard.addShard(shard);
-                indexRoutingTable.addIndexShard(indexShard.build());
+                indexRoutingTable.addIndexShard(indexShard);
             }
         }
         discoBuilder.localNodeId(newNode(0).getId());

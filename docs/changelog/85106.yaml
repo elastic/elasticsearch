@@ -1,0 +1,7 @@
+pr: 85106
+summary: Improve ROUND and TRUNCATE to better manage Long values and big Doubles
+area: SQL
+type: bug
+issues:
+ - 85105
+ - 49391

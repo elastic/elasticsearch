@@ -157,7 +157,7 @@ final class DynamicFieldsBuilder {
     /**
      * Returns a dynamically created object mapper, eventually based on a matching dynamic template.
      */
-    Mapper createDynamicObjectMapper(DocumentParserContext context, String name) {
+    static Mapper createDynamicObjectMapper(DocumentParserContext context, String name) {
         Mapper mapper = createObjectMapperFromTemplate(context, name);
         return mapper != null ? mapper : new ObjectMapper.Builder(name).enabled(true).build(MapperBuilderContext.forPath(context.path()));
     }
@@ -165,7 +165,7 @@ final class DynamicFieldsBuilder {
     /**
      * Returns a dynamically created object mapper, based exclusively on a matching dynamic template, null otherwise.
      */
-    Mapper createObjectMapperFromTemplate(DocumentParserContext context, String name) {
+    static Mapper createObjectMapperFromTemplate(DocumentParserContext context, String name) {
         Mapper.Builder templateBuilder = findTemplateBuilderForObject(context, name);
         return templateBuilder == null ? null : templateBuilder.build(MapperBuilderContext.forPath(context.path()));
     }
@@ -174,7 +174,7 @@ final class DynamicFieldsBuilder {
      * Creates a dynamic string field based on a matching dynamic template.
      * No field is created in case there is no matching dynamic template.
      */
-    void createDynamicStringFieldFromTemplate(DocumentParserContext context, String name) throws IOException {
+    static void createDynamicStringFieldFromTemplate(DocumentParserContext context, String name) throws IOException {
         createDynamicField(context, name, DynamicTemplate.XContentFieldType.STRING, () -> {});
     }
 

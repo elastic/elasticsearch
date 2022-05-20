@@ -189,7 +189,7 @@ public class CcrLicenseChecker {
      * @param onFailure                  the failure consumer
      * @param leaderClusterStateConsumer the leader cluster state consumer
      */
-    public void checkRemoteClusterLicenseAndFetchClusterState(
+    public static void checkRemoteClusterLicenseAndFetchClusterState(
         final Client client,
         final String clusterAlias,
         final ClusterStateRequest request,
@@ -230,7 +230,7 @@ public class CcrLicenseChecker {
      * @param nonCompliantLicense        the supplier for when the license state of the remote cluster is non-compliant
      * @param unknownLicense             the supplier for when the license state of the remote cluster is unknown due to failure
      */
-    private void checkRemoteClusterLicenseAndFetchClusterState(
+    private static void checkRemoteClusterLicenseAndFetchClusterState(
         final Client client,
         final String clusterAlias,
         final Client remoteClient,
@@ -278,7 +278,7 @@ public class CcrLicenseChecker {
      */
     // NOTE: Placed this method here; in order to avoid duplication of logic for fetching history UUIDs
     // in case of following a local or a remote cluster.
-    public void fetchLeaderHistoryUUIDs(
+    public static void fetchLeaderHistoryUUIDs(
         final Client remoteClient,
         final IndexMetadata leaderIndexMetadata,
         final Consumer<Exception> onFailure,
@@ -430,12 +430,6 @@ public class CcrLicenseChecker {
                 }
             }
         };
-    }
-
-    private static ThreadContext.StoredContext stashWithHeaders(ThreadContext threadContext, Map<String, String> headers) {
-        final ThreadContext.StoredContext storedContext = threadContext.stashContext();
-        threadContext.copyHeaders(headers.entrySet());
-        return storedContext;
     }
 
     private static ElasticsearchStatusException indexMetadataNonCompliantRemoteLicense(

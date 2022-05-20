@@ -63,10 +63,10 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -462,7 +462,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return new NodeIndicesStats(commonStats, statsByShard(this, flags));
     }
 
-    Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
+    static Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
         final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
 
         for (final IndexService indexService : indicesService) {
@@ -706,7 +706,7 @@ public class IndicesService extends AbstractLifecycleComponent
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
-        pluginsService.onIndexModule(indexModule);
+        pluginsService.forEach(p -> p.onIndexModule(indexModule));
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
@@ -768,7 +768,7 @@ public class IndicesService extends AbstractLifecycleComponent
      *
      * Note: the returned {@link MapperService} should be closed when unneeded.
      */
-    public synchronized MapperService createIndexMapperService(IndexMetadata indexMetadata) throws IOException {
+    public synchronized MapperService createIndexMapperServiceForValidation(IndexMetadata indexMetadata) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetadata, this.settings, indexScopedSettings);
         final IndexModule indexModule = new IndexModule(
             idxSettings,
@@ -779,7 +779,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexNameExpressionResolver,
             recoveryStateFactories
         );
-        pluginsService.onIndexModule(indexModule);
+        pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(parserConfig, mapperRegistry, scriptService);
     }
 
@@ -1147,7 +1147,7 @@ public class IndicesService extends AbstractLifecycleComponent
             } catch (Exception e) {
                 // we just warn about the exception here because if deleteIndexStoreIfDeletionAllowed
                 // throws an exception, it gets added to the list of pending deletes to be tried again
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to delete index on disk", metadata.getIndex()), e);
+                logger.warn(() -> "[" + metadata.getIndex() + "] failed to delete index on disk", e);
             }
             return metadata;
         }
@@ -1449,7 +1449,7 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Can the shard request be cached at all?
      */
-    public boolean canCache(ShardSearchRequest request, SearchContext context) {
+    public static boolean canCache(ShardSearchRequest request, SearchContext context) {
         // Queries that create a scroll context cannot use the cache.
         // They modify the search context during their execution so using the cache
         // may invalidate the scroll for the next query.
@@ -1501,7 +1501,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * to have a single load operation that will cause other requests with the same key to wait till its loaded an reuse
      * the same cache.
      */
-    public void loadIntoContext(ShardSearchRequest request, SearchContext context, QueryPhase queryPhase) throws Exception {
+    public void loadIntoContext(ShardSearchRequest request, SearchContext context) throws Exception {
         assert canCache(request, context);
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
@@ -1513,7 +1513,7 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryReader,
             cacheKey,
             out -> {
-                queryPhase.execute(context);
+                QueryPhase.execute(context);
                 context.queryResult().writeToNoId(out);
                 loadedFromCache[0] = false;
             }
@@ -1722,13 +1722,6 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public Set<String> getMetadataFields(Version version) {
         return mapperRegistry.getMetadataMapperParsers(version).keySet();
-    }
-
-    /**
-     * Returns the registered metadata field names for all compatible versions.
-     */
-    public Set<String> getAllMetadataFields() {
-        return mapperRegistry.getAllMetadataMapperParsers().keySet();
     }
 
     private void setIdFieldDataEnabled(boolean value) {

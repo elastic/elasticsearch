@@ -377,11 +377,11 @@ public class ModelLoadingService implements ClusterStateListener {
             }, failure -> {
                 // We failed to get the definition, remove the initial estimation.
                 trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getModelSize());
-                logger.warn(new ParameterizedMessage("[{}] failed to load model definition", modelId), failure);
+                logger.warn(() -> "[" + modelId + "] failed to load model definition", failure);
                 handleLoadFailure(modelId, failure);
             }));
         }, failure -> {
-            logger.warn(new ParameterizedMessage("[{}] failed to load model configuration", modelId), failure);
+            logger.warn(() -> "[" + modelId + "] failed to load model configuration", failure);
             handleLoadFailure(modelId, failure);
         }));
     }
@@ -520,7 +520,7 @@ public class ModelLoadingService implements ClusterStateListener {
                         ML_MODEL_INFERENCE_FEATURE.startTracking(licenseState, modelId);
                     }
                 } catch (ExecutionException ee) {
-                    logger.warn(() -> new ParameterizedMessage("[{}] threw when attempting add to cache", modelId), ee);
+                    logger.warn(() -> "[" + modelId + "] threw when attempting add to cache", ee);
                 }
                 shouldNotAudit.remove(modelId);
             }

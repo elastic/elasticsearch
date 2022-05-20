@@ -26,6 +26,7 @@ import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -75,9 +76,7 @@ public class ServerTransportFilterTests extends ESTestCase {
 
     public void testInbound() throws Exception {
         TransportRequest request = mock(TransportRequest.class);
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getVersion()).thenReturn(Version.CURRENT);
-        when(authentication.getUser()).thenReturn(SystemUser.INSTANCE);
+        Authentication authentication = AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build();
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq("_action"), eq(request), eq(true), anyActionListener());
         ServerTransportFilter filter = getNodeFilter();
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -92,9 +91,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
             randomFrom("*", "_all", "test*")
         );
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getVersion()).thenReturn(Version.CURRENT);
-        when(authentication.getUser()).thenReturn(SystemUser.INSTANCE);
+        Authentication authentication = AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build();
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         ServerTransportFilter filter = getNodeFilter();
         @SuppressWarnings("unchecked")
@@ -134,10 +131,8 @@ public class ServerTransportFilterTests extends ESTestCase {
     public void testInboundAuthorizationException() throws Exception {
         ServerTransportFilter filter = getNodeFilter();
         TransportRequest request = mock(TransportRequest.class);
-        Authentication authentication = mock(Authentication.class);
+        Authentication authentication = AuthenticationTestHelper.builder().internal(XPackUser.INSTANCE).build();
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq("_action"), eq(request), eq(true), anyActionListener());
-        when(authentication.getVersion()).thenReturn(Version.CURRENT);
-        when(authentication.getUser()).thenReturn(XPackUser.INSTANCE);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         doThrow(authorizationError("authz failed")).when(authzService)
             .authorize(eq(authentication), eq("_action"), eq(request), anyActionListener());
@@ -153,7 +148,10 @@ public class ServerTransportFilterTests extends ESTestCase {
         final String nodeOrShardAction = "indices:action" + randomFrom("[s]", "[p]", "[r]", "[n]", "[s][p]", "[s][r]", "[f]");
         ServerTransportFilter filter = getNodeFilter();
         TransportRequest request = mock(TransportRequest.class);
-        Authentication authentication = new Authentication(new User("test", "superuser"), new RealmRef("test", "test", "node1"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("test", "superuser"))
+            .realmRef(new RealmRef("test", "test", "node1"))
+            .build(false);
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(internalAction), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication)).when(authcService)
             .authenticate(eq(nodeOrShardAction), eq(request), eq(true), anyActionListener());

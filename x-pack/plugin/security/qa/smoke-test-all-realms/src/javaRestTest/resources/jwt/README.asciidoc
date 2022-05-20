@@ -1,7 +1,7 @@
 ===
 Request Headers
 ===
-X-Client-Authentication: client-shared-secret-string
+ES-Client-Authentication: client-shared-secret-string
 Authorization: eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJhdWQ4Iiwic3ViIjoic2VjdXJpdHlfdGVzdF91c2VyIiwicm9sZXMiOiJbc2VjdXJpdHlfdGVzdF9yb2xlXSIsImlzcyI6ImlzczgiLCJleHAiOjQwNzA5MDg4MDAsImlhdCI6OTQ2Njg0ODAwfQ.YbMbSEY8j3BdE_M71np-5Q9DFHGcjZcu7D4Kk1Ji0wE
 
 ===

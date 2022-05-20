@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 /**
  * An in-memory representation of the plugin descriptor.
  */
-public class PluginInfo implements Writeable, ToXContentObject {
+public class PluginDescriptor implements Writeable, ToXContentObject {
 
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
@@ -74,7 +74,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param javaOpts              any additional JVM CLI parameters added by this plugin
      * @param isLicensed            whether is this a licensed plugin
      */
-    public PluginInfo(
+    public PluginDescriptor(
         String name,
         String description,
         String version,
@@ -108,7 +108,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param in the stream
      * @throws IOException if an I/O exception occurred reading the plugin info from the stream
      */
-    public PluginInfo(final StreamInput in) throws IOException {
+    public PluginDescriptor(final StreamInput in) throws IOException {
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
@@ -162,7 +162,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @return the plugin info
      * @throws IOException if an I/O exception occurred reading the plugin descriptor
      */
-    public static PluginInfo readFromProperties(final Path path) throws IOException {
+    public static PluginDescriptor readFromProperties(final Path path) throws IOException {
         final Path descriptor = path.resolve(ES_PLUGIN_PROPERTIES);
 
         final Map<String, String> propsMap;
@@ -230,7 +230,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Unknown properties for plugin [" + name + "] in plugin descriptor: " + propsMap.keySet());
         }
 
-        return new PluginInfo(
+        return new PluginDescriptor(
             name,
             description,
             version,
@@ -428,7 +428,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        PluginInfo that = (PluginInfo) o;
+        PluginDescriptor that = (PluginDescriptor) o;
 
         if (name.equals(that.name) == false) return false;
         // TODO: since the plugins are unique by their directory name, this should only be a name check, version should not matter?

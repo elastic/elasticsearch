@@ -162,7 +162,7 @@ to be built as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-init]
+include-tagged::{doc-tests-it}/MiscellaneousDocumentationIT.java[rest-high-level-client-init]
 --------------------------------------------------
 
 The high-level client will internally create the low-level client used to
@@ -174,7 +174,7 @@ resources. This can be done through the `close`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-close]
+include-tagged::{doc-tests-it}/MiscellaneousDocumentationIT.java[rest-high-level-client-close]
 --------------------------------------------------
 
 In the rest of this documentation about the Java High Level Client, the `RestHighLevelClient` instance

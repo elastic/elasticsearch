@@ -17,6 +17,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.HandlingTimeTracker;
@@ -28,6 +29,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 
 final class OutboundHandler {
 
@@ -68,7 +70,9 @@ final class OutboundHandler {
     }
 
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
-        internalSend(channel, bytes, null, listener);
+        ArrayDeque<ReleasableBytesReference> components = new ArrayDeque<>(1);
+        components.add(ReleasableBytesReference.wrap(bytes));
+        internalSend(channel, new OutboundMessage.SerializedBytes(components, bytes.length()), null, listener);
     }
 
     /**
@@ -164,9 +168,9 @@ final class OutboundHandler {
     private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
         final RecyclerBytesStreamOutput byteStreamOutput = new RecyclerBytesStreamOutput(recycler);
         final ActionListener<Void> wrappedListener = ActionListener.runBefore(listener, byteStreamOutput::close);
-        final BytesReference message;
+        final OutboundMessage.SerializedBytes message;
         try {
-            message = networkMessage.serialize(byteStreamOutput);
+            message = networkMessage.serializeC(byteStreamOutput);
         } catch (Exception e) {
             logger.warn(() -> "failed to serialize outbound message [" + networkMessage + "]", e);
             wrappedListener.onFailure(e);
@@ -177,20 +181,19 @@ final class OutboundHandler {
 
     private void internalSend(
         TcpChannel channel,
-        BytesReference reference,
+        OutboundMessage.SerializedBytes serializedBytes,
         @Nullable OutboundMessage message,
         ActionListener<Void> listener
     ) {
         final long startTime = threadPool.rawRelativeTimeInMillis();
         channel.getChannelStats().markAccessed(startTime);
-        final long messageSize = reference.length();
-        TransportLogger.logOutboundMessage(channel, reference);
+        TransportLogger.logOutboundMessage(channel, serializedBytes);
         // stash thread context so that channel event loop is not polluted by thread context
         try (ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
-            channel.sendMessage(reference, new ActionListener<>() {
+            channel.sendMessage(serializedBytes, new ActionListener<>() {
                 @Override
                 public void onResponse(Void v) {
-                    statsTracker.markBytesWritten(messageSize);
+                    statsTracker.markBytesWritten(serializedBytes.messageLength());
                     listener.onResponse(v);
                     maybeLogSlowMessage(true);
                 }
@@ -219,7 +222,7 @@ final class OutboundHandler {
                                 "sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn "
                                     + "threshold of [{}ms] with success [{}]",
                                 message,
-                                messageSize,
+                                serializedBytes.messageLength(),
                                 channel,
                                 took,
                                 logThreshold,

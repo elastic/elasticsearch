@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -21,8 +22,10 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Streams;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Collections;
 
-abstract class OutboundMessage extends NetworkMessage {
+public abstract class OutboundMessage extends NetworkMessage {
 
     protected final Writeable message;
 
@@ -77,17 +80,89 @@ abstract class OutboundMessage extends NetworkMessage {
                 stream.close();
             }
         }
-        final BytesReference message = bytesStream.bytes();
+
+        long postSerializePosition = bytesStream.position();
+        final long totalMessageLength = bytesStream.position() + zeroCopyBuffer.length();
+        bytesStream.seek(0);
+        final int contentSize = Math.toIntExact(totalMessageLength) - TcpHeader.headerSize(version);
+        TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
+        bytesStream.seek(postSerializePosition);
+
+        final ReleasableBytesReference[] message = bytesStream.returnByteComponentsAndReset();
+        final ArrayDeque<ReleasableBytesReference> components;
         if (zeroCopyBuffer.length() == 0) {
-            reference = message;
+            reference = CompositeBytesReference.of(message);
+            components = new ArrayDeque<>(message.length);
+            Collections.addAll(components, message);
         } else {
-            reference = CompositeBytesReference.of(message, zeroCopyBuffer);
+            reference = CompositeBytesReference.of(CompositeBytesReference.of(message), zeroCopyBuffer);
+            components = new ArrayDeque<>(message.length + 1);
+            Collections.addAll(components, message);
+            components.add(ReleasableBytesReference.wrap(zeroCopyBuffer));
         }
 
-        bytesStream.seek(0);
-        final int contentSize = reference.length() - TcpHeader.headerSize(version);
-        TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
         return reference;
+    }
+
+    SerializedBytes serializeC(RecyclerBytesStreamOutput bytesStream) throws IOException {
+        bytesStream.setVersion(version);
+        bytesStream.skip(TcpHeader.headerSize(version));
+
+        // The compressible bytes stream will not close the underlying bytes stream
+        BytesReference reference;
+        int variableHeaderLength = -1;
+        final long preHeaderPosition = bytesStream.position();
+
+        if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
+            writeVariableHeader(bytesStream);
+            variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
+        }
+
+        final boolean compress = TransportStatus.isCompress(status);
+        final StreamOutput stream = compress ? wrapCompressed(bytesStream) : bytesStream;
+        final BytesReference zeroCopyBuffer;
+        try {
+            stream.setVersion(version);
+            if (variableHeaderLength == -1) {
+                writeVariableHeader(stream);
+            }
+            if (message instanceof BytesTransportRequest bRequest) {
+                bRequest.writeThin(stream);
+                zeroCopyBuffer = bRequest.bytes;
+            } else if (message instanceof RemoteTransportException) {
+                stream.writeException((RemoteTransportException) message);
+                zeroCopyBuffer = BytesArray.EMPTY;
+            } else {
+                message.writeTo(stream);
+                zeroCopyBuffer = BytesArray.EMPTY;
+            }
+        } finally {
+            // We have to close here before accessing the bytes when using compression to ensure that some marker bytes (EOS marker)
+            // are written.
+            if (compress) {
+                stream.close();
+            }
+        }
+
+        long postSerializePosition = bytesStream.position();
+        final long totalMessageLength = bytesStream.position() + zeroCopyBuffer.length();
+        bytesStream.seek(0);
+        final int contentSize = Math.toIntExact(totalMessageLength) - TcpHeader.headerSize(version);
+        TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
+        bytesStream.seek(postSerializePosition);
+
+        final ReleasableBytesReference[] message = bytesStream.returnByteComponentsAndReset();
+        final ArrayDeque<ReleasableBytesReference> components;
+        if (zeroCopyBuffer.length() == 0) {
+            components = new ArrayDeque<>(message.length);
+            Collections.addAll(components, message);
+        } else {
+            components = new ArrayDeque<>(message.length + 1);
+            Collections.addAll(components, message);
+            components.add(ReleasableBytesReference.wrap(zeroCopyBuffer));
+        }
+
+        return new SerializedBytes(components, Math.toIntExact(totalMessageLength));
     }
 
     // compressed stream wrapped bytes must be no-close wrapped since we need to close the compressed wrapper below to release
@@ -199,6 +274,25 @@ abstract class OutboundMessage extends NetworkMessage {
                 + "}{"
                 + message.getClass()
                 + "}";
+        }
+    }
+
+    public record SerializedBytes(ArrayDeque<ReleasableBytesReference> components, int messageLength) {
+
+        public BytesReference getBytesReference() {
+            BytesReference[] references = new BytesReference[components.size()];
+            int i = 0;
+            for (ReleasableBytesReference component : components) {
+                references[i++] = component;
+            }
+            return CompositeBytesReference.of(references);
+        }
+
+        public static SerializedBytes fromBytesReference(BytesReference reference) {
+            ArrayDeque<ReleasableBytesReference> components = new ArrayDeque<>(1);
+            components.add(ReleasableBytesReference.wrap(reference));
+            return new OutboundMessage.SerializedBytes(components, reference.length());
+
         }
     }
 }

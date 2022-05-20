@@ -55,9 +55,9 @@ final class TransportKeepAlive implements Closeable {
     private final ConcurrentMap<TimeValue, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();
     private final Lifecycle lifecycle = new Lifecycle();
     private final ThreadPool threadPool;
-    private final AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender;
+    private final AsyncBiFunction<TcpChannel, OutboundMessage.SerializedBytes, Void> pingSender;
 
-    TransportKeepAlive(ThreadPool threadPool, AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender) {
+    TransportKeepAlive(ThreadPool threadPool, AsyncBiFunction<TcpChannel, OutboundMessage.SerializedBytes, Void> pingSender) {
         this.threadPool = threadPool;
         this.pingSender = pingSender;
 
@@ -103,7 +103,8 @@ final class TransportKeepAlive implements Closeable {
     }
 
     private void sendPing(TcpChannel channel) {
-        pingSender.apply(channel, PING_MESSAGE, new ActionListener<Void>() {
+        OutboundMessage.SerializedBytes serializedBytes = OutboundMessage.SerializedBytes.fromBytesReference(PING_MESSAGE);
+        pingSender.apply(channel, serializedBytes, new ActionListener<>() {
 
             @Override
             public void onResponse(Void v) {

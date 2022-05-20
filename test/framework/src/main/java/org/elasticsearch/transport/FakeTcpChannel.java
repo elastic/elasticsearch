@@ -81,8 +81,8 @@ public class FakeTcpChannel implements TcpChannel {
     }
 
     @Override
-    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        messageCaptor.set(reference);
+    public void sendMessage(OutboundMessage.SerializedBytes serializedBytes, ActionListener<Void> listener) {
+        messageCaptor.set(serializedBytes.getBytesReference());
         listenerCaptor.set(listener);
     }
 

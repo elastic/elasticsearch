@@ -581,8 +581,7 @@ public class InstallPluginActionTests extends ESTestCase {
         assumeTrue("real filesystem", isReal);
         Path pluginDirectory = createPluginDir(temp);
         writeJar(pluginDirectory.resolve("other.jar"), "FakePlugin");
-        InstallablePlugin pluginZip = createPluginZip("fake", pluginDirectory); // adds plugin.jar with
-                                                                                // FakePlugin
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDirectory); // adds plugin.jar with FakePlugin
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip, env.v1(), defaultAction));
         assertThat(e.getMessage(), containsString("jar hell"));
         assertInstallCleaned(env.v2());

@@ -9,7 +9,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -55,7 +55,7 @@ public class PolicyUtilTests extends ESTestCase {
 
     Path makeDummyPlugin(String policy, String... files) throws IOException {
         Path plugin = createTempDir();
-        Files.copy(this.getDataPath(policy), plugin.resolve(PluginInfo.ES_PLUGIN_POLICY));
+        Files.copy(this.getDataPath(policy), plugin.resolve(PluginDescriptor.ES_PLUGIN_POLICY));
         for (String file : files) {
             Files.createFile(plugin.resolve(file));
         }
@@ -107,7 +107,7 @@ public class PolicyUtilTests extends ESTestCase {
 
     public void testPolicyMissingCodebaseProperty() throws Exception {
         Path plugin = makeDummyPlugin("missing-codebase.policy", "foo.jar");
-        URL policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY).toUri().toURL();
+        URL policyFile = plugin.resolve(PluginDescriptor.ES_PLUGIN_POLICY).toUri().toURL();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> PolicyUtil.readPolicy(policyFile, Collections.emptyMap())
@@ -121,7 +121,7 @@ public class PolicyUtilTests extends ESTestCase {
         try {
             URL jarUrl = plugin.resolve("foo.jar").toUri().toURL();
             setProperty("jarUrl", jarUrl.toString());
-            URL policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY).toUri().toURL();
+            URL policyFile = plugin.resolve(PluginDescriptor.ES_PLUGIN_POLICY).toUri().toURL();
             Policy policy = Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
 
             Set<Permission> globalPermissions = PolicyUtil.getPolicyPermissions(null, policy, tmpDir);
@@ -152,7 +152,7 @@ public class PolicyUtilTests extends ESTestCase {
         policyString.append(";\n};");
 
         logger.info(policyString.toString());
-        Files.write(plugin.resolve(PluginInfo.ES_PLUGIN_POLICY), policyString.toString().getBytes(StandardCharsets.UTF_8));
+        Files.write(plugin.resolve(PluginDescriptor.ES_PLUGIN_POLICY), policyString.toString().getBytes(StandardCharsets.UTF_8));
 
         return plugin;
     }

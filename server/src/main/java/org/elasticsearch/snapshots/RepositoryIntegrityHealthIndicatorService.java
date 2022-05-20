@@ -130,7 +130,8 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     }
 
     private static String createCorruptedRepositorySummary(List<String> corrupted) {
-        var message = new StringBuilder().append("Detected [").append(corrupted.size()).append("] corrupted repositories: ");
+        var message = new StringBuilder().append("Detected [").append(corrupted.size())
+            .append("] corrupted snapshot repositories: ");
         collectionToDelimitedStringWithLimit(corrupted, ",", "[", "].", 1024, message);
         return message.toString();
     }

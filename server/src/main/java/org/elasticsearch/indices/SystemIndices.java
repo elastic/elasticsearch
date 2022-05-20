@@ -94,18 +94,16 @@ public class SystemIndices {
         checkForOverlappingPatterns(featureDescriptors);
         ensurePatternsAllowSuffix(featureDescriptors);
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
-        Automaton systemIndexAutomata = buildIndexAutomaton(toMap(featureDescriptors));
+        Automaton systemIndexAutomata = buildIndexAutomaton(featureDescriptors);
         this.systemIndexRunAutomaton = new CharacterRunAutomaton(systemIndexAutomata);
-        Automaton systemDataStreamIndicesAutomata = buildDataStreamBackingIndicesAutomaton(toMap(featureDescriptors));
+        Automaton systemDataStreamIndicesAutomata = buildDataStreamBackingIndicesAutomaton(featureDescriptors);
         this.systemDataStreamIndicesRunAutomaton = new CharacterRunAutomaton(systemDataStreamIndicesAutomata);
-        this.systemDataStreamPredicate = buildDataStreamNamePredicate(toMap(featureDescriptors));
-        this.netNewSystemIndexAutomaton = buildNetNewIndexCharacterRunAutomaton(toMap(featureDescriptors));
+        this.systemDataStreamPredicate = buildDataStreamNamePredicate(featureDescriptors);
+        this.netNewSystemIndexAutomaton = buildNetNewIndexCharacterRunAutomaton(featureDescriptors);
         this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(toMap(featureDescriptors));
         this.executorSelector = new ExecutorSelector(this);
         this.systemNameAutomaton = MinimizationOperations.minimize(
-            Operations.union(
-                List.of(systemIndexAutomata, systemDataStreamIndicesAutomata, buildDataStreamAutomaton(toMap(featureDescriptors)))
-            ),
+            Operations.union(List.of(systemIndexAutomata, systemDataStreamIndicesAutomata, buildDataStreamAutomaton(featureDescriptors))),
             Integer.MAX_VALUE
         );
         this.systemNameRunAutomaton = new CharacterRunAutomaton(systemNameAutomaton);
@@ -337,14 +335,13 @@ public class SystemIndices {
         return toMap(featureDescriptors);
     }
 
-    private static Automaton buildIndexAutomaton(Map<String, Feature> descriptors) {
-        Optional<Automaton> automaton = descriptors.values().stream().map(SystemIndices::featureToIndexAutomaton).reduce(Operations::union);
+    private static Automaton buildIndexAutomaton(List<Feature> features) {
+        Optional<Automaton> automaton = features.stream().map(SystemIndices::featureToIndexAutomaton).reduce(Operations::union);
         return MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE);
     }
 
-    private static CharacterRunAutomaton buildNetNewIndexCharacterRunAutomaton(Map<String, Feature> featureDescriptors) {
-        Optional<Automaton> automaton = featureDescriptors.values()
-            .stream()
+    private static CharacterRunAutomaton buildNetNewIndexCharacterRunAutomaton(List<Feature> features) {
+        Optional<Automaton> automaton = features.stream()
             .flatMap(feature -> feature.getIndexDescriptors().stream())
             .filter(SystemIndexDescriptor::isNetNew)
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
@@ -361,9 +358,8 @@ public class SystemIndices {
         return systemIndexAutomaton.orElse(EMPTY);
     }
 
-    private static Automaton buildDataStreamAutomaton(Map<String, Feature> descriptors) {
-        Optional<Automaton> automaton = descriptors.values()
-            .stream()
+    private static Automaton buildDataStreamAutomaton(List<Feature> features) {
+        Optional<Automaton> automaton = features.stream()
             .flatMap(feature -> feature.getDataStreamDescriptors().stream())
             .map(SystemDataStreamDescriptor::getDataStreamName)
             .map(dsName -> SystemIndexDescriptor.buildAutomaton(dsName, null))
@@ -372,14 +368,13 @@ public class SystemIndices {
         return automaton.isPresent() ? MinimizationOperations.minimize(automaton.get(), Integer.MAX_VALUE) : EMPTY;
     }
 
-    private static Predicate<String> buildDataStreamNamePredicate(Map<String, Feature> descriptors) {
-        CharacterRunAutomaton characterRunAutomaton = new CharacterRunAutomaton(buildDataStreamAutomaton(descriptors));
+    private static Predicate<String> buildDataStreamNamePredicate(List<Feature> features) {
+        CharacterRunAutomaton characterRunAutomaton = new CharacterRunAutomaton(buildDataStreamAutomaton(features));
         return characterRunAutomaton::run;
     }
 
-    private static Automaton buildDataStreamBackingIndicesAutomaton(Map<String, Feature> descriptors) {
-        Optional<Automaton> automaton = descriptors.values()
-            .stream()
+    private static Automaton buildDataStreamBackingIndicesAutomaton(List<Feature> features) {
+        Optional<Automaton> automaton = features.stream()
             .map(SystemIndices::featureToDataStreamBackingIndicesAutomaton)
             .reduce(Operations::union);
         return MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE);

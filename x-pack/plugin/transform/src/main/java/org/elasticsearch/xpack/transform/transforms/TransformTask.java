@@ -465,7 +465,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             logger.debug("[{}] successfully updated state for transform to [{}].", transform.getId(), state.toString());
             listener.onResponse(success);
         }, failure -> {
-            logger.error(new ParameterizedMessage("[{}] failed to update cluster state for transform.", transform.getId()), failure);
+            logger.error(() -> "[" + transform.getId() + "] failed to update cluster state for transform.", failure);
             listener.onFailure(failure);
         }));
     }

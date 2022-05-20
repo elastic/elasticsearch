@@ -439,7 +439,7 @@ public class HealthServiceTests extends ESTestCase {
             }
 
             @Override
-            public HealthIndicatorResult calculate(boolean calculateDetails) {
+            public HealthIndicatorResult calculate(boolean explain) {
                 return result;
             }
         };

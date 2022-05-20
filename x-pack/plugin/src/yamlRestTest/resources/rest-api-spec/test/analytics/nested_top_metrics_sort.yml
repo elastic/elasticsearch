@@ -94,7 +94,7 @@ setup:
           - { "index": {} }
           - { "name": "sophia", "order_date": "2021-12-11T12:13:00.000Z", birth_date: "1989-04-05", score: 3, version: 1, price: 99.89 }
           - { "index": {} }
-          - { "name": "daniel", "order_date": "2021-08-09T17:22:00.000Z", birth_date: "1990-09-11", score: 4, version: 1, price: 119.00 }
+          - { "name": "daniel", "order_date": "2021-08-09T17:21:00.000Z", birth_date: "1990-09-11", score: 4, version: 1, price: 119.00 }
           - { "index": {} }
           - { "name": "thomas", "order_date": "2021-09-27T18:29:00.000Z", birth_date: "1991-10-27", score: 8, version: 1, price: 79.90 }
           - { "index": {} }
@@ -640,8 +640,9 @@ teardown:
 ---
 "terms order by top metrics numeric not null double values":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/86377"
+      version: " - 8.1.99"
+      reason: Bug fixed in 8.2.0
+
 
   - do:
       cluster.put_settings:

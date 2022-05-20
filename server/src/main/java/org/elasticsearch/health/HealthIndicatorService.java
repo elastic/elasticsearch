@@ -22,7 +22,7 @@ public interface HealthIndicatorService {
 
     String component();
 
-    HealthIndicatorResult calculate(boolean calculateDetails);
+    HealthIndicatorResult calculate(boolean explain);
 
     /**
      * This method creates a HealthIndicatorResult with the given information. Note that it sorts the impacts by severity (the lower the

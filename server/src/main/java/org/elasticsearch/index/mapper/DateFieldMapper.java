@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -51,6 +50,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.LongScriptFieldDistanceFeatureQuery;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.text.NumberFormat;
@@ -287,10 +287,7 @@ public final class DateFieldMapper extends FieldMapper {
                 return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
             } catch (IllegalArgumentException e) {
                 if (indexCreatedVersion.isLegacyIndexVersion()) {
-                    logger.warn(
-                        new ParameterizedMessage("Error parsing format [{}] of legacy index, falling back to default", format.getValue()),
-                        e
-                    );
+                    logger.warn(() -> "Error parsing format [" + format.getValue() + "] of legacy index, falling back to default", e);
                     return DateFormatter.forPattern(format.getDefaultValue()).withLocale(locale.getValue());
                 } else {
                     throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
@@ -344,6 +341,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateFieldType ft = new DateFieldType(
                 context.buildFullName(name()),
                 index.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
+                index.getValue(),
                 store.getValue(),
                 docValues.getValue(),
                 buildFormatter(),
@@ -390,10 +388,12 @@ public final class DateFieldMapper extends FieldMapper {
         protected final Resolution resolution;
         protected final String nullValue;
         protected final FieldValues<Long> scriptValues;
+        private final boolean pointsMetadataAvailable;
 
         public DateFieldType(
             String name,
             boolean isIndexed,
+            boolean pointsMetadataAvailable,
             boolean isStored,
             boolean hasDocValues,
             DateFormatter dateTimeFormatter,
@@ -408,26 +408,52 @@ public final class DateFieldMapper extends FieldMapper {
             this.resolution = resolution;
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
+            this.pointsMetadataAvailable = pointsMetadataAvailable;
+        }
+
+        public DateFieldType(
+            String name,
+            boolean isIndexed,
+            boolean isStored,
+            boolean hasDocValues,
+            DateFormatter dateTimeFormatter,
+            Resolution resolution,
+            String nullValue,
+            FieldValues<Long> scriptValues,
+            Map<String, String> meta
+        ) {
+            this(name, isIndexed, isIndexed, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, scriptValues, meta);
         }
 
         public DateFieldType(String name) {
-            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
+            this(name, true, true, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, boolean isIndexed) {
-            this(name, isIndexed, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
+            this(
+                name,
+                isIndexed,
+                isIndexed,
+                false,
+                true,
+                DEFAULT_DATE_TIME_FORMATTER,
+                Resolution.MILLISECONDS,
+                null,
+                null,
+                Collections.emptyMap()
+            );
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
-            this(name, true, false, true, dateFormatter, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
+            this(name, true, true, false, true, dateFormatter, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution) {
-            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
+            this(name, true, true, false, true, DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution, DateFormatter dateFormatter) {
-            this(name, true, false, true, dateFormatter, resolution, null, null, Collections.emptyMap());
+            this(name, true, true, false, true, dateFormatter, resolution, null, null, Collections.emptyMap());
         }
 
         @Override
@@ -649,7 +675,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateMathParser dateParser,
             QueryRewriteContext context
         ) throws IOException {
-            if (isIndexed() == false && hasDocValues()) {
+            if (isIndexed() == false && pointsMetadataAvailable == false && hasDocValues()) {
                 // we don't have a quick way to run this check on doc values, so fall back to default assuming we are within bounds
                 return Relation.INTERSECTS;
             }
@@ -868,5 +894,33 @@ public final class DateFieldMapper extends FieldMapper {
 
     public Long getNullValue() {
         return nullValue;
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasScript) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
+        }
+        if (ignoreMalformed) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed dates"
+            );
+        }
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        return new NumberFieldMapper.NumericSyntheticFieldLoader(name(), simpleName()) {
+            @Override
+            protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                b.value(fieldType().format(value, fieldType().dateTimeFormatter()));
+            }
+        };
     }
 }

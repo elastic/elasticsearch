@@ -44,6 +44,17 @@ setup:
                 type: date_nanos
 
   - do:
+      indices.create:
+        index: timezone_daylight_test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              date:
+                type: date
+
+  - do:
       bulk:
         index: test_date_hist
         refresh: true
@@ -101,6 +112,24 @@ setup:
           - { "date": "2021-05-01 22:40:00" }
           - { "index": { } }
           - { "date": "2021-05-01 22:20:00" }
+
+  - do:
+      bulk:
+        index: timezone_daylight_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "date": "2020-03-09T03:00:00Z" }
+          - { "index": { } }
+          - { "date": "2020-03-09T04:00:00Z" }
+          - { "index": { } }
+          - { "date": "2020-03-09T05:00:00Z" }
+          - { "index": { } }
+          - { "date": "2020-03-09T06:00:00Z" }
+          - { "index": { } }
+          - { "date": "2020-03-09T07:00:00Z" }
+          - { "index": { } }
+          - { "date": "2020-03-09T08:00:00Z" }
 
 ---
 "date_histogram on range with hard bounds":
@@ -356,3 +385,54 @@ setup:
 
   - match: { hits.total.value: 1 }
   - length: { aggregations.datehisto.buckets: 3 }
+
+---
+"Daylight with offset date_histogram test":
+  - skip:
+      version: "- 7.17.0"
+      reason: Bug fixed before 7.17.0
+
+  - do:
+      search:
+        index: timezone_daylight_test
+        body:
+          size: 0
+          aggs:
+            date_histogram_daily:
+              date_histogram:
+                field: "date"
+                calendar_interval: "1d"
+                time_zone: "America/New_York"
+                offset: "+1h"
+
+  - match:  { hits.total.value: 6 }
+  - length: { aggregations.date_histogram_daily.buckets: 2 }
+  - match: { aggregations.date_histogram_daily.buckets.0.key_as_string: "2020-03-08T01:00:00.000-05:00" }
+  - match: { aggregations.date_histogram_daily.buckets.0.key: 1583647200000 }
+  - match: { aggregations.date_histogram_daily.buckets.0.doc_count: 2 }
+  - match: { aggregations.date_histogram_daily.buckets.1.key_as_string: "2020-03-09T01:00:00.000-04:00" }
+  - match: { aggregations.date_histogram_daily.buckets.1.key: 1583730000000 }
+  - match: { aggregations.date_histogram_daily.buckets.1.doc_count: 4 }
+
+---
+"Daylight without offset date_histogram test":
+  - do:
+      search:
+        index: timezone_daylight_test
+        body:
+          size: 0
+          aggs:
+            date_histogram_daily:
+              date_histogram:
+                field: "date"
+                calendar_interval: "1d"
+                time_zone: "America/New_York"
+
+  - match:  { hits.total.value: 6 }
+  - length: { aggregations.date_histogram_daily.buckets: 2 }
+  - match: { aggregations.date_histogram_daily.buckets.0.key_as_string: "2020-03-08T00:00:00.000-05:00" }
+  - match: { aggregations.date_histogram_daily.buckets.0.key: 1583643600000 }
+  - match: { aggregations.date_histogram_daily.buckets.0.doc_count: 1 }
+  - match: { aggregations.date_histogram_daily.buckets.1.key_as_string: "2020-03-09T00:00:00.000-04:00" }
+  - match: { aggregations.date_histogram_daily.buckets.1.key: 1583726400000 }
+  - match: { aggregations.date_histogram_daily.buckets.1.doc_count: 5 }

@@ -188,7 +188,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     private void roleDescriptors(Set<String> roleNames, ActionListener<RolesRetrievalResult> rolesResultListener) {
         final Set<String> filteredRoleNames = roleNames.stream().filter((s) -> {
             if (negativeLookupCache.get(s) != null) {
-                logger.debug(() -> new ParameterizedMessage("Requested role [{}] does not exist (cached)", s));
+                logger.debug(() -> "Requested role [" + s + "] does not exist (cached)");
                 return false;
             } else {
                 return true;

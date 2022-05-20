@@ -403,6 +403,11 @@ public final class MappingLookup {
         return sfm != null && sfm.enabled();
     }
 
+    public SourceLoader newSourceLoader() {
+        SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
+        return sfm == null ? SourceLoader.FROM_STORED_SOURCE : sfm.newSourceLoader(mapping.getRoot());
+    }
+
     /**
      * Returns if this mapping contains a data-stream's timestamp meta-field and this field is enabled.
      * Only indices that are a part of a data-stream have this meta-field enabled.

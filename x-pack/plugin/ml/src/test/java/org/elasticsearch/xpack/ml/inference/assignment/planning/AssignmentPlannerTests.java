@@ -247,27 +247,27 @@ public class AssignmentPlannerTests extends ESTestCase {
     }
 
     public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenNodesJustUnderLimit() {
-        runTooManyNodesAndModels(1999, 1);
+        runTooManyNodesAndModels(3161, 1);
     }
 
     public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenNodesJustOverLimit() {
-        runTooManyNodesAndModels(2000, 1);
+        runTooManyNodesAndModels(3162, 1);
     }
 
     public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenModelsJustUnderLimit() {
-        runTooManyNodesAndModels(1, 1999);
+        runTooManyNodesAndModels(1, 3161);
     }
 
     public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenModelsJustOverLimit() {
-        runTooManyNodesAndModels(1, 2000);
+        runTooManyNodesAndModels(1, 3162);
     }
 
     public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenComboJustUnderLimit() {
-        runTooManyNodesAndModels(125, 126);
+        runTooManyNodesAndModels(170, 171);
     }
 
     public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenComboJustOverLimit() {
-        runTooManyNodesAndModels(126, 126);
+        runTooManyNodesAndModels(171, 171);
     }
 
     public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenComboWayOverLimit() {

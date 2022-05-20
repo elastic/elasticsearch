@@ -9,13 +9,16 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorDetails;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -51,37 +54,39 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean includeDetails) {
+    public HealthIndicatorResult calculate(boolean explain) {
         var ilmMetadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(
                 GREEN,
                 "No policies configured",
-                createDetails(includeDetails, ilmMetadata),
+                createDetails(explain, ilmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
         } else if (ilmMetadata.getOperationMode() != OperationMode.RUNNING) {
-            return createIndicator(
-                YELLOW,
-                "ILM is not running",
-                createDetails(includeDetails, ilmMetadata),
-                Collections.emptyList(),
-                Collections.emptyList()
+            List<HealthIndicatorImpact> impacts = Collections.singletonList(
+                new HealthIndicatorImpact(
+                    3,
+                    "Automatic index lifecycle and data retention management is disabled. The performance and stability of your system "
+                        + "could be impacted.",
+                    List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
+                )
             );
+            return createIndicator(YELLOW, "ILM is not running", createDetails(explain, ilmMetadata), impacts, Collections.emptyList());
         } else {
             return createIndicator(
                 GREEN,
                 "ILM is running",
-                createDetails(includeDetails, ilmMetadata),
+                createDetails(explain, ilmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
         }
     }
 
-    private static HealthIndicatorDetails createDetails(boolean includeDetails, IndexLifecycleMetadata metadata) {
-        if (includeDetails) {
+    private static HealthIndicatorDetails createDetails(boolean explain, IndexLifecycleMetadata metadata) {
+        if (explain) {
             return new SimpleHealthIndicatorDetails(
                 Map.of("ilm_status", metadata.getOperationMode(), "policies", metadata.getPolicies().size())
             );

@@ -2371,7 +2371,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     .iterator()
                             );
                         } catch (IOException e) {
-                            logger.warn(() -> new ParameterizedMessage("Failed to clean up old index blobs from before [{}]", newGen), e);
+                            logger.warn(() -> "Failed to clean up old index blobs from before [" + newGen + "]", e);
                         }
                         return newRepositoryData;
                     }));

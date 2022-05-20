@@ -69,8 +69,6 @@ public class JwtRealms {
             JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
             true
         );
-        // final List<JwtRealm> jwtRealmList = this.jwtRealms.listRegisteredJwtRealms();
-        // final List<String> actualPrincipalClaimNames = jwtRealmList.stream().map(r -> r.claimParserPrincipal.getClaimName()).toList();
         return new JwtAuthenticationToken(this.principalClaimNames, authenticationParameterValue, clientAuthenticationSharedSecretValue);
     }
 

@@ -75,8 +75,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
                     3,
-                    "Scheduled snapshots are not running. There might not be backups of the data that could be used to restore if data is"
-                        + " lost in the future.",
+                    "Scheduled snapshots are not running. New backup snapshots will not be created automatically.",
                     List.of(ImpactArea.BACKUP)
                 )
             );

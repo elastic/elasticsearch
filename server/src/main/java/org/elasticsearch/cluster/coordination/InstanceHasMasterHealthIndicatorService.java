@@ -38,7 +38,7 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
         + "update documents.";
     private static final String NO_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT = "Scheduled tasks such as Watcher, ILM, and SLM will not work. "
         + "The _cat APIs will not work.";
-    private static final String NO_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work.";
+    private static final String NO_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work. Searchable snapshots cannot be mounted.";
 
     private final ClusterService clusterService;
 

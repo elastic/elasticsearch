@@ -65,9 +65,9 @@ public class SystemIndices {
 
     private static final Automaton EMPTY = Automata.makeEmpty();
 
-    private static final List<Feature> SERVER_SYSTEM_INDEX_DESCRIPTORS = List.of(
+    private static final Map<String, Feature> SERVER_SYSTEM_INDEX_DESCRIPTORS = Stream.of(
         new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR))
-    );
+    ).collect(Collectors.toMap(Feature::getName, Function.identity()));
 
     private final Automaton systemNameAutomaton;
     private final CharacterRunAutomaton netNewSystemIndexAutomaton;
@@ -97,18 +97,16 @@ public class SystemIndices {
         checkForOverlappingPatterns(features);
         ensurePatternsAllowSuffix(features);
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
-        Automaton systemIndexAutomata = buildIndexAutomaton(getFeatures().stream());
+        Automaton systemIndexAutomata = buildIndexAutomaton(features);
         this.systemIndexRunAutomaton = new CharacterRunAutomaton(systemIndexAutomata);
-        Automaton systemDataStreamIndicesAutomata = buildDataStreamBackingIndicesAutomaton(getFeatures().stream());
+        Automaton systemDataStreamIndicesAutomata = buildDataStreamBackingIndicesAutomaton(features);
         this.systemDataStreamIndicesRunAutomaton = new CharacterRunAutomaton(systemDataStreamIndicesAutomata);
-        this.systemDataStreamPredicate = buildDataStreamNamePredicate(getFeatures().stream());
-        this.netNewSystemIndexAutomaton = buildNetNewIndexCharacterRunAutomaton(getFeatures().stream());
-        this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(getFeatures().stream());
+        this.systemDataStreamPredicate = buildDataStreamNamePredicate(features);
+        this.netNewSystemIndexAutomaton = buildNetNewIndexCharacterRunAutomaton(features);
+        this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(features);
         this.executorSelector = new ExecutorSelector(this);
         this.systemNameAutomaton = MinimizationOperations.minimize(
-            Operations.union(
-                List.of(systemIndexAutomata, systemDataStreamIndicesAutomata, buildDataStreamAutomaton(getFeatures().stream()))
-            ),
+            Operations.union(List.of(systemIndexAutomata, systemDataStreamIndicesAutomata, buildDataStreamAutomaton(features))),
             Integer.MAX_VALUE
         );
         this.systemNameRunAutomaton = new CharacterRunAutomaton(systemNameAutomaton);
@@ -165,9 +163,9 @@ public class SystemIndices {
         }
     }
 
-    private static Map<String, CharacterRunAutomaton> getProductToSystemIndicesMap(Stream<Feature> features) {
+    private static Map<String, CharacterRunAutomaton> getProductToSystemIndicesMap(Map<String, Feature> features) {
         Map<String, Automaton> productToSystemIndicesMap = new HashMap<>();
-        features.forEach(feature -> {
+        for (Feature feature : features.values()) {
             feature.getIndexDescriptors().forEach(systemIndexDescriptor -> {
                 if (systemIndexDescriptor.isExternal()) {
                     systemIndexDescriptor.getAllowedElasticProductOrigins()
@@ -192,7 +190,7 @@ public class SystemIndices {
                         }));
                 }
             });
-        });
+        }
 
         return productToSystemIndicesMap.entrySet()
             .stream()
@@ -340,13 +338,15 @@ public class SystemIndices {
         return features.values();
     }
 
-    private static Automaton buildIndexAutomaton(Stream<Feature> features) {
-        Optional<Automaton> automaton = features.map(SystemIndices::featureToIndexAutomaton).reduce(Operations::union);
+    private static Automaton buildIndexAutomaton(Map<String, Feature> features) {
+        Optional<Automaton> automaton = features.values().stream().map(SystemIndices::featureToIndexAutomaton).reduce(Operations::union);
         return MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE);
     }
 
-    private static CharacterRunAutomaton buildNetNewIndexCharacterRunAutomaton(Stream<Feature> features) {
-        Optional<Automaton> automaton = features.flatMap(feature -> feature.getIndexDescriptors().stream())
+    private static CharacterRunAutomaton buildNetNewIndexCharacterRunAutomaton(Map<String, Feature> features) {
+        Optional<Automaton> automaton = features.values()
+            .stream()
+            .flatMap(feature -> feature.getIndexDescriptors().stream())
             .filter(SystemIndexDescriptor::isNetNew)
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
             .reduce(Operations::union);
@@ -362,8 +362,10 @@ public class SystemIndices {
         return systemIndexAutomaton.orElse(EMPTY);
     }
 
-    private static Automaton buildDataStreamAutomaton(Stream<Feature> features) {
-        Optional<Automaton> automaton = features.flatMap(feature -> feature.getDataStreamDescriptors().stream())
+    private static Automaton buildDataStreamAutomaton(Map<String, Feature> features) {
+        Optional<Automaton> automaton = features.values()
+            .stream()
+            .flatMap(feature -> feature.getDataStreamDescriptors().stream())
             .map(SystemDataStreamDescriptor::getDataStreamName)
             .map(dsName -> SystemIndexDescriptor.buildAutomaton(dsName, null))
             .reduce(Operations::union);
@@ -371,13 +373,16 @@ public class SystemIndices {
         return automaton.isPresent() ? MinimizationOperations.minimize(automaton.get(), Integer.MAX_VALUE) : EMPTY;
     }
 
-    private static Predicate<String> buildDataStreamNamePredicate(Stream<Feature> features) {
+    private static Predicate<String> buildDataStreamNamePredicate(Map<String, Feature> features) {
         CharacterRunAutomaton characterRunAutomaton = new CharacterRunAutomaton(buildDataStreamAutomaton(features));
         return characterRunAutomaton::run;
     }
 
-    private static Automaton buildDataStreamBackingIndicesAutomaton(Stream<Feature> features) {
-        Optional<Automaton> automaton = features.map(SystemIndices::featureToDataStreamBackingIndicesAutomaton).reduce(Operations::union);
+    private static Automaton buildDataStreamBackingIndicesAutomaton(Map<String, Feature> features) {
+        Optional<Automaton> automaton = features.values()
+            .stream()
+            .map(SystemIndices::featureToDataStreamBackingIndicesAutomaton)
+            .reduce(Operations::union);
         return MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE);
     }
 
@@ -574,10 +579,10 @@ public class SystemIndices {
         final Map<String, Feature> map = Maps.newMapWithExpectedSize(features.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size());
         features.forEach(feature -> map.put(feature.getName(), feature));
         // put the server items last since we expect less of them
-        SERVER_SYSTEM_INDEX_DESCRIPTORS.forEach((feature) -> {
-            if (map.putIfAbsent(feature.getName(), feature) != null) {
+        SERVER_SYSTEM_INDEX_DESCRIPTORS.forEach((source, feature) -> {
+            if (map.putIfAbsent(source, feature) != null) {
                 throw new IllegalArgumentException(
-                    "plugin or module attempted to define the same source [" + feature.getName() + "] as a built-in system index"
+                    "plugin or module attempted to define the same source [" + source + "] as a built-in system index"
                 );
             }
         });

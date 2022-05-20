@@ -322,13 +322,13 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason) {
-        return (RootObjectMapper) super.merge(mergeWith, reason);
+    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
+        return (RootObjectMapper) super.merge(mergeWith, reason, mapperBuilderContext);
     }
 
     @Override
-    protected void doMerge(ObjectMapper mergeWith, MergeReason reason) {
-        super.doMerge(mergeWith, reason);
+    protected void doMerge(ObjectMapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
+        super.doMerge(mergeWith, reason, mapperBuilderContext);
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (mergeWithObject.numericDetection.explicit()) {
             this.numericDetection = mergeWithObject.numericDetection;

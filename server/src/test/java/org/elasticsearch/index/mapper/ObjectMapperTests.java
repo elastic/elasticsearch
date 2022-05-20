@@ -343,7 +343,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     public void testUnmappedLegacyFields() throws Exception {
         MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
-            b.field("type", "text");
+            b.field("type", CompletionFieldMapper.CONTENT_TYPE);
             b.field("unknown_setting", 5);
             b.endObject();
         }));

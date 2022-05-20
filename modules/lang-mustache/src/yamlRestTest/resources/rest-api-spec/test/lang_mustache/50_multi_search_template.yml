@@ -30,6 +30,9 @@ setup:
 
 ---
 "Basic multi-search template":
+  - skip:
+      version: " - 8.2.99"
+      reason:  "status field checks were added in 8.3"
 
   - do:
       msearch_template:
@@ -70,6 +73,10 @@ setup:
 
 ---
 "Multi-search template with errors":
+ 
+   - skip:
+      version: " - 8.2.99"
+      reason:  "status field checks were added in 8.3"
 
   - do:
       msearch_template:
@@ -143,6 +150,10 @@ setup:
 ---
 "Basic multi-search using stored template":
 
+  - skip:
+      version: " - 8.2.99"
+      reason:  "status field checks were added in 8.3"
+
   - do:
       put_script:
         id: stored_template_1
@@ -176,7 +187,6 @@ setup:
   - match:  { responses.1.status: 200 }
   - match:  { responses.2.status: 200 }
 
-
   - do:
       put_script:
         id: stored_template_1
@@ -185,6 +195,11 @@ setup:
 
 ---
 "Test with rest_total_hits_as_int":
+
+  - skip:
+      version: " - 8.2.99"
+      reason:  "status field checks were added in 8.3"
+
   - do:
       put_script:
         id: stored_template_1

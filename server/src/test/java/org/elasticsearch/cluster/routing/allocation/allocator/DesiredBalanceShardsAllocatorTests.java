@@ -39,8 +39,6 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -53,9 +51,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
@@ -239,11 +237,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
     public void testCallListenersOnlyAfterProducingFreshInput() {
 
-        var firstInputCompleted = new CountDownLatch(1);
         var secondInputSubmitted = new CountDownLatch(1);
-        var computationStarted = new CountDownLatch(1);
         var listenersCalled = new CountDownLatch(2);
-        var reroutedIndexes = Collections.synchronizedSet(new HashSet<>());
+        var reroutedIndexes = new CopyOnWriteArraySet<String>();
 
         var threadPool = new TestThreadPool(getTestName());
         var rerouteServiceSupplier = new SetOnce<RerouteService>();
@@ -259,10 +255,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                 }
 
                 try {
-                    computationStarted.countDown();
                     assertTrue("Should have submitted the second input in time", secondInputSubmitted.await(10, TimeUnit.SECONDS));
                 } catch (InterruptedException e) {
-                    throw new AssertionError("Should have submitted the second input");
+                    throw new AssertionError("Should have submitted the second input in time");
                 }
             }
 
@@ -311,13 +306,13 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             });
         });
 
-        clusterService.addListener(event -> firstInputCompleted.countDown());
         clusterService.submitUnbatchedStateUpdateTask("test-create-index", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 currentState = createIndex(currentState, "index-1");
                 currentState = allocationService.reroute(currentState, "test-create-index", ActionListener.wrap(response -> {
-                    assertThat(reroutedIndexes, contains("index-1"));
+                    logger.info("Completing listener 1 with rerouted indexes: {}", reroutedIndexes);
+                    assertThat(reroutedIndexes, hasItem("index-1"));
                     listenersCalled.countDown();
                 }, exception -> { throw new AssertionError("Should not fail in test"); }));
                 return currentState;
@@ -329,23 +324,13 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             }
         });
 
-        try {
-            assertTrue("Should have submitted the second input in time", computationStarted.await(10, TimeUnit.SECONDS));
-        } catch (InterruptedException e) {
-            throw new AssertionError("Should have submitted the second input");
-        }
-        try {
-            assertTrue("Should submit second index when first one is complete", firstInputCompleted.await(10, TimeUnit.SECONDS));
-        } catch (InterruptedException e) {
-            throw new AssertionError("Should have submitted the second index after first one is complete");
-        }
-
         clusterService.submitUnbatchedStateUpdateTask("test-create-index", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 currentState = createIndex(currentState, "index-2");
                 currentState = allocationService.reroute(currentState, "test-create-index", ActionListener.wrap(response -> {
-                    assertThat(reroutedIndexes, contains("index-2"));
+                    logger.info("Completing listener 2 with rerouted indexes: {}", reroutedIndexes);
+                    assertThat(reroutedIndexes, hasItem("index-2"));
                     listenersCalled.countDown();
                 }, exception -> { throw new AssertionError("Should not fail in test"); }));
                 secondInputSubmitted.countDown();
@@ -360,9 +345,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
 
         try {
             try {
-                assertTrue("Should submit second index when first one is complete", firstInputCompleted.await(10, TimeUnit.SECONDS));
+                assertTrue("Should complete both listeners", listenersCalled.await(10, TimeUnit.SECONDS));
             } catch (InterruptedException e) {
-                throw new AssertionError("Should have submitted the second index after first one is complete");
+                throw new AssertionError("Should complete both listeners");
             }
         } finally {
             clusterService.close();
@@ -593,7 +578,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                     @Override
                     public void onFailure(Exception e) {
                         fail("Should not happen in test");
-
                     }
                 });
             }

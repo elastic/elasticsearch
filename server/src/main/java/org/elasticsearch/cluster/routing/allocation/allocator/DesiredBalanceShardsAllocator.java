@@ -92,13 +92,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
 
-                logger.trace("Computing balance for [{}]", desiredBalanceInput.index());
+                logger.info("Computing balance for [{}]", desiredBalanceInput.index());
 
                 var shouldReroute = desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh);
                 var isFresh = isFresh(desiredBalanceInput);
                 var lastConvergedIndex = getCurrentDesiredBalance().lastConvergedIndex();
 
-                logger.trace(
+                logger.info(
                     "Computed balance for [{}], isFresh={}, shouldReroute={}, lastConvergedIndex={}",
                     desiredBalanceInput.index(),
                     isFresh,
@@ -106,12 +106,14 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                     lastConvergedIndex
                 );
 
+                // if (isFresh) {
                 if (shouldReroute) {
                     rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
                 } else if (allocating == false) {
-                    logger.trace("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
+                    logger.info("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
                     executeListeners(lastConvergedIndex, desiredBalanceInput.routingAllocation().nodes().isLocalNodeElectedMaster());
                 }
+                // }
             }
 
             @Override
@@ -139,7 +141,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         allocating = true;
 
         var index = indexGenerator.incrementAndGet();
-        logger.trace("Executing allocate for [{}]", index);
+        logger.info("Executing allocate for [{}]", index);
         synchronized (pendingListeners) {
             pendingListeners.add(new DesiredBalancesListener(index, listener));
         }
@@ -155,10 +157,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
         lastConvergedIndex = currentDesiredBalance.lastConvergedIndex();
         if (allocation.routingNodesChanged()) {
-            logger.trace("Delaying execution listeners up to [{}] as routing nodes have changed", index);
+            logger.info("Delaying execution listeners up to [{}] as routing nodes have changed", index);
             // Execute listeners after cluster state is applied
         } else {
-            logger.trace("Executing listeners up to [{}] as routing nodes have not changed", lastConvergedIndex);
+            logger.info("Executing listeners up to [{}] as routing nodes have not changed", lastConvergedIndex);
             executeListeners(lastConvergedIndex, allocation.nodes().isLocalNodeElectedMaster());
             allocating = false;
         }
@@ -166,7 +168,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        logger.trace("Executing listeners up to [{}] after cluster state was committed", lastConvergedIndex);
+        logger.info("Executing listeners up to [{}] after cluster state was committed", lastConvergedIndex);
         executeListeners(lastConvergedIndex, event.state().nodes().isLocalNodeElectedMaster());
         allocating = false;
     }

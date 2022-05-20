@@ -91,12 +91,16 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
 
+                logger.trace("Computing balance for [{}]", desiredBalanceInput.index());
+
                 var shouldReroute = desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh);
+                var isFresh = isFresh(desiredBalanceInput);
                 var lastConvergedIndex = getCurrentDesiredBalance().lastConvergedIndex();
 
                 logger.trace(
-                    "Computed balance for [{}], shouldReroute={}, lastConvergedIndex={}",
+                    "Computed balance for [{}], isFresh={}, shouldReroute={}, lastConvergedIndex={}",
                     desiredBalanceInput.index(),
+                    isFresh,
                     shouldReroute,
                     lastConvergedIndex
                 );
@@ -106,8 +110,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 } else if (allocating == false) {
                     logger.trace("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
                     executeListeners(lastConvergedIndex);
-                } else {
-                    logger.trace("Allocation in progress");
                 }
             }
 

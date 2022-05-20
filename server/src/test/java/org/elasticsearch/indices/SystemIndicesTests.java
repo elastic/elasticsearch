@@ -183,7 +183,7 @@ public class SystemIndicesTests extends ESTestCase {
         SystemIndexDescriptor pattern1 = new SystemIndexDescriptor(".test-[ab]*", "");
         SystemIndexDescriptor pattern2 = new SystemIndexDescriptor(".test-a*", "");
 
-        List<SystemIndices.Feature> descriptors = new ArrayList();
+        List<SystemIndices.Feature> descriptors = new ArrayList<>();
         descriptors.add(new SystemIndices.Feature(source1, "source 1", List.of(pattern1)));
         descriptors.add(new SystemIndices.Feature(source2, "source 2", List.of(pattern2)));
 

@@ -650,7 +650,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 threadPool,
                 null,
                 new SystemIndices(
-                    Collections.singletonMap("foo", new SystemIndices.Feature("foo", "test feature", systemIndexDescriptors))
+                    Collections.singletonList(new SystemIndices.Feature("foo", "test feature", systemIndexDescriptors))
                 ),
                 false,
                 new IndexSettingProviders(Set.of())

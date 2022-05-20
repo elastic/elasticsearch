@@ -46,7 +46,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
     public void setUpTest() {
         // set up a system index upgrade service
         this.service = new SystemIndexMetadataUpgradeService(
-            new SystemIndices(Map.of("MyIndex", new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)))),
+            new SystemIndices(List.of(new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)))),
             mock(ClusterService.class)
         );
     }

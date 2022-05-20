@@ -44,6 +44,16 @@ public class UpdateDesiredNodesRequestTests extends ESTestCase {
             .put(NODE_ROLES_SETTING.getKey(), "data_hot")
             .build();
 
-        return new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+        if (randomBoolean()) {
+            return new DesiredNode(settings, randomFloat(), ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+        } else {
+            return new DesiredNode(
+                settings,
+                new DesiredNode.ProcessorsRange(1, randomBoolean() ? null : (float) 1),
+                ByteSizeValue.ofGb(1),
+                ByteSizeValue.ofGb(1),
+                Version.CURRENT
+            );
+        }
     }
 }

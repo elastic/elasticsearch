@@ -14,4 +14,5 @@ include::troubleshooting/data/increase-shard-limit.asciidoc[]
 
 include::troubleshooting/data/increase-cluster-shard-limit.asciidoc[]
 
+include::troubleshooting/data/diagnose-unassigned-shards.asciidoc[]
 

@@ -1142,8 +1142,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
+            MapperBuilderContext childContext = mapperBuilderContext.createChildContext(in.simpleName());
             for (FieldMapper newSubField : in.multiFields.mappers) {
-                multiFieldsBuilder.update(newSubField, mapperBuilderContext);
+                multiFieldsBuilder.update(newSubField, childContext);
             }
             this.copyTo.reset(in.copyTo);
             validate();

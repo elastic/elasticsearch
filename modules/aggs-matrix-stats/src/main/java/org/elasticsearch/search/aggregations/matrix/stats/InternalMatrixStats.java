@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
-import joptsimple.internal.Strings;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -245,7 +243,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
                     "Aggregation ["
                         + agg.getName()
                         + "] all fields must exist in all indices, but some indices are missing these fields ["
-                        + Strings.join(new TreeSet<>(missingFields), ", ")
+                        + String.join(", ", new TreeSet<>(missingFields))
                         + "]"
                 );
             }

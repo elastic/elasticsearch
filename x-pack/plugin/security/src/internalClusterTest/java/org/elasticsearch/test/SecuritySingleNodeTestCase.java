@@ -25,7 +25,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.AfterClass;
@@ -152,7 +152,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
             Collection<String> pluginNames = nodeInfo.getInfo(PluginsAndModules.class)
                 .getPluginInfos()
                 .stream()
-                .map(PluginInfo::getClassname)
+                .map(PluginDescriptor::getClassname)
                 .collect(Collectors.toList());
             assertThat(
                 "plugin [" + LocalStateSecurity.class.getName() + "] not found in [" + pluginNames + "]",

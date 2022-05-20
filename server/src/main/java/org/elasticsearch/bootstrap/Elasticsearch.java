@@ -8,55 +8,31 @@
 
 package org.elasticsearch.bootstrap;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-import joptsimple.OptionSpecBuilder;
-import joptsimple.util.PathConverter;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.cli.EnvironmentAwareCommand;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
-import java.util.Arrays;
-import java.util.Locale;
+
+import static org.elasticsearch.bootstrap.BootstrapInfo.USER_EXCEPTION_MARKER;
 
 /**
  * This class starts elasticsearch.
  */
-class Elasticsearch extends EnvironmentAwareCommand {
-
-    private final OptionSpecBuilder versionOption;
-    private final OptionSpecBuilder daemonizeOption;
-    private final OptionSpec<Path> pidfileOption;
-    private final OptionSpecBuilder quietOption;
-
-    // visible for testing
-    Elasticsearch() {
-        super("Starts Elasticsearch"); // we configure logging later so we override the base class from configuring logging
-        versionOption = parser.acceptsAll(Arrays.asList("V", "version"), "Prints Elasticsearch version information and exits");
-        daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"), "Starts Elasticsearch in the background")
-            .availableUnless(versionOption);
-        pidfileOption = parser.acceptsAll(Arrays.asList("p", "pidfile"), "Creates a pid file in the specified path on start")
-            .availableUnless(versionOption)
-            .withRequiredArg()
-            .withValuesConvertedBy(new PathConverter());
-        quietOption = parser.acceptsAll(Arrays.asList("q", "quiet"), "Turns off standard output/error streams logging in console")
-            .availableUnless(versionOption)
-            .availableUnless(daemonizeOption);
-    }
+class Elasticsearch {
 
     /**
      * Main entry point for starting elasticsearch
@@ -79,38 +55,88 @@ class Elasticsearch extends EnvironmentAwareCommand {
 
         });
         LogConfigurator.registerErrorListener();
+
         final Elasticsearch elasticsearch = new Elasticsearch();
-        final Terminal terminal = Terminal.DEFAULT;
-        int status;
+        PrintStream out = getStdout();
+        PrintStream err = getStderr();
         try {
-            status = main(args, elasticsearch, terminal);
-        } catch (Exception e) {
-            status = 1; // mimic JDK exit code on exception
-            if (System.getProperty("es.logs.base_path") != null) {
-                // this is a horrible hack to see if logging has been initialized
-                // we need to find a better way!
-                Logger logger = LogManager.getLogger(Elasticsearch.class);
-                logger.error("fatal exception while booting Elasticsearch", e);
+            final var in = new InputStreamStreamInput(System.in);
+            final ServerArgs serverArgs = new ServerArgs(in);
+            initPidFile(serverArgs.pidFile());
+            elasticsearch.init(
+                serverArgs.daemonize(),
+                serverArgs.quiet(),
+                new Environment(serverArgs.nodeSettings(), serverArgs.configDir()),
+                serverArgs.keystorePassword()
+            );
+
+            err.println(BootstrapInfo.SERVER_READY_MARKER);
+            if (serverArgs.daemonize()) {
+                out.close();
+                err.close();
+            } else {
+                startCliMonitorThread(System.in);
             }
-            e.printStackTrace(terminal.getErrorWriter());
+
+        } catch (NodeValidationException e) {
+            exitWithUserException(err, ExitCodes.CONFIG, e);
+        } catch (UserException e) {
+            exitWithUserException(err, e.exitCode, e);
+        } catch (Exception e) {
+            exitWithUnknownException(err, e);
         }
-        if (status != ExitCodes.OK) {
-            printLogsSuggestion();
-            terminal.flush();
-            exit(status);
+    }
+
+    private static void exitWithUserException(PrintStream err, int exitCode, Exception e) {
+        err.print(USER_EXCEPTION_MARKER);
+        err.println(e.getMessage());
+        gracefullyExit(err, exitCode);
+    }
+
+    private static void exitWithUnknownException(PrintStream err, Exception e) {
+        if (System.getProperty("es.logs.base_path") != null) {
+            // this is a horrible hack to see if logging has been initialized
+            // we need to find a better way!
+            Logger logger = LogManager.getLogger(Elasticsearch.class);
+            logger.error("fatal exception while booting Elasticsearch", e);
         }
+        e.printStackTrace(err);
+        gracefullyExit(err, 1); // mimic JDK exit code on exception
+    }
+
+    private static void gracefullyExit(PrintStream err, int exitCode) {
+        err.println("EXITING with non-zero status: " + exitCode);
+        printLogsSuggestion(err);
+        err.flush();
+        exit(exitCode);
+    }
+
+    @SuppressForbidden(reason = "grab stderr for communication with server-cli")
+    private static PrintStream getStderr() {
+        return System.err;
+    }
+
+    // TODO: remove this, just for debugging
+    @SuppressForbidden(reason = "grab stdout for communication with server-cli")
+    private static PrintStream getStdout() {
+        return System.out;
+    }
+
+    @SuppressForbidden(reason = "main exit path")
+    private static void exit(int exitCode) {
+        System.exit(exitCode);
     }
 
     /**
      * Prints a message directing the user to look at the logs. A message is only printed if
      * logging has been configured.
      */
-    static void printLogsSuggestion() {
+    static void printLogsSuggestion(PrintStream err) {
         final String basePath = System.getProperty("es.logs.base_path");
         // It's possible to fail before logging has been configured, in which case there's no point
         // suggesting that the user look in the log file.
         if (basePath != null) {
-            Terminal.DEFAULT.errorPrintln(
+            err.println(
                 "ERROR: Elasticsearch did not exit normally - check the logs at "
                     + basePath
                     + System.getProperty("file.separator")
@@ -118,6 +144,57 @@ class Elasticsearch extends EnvironmentAwareCommand {
                     + ".log"
             );
         }
+    }
+
+    /**
+     * Starts a thread that monitors stdin for a shutdown signal.
+     *
+     * If the shutdown signal is received, Elasticsearch exits with status code 0.
+     * If the pipe is broken, Elasticsearch exits with status code 1.
+     *
+     * @param stdin Standard input for this process
+     */
+    private static void startCliMonitorThread(InputStream stdin) {
+        new Thread(() -> {
+            int msg = -1;
+            try {
+                msg = stdin.read();
+            } catch (IOException e) {
+                // ignore, whether we cleanly got end of stream (-1) or an error, we will shut down below
+            } finally {
+                if (msg == BootstrapInfo.SERVER_SHUTDOWN_MARKER) {
+                    exit(0);
+                } else {
+                    // parent process died or there was an error reading from it
+                    exit(1);
+                }
+            }
+        }).start();
+    }
+
+    /**
+     * Writes the current process id into the given pidfile, if not null. The pidfile is cleaned up on system exit.
+     *
+     * @param pidFile A path to a file, or null of no pidfile should be written
+     */
+    private static void initPidFile(Path pidFile) throws IOException {
+        if (pidFile == null) {
+            return;
+        }
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (Files.exists(pidFile)) {
+                try {
+                    Files.delete(pidFile);
+                } catch (IOException e) {
+                    // ignore, nothing we can do because are shutting down
+                }
+            }
+        }, "elasticsearch[pidfile-cleanup]"));
+
+        if (Files.exists(pidFile.getParent()) == false) {
+            Files.createDirectories(pidFile.getParent());
+        }
+        Files.writeString(pidFile, Long.toString(ProcessHandle.current().pid()));
     }
 
     private static void overrideDnsCachePolicyProperties() {
@@ -135,69 +212,14 @@ class Elasticsearch extends EnvironmentAwareCommand {
         }
     }
 
-    static int main(final String[] args, final Elasticsearch elasticsearch, final Terminal terminal) throws Exception {
-        return elasticsearch.main(args, terminal, ProcessInfo.fromSystem());
-    }
-
-    @Override
-    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws UserException {
-        if (options.nonOptionArguments().isEmpty() == false) {
-            throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
-        }
-        if (options.has(versionOption)) {
-            final String versionOutput = String.format(
-                Locale.ROOT,
-                "Version: %s, Build: %s/%s/%s, JVM: %s",
-                Build.CURRENT.qualifiedVersion(),
-                Build.CURRENT.type().displayName(),
-                Build.CURRENT.hash(),
-                Build.CURRENT.date(),
-                JvmInfo.jvmInfo().version()
-            );
-            terminal.println(versionOutput);
-            return;
-        }
-
-        final boolean daemonize = options.has(daemonizeOption);
-        final Path pidFile = pidfileOption.value(options);
-        final boolean quiet = options.has(quietOption);
-
-        // a misconfigured java.io.tmpdir can cause hard-to-diagnose problems later, so reject it immediately
+    void init(final boolean daemonize, final boolean quiet, Environment initialEnv, SecureString keystorePassword)
+        throws NodeValidationException, UserException {
         try {
-            env.validateTmpFile();
-        } catch (IOException e) {
-            throw new UserException(ExitCodes.CONFIG, e.getMessage());
-        }
-
-        try {
-            init(daemonize, pidFile, quiet, env);
-        } catch (NodeValidationException e) {
-            throw new UserException(ExitCodes.CONFIG, e.getMessage());
-        }
-    }
-
-    void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv) throws NodeValidationException,
-        UserException {
-        try {
-            Bootstrap.init(daemonize == false, pidFile, quiet, initialEnv);
+            Bootstrap.init(daemonize == false, quiet, initialEnv, keystorePassword);
         } catch (BootstrapException | RuntimeException e) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.
             throw new StartupException(e);
         }
     }
-
-    /**
-     * Required method that's called by Apache Commons procrun when
-     * running as a service on Windows, when the service is stopped.
-     *
-     * http://commons.apache.org/proper/commons-daemon/procrun.html
-     *
-     * NOTE: If this method is renamed and/or moved, make sure to
-     * update elasticsearch-service.bat!
-     */
-    static void close(String[] args) throws IOException {
-        Bootstrap.stop();
-    }
-
 }

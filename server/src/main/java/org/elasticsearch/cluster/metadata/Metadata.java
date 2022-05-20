@@ -62,6 +62,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -875,11 +876,11 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         return aliasedIndices.keySet();
     }
 
-    public ImmutableOpenMap<String, IndexTemplateMetadata> templates() {
+    public Map<String, IndexTemplateMetadata> templates() {
         return this.templates;
     }
 
-    public ImmutableOpenMap<String, IndexTemplateMetadata> getTemplates() {
+    public Map<String, IndexTemplateMetadata> getTemplates() {
         return templates();
     }
 
@@ -902,7 +903,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         var settings = MetadataIndexTemplateService.resolveSettings(indexTemplate, componentTemplates());
-        var indexMode = IndexSettings.MODE.get(settings);
+        // Not using IndexSettings.MODE.get() to avoid validation that may fail at this point.
+        var rawIndexMode = settings.get(IndexSettings.MODE.getKey());
+        var indexMode = rawIndexMode != null ? Enum.valueOf(IndexMode.class, rawIndexMode.toUpperCase(Locale.ROOT)) : null;
         if (indexMode == IndexMode.TIME_SERIES) {
             // No need to check for the existence of index.routing_path here, because index.mode=time_series can't be specified without it.
             // Setting validation takes care of this.
@@ -1247,6 +1250,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         private final ImmutableOpenMap.Builder<String, Custom> customs;
 
         private SortedMap<String, IndexAbstraction> previousIndicesLookup;
+
+        // If this is set to false we can skip checking #mappingsByHash for unused entries in #build(). Used as an optimization to save
+        // the rather expensive call to #purgeUnusedEntries when building from another instance and we know that no mappings can have
+        // become unused because no indices were updated or removed from this builder in a way that would cause unused entries in
+        // #mappingsByHash.
+        private boolean checkForUnusedMappings = true;
+
         private final Map<String, MappingMetadata> mappingsByHash;
 
         public Builder() {
@@ -1267,6 +1277,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             this.customs = ImmutableOpenMap.builder(metadata.customs);
             this.previousIndicesLookup = metadata.indicesLookup;
             this.mappingsByHash = new HashMap<>(metadata.mappingsByHash);
+            this.checkForUnusedMappings = false;
         }
 
         private Builder(Map<String, MappingMetadata> mappingsByHash) {
@@ -1290,6 +1301,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
             }
+            maybeSetMappingPurgeFlag(previous, indexMetadata);
             return this;
         }
 
@@ -1307,10 +1319,31 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
             }
+            maybeSetMappingPurgeFlag(previous, indexMetadata);
             return this;
         }
 
-        static boolean unsetPreviousIndicesLookup(IndexMetadata previous, IndexMetadata current) {
+        private void maybeSetMappingPurgeFlag(@Nullable IndexMetadata previous, IndexMetadata updated) {
+            if (checkForUnusedMappings) {
+                return;
+            }
+            if (previous == null) {
+                return;
+            }
+            final MappingMetadata mapping = previous.mapping();
+            if (mapping == null) {
+                return;
+            }
+            final MappingMetadata updatedMapping = updated.mapping();
+            if (updatedMapping == null) {
+                return;
+            }
+            if (mapping.getSha256().equals(updatedMapping.getSha256()) == false) {
+                checkForUnusedMappings = true;
+            }
+        }
+
+        private static boolean unsetPreviousIndicesLookup(IndexMetadata previous, IndexMetadata current) {
             if (previous == null) {
                 return true;
             }
@@ -1356,7 +1389,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         public Builder remove(String index) {
             previousIndicesLookup = null;
-
+            checkForUnusedMappings = true;
             IndexMetadata previous = indices.remove(index);
             updateAliases(previous, null);
             return this;
@@ -1364,6 +1397,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         public Builder removeAllIndices() {
             previousIndicesLookup = null;
+            checkForUnusedMappings = true;
 
             indices.clear();
             mappingsByHash.clear();
@@ -1372,8 +1406,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         public Builder indices(ImmutableOpenMap<String, IndexMetadata> indices) {
-            previousIndicesLookup = null;
-
             for (var value : indices.values()) {
                 put(value, false);
             }
@@ -1752,17 +1784,20 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
                 validateAlias(entry.getKey(), aliasIndices);
             }
-            final DataStreamMetadata dataStreamMetadata = dataStreamMetadata();
-            ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, allIndices, dataStreamMetadata);
-            assert assertDataStreams(indicesMap, dataStreamMetadata);
-
             SortedMap<String, IndexAbstraction> indicesLookup = null;
             if (previousIndicesLookup != null) {
-                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata, indicesMap));
+                // no changes to the names of indices, datastreams, and their aliases so we can reuse the previous lookup
+                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata(), indicesMap));
                 indicesLookup = previousIndicesLookup;
+            } else {
+                // we have changes to the the entity names so we ensure we have no naming collisions
+                ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, allIndices, dataStreamMetadata());
             }
+            assert assertDataStreams(indicesMap, dataStreamMetadata());
 
-            purgeUnusedEntries(indicesMap);
+            if (checkForUnusedMappings) {
+                purgeUnusedEntries(indicesMap);
+            }
 
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.

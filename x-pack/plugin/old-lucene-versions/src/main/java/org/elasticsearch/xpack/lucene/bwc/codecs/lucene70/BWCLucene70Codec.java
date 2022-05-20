@@ -16,12 +16,14 @@ import org.apache.lucene.codecs.CompoundFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.LiveDocsFormat;
+import org.apache.lucene.codecs.PointsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60MetadataOnlyPointsFormat;
 
 public class BWCLucene70Codec extends BWCCodec {
 
@@ -82,5 +84,10 @@ public class BWCLucene70Codec extends BWCCodec {
     @Override
     public PostingsFormat postingsFormat() {
         return postingsFormat;
+    }
+
+    @Override
+    public PointsFormat pointsFormat() {
+        return new Lucene60MetadataOnlyPointsFormat();
     }
 }

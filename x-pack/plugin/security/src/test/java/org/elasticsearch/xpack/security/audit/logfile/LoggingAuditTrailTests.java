@@ -2169,7 +2169,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     public void testConnectionDenied() throws Exception {
-        final InetAddress inetAddress = InetAddress.getLoopbackAddress();
+        final InetSocketAddress inetAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(0, 65535));
         final SecurityIpFilterRule rule = new SecurityIpFilterRule(false, "_all");
         final String profile = randomBoolean() ? IPFilter.HTTP_PROFILE_NAME : randomAlphaOfLengthBetween(1, 6);
 
@@ -2201,7 +2201,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     public void testConnectionGranted() throws Exception {
-        final InetAddress inetAddress = InetAddress.getLoopbackAddress();
+        final InetSocketAddress inetAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(0, 65535));
         final SecurityIpFilterRule rule = IPFilter.DEFAULT_PROFILE_ACCEPT_ALL;
         final String profile = randomBoolean() ? IPFilter.HTTP_PROFILE_NAME : randomAlphaOfLengthBetween(1, 6);
 

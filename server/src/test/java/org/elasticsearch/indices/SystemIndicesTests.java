@@ -10,9 +10,10 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
@@ -35,9 +36,10 @@ public class SystemIndicesTests extends ESTestCase {
         // across tests
         String broadPatternSource = "AAA" + randomAlphaOfLength(5);
         String otherSource = "ZZZ" + randomAlphaOfLength(6);
-        List<SystemIndices.Feature> descriptors = new ArrayList<>();
-        descriptors.add(new SystemIndices.Feature(broadPatternSource, "test feature", List.of(broadPattern)));
-        descriptors.add(
+        Map<String, SystemIndices.Feature> descriptors = new HashMap<>();
+        descriptors.put(broadPatternSource, new SystemIndices.Feature(broadPatternSource, "test feature", List.of(broadPattern)));
+        descriptors.put(
+            otherSource,
             new SystemIndices.Feature(otherSource, "test 2", List.of(notOverlapping, overlapping1, overlapping2, overlapping3))
         );
 
@@ -61,7 +63,10 @@ public class SystemIndicesTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(overlapping3.toString() + fromPluginString));
         assertThat(exception.getMessage(), not(containsString(notOverlapping.toString())));
 
-        IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
+        IllegalStateException constructorException = expectThrows(
+            IllegalStateException.class,
+            () -> new SystemIndices(List.copyOf(descriptors.values()))
+        );
         assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
 
@@ -74,9 +79,9 @@ public class SystemIndicesTests extends ESTestCase {
         // across tests
         String source1 = "AAA" + randomAlphaOfLength(5);
         String source2 = "ZZZ" + randomAlphaOfLength(6);
-        List<SystemIndices.Feature> descriptors = new ArrayList<>();
-        descriptors.add(new SystemIndices.Feature(source1, "test", List.of(pattern1)));
-        descriptors.add(new SystemIndices.Feature(source2, "test", List.of(pattern2)));
+        Map<String, SystemIndices.Feature> descriptors = new HashMap<>();
+        descriptors.put(source1, new SystemIndices.Feature(source1, "test", List.of(pattern1)));
+        descriptors.put(source2, new SystemIndices.Feature(source2, "test", List.of(pattern2)));
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
@@ -90,7 +95,10 @@ public class SystemIndicesTests extends ESTestCase {
         );
         assertThat(exception.getMessage(), containsString(pattern2.toString() + " from [" + source2 + "]"));
 
-        IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
+        IllegalStateException constructorException = expectThrows(
+            IllegalStateException.class,
+            () -> new SystemIndices(List.copyOf(descriptors.values()))
+        );
         assertThat(constructorException.getMessage(), equalTo(exception.getMessage()));
     }
 
@@ -181,9 +189,9 @@ public class SystemIndicesTests extends ESTestCase {
         SystemIndexDescriptor pattern1 = new SystemIndexDescriptor(".test-[ab]*", "");
         SystemIndexDescriptor pattern2 = new SystemIndexDescriptor(".test-a*", "");
 
-        List<SystemIndices.Feature> descriptors = new ArrayList<>();
-        descriptors.add(new SystemIndices.Feature(source1, "source 1", List.of(pattern1)));
-        descriptors.add(new SystemIndices.Feature(source2, "source 2", List.of(pattern2)));
+        Map<String, SystemIndices.Feature> descriptors = new HashMap<>();
+        descriptors.put(source1, new SystemIndices.Feature(source1, "source 1", List.of(pattern1)));
+        descriptors.put(source2, new SystemIndices.Feature(source2, "source 2", List.of(pattern2)));
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
@@ -206,9 +214,10 @@ public class SystemIndicesTests extends ESTestCase {
         final SystemIndexDescriptor okayDescriptor = new SystemIndexDescriptor(".okay*", "concrete index");
         final SystemIndexDescriptor endsWithNumbersThenWildcard = new SystemIndexDescriptor(".desc[0-9]+*", "concrete index");
 
-        final List<SystemIndices.Feature> features = new ArrayList<>();
+        final Map<String, SystemIndices.Feature> features = new HashMap<>();
         final String firstFeature = "first";
-        features.add(
+        features.put(
+            firstFeature,
             new SystemIndices.Feature(
                 firstFeature,
                 this.getTestName() + " - " + firstFeature,
@@ -216,11 +225,13 @@ public class SystemIndicesTests extends ESTestCase {
             )
         );
         final String secondFeature = "second";
-        features.add(
+        features.put(
+            secondFeature,
             new SystemIndices.Feature(secondFeature, this.getTestName() + " - " + secondFeature, List.of(concreteIndex, okayDescriptor))
         );
         final String thirdFeature = "third";
-        features.add(
+        features.put(
+            thirdFeature,
             new SystemIndices.Feature(thirdFeature, this.getTestName() + " - " + thirdFeature, List.of(endsWithNumbersThenWildcard))
         );
 

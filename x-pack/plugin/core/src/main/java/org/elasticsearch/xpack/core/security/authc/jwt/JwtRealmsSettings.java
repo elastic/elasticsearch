@@ -26,6 +26,10 @@ public class JwtRealmsSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Get all settings shared by all JWT Realms.
+     * @return All settings shared by all JWT Realms.
+     */
     public static Collection<Setting<?>> getSettings() {
         return List.of(PRINCIPAL_CLAIMS_SETTING);
     }

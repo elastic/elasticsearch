@@ -30,6 +30,7 @@ setup:
 
 ---
 "Basic multi-search template":
+
   - skip:
       version: " - 8.2.99"
       reason:  "status field checks were added in 8.3"
@@ -74,7 +75,7 @@ setup:
 ---
 "Multi-search template with errors":
  
-   - skip:
+  - skip:
       version: " - 8.2.99"
       reason:  "status field checks were added in 8.3"
 

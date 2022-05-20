@@ -10,7 +10,7 @@ package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.bootstrap.PluginPolicyInfo;
 import org.elasticsearch.bootstrap.PolicyUtil;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -27,7 +27,7 @@ public class PluginSecurityTests extends ESTestCase {
 
     PluginPolicyInfo makeDummyPlugin(String policy, String... files) throws IOException {
         Path plugin = createTempDir();
-        Files.copy(this.getDataPath(policy), plugin.resolve(PluginInfo.ES_PLUGIN_POLICY));
+        Files.copy(this.getDataPath(policy), plugin.resolve(PluginDescriptor.ES_PLUGIN_POLICY));
         for (String file : files) {
             Files.createFile(plugin.resolve(file));
         }

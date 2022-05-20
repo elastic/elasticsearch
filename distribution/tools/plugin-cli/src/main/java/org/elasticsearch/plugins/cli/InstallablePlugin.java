@@ -13,11 +13,11 @@ import java.util.Objects;
 /**
  * Models a single plugin that can be installed.
  */
-public class PluginDescriptor {
+public class InstallablePlugin {
     private String id;
     private String location;
 
-    public PluginDescriptor() {}
+    public InstallablePlugin() {}
 
     /**
      * Creates a new descriptor instance.
@@ -26,12 +26,12 @@ public class PluginDescriptor {
      * @param location the location from which to fetch the plugin, e.g. a URL or Maven
      *                 coordinates. Can be null for official plugins.
      */
-    public PluginDescriptor(String id, String location) {
+    public InstallablePlugin(String id, String location) {
         this.id = Objects.requireNonNull(id, "id cannot be null");
         this.location = location;
     }
 
-    public PluginDescriptor(String id) {
+    public InstallablePlugin(String id) {
         this(id, null);
     }
 
@@ -55,7 +55,7 @@ public class PluginDescriptor {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PluginDescriptor that = (PluginDescriptor) o;
+        InstallablePlugin that = (InstallablePlugin) o;
         return id.equals(that.id) && Objects.equals(location, that.location);
     }
 

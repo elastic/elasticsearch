@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class GetDataStreamsTransportActionTests extends ESTestCase {
 
     private final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
-    private final SystemIndices systemIndices = new SystemIndices(Map.of());
+    private final SystemIndices systemIndices = new SystemIndices(List.of());
 
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";

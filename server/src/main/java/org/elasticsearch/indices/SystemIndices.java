@@ -65,8 +65,7 @@ public class SystemIndices {
 
     private static final Automaton EMPTY = Automata.makeEmpty();
 
-    private static final Map<String, Feature> SERVER_SYSTEM_INDEX_DESCRIPTORS = Map.of(
-        TASKS_FEATURE_NAME,
+    private static final List<Feature> SERVER_SYSTEM_INDEX_DESCRIPTORS = List.of(
         new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR))
     );
 
@@ -82,6 +81,11 @@ public class SystemIndices {
     private final Map<String, CharacterRunAutomaton> productToSystemIndicesMatcher;
     private final ExecutorSelector executorSelector;
 
+    @Deprecated
+    public SystemIndices(Map<String, Feature> featuresMap) {
+        this(featuresMap.values().stream().toList());
+    }
+
     /**
      * Initialize the SystemIndices object
      * @param features A list of features from which we will load system indices
@@ -96,7 +100,7 @@ public class SystemIndices {
             .stream()
             .flatMap(f -> f.getDataStreamDescriptors().stream())
             .collect(Collectors.toUnmodifiableMap(SystemDataStreamDescriptor::getDataStreamName, Function.identity()));
-        checkForOverlappingPatterns(featureDescriptors);
+        checkForOverlappingPatterns(featureDescriptors.values().stream().toList());
         ensurePatternsAllowSuffix(featureDescriptors);
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
         Automaton systemIndexAutomata = buildIndexAutomaton(featureDescriptors);
@@ -503,20 +507,18 @@ public class SystemIndices {
      * Given a collection of {@link SystemIndexDescriptor}s and their sources, checks to see if the index patterns of the listed
      * descriptors overlap with any of the other patterns. If any do, throws an exception.
      *
-     * @param sourceToFeature A map of source (plugin) names to the SystemIndexDescriptors they provide.
+     * @param features A list of Features that will provide SystemIndexDescriptors
      * @throws IllegalStateException Thrown if any of the index patterns overlaps with another.
      */
-    static void checkForOverlappingPatterns(Map<String, Feature> sourceToFeature) {
-        List<Tuple<String, SystemIndexDescriptor>> sourceDescriptorPair = sourceToFeature.entrySet()
-            .stream()
-            .flatMap(entry -> entry.getValue().getIndexDescriptors().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor)))
+    static void checkForOverlappingPatterns(List<Feature> features) {
+        List<Tuple<String, SystemIndexDescriptor>> sourceDescriptorPair = features.stream()
+            .flatMap(feature -> feature.getIndexDescriptors().stream().map(descriptor -> new Tuple<>(feature.getName(), descriptor)))
             .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getIndexPattern())) // Consistent ordering -> consistent error message
             .toList();
-        List<Tuple<String, SystemDataStreamDescriptor>> sourceDataStreamDescriptorPair = sourceToFeature.entrySet()
-            .stream()
-            .filter(entry -> entry.getValue().getDataStreamDescriptors().isEmpty() == false)
+        List<Tuple<String, SystemDataStreamDescriptor>> sourceDataStreamDescriptorPair = features.stream()
+            .filter(feature -> feature.getDataStreamDescriptors().isEmpty() == false)
             .flatMap(
-                entry -> entry.getValue().getDataStreamDescriptors().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor))
+                feature -> feature.getDataStreamDescriptors().stream().map(descriptor -> new Tuple<>(feature.getName(), descriptor))
             )
             .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getDataStreamName())) // Consistent ordering -> consistent error message
             .toList();
@@ -578,16 +580,21 @@ public class SystemIndices {
 
     private static Map<String, Feature> buildSystemIndexDescriptorMap(List<Feature> features) {
         final Map<String, Feature> map = Maps.newMapWithExpectedSize(features.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size());
+
         features.forEach(f -> map.put(f.getName(), f));
+
+        List<String> providedFeatureNames = features.stream().map(Feature::getName).toList();
+
         // put the server items last since we expect less of them
-        SERVER_SYSTEM_INDEX_DESCRIPTORS.forEach((source, feature) -> {
-            if (map.putIfAbsent(source, feature) != null) {
+        SERVER_SYSTEM_INDEX_DESCRIPTORS.forEach(feature -> {
+            if (providedFeatureNames.contains(feature.getName())) {
                 throw new IllegalArgumentException(
-                    "plugin or module attempted to define the same source [" + source + "] as a built-in system index"
+                    "plugin or module attempted to define the same source [" + feature.getName() + "] as a built-in system index"
                 );
             }
         });
-        return Map.copyOf(map);
+        return Stream.concat(features.stream(), SERVER_SYSTEM_INDEX_DESCRIPTORS.stream())
+            .collect(Collectors.toMap(Feature::getName, Function.identity()));
     }
 
     Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {

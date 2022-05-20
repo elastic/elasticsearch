@@ -10,6 +10,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -36,10 +37,9 @@ public class SystemIndicesTests extends ESTestCase {
         // across tests
         String broadPatternSource = "AAA" + randomAlphaOfLength(5);
         String otherSource = "ZZZ" + randomAlphaOfLength(6);
-        Map<String, SystemIndices.Feature> descriptors = new HashMap<>();
-        descriptors.put(broadPatternSource, new SystemIndices.Feature(broadPatternSource, "test feature", List.of(broadPattern)));
-        descriptors.put(
-            otherSource,
+        List<SystemIndices.Feature> descriptors = new ArrayList<>();
+        descriptors.add(new SystemIndices.Feature(broadPatternSource, "test feature", List.of(broadPattern)));
+        descriptors.add(
             new SystemIndices.Feature(otherSource, "test 2", List.of(notOverlapping, overlapping1, overlapping2, overlapping3))
         );
 
@@ -76,9 +76,9 @@ public class SystemIndicesTests extends ESTestCase {
         // across tests
         String source1 = "AAA" + randomAlphaOfLength(5);
         String source2 = "ZZZ" + randomAlphaOfLength(6);
-        Map<String, SystemIndices.Feature> descriptors = new HashMap<>();
-        descriptors.put(source1, new SystemIndices.Feature(source1, "test", List.of(pattern1)));
-        descriptors.put(source2, new SystemIndices.Feature(source2, "test", List.of(pattern2)));
+        List<SystemIndices.Feature> descriptors = new ArrayList<>();
+        descriptors.add(new SystemIndices.Feature(source1, "test", List.of(pattern1)));
+        descriptors.add(new SystemIndices.Feature(source2, "test", List.of(pattern2)));
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
@@ -97,15 +97,14 @@ public class SystemIndicesTests extends ESTestCase {
     }
 
     public void testBuiltInSystemIndices() {
-        SystemIndices systemIndices = new SystemIndices(Map.of());
+        SystemIndices systemIndices = new SystemIndices(List.of());
         assertTrue(systemIndices.isSystemIndex(".tasks"));
         assertTrue(systemIndices.isSystemIndex(".tasks1"));
         assertTrue(systemIndices.isSystemIndex(".tasks-old"));
     }
 
     public void testPluginCannotOverrideBuiltInSystemIndex() {
-        Map<String, SystemIndices.Feature> pluginMap = Map.of(
-            TASKS_FEATURE_NAME,
+        List<SystemIndices.Feature> pluginMap = List.of(
             new SystemIndices.Feature(
                 TASKS_FEATURE_NAME,
                 "test",
@@ -119,8 +118,7 @@ public class SystemIndicesTests extends ESTestCase {
     public void testPatternWithSimpleRange() {
 
         final SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "test",
+            List.of(
                 new SystemIndices.Feature(
                     "test",
                     "test feature",
@@ -141,8 +139,7 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPatternWithSimpleRangeAndRepeatOperator() {
         final SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "test",
+            List.of(
                 new SystemIndices.Feature(
                     "test",
                     "test feature",
@@ -160,8 +157,7 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPatternWithComplexRange() {
         final SystemIndices systemIndices = new SystemIndices(
-            Map.of(
-                "test",
+            List.of(
                 new SystemIndices.Feature(
                     "test",
                     "test feature",
@@ -187,9 +183,9 @@ public class SystemIndicesTests extends ESTestCase {
         SystemIndexDescriptor pattern1 = new SystemIndexDescriptor(".test-[ab]*", "");
         SystemIndexDescriptor pattern2 = new SystemIndexDescriptor(".test-a*", "");
 
-        Map<String, SystemIndices.Feature> descriptors = new HashMap<>();
-        descriptors.put(source1, new SystemIndices.Feature(source1, "source 1", List.of(pattern1)));
-        descriptors.put(source2, new SystemIndices.Feature(source2, "source 2", List.of(pattern2)));
+        List<SystemIndices.Feature> descriptors = new ArrayList();
+        descriptors.add(new SystemIndices.Feature(source1, "source 1", List.of(pattern1)));
+        descriptors.add(new SystemIndices.Feature(source2, "source 2", List.of(pattern2)));
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,

@@ -45,15 +45,15 @@ public class MasterHistoryService {
     volatile RemoteHistoryOrException remoteHistoryOrException = new RemoteHistoryOrException(null, null, Long.MIN_VALUE);
     private static final Logger logger = LogManager.getLogger(MasterHistoryService.class);
 
-    private static final TimeValue DEFAULT_MAX_USABLE_REMOTE_HISTORY_AGE = new TimeValue(5, TimeUnit.MINUTES);
+    private static final TimeValue DEFAULT_REMOTE_HISTORY_TIME_TO_LIVE = new TimeValue(5, TimeUnit.MINUTES);
 
     /**
      * This is the amount of time that can pass after a RemoteHistoryOrException is returned from the remote master until it is
      * considered stale and not usable.
      */
-    public static final Setting<TimeValue> MAX_USABLE_REMOTE_HISTORY_AGE_SETTING = Setting.timeSetting(
-        "master_history.max_usable_remote_history_age",
-        DEFAULT_MAX_USABLE_REMOTE_HISTORY_AGE,
+    public static final Setting<TimeValue> REMOTE_HISTORY_TIME_TO_LIVE_SETTING = Setting.timeSetting(
+        "master_history.remote_history_time_to_live",
+        DEFAULT_REMOTE_HISTORY_TIME_TO_LIVE,
         Setting.Property.NodeScope
     );
 
@@ -62,7 +62,7 @@ public class MasterHistoryService {
         this.localMasterHistory = new MasterHistory(threadPool, clusterService);
         this.clusterService = clusterService;
         this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
-        this.acceptableRemoteHistoryAge = MAX_USABLE_REMOTE_HISTORY_AGE_SETTING.get(clusterService.getSettings());
+        this.acceptableRemoteHistoryAge = REMOTE_HISTORY_TIME_TO_LIVE_SETTING.get(clusterService.getSettings());
     }
 
     /**

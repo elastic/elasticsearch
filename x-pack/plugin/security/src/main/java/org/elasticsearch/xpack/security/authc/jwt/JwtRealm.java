@@ -93,7 +93,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final CacheIteratorHelper<BytesKey, ExpiringUser> jwtCacheHelper;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
 
-    public JwtRealm(
+    JwtRealm(
         final RealmConfig realmConfig,
         final JwtRealms jwtRealms,
         final SSLService sslService,

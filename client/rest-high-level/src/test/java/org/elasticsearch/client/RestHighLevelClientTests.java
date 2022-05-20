@@ -33,6 +33,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -95,6 +97,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.rankeval.DiscountedCumulativeGain;
 import org.elasticsearch.index.rankeval.EvaluationMetric;
 import org.elasticsearch.index.rankeval.ExpectedReciprocalRank;
@@ -1499,6 +1502,30 @@ public class RestHighLevelClientTests extends ESTestCase {
             )
         );
 
+    }
+
+    public void testCompatibilityModeDefault() throws Exception {
+        mockResponse(new GetResponse(new GetResult("foo", "bar", "1", 1, 1, 1, true, null, null, null)));
+        restHighLevelClient.get(new GetRequest("foo", "bar"), RequestOptions.DEFAULT);
+
+        verify(restClient).performRequest(argThat(req -> {
+            List<Header> headers = req.getOptions().getHeaders();
+            Header accept = headers.stream().filter(h -> h.getName().equals("Accept")).findFirst().get();
+            return accept.getValue().equals("application/vnd.elasticsearch+json; compatible-with=7");
+        }));
+    }
+
+    public void testDisableCompatibilityMode() throws Exception {
+        RestHighLevelClient client = new RestHighLevelClientBuilder(restClient).setApiCompatibilityMode(false).build();
+
+        mockResponse(new GetResponse(new GetResult("foo", "bar", "1", 1, 1, 1, true, null, null, null)));
+        client.get(new GetRequest("foo", "bar"), RequestOptions.DEFAULT);
+
+        verify(restClient).performRequest(argThat(req -> {
+            List<Header> headers = req.getOptions().getHeaders();
+            Optional<Header> accept = headers.stream().filter(h -> h.getName().equals("Accept")).findFirst();
+            return accept.isPresent() == false;
+        }));
     }
 
     private static void assertSyncMethod(Method method, String apiName, List<String> booleanReturnMethods) {

@@ -34,8 +34,14 @@ configurations {
 
 sourceSets {
   javaRestTest {
-    compileClasspath = main.output + test.output + compileClasspath
-    runtimeClasspath = main.output + test.output + runtimeClasspath
+    java {
+      srcDir 'src/test/java'
+    }
+    resources {
+      srcDir 'src/test/resources'
+    }
+    compileClasspath = main.output + compileClasspath
+    runtimeClasspath = main.output + runtimeClasspath
   }
 }
 

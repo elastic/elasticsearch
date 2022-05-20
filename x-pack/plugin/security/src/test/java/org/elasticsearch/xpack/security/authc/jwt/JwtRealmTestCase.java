@@ -73,7 +73,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
 
     record JwtRealmSettingsBuilder(String name, Settings.Builder settingsBuilder) {}
 
-    record JwtIssuerAndRealm(JwtIssuer issuer, JwtRealm realm, JwtRealmSettingsBuilder jwtRealmSettingsBuilder) {}
+    record JwtIssuerAndRealm(JwtIssuer issuer, JwtRealm realm, JwtRealmSettingsBuilder realmSettingsBuilder) {}
 
     record MinMax(int min, int max) {
         MinMax {
@@ -162,18 +162,18 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             );
             // If HTTPS server was created in JWT issuer, any exception after that point requires closing it to avoid a thread pool leak
             try {
-                final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = this.createJwtRealmSettingsBuilder(
+                final JwtRealmSettingsBuilder realmSettingsBuilder = this.createJwtRealmSettingsBuilder(
                     jwtIssuer,
                     authzCount,
                     jwtCacheSize
                 );
-                final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtRealms, jwtIssuer, jwtRealmSettingsBuilder);
+                final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtRealms, jwtIssuer, realmSettingsBuilder);
 
                 // verify exception before initialize()
                 final Exception exception = expectThrows(IllegalStateException.class, jwtRealm::ensureInitialized);
                 assertThat(exception.getMessage(), equalTo("Realm has not been initialized"));
 
-                final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
+                final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, realmSettingsBuilder);
                 this.jwtIssuerAndRealms.add(jwtIssuerAndRealm);
             } catch (Throwable t) {
                 jwtIssuer.close();
@@ -405,10 +405,10 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final List<Realm> allRealms, // JWT realms and authz realms
         final JwtRealms jwtRealms,
         final JwtIssuer jwtIssuer,
-        final JwtRealmSettingsBuilder jwtRealmSettingsBuilder
+        final JwtRealmSettingsBuilder realmSettingsBuilder
     ) {
-        final String authcRealmName = jwtRealmSettingsBuilder.name;
-        final Settings settings = jwtRealmSettingsBuilder.settingsBuilder.build();
+        final String authcRealmName = realmSettingsBuilder.name;
+        final Settings settings = realmSettingsBuilder.settingsBuilder.build();
         final RealmConfig authcConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, authcRealmName, settings, (allRealms.size() + 1));
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
         final List<String> authzRealmNames = settings.getAsList(

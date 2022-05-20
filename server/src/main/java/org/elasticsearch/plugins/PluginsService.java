@@ -95,7 +95,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (modulesDirectory != null) {
             try {
                 Set<PluginBundle> modules = PluginsUtils.getModuleBundles(modulesDirectory);
-                modules.stream().map(b -> b.plugin).forEach(modulesList::add);
+                modules.stream().map(PluginBundle::plugin).forEach(modulesList::add);
                 seenBundles.addAll(modules);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
@@ -110,7 +110,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
                     Set<PluginBundle> plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
-                    plugins.stream().map(b -> b.plugin).forEach(pluginsList::add);
+                    plugins.stream().map(PluginBundle::plugin).forEach(pluginsList::add);
                     seenBundles.addAll(plugins);
                 }
             } catch (IOException ex) {
@@ -167,7 +167,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param <T> The generic type of the result
      */
     public final <T> Stream<T> map(Function<Plugin, T> function) {
-        return this.plugins().stream().map(LoadedPlugin::instance).map(function);
+        return plugins().stream().map(LoadedPlugin::instance).map(function);
     }
 
     /**
@@ -177,7 +177,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param <T> The generic type of the collection
      */
     public final <T> Stream<T> flatMap(Function<Plugin, Collection<T>> function) {
-        return this.plugins().stream().map(LoadedPlugin::instance).flatMap(p -> function.apply(p).stream());
+        return plugins().stream().map(LoadedPlugin::instance).flatMap(p -> function.apply(p).stream());
     }
 
     /**
@@ -185,7 +185,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param consumer An action that consumes a plugin
      */
     public final void forEach(Consumer<Plugin> consumer) {
-        this.plugins().stream().map(LoadedPlugin::instance).forEach(consumer);
+        plugins().stream().map(LoadedPlugin::instance).forEach(consumer);
     }
 
     /**
@@ -193,7 +193,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @return A map of plugin names to plugin instances.
      */
     public final Map<String, Plugin> pluginMap() {
-        return this.plugins().stream().collect(Collectors.toMap(p -> p.info().getName(), LoadedPlugin::instance));
+        return plugins().stream().collect(Collectors.toMap(p -> p.info().getName(), LoadedPlugin::instance));
     }
 
     /**
@@ -449,7 +449,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     @SuppressWarnings("unchecked")
     public final <T> List<T> filterPlugins(Class<T> type) {
-        return this.plugins().stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance())).toList();
+        return plugins().stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance())).toList();
     }
 
     /**
@@ -458,7 +458,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param environment The environment for the plugins service.
      * @return A function for creating a plugins service.
      */
-    public static Function<Settings, PluginsService> getCreatePluginsServiceFunction(Environment environment) {
+    public static Function<Settings, PluginsService> getPluginsServiceCtor(Environment environment) {
         return settings -> new PluginsService(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
     }
 }

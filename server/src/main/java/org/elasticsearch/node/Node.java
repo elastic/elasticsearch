@@ -297,20 +297,20 @@ public class Node implements Closeable {
      * @param environment         the initial environment for this node, which will be added to by plugins
      */
     public Node(Environment environment) {
-        this(environment, PluginsService.getCreatePluginsServiceFunction(environment), true);
+        this(environment, PluginsService.getPluginsServiceCtor(environment), true);
     }
 
     /**
      * Constructs a node
      *
      * @param initialEnvironment         the initial environment for this node, which will be added to by plugins
-     * @param pluginsServiceFunction     a function that takes a {@link Settings} object and returns a {@link PluginsService}
+     * @param pluginServiceCtor          a function that takes a {@link Settings} object and returns a {@link PluginsService}
      * @param forbidPrivateIndexSettings whether or not private index settings are forbidden when creating an index; this is used in the
      *                                   test framework for tests that rely on being able to set private settings
      */
     protected Node(
         final Environment initialEnvironment,
-        final Function<Settings, PluginsService> pluginsServiceFunction,
+        final Function<Settings, PluginsService> pluginServiceCtor,
         boolean forbidPrivateIndexSettings
     ) {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
@@ -385,7 +385,7 @@ public class Node implements Closeable {
                 );
             }
 
-            this.pluginsService = pluginsServiceFunction.apply(tmpSettings);
+            this.pluginsService = pluginServiceCtor.apply(tmpSettings);
             final Settings settings = mergePluginSettings(pluginsService.pluginMap(), tmpSettings);
 
             /*

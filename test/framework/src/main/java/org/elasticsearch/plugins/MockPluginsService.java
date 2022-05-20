@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -48,7 +49,7 @@ public class MockPluginsService extends PluginsService {
                 "classpath plugin",
                 "NA",
                 Version.CURRENT,
-                "1.8",
+                JvmInfo.jvmInfo().version(),
                 pluginClass.getName(),
                 null,
                 Collections.emptyList(),

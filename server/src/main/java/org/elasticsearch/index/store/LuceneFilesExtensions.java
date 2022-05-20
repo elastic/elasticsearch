@@ -71,7 +71,8 @@ public enum LuceneFilesExtensions {
     // kNN vectors format
     VEC("vec", "Vector Data", false, true),
     VEX("vex", "Vector Index", false, true),
-    VEM("vem", "Vector Metadata", true, false);
+    VEM("vem", "Vector Metadata", true, false),
+    BLM("blm", "BloomFilter", false, false);
 
     /**
      * Allow plugin developers of custom codecs to opt out of the assertion in {@link #fromExtension}

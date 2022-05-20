@@ -353,4 +353,6 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,
             org.elasticsearch.index.shard.ShardToolCliProvider;
+
+    provides org.apache.lucene.codecs.PostingsFormat with org.elasticsearch.lucene.codec.bloom.BloomFilteringPostingsFormat;
 }

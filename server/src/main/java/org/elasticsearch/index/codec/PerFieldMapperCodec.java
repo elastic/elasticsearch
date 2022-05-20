@@ -15,7 +15,9 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene92.Lucene92Codec;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.lucene.codec.bloom.BloomFilteringPostingsFormat;
 
 /**
  * {@link PerFieldMapperCodec This Lucene codec} provides the default
@@ -44,7 +46,10 @@ public class PerFieldMapperCodec extends Lucene92Codec {
     public PostingsFormat getPostingsFormatForField(String field) {
         PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);
         if (format == null) {
-            return super.getPostingsFormatForField(field);
+            format = super.getPostingsFormatForField(field);
+        }
+        if (mapperService.getIndexSettings().isUseBloomFilterForIdField() && IdFieldMapper.NAME.equals(field)) {
+            format = new BloomFilteringPostingsFormat(format);
         }
         return format;
     }

@@ -9,6 +9,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -27,6 +28,24 @@ public class AliasTests extends ScriptTestCase {
         whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.alias"));
         contexts.put(PainlessTestScript.CONTEXT, whitelists);
         return contexts;
+    }
+
+    public void testNoShadowing() {
+        IllegalArgumentException err = expectThrows(
+            IllegalArgumentException.class,
+            () -> PainlessLookupBuilder.buildFromWhitelists(
+                List.of(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.alias-shadow"))
+            )
+        );
+        assertEquals(
+            "Cannot add alias [AliasedTestInnerClass] for [class org.elasticsearch.painless.AliasTestClass$AliasedTestInnerClass]"
+                + " that shadows class [class org.elasticsearch.painless.AliasedTestInnerClass]",
+            err.getCause().getMessage()
+        );
+    }
+
+    public void testDefAlias() {
+        assertEquals(5, exec("def a = AliasTestClass.getInnerAliased(); AliasedTestInnerClass b = a; b.plus(2, 3)"));
     }
 
     public void testInnerAlias() {

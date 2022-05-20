@@ -130,8 +130,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .build();
 
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(tempDir);
-        shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(tempDir);
+        shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
 
         // Adding rollover info to IndexMetadata to check that NamedXContentRegistry is properly configured
         Condition<?> rolloverCondition = randomFrom(
@@ -152,7 +152,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, false).build()).build();
 
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, environment, Files::exists)) {
-            final Path[] paths = Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
+            final Path[] paths = Arrays.stream(lock.getDataPaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
             try (
                 PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
                     paths,

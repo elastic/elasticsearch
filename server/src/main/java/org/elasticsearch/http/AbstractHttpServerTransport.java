@@ -469,18 +469,18 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         Set<String> failedHeaderNames
     ) {
         assert failedHeaderNames.size() > 0;
-        HttpRequest httpRequestWithoutContentType = httpRequest;
+        HttpRequest httpRequestWithoutHeader = httpRequest;
         for (String failedHeaderName : failedHeaderNames) {
-            httpRequestWithoutContentType = httpRequestWithoutContentType.removeHeader(failedHeaderName);
+            httpRequestWithoutHeader = httpRequestWithoutHeader.removeHeader(failedHeaderName);
         }
         try {
-            return RestRequest.request(parserConfig, httpRequestWithoutContentType, httpChannel);
+            return RestRequest.request(parserConfig, httpRequestWithoutHeader, httpChannel);
         } catch (final RestRequest.MediaTypeHeaderException e) {
             badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-            return requestWithoutFailedHeader(httpRequest, httpChannel, badRequestCause, e.getFailedHeaderNames());
+            return requestWithoutFailedHeader(httpRequestWithoutHeader, httpChannel, badRequestCause, e.getFailedHeaderNames());
         } catch (final RestRequest.BadParameterException e) {
             badRequestCause.addSuppressed(e);
-            return RestRequest.requestWithoutParameters(parserConfig, httpRequestWithoutContentType, httpChannel);
+            return RestRequest.requestWithoutParameters(parserConfig, httpRequestWithoutHeader, httpChannel);
         }
     }
 

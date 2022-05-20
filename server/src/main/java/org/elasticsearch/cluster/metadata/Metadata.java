@@ -62,6 +62,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -902,7 +903,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         var settings = MetadataIndexTemplateService.resolveSettings(indexTemplate, componentTemplates());
-        var indexMode = IndexSettings.MODE.get(settings);
+        // Not using IndexSettings.MODE.get() to avoid validation that may fail at this point.
+        var rawIndexMode = settings.get(IndexSettings.MODE.getKey());
+        var indexMode = rawIndexMode != null ? Enum.valueOf(IndexMode.class, rawIndexMode.toUpperCase(Locale.ROOT)) : null;
         if (indexMode == IndexMode.TIME_SERIES) {
             // No need to check for the existence of index.routing_path here, because index.mode=time_series can't be specified without it.
             // Setting validation takes care of this.

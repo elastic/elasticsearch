@@ -486,7 +486,7 @@ public class ProfileService {
     }
 
     private static final String INVALID_USERNAME_MESSAGE = "Security domain [%s] is configured to use literal username. "
-        + "As a result, creating new user profile requires the username to be at least 1 and no more than 490 characters. "
+        + "As a result, creating new user profile requires the username to be at least 1 and no more than 256 characters. "
         + "The username can contain alphanumeric characters (a-z, A-Z, 0-9), spaces, punctuation, "
         + "and printable symbols in the Basic Latin (ASCII) block.";
 
@@ -499,7 +499,7 @@ public class ProfileService {
         final String username = subject.getUser().principal();
         assert username != null;
 
-        if (username.length() < 1 || username.length() > 490) {
+        if (username.length() < 1 || username.length() > 256) {
             throw new ElasticsearchException(String.format(Locale.ROOT, INVALID_USERNAME_MESSAGE, realmDomain.name()));
         }
 

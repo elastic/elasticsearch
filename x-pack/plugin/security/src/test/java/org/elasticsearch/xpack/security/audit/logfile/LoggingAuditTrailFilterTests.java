@@ -1101,7 +1101,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // connection denied
-        auditTrail.connectionDenied(InetAddress.getLoopbackAddress(), "default", new SecurityIpFilterRule(false, "_all"));
+        auditTrail.connectionDenied(randomLoopbackInetSocketAddress(), "default", new SecurityIpFilterRule(false, "_all"));
         if (filterMissingUser) {
             assertThat("Connection denied: is not filtered out by the missing user filter", logOutput.size(), is(0));
         } else {
@@ -1111,7 +1111,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // connection granted
-        auditTrail.connectionGranted(InetAddress.getLoopbackAddress(), "default", new SecurityIpFilterRule(false, "_all"));
+        auditTrail.connectionGranted(randomLoopbackInetSocketAddress(), "default", new SecurityIpFilterRule(false, "_all"));
         if (filterMissingUser) {
             assertThat("Connection granted: is not filtered out by the missing user filter", logOutput.size(), is(0));
         } else {
@@ -1550,7 +1550,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // connection denied
-        auditTrail.connectionDenied(InetAddress.getLoopbackAddress(), "default", new SecurityIpFilterRule(false, "_all"));
+        auditTrail.connectionDenied(randomLoopbackInetSocketAddress(), "default", new SecurityIpFilterRule(false, "_all"));
         if (filterMissingRealm) {
             assertThat("Connection denied: is not filtered out by the missing realm filter", logOutput.size(), is(0));
         } else {
@@ -1560,7 +1560,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // connection granted
-        auditTrail.connectionGranted(InetAddress.getLoopbackAddress(), "default", new SecurityIpFilterRule(false, "_all"));
+        auditTrail.connectionGranted(randomLoopbackInetSocketAddress(), "default", new SecurityIpFilterRule(false, "_all"));
         if (filterMissingRealm) {
             assertThat("Connection granted: is not filtered out by the missing realm filter", logOutput.size(), is(0));
         } else {
@@ -1885,7 +1885,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // connection denied
-        auditTrail.connectionDenied(InetAddress.getLoopbackAddress(), "default", new SecurityIpFilterRule(false, "_all"));
+        auditTrail.connectionDenied(randomLoopbackInetSocketAddress(), "default", new SecurityIpFilterRule(false, "_all"));
         if (filterMissingRoles) {
             assertThat("Connection denied: is not filtered out by the missing roles filter", logOutput.size(), is(0));
         } else {
@@ -1895,7 +1895,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // connection granted
-        auditTrail.connectionGranted(InetAddress.getLoopbackAddress(), "default", new SecurityIpFilterRule(false, "_all"));
+        auditTrail.connectionGranted(randomLoopbackInetSocketAddress(), "default", new SecurityIpFilterRule(false, "_all"));
         if (filterMissingRoles) {
             assertThat("Connection granted: is not filtered out by the missing roles filter", logOutput.size(), is(0));
         } else {
@@ -2341,7 +2341,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // connection denied
-        auditTrail.connectionDenied(InetAddress.getLoopbackAddress(), "default", new SecurityIpFilterRule(false, "_all"));
+        auditTrail.connectionDenied(randomLoopbackInetSocketAddress(), "default", new SecurityIpFilterRule(false, "_all"));
         if (filterMissingIndices) {
             assertThat("Connection denied: not filtered out by missing indices filter", logOutput.size(), is(0));
         } else {
@@ -2351,7 +2351,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // connection granted
-        auditTrail.connectionGranted(InetAddress.getLoopbackAddress(), "default", new SecurityIpFilterRule(false, "_all"));
+        auditTrail.connectionGranted(randomLoopbackInetSocketAddress(), "default", new SecurityIpFilterRule(false, "_all"));
         if (filterMissingIndices) {
             assertThat("Connection granted: not filtered out by missing indices filter", logOutput.size(), is(0));
         } else {
@@ -2623,7 +2623,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // connection denied
-        auditTrail.connectionDenied(InetAddress.getLoopbackAddress(), "default", new SecurityIpFilterRule(false, "_all"));
+        auditTrail.connectionDenied(randomLoopbackInetSocketAddress(), "default", new SecurityIpFilterRule(false, "_all"));
         if (filterMissingAction) {
             assertThat("Connection denied: not filtered out by the missing action filter", logOutput.size(), is(0));
         } else {
@@ -2633,7 +2633,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // connection granted
-        auditTrail.connectionGranted(InetAddress.getLoopbackAddress(), "default", new SecurityIpFilterRule(false, "_all"));
+        auditTrail.connectionGranted(randomLoopbackInetSocketAddress(), "default", new SecurityIpFilterRule(false, "_all"));
         if (filterMissingAction) {
             assertThat("Connection granted: not filtered out by the missing action filter", logOutput.size(), is(0));
         } else {
@@ -2721,6 +2721,10 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         assertThat("AuthenticationSuccess message: unfiltered action is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
+    }
+
+    private InetSocketAddress randomLoopbackInetSocketAddress() {
+        return new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(0, 65535));
     }
 
     private <T> List<T> randomListFromLengthBetween(List<T> l, int min, int max) {

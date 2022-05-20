@@ -10,10 +10,13 @@ package org.elasticsearch.painless.spi.annotation;
 
 import java.util.Map;
 
+/**
+ * Parser for the <pre>@alias[class="Inner"]</pre> annotation.  See {@link AliasAnnotation} for details.
+ */
 public class AliasAnnotationParser implements WhitelistAnnotationParser {
     public static final AliasAnnotationParser INSTANCE = new AliasAnnotationParser();
 
-    public AliasAnnotationParser() {}
+    private AliasAnnotationParser() {}
 
     @Override
     public Object parse(Map<String, String> arguments) {
@@ -26,7 +29,7 @@ public class AliasAnnotationParser implements WhitelistAnnotationParser {
                 throw new IllegalArgumentException("[@alias] only supports class aliases");
             }
             String alias = entry.getValue();
-            if (alias == null || "".equals(alias)) {
+            if (alias == null || alias.isBlank()) {
                 throw new IllegalArgumentException("[@alias] must be non-empty");
             }
             annotation = new AliasAnnotation(alias);

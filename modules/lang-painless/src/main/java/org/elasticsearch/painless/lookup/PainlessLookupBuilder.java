@@ -376,7 +376,12 @@ public final class PainlessLookupBuilder {
 
                     canonicalClassNamesToClasses.put(importedCanonicalClassName.intern(), clazz);
                     if (annotations.get(AliasAnnotation.class)instanceof AliasAnnotation alias) {
-                        canonicalClassNamesToClasses.put(alias.alias(), clazz);
+                        Class<?> existing = canonicalClassNamesToClasses.put(alias.alias(), clazz);
+                        if (existing != null) {
+                            throw new IllegalArgumentException(
+                                "Cannot have same alias [" + alias.alias() + "] for multiple classes [" + existing + "," + clazz + "]"
+                            );
+                        }
                     }
                 }
             } else if (importedClass != clazz) {

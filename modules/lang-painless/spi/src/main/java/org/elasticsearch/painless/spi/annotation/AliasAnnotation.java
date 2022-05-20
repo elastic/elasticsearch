@@ -10,9 +10,11 @@ package org.elasticsearch.painless.spi.annotation;
 
 /**
  * Creates an alias in PainlessLookupBuilder for the given class.  Can be used to expose an inner class without
- * scripts and whitelists needing to scoping it by the outer class.
+ * scripts and whitelists needing to scope it by the outer class.
  *
  * For class
+ *
+ * <pre>
  * public class Outer {
  *     public static class Inner {
  *
@@ -21,24 +23,29 @@ package org.elasticsearch.painless.spi.annotation;
  *         return new Inner();
  *     }
  * }
+ * </pre>
  *
- * Normally scripts would need to reference Outer.Inner.
+ * Normally scripts would need to reference <pre>Outer.Inner</pre>.
  *
- * With an alias annotation @alias[class="Inner"] on the class
+ * With an alias annotation <pre>@alias[class="Inner"]</pre> on the class
+ * <pre>
  * class Outer$Inner @alias[class="AliasedTestInnerClass"] {
  * }
+ * </pre>
  *
- * The whitelist can have use the alias
- *
+ * Then whitelist can have <pre>Inner</pre> as the return value for <pre>inner</pre> instead of <pre>Outer.Inner</pre>
+ * <pre>
  * class Outer {
  *   Inner inner()
  * }
+ * </pre>
  *
- * And scripts can do "Inner inner = Outer.inner()" instead of "Outer.Inner inner = Outer.inner()"
+ * And scripts refer can to <pre>Inner</pre> directly, <pre>Inner inner = Outer.inner()</pre>, instead of using the outer class to scope
+ * the type name <pre>Outer.Inner</pre> as would normally be required <pre>Outer.Inner inner = Outer.inner()</pre>
  *
  * Only class alias types are available.
  *
- * @param alias the other way to refer to the class
+ * @param alias the other name for the class
  */
 public record AliasAnnotation(String alias) {
     public static final String NAME = "alias";

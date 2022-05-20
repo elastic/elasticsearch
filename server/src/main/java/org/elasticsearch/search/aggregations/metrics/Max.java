@@ -22,10 +22,21 @@ import java.util.Objects;
 
 public class Max extends InternalNumericMetricsAggregation.SingleValue {
     private final double max;
+    private final boolean mapped;
 
     public Max(String name, double max, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, formatter, metadata);
         this.max = max;
+        this.mapped = true;
+    }
+
+    public static Max EmptyMax(String name, DocValueFormat formatter, Map<String, Object> metadata) {
+        return new Max(name, formatter, metadata);
+    }
+    private Max(String name, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, formatter, metadata);
+        this.max = Double.NEGATIVE_INFINITY;
+        this.mapped = false;
     }
 
     /**
@@ -34,6 +45,7 @@ public class Max extends InternalNumericMetricsAggregation.SingleValue {
     public Max(StreamInput in) throws IOException {
         super(in);
         max = in.readDouble();
+        this.mapped = true;
     }
 
     @Override
@@ -59,16 +71,15 @@ public class Max extends InternalNumericMetricsAggregation.SingleValue {
     @Override
     public Max reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         double max = Double.NEGATIVE_INFINITY;
-        DocValueFormat mergedFormat = format;
         for (InternalAggregation aggregation : aggregations) {
-            if (((Max) aggregation).max > max) {
-                max = ((Max) aggregation).max;
-                if (format == DocValueFormat.RAW) {
-                    mergedFormat = ((Max) aggregation).format;
-                }
-            }
+            max = Math.max(max, ((Max) aggregation).max);
         }
-        return new Max(name, max, mergedFormat, getMetadata());
+        return new Max(name, max, format, getMetadata());
+    }
+
+    @Override
+    public boolean isMapped() {
+        return mapped;
     }
 
     @Override

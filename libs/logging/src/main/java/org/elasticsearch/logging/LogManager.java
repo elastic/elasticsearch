@@ -8,8 +8,6 @@
 
 package org.elasticsearch.logging;
 
-import org.elasticsearch.logging.impl.LoggerImpl;
-
 /**
  * A class used for creating loggers.
  */
@@ -18,22 +16,21 @@ public class LogManager {
     /**
      * Returns a Logger with the specified name.
      *
-     * @param name The logger name. If null the name of the calling class will be used.
+     * @param name The logger name.
      * @return The Logger.
      */
     public static Logger getLogger(final String name) {
-        return new LoggerImpl(org.apache.logging.log4j.LogManager.getLogger(name));
+        return null;//new LoggerImpl(org.apache.logging.log4j.LogManager.getLogger(name));
     }
 
     /**
      * Returns a Logger using the fully qualified name of the Class as the Logger name.
      *
-     * @param clazz The Class whose name should be used as the Logger name. If null it will default to the calling
-     *            class.
+     * @param clazz The Class whose name should be used as the Logger name.
      * @return The Logger.
      */
     public static Logger getLogger(final Class<?> clazz) {
-        return new LoggerImpl(org.apache.logging.log4j.LogManager.getLogger(clazz));
+        return null;//new LoggerImpl(org.apache.logging.log4j.LogManager.getLogger(clazz));
     }
 
     private LogManager() {}

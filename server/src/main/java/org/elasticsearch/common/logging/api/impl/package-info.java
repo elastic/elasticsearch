@@ -7,6 +7,6 @@
  */
 
 /**
- * Temporarily these are inside the logging module, but will be moved to an impl submodule
+ * Temporary package which will be moved to an impl submodule
  */
-package org.elasticsearch.logging.impl;
+package org.elasticsearch.common.logging.api.impl;

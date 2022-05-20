@@ -15,21 +15,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * Levels used for identifying the severity of an event. Levels are organized from most specific to least:
- * <ul>
- * <li>{@link #OFF} (most specific, no logging)</li>
- * <li>{@link #FATAL} (most specific, little data)</li>
- * <li>{@link #ERROR}</li>
- * <li>{@link #WARN}</li>
- * <li>{@link #INFO}</li>
- * <li>{@link #DEBUG}</li>
- * <li>{@link #TRACE} (least specific, a lot of data)</li>
- * <li>{@link #ALL} (least specific, all data)</li>
- * </ul>
+ * Levels used for identifying the severity of an event.
  *
- * Typically, configuring a level in a filter or on a logger will cause logging events of that level and those that are
- * more specific to pass through the filter. A special level, {@link #ALL}, is guaranteed to capture all levels when
- * used in logging configurations.
+ * Level has a name and a severity. A severity is used to log events which are less verbose (higher serverit and importance).
+ * Previously created instances can be obtained by name.
  */
 public final class Level {
 

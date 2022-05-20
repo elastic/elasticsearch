@@ -1,0 +1,5 @@
+pr: 86966
+summary: Don't print default boost on query xcontent output
+area: Search
+type: tech debt
+issues: []

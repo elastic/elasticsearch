@@ -391,7 +391,7 @@ public class Authentication implements ToXContentObject {
     /**
      * Whether the authentication can run-as another user
      */
-    public boolean supportsRunAs(AnonymousUser anonymousUser) {
+    public boolean supportsRunAs(@Nullable AnonymousUser anonymousUser) {
         // Chained run-as not allowed
         if (isRunAs()) {
             return false;

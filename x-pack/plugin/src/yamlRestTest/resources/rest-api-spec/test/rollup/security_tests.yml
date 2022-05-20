@@ -119,11 +119,6 @@ teardown:
         id: foo
   - is_true: started
 
-  - do:
-      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      indices.refresh:
-        index: rollup
-
   # this is a hacky way to sleep for 5s, since we will never have 10 nodes
   - do:
       catch: request_timeout
@@ -139,6 +134,11 @@ teardown:
         id: foo
   - match:
         jobs.0.stats.documents_processed: 1
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.refresh:
+        index: rollup
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
@@ -279,11 +279,6 @@ teardown:
         id: foo
   - is_true: started
 
-  - do:
-      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      indices.refresh:
-        index: rollup
-
   # this is a hacky way to sleep for 5s, since we will never have 10 nodes
   - do:
       catch: request_timeout
@@ -299,6 +294,11 @@ teardown:
         id: foo
   - match:
         jobs.0.stats.documents_processed: 1
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.refresh:
+        index: rollup
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user

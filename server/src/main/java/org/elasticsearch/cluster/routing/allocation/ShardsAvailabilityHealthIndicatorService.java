@@ -468,7 +468,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * Generates a user action if a shard cannot be allocated anywhere because allocation is disabled for that shard
      * @param indexMetadata from the index shard being diagnosed
      * @param nodeAllocationResults allocation decision results for all nodes in the cluster.
-     * @result A list of user actions to take.
+     * @return A list of user actions to take.
      */
     List<UserAction.Definition> checkIsAllocationDisabled(IndexMetadata indexMetadata, List<NodeAllocationResult> nodeAllocationResults) {
         List<UserAction.Definition> actions = new ArrayList<>();

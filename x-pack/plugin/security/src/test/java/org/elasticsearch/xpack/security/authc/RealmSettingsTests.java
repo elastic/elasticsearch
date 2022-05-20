@@ -122,7 +122,7 @@ public class RealmSettingsTests extends ESTestCase {
             equalTo(suffix)
         );
 
-        // Cannot being with number
+        // Cannot begin with number
         final IllegalArgumentException e1 = expectThrows(
             IllegalArgumentException.class,
             () -> setting.get(
@@ -150,12 +150,12 @@ public class RealmSettingsTests extends ESTestCase {
         );
         assertThat(e2.getMessage(), containsString("Invalid value"));
 
-        // Must be ascii letter and number
+        // Must be alphanumeric
         final IllegalArgumentException e3 = expectThrows(
             IllegalArgumentException.class,
             () -> setting.get(
                 Settings.builder()
-                    .put("xpack.security.authc.domains." + domainName + ".uid_generation.suffix", randomFrom("fóóbár", " "))
+                    .put("xpack.security.authc.domains." + domainName + ".uid_generation.suffix", randomFrom("fóóbár", " ", "a_b", "x-y"))
                     .build()
             )
         );

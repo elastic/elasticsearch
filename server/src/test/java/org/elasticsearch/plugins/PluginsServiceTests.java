@@ -314,7 +314,7 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testSortBundlesCycleSelfReference() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo(
+        PluginDescriptor info = new PluginDescriptor(
             "foo",
             "desc",
             "1.0",
@@ -338,7 +338,7 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesCycle() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order, so we get know the beginning of the cycle
-        PluginInfo info = new PluginInfo(
+        PluginDescriptor info = new PluginDescriptor(
             "foo",
             "desc",
             "1.0",
@@ -352,7 +352,7 @@ public class PluginsServiceTests extends ESTestCase {
             false
         );
         bundles.add(new PluginsService.Bundle(info, pluginDir));
-        PluginInfo info2 = new PluginInfo(
+        PluginDescriptor info2 = new PluginDescriptor(
             "bar",
             "desc",
             "1.0",
@@ -366,7 +366,7 @@ public class PluginsServiceTests extends ESTestCase {
             false
         );
         bundles.add(new PluginsService.Bundle(info2, pluginDir));
-        PluginInfo info3 = new PluginInfo(
+        PluginDescriptor info3 = new PluginDescriptor(
             "baz",
             "desc",
             "1.0",
@@ -380,7 +380,7 @@ public class PluginsServiceTests extends ESTestCase {
             false
         );
         bundles.add(new PluginsService.Bundle(info3, pluginDir));
-        PluginInfo info4 = new PluginInfo(
+        PluginDescriptor info4 = new PluginDescriptor(
             "other",
             "desc",
             "1.0",
@@ -401,7 +401,7 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testSortBundlesSingle() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo(
+        PluginDescriptor info = new PluginDescriptor(
             "foo",
             "desc",
             "1.0",
@@ -422,7 +422,7 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesNoDeps() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "foo",
             "desc",
             "1.0",
@@ -437,7 +437,7 @@ public class PluginsServiceTests extends ESTestCase {
         );
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo(
+        PluginDescriptor info2 = new PluginDescriptor(
             "bar",
             "desc",
             "1.0",
@@ -452,7 +452,7 @@ public class PluginsServiceTests extends ESTestCase {
         );
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
         bundles.add(bundle2);
-        PluginInfo info3 = new PluginInfo(
+        PluginDescriptor info3 = new PluginDescriptor(
             "baz",
             "desc",
             "1.0",
@@ -473,7 +473,7 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testSortBundlesMissingDep() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo(
+        PluginDescriptor info = new PluginDescriptor(
             "foo",
             "desc",
             "1.0",
@@ -497,7 +497,7 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesCommonDep() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "grandparent",
             "desc",
             "1.0",
@@ -512,7 +512,7 @@ public class PluginsServiceTests extends ESTestCase {
         );
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo(
+        PluginDescriptor info2 = new PluginDescriptor(
             "foo",
             "desc",
             "1.0",
@@ -527,7 +527,7 @@ public class PluginsServiceTests extends ESTestCase {
         );
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
         bundles.add(bundle2);
-        PluginInfo info3 = new PluginInfo(
+        PluginDescriptor info3 = new PluginDescriptor(
             "bar",
             "desc",
             "1.0",
@@ -542,7 +542,7 @@ public class PluginsServiceTests extends ESTestCase {
         );
         PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir);
         bundles.add(bundle3);
-        PluginInfo info4 = new PluginInfo(
+        PluginDescriptor info4 = new PluginDescriptor(
             "common",
             "desc",
             "1.0",
@@ -564,7 +564,7 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesAlreadyOrdered() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "dep",
             "desc",
             "1.0",
@@ -579,7 +579,7 @@ public class PluginsServiceTests extends ESTestCase {
         );
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo(
+        PluginDescriptor info2 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -649,7 +649,7 @@ public class PluginsServiceTests extends ESTestCase {
         makeJar(dupJar);
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(dupJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -681,7 +681,7 @@ public class PluginsServiceTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep1", Collections.singleton(dupJar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dupJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -711,7 +711,7 @@ public class PluginsServiceTests extends ESTestCase {
         Path pluginDir = createTempDir();
         Path pluginJar = pluginDir.resolve("plugin.jar");
         makeJar(pluginJar, Level.class);
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -741,7 +741,7 @@ public class PluginsServiceTests extends ESTestCase {
         Path otherDir = createTempDir();
         Path extendedPlugin = otherDir.resolve("extendedDep-not-present.jar");
 
-        PluginInfo info = new PluginInfo(
+        PluginDescriptor info = new PluginDescriptor(
             "dummy",
             "desc",
             "1.0",
@@ -776,7 +776,7 @@ public class PluginsServiceTests extends ESTestCase {
         makeJar(depJar, DummyClass1.class);
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -812,7 +812,7 @@ public class PluginsServiceTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep1", Collections.singleton(dep1Jar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dep2Jar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -848,7 +848,7 @@ public class PluginsServiceTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep1", Collections.singleton(dep1Jar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dep2Jar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -881,7 +881,7 @@ public class PluginsServiceTests extends ESTestCase {
         makeJar(depJar, DummyClass1.class);
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -913,7 +913,7 @@ public class PluginsServiceTests extends ESTestCase {
         makeJar(depJar, DummyClass1.class);
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo(
+        PluginDescriptor info1 = new PluginDescriptor(
             "myplugin",
             "desc",
             "1.0",
@@ -991,7 +991,7 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testIncompatibleElasticsearchVersion() throws Exception {
-        PluginInfo info = new PluginInfo(
+        PluginDescriptor info = new PluginDescriptor(
             "my_plugin",
             "desc",
             "1.0",
@@ -1009,7 +1009,7 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testIncompatibleJavaVersion() throws Exception {
-        PluginInfo info = new PluginInfo(
+        PluginDescriptor info = new PluginDescriptor(
             "my_plugin",
             "desc",
             "1.0",
@@ -1145,7 +1145,7 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 Tuple.tuple(
-                    new PluginInfo("extensible", null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
+                    new PluginDescriptor("extensible", null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
                     extensiblePlugin
                 )
             )
@@ -1159,11 +1159,23 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 Tuple.tuple(
-                    new PluginInfo("extensible", null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
+                    new PluginDescriptor("extensible", null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
                     extensiblePlugin
                 ),
                 Tuple.tuple(
-                    new PluginInfo("test", null, null, null, null, null, List.of("extensible"), false, PluginType.ISOLATED, "", false),
+                    new PluginDescriptor(
+                        "test",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        List.of("extensible"),
+                        false,
+                        PluginType.ISOLATED,
+                        "",
+                        false
+                    ),
                     testPlugin
                 )
             )

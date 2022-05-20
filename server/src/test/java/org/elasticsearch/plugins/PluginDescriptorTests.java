@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PluginInfoTests extends ESTestCase {
+public class PluginDescriptorTests extends ESTestCase {
 
     public void testReadFromProperties() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
@@ -44,7 +44,7 @@ public class PluginInfoTests extends ESTestCase {
             "classname",
             "FakePlugin"
         );
-        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        PluginDescriptor info = PluginDescriptor.readFromProperties(pluginDir);
         assertEquals("my_plugin", info.getName());
         assertEquals("fake desc", info.getDescription());
         assertEquals("1.0", info.getVersion());
@@ -55,32 +55,32 @@ public class PluginInfoTests extends ESTestCase {
     public void testReadFromPropertiesNameMissing() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(pluginDir);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("property [name] is missing in"));
 
         PluginTestUtil.writePluginProperties(pluginDir, "name", "");
-        e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("property [name] is missing in"));
     }
 
     public void testReadFromPropertiesDescriptionMissing() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(pluginDir, "name", "fake-plugin");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[description] is missing"));
     }
 
     public void testReadFromPropertiesVersionMissing() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(pluginDir, "description", "fake desc", "name", "fake-plugin");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[version] is missing"));
     }
 
     public void testReadFromPropertiesElasticsearchVersionMissing() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(pluginDir, "description", "fake desc", "name", "my_plugin", "version", "1.0");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[elasticsearch.version] is missing"));
     }
 
@@ -97,7 +97,7 @@ public class PluginInfoTests extends ESTestCase {
             "elasticsearch.version",
             "  "
         );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[elasticsearch.version] is missing"));
     }
 
@@ -114,7 +114,7 @@ public class PluginInfoTests extends ESTestCase {
             "version",
             "1.0"
         );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[java.version] is missing"));
     }
 
@@ -136,7 +136,7 @@ public class PluginInfoTests extends ESTestCase {
             "version",
             "1.0"
         );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
         assertThat(e.getMessage(), equalTo("Invalid version string: '1.7.0_80'"));
     }
 
@@ -153,7 +153,7 @@ public class PluginInfoTests extends ESTestCase {
             "elasticsearch.version",
             "bogus"
         );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("version needs to contain major, minor, and revision"));
     }
 
@@ -172,7 +172,7 @@ public class PluginInfoTests extends ESTestCase {
             "java.version",
             System.getProperty("java.specification.version")
         );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("property [classname] is missing"));
     }
 
@@ -195,7 +195,7 @@ public class PluginInfoTests extends ESTestCase {
             "extended.plugins",
             "foo"
         );
-        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        PluginDescriptor info = PluginDescriptor.readFromProperties(pluginDir);
         assertThat(info.getExtendedPlugins(), contains("foo"));
     }
 
@@ -218,7 +218,7 @@ public class PluginInfoTests extends ESTestCase {
             "extended.plugins",
             "foo,bar,baz"
         );
-        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        PluginDescriptor info = PluginDescriptor.readFromProperties(pluginDir);
         assertThat(info.getExtendedPlugins(), contains("foo", "bar", "baz"));
     }
 
@@ -241,12 +241,12 @@ public class PluginInfoTests extends ESTestCase {
             "extended.plugins",
             ""
         );
-        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        PluginDescriptor info = PluginDescriptor.readFromProperties(pluginDir);
         assertThat(info.getExtendedPlugins(), empty());
     }
 
     public void testSerialize() throws Exception {
-        PluginInfo info = new PluginInfo(
+        PluginDescriptor info = new PluginDescriptor(
             "c",
             "foo",
             "dummy",
@@ -263,15 +263,15 @@ public class PluginInfoTests extends ESTestCase {
         info.writeTo(output);
         ByteBuffer buffer = ByteBuffer.wrap(output.bytes().toBytesRef().bytes);
         ByteBufferStreamInput input = new ByteBufferStreamInput(buffer);
-        PluginInfo info2 = new PluginInfo(input);
+        PluginDescriptor info2 = new PluginDescriptor(input);
         assertThat(info2.toString(), equalTo(info.toString()));
 
     }
 
     public void testPluginListSorted() {
-        List<PluginInfo> plugins = new ArrayList<>();
+        List<PluginDescriptor> plugins = new ArrayList<>();
         plugins.add(
-            new PluginInfo(
+            new PluginDescriptor(
                 "c",
                 "foo",
                 "dummy",
@@ -286,7 +286,7 @@ public class PluginInfoTests extends ESTestCase {
             )
         );
         plugins.add(
-            new PluginInfo(
+            new PluginDescriptor(
                 "b",
                 "foo",
                 "dummy",
@@ -301,7 +301,7 @@ public class PluginInfoTests extends ESTestCase {
             )
         );
         plugins.add(
-            new PluginInfo(
+            new PluginDescriptor(
                 "e",
                 "foo",
                 "dummy",
@@ -316,7 +316,7 @@ public class PluginInfoTests extends ESTestCase {
             )
         );
         plugins.add(
-            new PluginInfo(
+            new PluginDescriptor(
                 "a",
                 "foo",
                 "dummy",
@@ -331,7 +331,7 @@ public class PluginInfoTests extends ESTestCase {
             )
         );
         plugins.add(
-            new PluginInfo(
+            new PluginDescriptor(
                 "d",
                 "foo",
                 "dummy",
@@ -347,8 +347,8 @@ public class PluginInfoTests extends ESTestCase {
         );
         PluginsAndModules pluginsInfo = new PluginsAndModules(plugins, Collections.emptyList());
 
-        final List<PluginInfo> infos = pluginsInfo.getPluginInfos();
-        List<String> names = infos.stream().map(PluginInfo::getName).toList();
+        final List<PluginDescriptor> infos = pluginsInfo.getPluginInfos();
+        List<String> names = infos.stream().map(PluginDescriptor::getName).toList();
         assertThat(names, contains("a", "b", "c", "d", "e"));
     }
 
@@ -373,7 +373,7 @@ public class PluginInfoTests extends ESTestCase {
             "java.version",
             System.getProperty("java.specification.version")
         );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("Unknown properties for plugin [my_plugin] in plugin descriptor"));
     }
 
@@ -395,8 +395,8 @@ public class PluginInfoTests extends ESTestCase {
             System.getProperty("java.specification.version")
         );
 
-        final PluginInfo pluginInfo = PluginInfo.readFromProperties(pluginDir);
-        assertThat(pluginInfo.getType(), equalTo(PluginType.ISOLATED));
+        final PluginDescriptor pluginDescriptor = PluginDescriptor.readFromProperties(pluginDir);
+        assertThat(pluginDescriptor.getType(), equalTo(PluginType.ISOLATED));
     }
 
     public void testInvalidType() throws Exception {
@@ -419,7 +419,7 @@ public class PluginInfoTests extends ESTestCase {
             "invalid"
         );
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[type] must be unspecified or one of [isolated, bootstrap] but found [invalid]"));
     }
 
@@ -443,9 +443,9 @@ public class PluginInfoTests extends ESTestCase {
             "-Dfoo=bar"
         );
 
-        final PluginInfo pluginInfo = PluginInfo.readFromProperties(pluginDir);
-        assertThat(pluginInfo.getType(), equalTo(PluginType.BOOTSTRAP));
-        assertThat(pluginInfo.getJavaOpts(), equalTo("-Dfoo=bar"));
+        final PluginDescriptor pluginDescriptor = PluginDescriptor.readFromProperties(pluginDir);
+        assertThat(pluginDescriptor.getType(), equalTo(PluginType.BOOTSTRAP));
+        assertThat(pluginDescriptor.getJavaOpts(), equalTo("-Dfoo=bar"));
     }
 
     public void testJavaOptsAreRejectedWithNonBootstrapPlugin() throws Exception {
@@ -470,7 +470,7 @@ public class PluginInfoTests extends ESTestCase {
             "-Dfoo=bar"
         );
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[java.opts] can only have a value when [type] is set to [bootstrap]"));
     }
 
@@ -494,7 +494,7 @@ public class PluginInfoTests extends ESTestCase {
             "bootstrap"
         );
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
         assertThat(e.getMessage(), containsString("[classname] can only have a value when [type] is set to [bootstrap]"));
     }
 }

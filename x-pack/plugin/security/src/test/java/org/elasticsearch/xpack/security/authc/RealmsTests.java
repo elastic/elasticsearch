@@ -357,7 +357,11 @@ public class RealmsTests extends ESTestCase {
             assertDomainForRealm(realm, nodeName, realmsForDomain);
         }
 
-        domainNameToConfig.forEach((name, config) -> { assertThat(realms.getDomainConfig(name), equalTo(config)); });
+        domainNameToConfig.forEach((name, config) -> {
+            if (false == config.memberRealmNames().isEmpty()) {
+                assertThat(realms.getDomainConfig(name), equalTo(config));
+            }
+        });
     }
 
     private void assertDomainForRealm(Realm realm, String nodeName, Map<String, Set<RealmConfig.RealmIdentifier>> realmsByDomainName) {

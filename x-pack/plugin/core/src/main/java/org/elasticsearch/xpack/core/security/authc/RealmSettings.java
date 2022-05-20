@@ -160,6 +160,7 @@ public class RealmSettings {
                 throw new IllegalArgumentException("[" + domainRealmsSetting.getKey() + "] must exist for security domain configuration");
             }
             final List<String> memberRealmNames = domainRealmsSetting.get(globalSettings);
+            // TODO: Does it make sense to have empty realms for a domain?
 
             final Setting<Boolean> literalUsernameSetting = DOMAIN_UID_LITERAL_USERNAME_SETTING.getConcreteSettingForNamespace(domainName);
             final boolean literalUsername = literalUsernameSetting.get(globalSettings);

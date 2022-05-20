@@ -580,7 +580,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
             .addAggregation(
                 timeSeriesAggregation("by_ts").field("metric_0")
                     .interval(fixedInterval)
-                    .downsample(fixedInterval, Function.sum_over_time)
+                    .downsample(fixedInterval, Function.sum_over_time, null)
                     .size(data.size())
             )
             .get();
@@ -679,7 +679,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
                 timeSeriesAggregation("by_ts").field("metric_0")
                     .group(List.of("dim_0"))
                     .interval(fixedInterval)
-                    .downsample(fixedInterval, Function.max_over_time)
+                    .downsample(fixedInterval, Function.max_over_time, null)
                     .aggregator("sum")
                     .size(data.size())
             )

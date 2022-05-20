@@ -75,6 +75,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     private long interval;
     private long offset;
     private Aggregator aggregator;
+    private Map<String, Object> aggregatorParams;
     protected long downsampleRange;
     protected Function downsampleFunction;
     private BucketOrder order;
@@ -102,6 +103,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         DateHistogramInterval interval,
         DateHistogramInterval offset,
         Aggregator aggregator,
+        Map<String, Object> aggregatorParams,
         Downsample downsample,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
         BucketOrder order,
@@ -122,6 +124,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         this.rounding = Rounding.builder(new TimeValue(this.interval)).build().prepareForUnknown();
         this.offset = offset != null ? offset.estimateMillis() : 0;
         this.aggregator = aggregator;
+        this.aggregatorParams = aggregatorParams;
         this.needAggregator = this.aggregator != null;
         this.downsampleRange = downsample != null ? downsample.getRange().estimateMillis() : -1;
         this.downsampleFunction = downsample != null ? downsample.getFunction() : Function.last;

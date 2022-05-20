@@ -32,6 +32,7 @@ public interface TimeSeriesAggregationAggregatorSupplier {
         DateHistogramInterval interval,
         DateHistogramInterval offset,
         org.elasticsearch.search.aggregations.timeseries.aggregation.Aggregator aggregator,
+        Map<String, Object> aggregatorParams,
         Downsample downsample,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
         BucketOrder order,

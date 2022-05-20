@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry.RegistryKey;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -43,6 +44,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
     public static final ParseField INTERVAL_FIELD = new ParseField("interval");
     public static final ParseField OFFSET_FIELD = new ParseField("offset");
     public static final ParseField AGGREGATOR_FIELD = new ParseField("aggregator");
+    public static final ParseField AGGREGATOR_PARAMS_FIELD = new ParseField("aggregator_params");
     public static final ParseField DOWNSAMPLE_FIELD = new ParseField("downsample");
     public static final ParseField ORDER_FIELD = new ParseField("order");
     public static final ParseField SIZE_FIELD = new ParseField("size");
@@ -73,6 +75,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
     private DateHistogramInterval interval;
     private DateHistogramInterval offset;
     private Aggregator aggregator;
+    private Map<String, Object> aggregatorParams;
     private Downsample downsample;
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(
         DEFAULT_BUCKET_COUNT_THRESHOLDS
@@ -100,6 +103,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         PARSER.declareStringArray(TimeSeriesAggregationAggregationBuilder::group, GROUP_FIELD);
         PARSER.declareStringArray(TimeSeriesAggregationAggregationBuilder::without, WITHOUT_FIELD);
         PARSER.declareString(TimeSeriesAggregationAggregationBuilder::aggregator, AGGREGATOR_FIELD);
+        PARSER.declareObject(TimeSeriesAggregationAggregationBuilder::aggregatorParams, (parser, c) -> parser.map(), AGGREGATOR_PARAMS_FIELD);
         PARSER.declareObject(TimeSeriesAggregationAggregationBuilder::downsample, (p, c) -> Downsample.fromXContent(p), DOWNSAMPLE_FIELD);
         PARSER.declareObjectArray(
             TimeSeriesAggregationAggregationBuilder::order,
@@ -128,6 +132,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         this.interval = clone.interval;
         this.offset = clone.offset;
         this.aggregator = clone.aggregator;
+        this.aggregatorParams = clone.aggregatorParams;
         this.downsample = clone.downsample;
         this.order = clone.order;
         this.bucketCountThresholds = clone.bucketCountThresholds;
@@ -141,6 +146,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         interval = in.readOptionalWriteable(DateHistogramInterval::new);
         offset = in.readOptionalWriteable(DateHistogramInterval::new);
         aggregator = in.readOptionalEnum(Aggregator.class);
+        aggregatorParams = in.readMap();
         downsample = in.readOptionalWriteable(Downsample::new);
         order = InternalOrder.Streams.readOrder(in);
         bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
@@ -154,6 +160,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         out.writeOptionalWriteable(interval);
         out.writeOptionalWriteable(offset);
         out.writeOptionalEnum(aggregator);
+        out.writeGenericMap(aggregatorParams);
         out.writeOptionalWriteable(downsample);
         order.writeTo(out);
         bucketCountThresholds.writeTo(out);
@@ -189,6 +196,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
             interval,
             offset,
             aggregator,
+            aggregatorParams,
             downsample,
             bucketCountThresholds,
             order,
@@ -218,6 +226,9 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         }
         if (aggregator != null) {
             builder.field(AGGREGATOR_FIELD.getPreferredName(), aggregator);
+        }
+        if (aggregatorParams != null) {
+            builder.field(AGGREGATOR_PARAMS_FIELD.getPreferredName(), aggregatorParams);
         }
         if (downsample != null) {
             builder.field(DOWNSAMPLE_FIELD.getPreferredName(), downsample);
@@ -334,6 +345,15 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
      */
     public TimeSeriesAggregationAggregationBuilder aggregator(String aggregator) {
         this.aggregator = Aggregator.resolve(aggregator);
+        return this;
+    }
+
+    public Map<String, Object> getAggregatorParams() {
+        return aggregatorParams;
+    }
+
+    public TimeSeriesAggregationAggregationBuilder aggregatorParams(Map<String, Object> aggregatorParams) {
+        this.aggregatorParams = aggregatorParams;
         return this;
     }
 
@@ -473,8 +493,8 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
     /**
      * Sets the downsample value
      */
-    public TimeSeriesAggregationAggregationBuilder downsample(DateHistogramInterval range, Function function) {
-        this.downsample = new Downsample(range, function);
+    public TimeSeriesAggregationAggregationBuilder downsample(DateHistogramInterval range, Function function, Map<String, Object> params) {
+        this.downsample = new Downsample(range, function, params);
         return this;
     }
 

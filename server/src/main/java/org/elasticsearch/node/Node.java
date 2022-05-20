@@ -320,8 +320,6 @@ public class Node implements Closeable {
                 .build();
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
-            org.elasticsearch.logging.Logger eslogger = org.elasticsearch.logging.LogManager.getLogger("heee");
-            eslogger.info("hehehe");
             logger.info(
                 "version[{}], pid[{}], build[{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
                 Build.CURRENT.qualifiedVersion(),

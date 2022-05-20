@@ -66,7 +66,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No policies configured",
+                "No SLM policies configured",
                 createDetails(explain, slmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()

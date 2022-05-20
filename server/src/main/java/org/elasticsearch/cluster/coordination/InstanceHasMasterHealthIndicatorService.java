@@ -29,8 +29,8 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
 
     public static final String NAME = "instance_has_master";
 
-    private static final String INSTANCE_HAS_MASTER_GREEN_SUMMARY = "Health coordinating instance has a master node.";
-    private static final String INSTANCE_HAS_MASTER_RED_SUMMARY = "Health coordinating instance does not have a master node.";
+    private static final String INSTANCE_HAS_MASTER_GREEN_SUMMARY = "Health coordinating instance has an elected master node.";
+    private static final String INSTANCE_HAS_MASTER_RED_SUMMARY = "Health coordinating instance does not have an elected master node.";
 
     private static final String HELP_URL = "https://ela.st/fix-master";
 

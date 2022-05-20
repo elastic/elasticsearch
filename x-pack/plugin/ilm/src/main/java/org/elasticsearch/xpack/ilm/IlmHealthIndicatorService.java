@@ -66,7 +66,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No policies configured",
+                "No ILM policies configured",
                 createDetails(explain, ilmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()

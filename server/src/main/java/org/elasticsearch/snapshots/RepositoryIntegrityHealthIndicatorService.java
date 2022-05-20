@@ -72,7 +72,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         if (snapshotMetadata.repositories().isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No repositories configured.",
+                "No snapshot repositories configured.",
                 HealthIndicatorDetails.EMPTY,
                 Collections.emptyList(),
                 Collections.emptyList()
@@ -91,7 +91,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         if (corrupted.isEmpty()) {
             return createIndicator(
                 GREEN,
-                "No corrupted repositories.",
+                "No corrupted snapshot repositories.",
                 explain ? new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories)) : HealthIndicatorDetails.EMPTY,
                 Collections.emptyList(),
                 Collections.emptyList()

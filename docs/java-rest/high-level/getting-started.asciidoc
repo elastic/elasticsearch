@@ -33,7 +33,7 @@ major version.
 
 *Compatibility with Elasticsearch 8.x*
 
-The High Level Client version 7.16 and higher can communicate with Elasticsearch version 8.x after enabling API compatibility mode. When this mode enabled, the client will send HTTP headers that instruct Elasticsearch 8.x to honor 7.x request/responses.
+The High Level Client version 7.16 and higher can communicate with Elasticsearch version 8.x after enabling API compatibility mode. When this mode is enabled, the client will send HTTP headers that instruct Elasticsearch 8.x to honor 7.x request/responses.
 
 Compatibility mode is enabled as follows:
 
@@ -45,8 +45,6 @@ RestHighLevelClient esClient = new RestHighLevelClientBuilder(restClient)
 --------------------------------------------------
 
 When compatibility mode is enabled, the client can also communicate with Elasticsearch version 7.11 and higher.
-
-NOTE: Starting with version 7.17.4, compatibility mode is enabled by default.
 
 [[java-rest-high-javadoc]]
 === Javadoc

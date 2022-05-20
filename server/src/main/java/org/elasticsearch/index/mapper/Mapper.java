@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Objects;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
-
     public abstract static class Builder {
 
         protected final String name;
@@ -75,6 +74,18 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * @param mappers a {@link MappingLookup} that can produce references to other mappers
      */
     public abstract void validate(MappingLookup mappers);
+
+    /**
+     * Create a {@link SourceLoader.SyntheticFieldLoader} to populate synthetic source.
+     *
+     * @throws IllegalArgumentException if the field is configured in a way that doesn't
+     *         support synthetic source. This translates nicely into a 400 error when
+     *         users configure synthetic source in the mapping without configuring all
+     *         fields properly.
+     */
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        throw new IllegalArgumentException("field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source");
+    }
 
     @Override
     public String toString() {

@@ -82,7 +82,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         assertThat(profile2.user().domainName(), equalTo("my_domain"));
         assertThat(profile2.user().email(), equalTo(RAC_USER_NAME + "@example.com"));
         assertThat(profile2.user().fullName(), nullValue());
-        assertThat(profile2.user().roles(), containsInAnyOrder(RAC_ROLE));
+        assertThat(profile2.user().roles(), containsInAnyOrder(RAC_ROLE, NATIVE_RAC_ROLE));
 
         // Activate 3rd time with the file realm user again and it should get the same profile
         // User fields are updated to the file user's info again
@@ -264,13 +264,12 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         indexDocument();
 
         final String username = randomAlphaOfLengthBetween(5, 12);
-        final Authentication.RealmRef realmRef = AuthenticationTests.randomRealmRef(randomBoolean());
 
         final boolean existingCollision = randomBoolean();
         final String existingUid;
         // Manually create a collision document
         if (existingCollision) {
-            final Authentication authentication = assembleAuthentication(username, realmRef);
+            final Authentication authentication = assembleAuthentication(username, AuthenticationTests.randomRealmRef(randomBoolean()));
             final PlainActionFuture<Profile> future = new PlainActionFuture<>();
             getInstanceFromRandomNode(ProfileService.class).activateProfile(authentication, future);
             existingUid = future.actionGet().uid();
@@ -296,7 +295,10 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
                 try {
-                    final Authentication authentication = assembleAuthentication(username, realmRef);
+                    final Authentication authentication = assembleAuthentication(
+                        username,
+                        AuthenticationTests.randomRealmRef(randomBoolean())
+                    );
                     final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
                     final PlainActionFuture<Profile> future = new PlainActionFuture<>();
                     profileService.activateProfile(authentication, future);
@@ -416,7 +418,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         profileService.searchVersionedDocumentForSubject(subject, future2);
         final ProfileDocument profileDocument = future2.actionGet().doc();
         assertThat(profileDocument.uid(), equalTo(uid));
-        assertThat(subject.canAccessResourcesOf(profileDocument.subject()), is(true));
+        assertThat(subject.canAccessResourcesOf(profileDocument.user().toSubject()), is(true));
     }
 
     private String indexDocument() {
@@ -426,7 +428,12 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
     }
 
     private void indexDocument(String uid) {
-        final String source = ProfileServiceTests.SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, Instant.now().toEpochMilli());
+        String source = ProfileServiceTests.getSampleProfileDocumentSource(
+            uid,
+            "Foo",
+            List.of("role1", "role2"),
+            Instant.now().toEpochMilli()
+        );
         client().prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS))
             .setId("profile_" + uid)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)

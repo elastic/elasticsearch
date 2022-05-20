@@ -29,7 +29,6 @@ tasks.named("test").configure {
 subprojects {
   if (subprojects.isEmpty()) {
     // leaf project
-    apply plugin: 'elasticsearch.standalone-rest-test'
     apply plugin: 'elasticsearch.bwc-test'
   } else {
     apply plugin: 'elasticsearch.java'
@@ -47,25 +46,26 @@ subprojects {
   }
 
   dependencies {
-    testImplementation(xpackProject('plugin:sql:qa:jdbc'))
-
     // We use the shadowjar for testing since that's the actual artifact we deliver to users
-    testCompileOnly project(path: xpackModule('sql:jdbc'), configuration: 'shadow')
     jdbcDriver project(path: xpackModule('sql:jdbc'), configuration: 'shadow')
   }
 
   if (project.name != 'security') {
     // The security project just configures its subprojects
-    apply plugin: 'elasticsearch.internal-testclusters'
-    apply plugin: 'elasticsearch.rest-test'
+    apply plugin: 'elasticsearch.internal-java-rest-test'
 
+    dependencies {
+      javaRestTestImplementation(xpackProject('plugin:sql:qa:jdbc'))
+      // We use the shadowjar for testing since that's the actual artifact we deliver to users
+      javaRestTestCompileOnly project(path: xpackModule('sql:jdbc'), configuration: 'shadow')
+    }
     testClusters.configureEach {
       testDistribution = 'DEFAULT'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
     }
 
-    tasks.named("integTest").configure {
+    tasks.named("javaRestTest").configure {
         classpath += configurations.jdbcDriver
         systemProperty 'jdbc.driver.version', VersionProperties.elasticsearch
     }
@@ -90,11 +90,13 @@ subprojects {
 
       dependencies {
         "jdbcDriver${baseName}"(driverDependency)
+
       }
 
       final String bwcVersionString = bwcVersion.toString()
       tasks.register(bwcTaskName(bwcVersion), RestIntegTestTask) {
-          classpath += driverConfiguration
+          classpath = sourceSets.javaRestTest.runtimeClasspath + driverConfiguration
+          testClassesDirs = sourceSets.javaRestTest.output.classesDirs
           systemProperty 'jdbc.driver.version', bwcVersionString
       }
     }

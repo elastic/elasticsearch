@@ -9,6 +9,7 @@
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.server.cli.BootstrapJvmOptions.PluginInfo;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.Properties;
@@ -18,7 +19,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 
-public class BootstrapJvmOptionsTests extends LaunchersTestCase {
+public class BootstrapJvmOptionsTests extends ESTestCase {
 
     public void testGenerateOptionsHandlesNoPlugins() {
         final List<String> options = BootstrapJvmOptions.generateOptions(List.of());

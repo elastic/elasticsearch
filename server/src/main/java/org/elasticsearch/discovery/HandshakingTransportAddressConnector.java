@@ -170,7 +170,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                             // we opened a connection and successfully performed a low-level handshake, so we were definitely
                             // talking to an Elasticsearch node, but the high-level handshake failed indicating some kind of
                             // mismatched configurations (e.g. cluster name) that the user should address
-                            logger.warn(new ParameterizedMessage("handshake to [{}] failed", transportAddress), e);
+                            logger.warn(() -> "handshake to [" + transportAddress + "] failed", e);
                             IOUtils.closeWhileHandlingException(connection);
                             listener.onFailure(e);
                         }

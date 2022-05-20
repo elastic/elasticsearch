@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -79,14 +79,14 @@ public class AggregationPath {
                 int metricIndex = element.lastIndexOf('.');
                 if (keyIndex >= 0) {
                     if (keyIndex == 0 || keyIndex > element.length() - 3) {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                        throw AggregationErrors.invalidPathElement(element, path);
                     }
                     int endKeyIndex = element.lastIndexOf(']');
                     if (endKeyIndex < keyIndex) {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                        throw AggregationErrors.invalidPathElement(element, path);
                     }
                     if (metricIndex < 0 && endKeyIndex != element.length() - 1) {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                        throw AggregationErrors.invalidPathElement(element, path);
                     }
                     tokens.add(
                         new PathElement(
@@ -104,7 +104,7 @@ public class AggregationPath {
                     continue;
                 }
                 if (metricIndex == 0 || metricIndex > element.length() - 2) {
-                    throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                    throw AggregationErrors.invalidPathElement(element, path);
                 }
                 tuple = split(element, metricIndex, tuple);
                 tokens.add(new PathElement(element, tuple[0], null, tuple[1]));
@@ -112,10 +112,10 @@ public class AggregationPath {
                 int keyIndex = element.lastIndexOf('[');
                 if (keyIndex >= 0) {
                     if (keyIndex == 0 || keyIndex > element.length() - 3) {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                        throw AggregationErrors.invalidPathElement(element, path);
                     }
                     if (element.charAt(element.length() - 1) != ']') {
-                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                        throw AggregationErrors.invalidPathElement(element, path);
                     }
                     tokens.add(
                         new PathElement(

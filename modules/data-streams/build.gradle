@@ -49,4 +49,7 @@ if (BuildParams.isSnapshotBuild() == false) {
   tasks.named("internalClusterTest").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
+  tasks.named("test").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 }

@@ -38,6 +38,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
+import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
@@ -262,20 +263,20 @@ public class FileTokensToolTests extends CommandTestCase {
 
     public void testListTokens() throws Exception {
         execute("list", pathHomeParameter);
-        final String output = terminal.getOutput();
-        assertThat(output, containsString("""
-            elastic/fleet-server/server_1
-            elastic/fleet-server/server_2
-            elastic/fleet-server/server_3"""));
+        final List<String> output = terminal.getOutput().lines().toList();
+        assertThat(
+            output,
+            containsInRelativeOrder("elastic/fleet-server/server_1", "elastic/fleet-server/server_2", "elastic/fleet-server/server_3")
+        );
     }
 
     public void testListTokensByPrincipal() throws Exception {
         execute("list", pathHomeParameter, "elastic/fleet-server");
-        final String output = terminal.getOutput();
-        assertThat(output, containsString("""
-            elastic/fleet-server/server_1
-            elastic/fleet-server/server_2
-            elastic/fleet-server/server_3"""));
+        final List<String> output = terminal.getOutput().lines().toList();
+        assertThat(
+            output,
+            containsInRelativeOrder("elastic/fleet-server/server_1", "elastic/fleet-server/server_2", "elastic/fleet-server/server_3")
+        );
     }
 
     public void testListTokensNonExist() throws Exception {

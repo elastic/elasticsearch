@@ -176,7 +176,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         }
         MappedFieldType mft = context.getFieldType(fieldName);
         if (mft != null) {
-            return mft.getTextSearchInfo().getSearchAnalyzer();
+            return mft.getTextSearchInfo().searchAnalyzer();
         }
         return null;
     }

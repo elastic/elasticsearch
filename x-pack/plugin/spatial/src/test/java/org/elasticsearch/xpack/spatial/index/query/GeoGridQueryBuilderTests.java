@@ -98,8 +98,9 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
         final MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
         if (fieldType == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
+        } else if (fieldType.hasDocValues()) {
+            assertEquals(IndexOrDocValuesQuery.class, query.getClass());
         }
-        assertEquals(IndexOrDocValuesQuery.class, query.getClass());
     }
 
     public void testParsingAndToQueryGeohex() throws IOException {

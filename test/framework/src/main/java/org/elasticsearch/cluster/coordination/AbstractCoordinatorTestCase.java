@@ -412,8 +412,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         final int newValue = randomInt();
                         clusterNode.onNode(() -> {
                             logger.debug(
-                                "----> [runRandomly {}] proposing new value [{}] to [{}]",
+                                "----> [runRandomly {}] proposing new value [{}={}] to [{}]",
                                 thisStep,
+                                key,
                                 newValue,
                                 clusterNode.getId()
                             );
@@ -1404,24 +1405,30 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             AckCollector submitValue(final int key, final long value) {
                 final int eventId = history.invoke(new Tuple<>(key, value));
-                return submitUpdateTask("new value [" + value + "]", cs -> setValue(cs, key, value), new ClusterStateTaskListener() {
-                    @Override
-                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                        history.respond(eventId, value(oldState, key));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (e instanceof FailedToCommitClusterStateException == false) {
-                            // In this case, we know for sure that event was not processed by the system and will not change history.
-                            // Therefore remove event to help avoid bloated history and state space explosion in linearizability checker.
-                            history.remove(eventId);
+                return submitUpdateTask(
+                    "new value [" + key + "=" + value + "]",
+                    cs -> setValue(cs, key, value),
+                    new ClusterStateTaskListener() {
+                        @Override
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                            history.respond(eventId, value(oldState, key));
                         }
 
-                        // Else do not remove event from history, the write might still take effect. Instead, complete history when checking
-                        // for linearizability.
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (e instanceof FailedToCommitClusterStateException == false) {
+                                // In this case, we know for sure that event was not processed by the system and will not change history.
+                                // Therefore remove event to help avoid bloated history and state space explosion in linearizability
+                                // checker.
+                                history.remove(eventId);
+                            }
+
+                            // Else do not remove event from history, the write might still take effect. Instead, complete history when
+                            // checking
+                            // for linearizability.
+                        }
                     }
-                });
+                );
             }
 
             void readValue(int key) {
@@ -1451,6 +1458,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     logger.trace("[{}] submitUpdateTask: enqueueing [{}]", localNode.getId(), source);
                     final long submittedTerm = coordinator.getCurrentTerm();
                     masterService.submitUnbatchedStateUpdateTask(source, new ClusterStateUpdateTask() {
+
                         @Override
                         public ClusterState execute(ClusterState currentState) {
                             assertThat(currentState.term(), greaterThanOrEqualTo(submittedTerm));
@@ -1469,7 +1477,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             updateCommittedStates();
                             ClusterState state = committedStatesByVersion.get(newState.version());
                             assertNotNull("State not committed : " + newState, state);
-                            assertStateEquals(state, newState);
+                            final var notRecovered = state.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK);
+                            assertEquals(notRecovered, newState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
+                            if (notRecovered == false) {
+                                assertStateEquals(state, newState);
+                            }
                             logger.trace("successfully published: [{}]", newState);
                             taskListener.clusterStateProcessed(oldState, newState);
                         }
@@ -1553,6 +1565,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             void allowClusterStateApplicationFailure() {
                 clusterApplierService.allowClusterStateApplicationFailure();
+                masterService.allowPublicationFailure();
             }
 
             boolean deliverBlackholedRequests() {
@@ -1619,6 +1632,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     static class AckedFakeThreadPoolMasterService extends FakeThreadPoolMasterService {
 
         AckCollector nextAckCollector = new AckCollector();
+        boolean publicationMayFail = false;
 
         AckedFakeThreadPoolMasterService(
             String nodeName,
@@ -1646,6 +1660,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     ackListener.onNodeAck(node, e);
                 }
             };
+        }
+
+        public void allowPublicationFailure() {
+            publicationMayFail = true;
+        }
+
+        @Override
+        protected boolean publicationMayFail() {
+            return publicationMayFail;
         }
     }
 
@@ -1688,7 +1711,19 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         @Override
         protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-            return new MockSinglePrioritizingExecutor(nodeName, nodeId, deterministicTaskQueue, threadPool);
+            return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor(command -> new Runnable() {
+                @Override
+                public void run() {
+                    try (var ignored = DeterministicTaskQueue.getLogContext('{' + nodeName + "}{" + nodeId + '}')) {
+                        command.run();
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "DisruptableClusterApplierService[" + command + "]";
+                }
+            });
         }
 
         @Override
@@ -1721,7 +1756,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
     }
 
-    private static final Set<DiscoveryNodeRole> ALL_ROLES_EXCEPT_VOTING_ONLY = DiscoveryNodeRole.roles()
+    protected static final Set<DiscoveryNodeRole> ALL_ROLES_EXCEPT_VOTING_ONLY = DiscoveryNodeRole.roles()
         .stream()
         .filter(r -> r.equals(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false)
         .collect(Collectors.toUnmodifiableSet());

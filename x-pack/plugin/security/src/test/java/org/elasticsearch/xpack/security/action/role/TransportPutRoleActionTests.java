@@ -121,7 +121,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
 
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(instanceOf(IllegalArgumentException.class)));
-        assertThat(throwableRef.get().getMessage(), containsString("is reserved and cannot be modified"));
+        assertThat(throwableRef.get().getMessage(), containsString("is reserved and may not be used"));
         verifyNoMoreInteractions(rolesStore);
     }
 

@@ -102,6 +102,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
@@ -629,8 +630,9 @@ public class Node implements Closeable {
                 searchModule.getRequestCacheKeyDifferentiator()
             );
 
+            final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
             IndexSettingProviders indexSettingProviders = new IndexSettingProviders(
-                pluginsService.flatMap(Plugin::getAdditionalIndexSettingProviders).collect(Collectors.toSet())
+                pluginsService.flatMap(p -> p.getAdditionalIndexSettingProviders(parameters)).collect(Collectors.toSet())
             );
 
             final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);

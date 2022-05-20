@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -109,7 +110,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                     rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
                 } else if (allocating == false) {
                     logger.trace("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
-                    executeListeners(lastConvergedIndex);
+                    executeListeners(lastConvergedIndex, desiredBalanceInput.routingAllocation().nodes().isLocalNodeElectedMaster());
                 }
             }
 
@@ -158,7 +159,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             // Execute listeners after cluster state is applied
         } else {
             logger.trace("Executing listeners up to [{}] as routing nodes have not changed", lastConvergedIndex);
-            executeListeners(lastConvergedIndex);
+            executeListeners(lastConvergedIndex, allocation.nodes().isLocalNodeElectedMaster());
             allocating = false;
         }
     }
@@ -166,14 +167,20 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         logger.trace("Executing listeners up to [{}] after cluster state was committed", lastConvergedIndex);
-        executeListeners(lastConvergedIndex);
+        executeListeners(lastConvergedIndex, event.state().nodes().isLocalNodeElectedMaster());
         allocating = false;
     }
 
-    private void executeListeners(long convergedIndex) {
+    private void executeListeners(long convergedIndex, boolean isMaster) {
         var listeners = pollListeners(convergedIndex);
         if (listeners.isEmpty() == false) {
-            threadPool.generic().execute(() -> ActionListener.onResponse(listeners, null));
+            threadPool.generic().execute(() -> {
+                if (isMaster) {
+                    ActionListener.onResponse(listeners, null);
+                } else {
+                    ActionListener.onFailure(listeners, new NotMasterException("no longer master"));
+                }
+            });
         }
     }
 

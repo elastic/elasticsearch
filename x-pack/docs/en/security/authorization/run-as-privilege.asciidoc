@@ -14,9 +14,6 @@ in the LDAP realm, you have to run in
 <<ldap-realm-configuration,_user search_ mode>>. For Active Directory, you need
 to <<ref-ad-settings,configure a `bind_dn` and `secure_bind_password`>>.
 
-IMPORTANT: The Kerberos, OpenID Connect, PKI, and SAML realms do not support
-_run as_.
-
 To submit requests on behalf of other users, you need to have the `run_as`
 privilege in your <<defining-roles,roles>>. For example, the following request
 creates a `my_director` role that grants permission to submit request on behalf
@@ -45,8 +42,17 @@ To submit a request as another user, you specify the user in the
 
 [source,sh]
 ----
-curl -H "es-security-runas-user: jacknich"  -u es-admin -X GET http://localhost:9200/
+curl -H "es-security-runas-user: jacknich" -u es-admin -X GET http://localhost:9200/
 ----
+
+The `run_as` user passed in through the `es-security-runas-user` header must be
+a username from a realm that supports lookup. Because the Kerberos, OpenID
+Connect, PKI, and SAML realms don't support user lookup, these realms can't use
+`run_as` directly. However, users that authenticate from one of these realms can
+run requests on behalf of users from the `native`, `file`, LDAP, and Active
+Directory realms. For example, an OIDC user can authenticate to {es} and submit
+requests as a `run_as` user in the `native` realm. {es} will retrieve the
+indicated `runas` user and submit the request using their roles.
 
 [[run-as-privilege-apply]]
 == Apply the `run_as` privilege to roles
@@ -161,14 +167,6 @@ behalf of the `analyst_user`. The following request authenticates to {es} with a
 ----
 curl -s -X GET -H "Authorization: Basic YWRtaW5fdXNlcjpsMG5nLXI0bmQwbS1wQHNzdzByZA==" -H "es-security-runas-user: analyst_user" https://localhost:9200/_security/_authenticate
 ----
-
-[NOTE]
-====
-The `run_as` privilege is supported only when authenticating with the `native`
-or JWT realms, or when using API keys. Tokens that are created with the
-<<security-api-get-token,get token API>> are incompatible with the `run_as`
-privilege because OAuth2 tokens do not support this privilege.
-====
 
 The response indicates that the `analyst_user` submitted this request, using the
 `my_analyst_role` that's assigned to that user. When the `admin_user` submitted

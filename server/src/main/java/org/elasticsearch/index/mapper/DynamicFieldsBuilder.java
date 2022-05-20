@@ -162,7 +162,7 @@ final class DynamicFieldsBuilder {
         return mapper != null
             ? mapper
             : new ObjectMapper.Builder(name, ObjectMapper.Defaults.SUBOBJECTS).enabled(ObjectMapper.Defaults.ENABLED)
-            .build(context.createMapperBuilderContext());
+                .build(context.createMapperBuilderContext());
     }
 
     /**

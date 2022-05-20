@@ -219,9 +219,9 @@ public class ObjectMapperMergeTests extends ESTestCase {
         FieldMapper fieldMapper = new KeywordFieldMapper.Builder("host.name", Version.CURRENT).build(MapperBuilderContext.ROOT);
         assertEquals("host.name", fieldMapper.simpleName());
         assertEquals("host.name", fieldMapper.name());
-        return (RootObjectMapper) new RootObjectMapper.Builder("_doc", Explicit.EXPLICIT_FALSE)
-            .addMappers(Collections.singletonMap("host.name", fieldMapper))
-            .build(MapperBuilderContext.ROOT);
+        return (RootObjectMapper) new RootObjectMapper.Builder("_doc", Explicit.EXPLICIT_FALSE).addMappers(
+            Collections.singletonMap("host.name", fieldMapper)
+        ).build(MapperBuilderContext.ROOT);
     }
 
     private static RootObjectMapper createRootObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
@@ -242,11 +242,11 @@ public class ObjectMapperMergeTests extends ESTestCase {
         );
         assertEquals("host.name", fieldMapper.simpleName());
         assertEquals("foo.metrics.host.name", fieldMapper.name());
-        ObjectMapper metrics = new ObjectMapper.Builder("metrics", Explicit.EXPLICIT_FALSE)
-            .addMappers(Collections.singletonMap("host.name", fieldMapper))
-            .build(new MapperBuilderContext("foo"));
-        return new ObjectMapper.Builder("foo", ObjectMapper.Defaults.SUBOBJECTS)
-            .addMappers(Collections.singletonMap("metrics", metrics)).build(MapperBuilderContext.ROOT);
+        ObjectMapper metrics = new ObjectMapper.Builder("metrics", Explicit.EXPLICIT_FALSE).addMappers(
+            Collections.singletonMap("host.name", fieldMapper)
+        ).build(new MapperBuilderContext("foo"));
+        return new ObjectMapper.Builder("foo", ObjectMapper.Defaults.SUBOBJECTS).addMappers(Collections.singletonMap("metrics", metrics))
+            .build(MapperBuilderContext.ROOT);
     }
 
     private ObjectMapper createObjectSubobjectsFalseLeafWithMultiField() {
@@ -256,11 +256,11 @@ public class ObjectMapperMergeTests extends ESTestCase {
         FieldMapper fieldMapper = textKeywordMultiField.multiFields.iterator().next();
         assertEquals("keyword", fieldMapper.simpleName());
         assertEquals("foo.metrics.host.name.keyword", fieldMapper.name());
-        ObjectMapper metrics = new ObjectMapper.Builder("metrics", Explicit.EXPLICIT_FALSE)
-            .addMappers(Collections.singletonMap("host.name", textKeywordMultiField))
-            .build(new MapperBuilderContext("foo"));
-        return new ObjectMapper.Builder("foo", ObjectMapper.Defaults.SUBOBJECTS)
-            .addMappers(Collections.singletonMap("metrics", metrics)).build(MapperBuilderContext.ROOT);
+        ObjectMapper metrics = new ObjectMapper.Builder("metrics", Explicit.EXPLICIT_FALSE).addMappers(
+            Collections.singletonMap("host.name", textKeywordMultiField)
+        ).build(new MapperBuilderContext("foo"));
+        return new ObjectMapper.Builder("foo", ObjectMapper.Defaults.SUBOBJECTS).addMappers(Collections.singletonMap("metrics", metrics))
+            .build(MapperBuilderContext.ROOT);
     }
 
     private TextFieldMapper createTextFieldMapper(String name) {

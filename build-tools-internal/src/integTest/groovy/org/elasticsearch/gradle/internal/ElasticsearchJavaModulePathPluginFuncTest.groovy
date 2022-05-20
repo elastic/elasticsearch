@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal
 
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractJavaGradleFuncTest
+import org.gradle.internal.os.OperatingSystem
 import org.gradle.testkit.runner.TaskOutcome
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.tree.ClassNode
@@ -163,7 +164,7 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         if(allArgs.isEmpty()) {
             assert expectedEntries.size() == 0
         } else {
-            def sep = org.gradle.internal.os.OperatingSystem.current().isWindows() ? ':' : ';'
+            def sep = OperatingSystem.current().isWindows() ? ':' : ';'
             def modulePathEntries = allArgs.find(/(?<=.*--module-path=)[^${sep}]*(?=${sep})?/)
             doClasspathAssertion(modulePathEntries, expectedEntries)
         }

@@ -716,7 +716,7 @@ public class ProfileServiceTests extends ESTestCase {
         assertThat(profile2.user().username(), equalTo(subject2.getUser().principal()));
 
         // Domain with literal username, but the username is invalid
-        final String invalidUsername = randomFrom("", "fóóbár", randomAlphaOfLength(491), null);
+        final String invalidUsername = randomFrom("", "fóóbár", randomAlphaOfLength(491));
         final Authentication.RealmRef realmRef3 = realmRef2;
         final Authentication authentication3 = AuthenticationTestHelper.builder()
             .realm()

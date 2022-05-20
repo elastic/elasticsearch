@@ -501,8 +501,11 @@ public class ProfileService {
         assert realmDomain != null;
         assert domainConfigLookup.apply(realmDomain.name()) != null;
         assert domainConfigLookup.apply(realmDomain.name()).literalUsername();
+
         final String username = subject.getUser().principal();
-        if (username == null || username.length() < 1 || username.length() > 490) {
+        assert username != null;
+
+        if (username.length() < 1 || username.length() > 490) {
             return ValidateActions.addValidationError(String.format(Locale.ROOT, INVALID_USERNAME_MESSAGE, realmDomain.name()));
         }
 

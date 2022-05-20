@@ -337,7 +337,7 @@ public class RestoreService implements ClusterStateApplier {
             .collect(Collectors.toSet());
 
         final Set<String> featureStateDataStreams = featureStatesToRestore.keySet().stream().filter(featureName -> {
-            if (Objects.nonNull(systemIndices.getFeature(featureName))) {
+            if (systemIndices.getFeatureNames().contains(featureName)) {
                 return true;
             }
             logger.warn(
@@ -653,7 +653,7 @@ public class RestoreService implements ClusterStateApplier {
 
         final List<String> featuresNotOnThisNode = featureStatesToRestore.keySet()
             .stream()
-            .filter(s -> Objects.nonNull(systemIndices.getFeature(s)) == false)
+            .filter(s -> systemIndices.getFeatureNames().contains(s) == false)
             .toList();
         if (featuresNotOnThisNode.isEmpty() == false) {
             throw new SnapshotRestoreException(

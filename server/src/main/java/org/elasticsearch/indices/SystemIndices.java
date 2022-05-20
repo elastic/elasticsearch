@@ -45,6 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -328,6 +329,10 @@ public class SystemIndices {
             return name -> false;
         }
         return automaton::run;
+    }
+
+    public Set<String> getFeatureNames() {
+        return features.keySet();
     }
 
     public Feature getFeature(String name) {

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.gradle.internal
 
+import spock.lang.IgnoreIf
+
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractJavaGradleFuncTest
 import org.gradle.internal.os.OperatingSystem
@@ -17,6 +19,7 @@ import org.objectweb.asm.tree.ClassNode
 
 import java.nio.file.Files
 
+@IgnoreIf({ os.isWindows() })
 class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTest {
 
     public static final GString JAVA_BASE_MODULE = "java.base:${System.getProperty("java.version")}"
@@ -68,7 +71,6 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         when:
         def result = gradleRunner('compileJava').build()
         then:
-        println("EJMPPFT, (1) result.output:[" + result.output + "], nor output:[" + normalized(result.output) + "]")
         result.task(":compileJava").outcome == TaskOutcome.SUCCESS
 
         assertModulePathClasspath([], normalized(result.output))
@@ -84,7 +86,6 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         when:
         def result = gradleRunner('compileJava').build()
         then:
-        println("EJMPPFT, (2) result.output:[" + result.output + "], nor output:[" + normalized(result.output) + "]")
         result.task(":compileJava").outcome == TaskOutcome.SUCCESS
 
         assertModulePathClasspath(['./some-lib/build/classes/java/main', './some-other-lib/build/classes/java/main'], normalized(result.output))
@@ -101,7 +102,6 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         when:
         def result = gradleRunner('compileJava').build()
         then:
-        println("EJMPPFT, (3) result.output:[" + result.output + "], nor output:[" + normalized(result.output) + "]")
         result.task(":compileJava").outcome == TaskOutcome.SUCCESS
 
         assertModulePathClasspath(['./some-lib/build/classes/java/main', './some-other-lib/build/classes/java/main'], normalized(result.output))
@@ -129,7 +129,6 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         when:
         def result = gradleRunner('compileJava').build()
         then:
-        println("EJMPPFT, (4) result.output:[" + result.output + "], nor output:[" + normalized(result.output) + "]")
         result.task(":compileJava").outcome == TaskOutcome.SUCCESS
 
         assertModulePathClasspath(['./some-lib/build/classes/java/main', './some-other-lib/build/classes/java/main'], normalized(result.output))
@@ -154,7 +153,6 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         when:
         def result = gradleRunner('compileJava').build()
         then:
-        println("EJMPPFT, (5) result.output:[" + result.output + "], nor output:[" + normalized(result.output) + "]")
         result.task(":compileJava").outcome == TaskOutcome.SUCCESS
 
         assertModulePathClasspath(['./some-lib/build/classes/java/main', './some-other-lib/build/classes/java/main'], normalized(result.output))
@@ -165,13 +163,11 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
 
     private def assertModulePathClasspath(List<String> expectedEntries, String output) {
         def allArgs = output.find(/(?<=COMPILE_JAVA_COMPILER_ARGS ).*\n/).trim()
-        println("EJMPPFT, assertModulePathClasspath output:" + output + ", expectedEntries: " + expectedEntries)
-        println("EJMPPFT, assertModulePathClasspath, allArgs: " + allArgs)
         if(allArgs.isEmpty()) {
             assert expectedEntries.size() == 0
         } else {
             def modulePathEntries = OperatingSystem.current().isWindows() ?
-                allArgs.find(/(?<=.*--module-path=).*(?=;--module-version|$)/) :
+                allArgs.find(/(?<=.*--module-path=).*/).minus(";--module-version=${ES_VERSION}") :
                 allArgs.find(/(?<=.*--module-path=)[^;]*(?=;)?/)
             doClasspathAssertion(modulePathEntries, expectedEntries)
         }
@@ -179,16 +175,12 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
     }
 
     private def assertCompileClasspath(List<String> expectedEntries, String output) {
-        println("EJMPPFT, assertCompileClasspath output:" + output + ", expectedEntries: " + expectedEntries)
         def find = output.find(/(?<=COMPILE_JAVA_CLASSPATH ).*\n/).trim()
-        println("EJMPPFT, assertModulePathClasspath, find: " + find)
         doClasspathAssertion(find, expectedEntries)
     }
 
     private def doClasspathAssertion(String find, List<String> expectedEntries) {
-        println("EJMPPFT, doClasspathAssertion find:" + find + ", expectedEntries: " + expectedEntries )
         def foundEntries = find.trim().isEmpty() ? [] : find.split(File.pathSeparator)
-        println("EJMPPFT, doClasspathAssertion foundEntries:" + foundEntries)
         assert foundEntries.size() == expectedEntries.size()
         for (int i = 0; i < foundEntries.size(); i++) {
             assert foundEntries[i] == expectedEntries[i]

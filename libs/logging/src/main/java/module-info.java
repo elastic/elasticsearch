@@ -10,6 +10,6 @@ import org.elasticsearch.logging.spi.LogManagerFactory;
 
 module org.elasticsearch.logging {
     exports org.elasticsearch.logging;
-
+    exports org.elasticsearch.logging.spi to org.elasticsearch.server;
     uses LogManagerFactory;
 }

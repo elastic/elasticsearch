@@ -8,6 +8,8 @@
 
 package org.elasticsearch.logging;
 
+import org.elasticsearch.logging.spi.LogManagerFactory;
+
 /**
  * A class used for creating loggers.
  */
@@ -20,7 +22,7 @@ public class LogManager {
      * @return The Logger.
      */
     public static Logger getLogger(final String name) {
-        return null;//new LoggerImpl(org.apache.logging.log4j.LogManager.getLogger(name));
+        return LogManagerFactory.provider().getLogger(name);
     }
 
     /**
@@ -30,8 +32,9 @@ public class LogManager {
      * @return The Logger.
      */
     public static Logger getLogger(final Class<?> clazz) {
-        return null;//new LoggerImpl(org.apache.logging.log4j.LogManager.getLogger(clazz));
+        return LogManagerFactory.provider().getLogger(clazz);
     }
 
-    private LogManager() {}
+    private LogManager() {
+    }
 }

@@ -21,6 +21,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.pluginclassloader;
     requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.logging;
 
     requires com.sun.jna;
     requires hppc;
@@ -353,4 +354,5 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,
             org.elasticsearch.index.shard.ShardToolCliProvider;
+    provides org.elasticsearch.logging.spi.LogManagerFactory with org.elasticsearch.common.logging.api.impl.LogManagerFactory;
 }

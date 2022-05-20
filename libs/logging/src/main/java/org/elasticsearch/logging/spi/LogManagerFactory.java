@@ -18,9 +18,15 @@ import java.util.ServiceLoader;
  */
 public interface LogManagerFactory {
 
-    static LogManagerFactory provider() {
+    LogManagerFactory INSTANCE = loadProvider();
+
+    static LogManagerFactory loadProvider() {
         ServiceLoader<LogManagerFactory> sl = ServiceLoader.load(LogManagerFactory.class, ClassLoader.getSystemClassLoader());
         return sl.findFirst().orElseThrow();
+    }
+
+    static LogManagerFactory provider() {
+       return INSTANCE;
     }
 
     Logger getLogger(String name);

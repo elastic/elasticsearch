@@ -133,7 +133,7 @@ parent has gap:
 ---
 parent has min_doc_count:
   - skip:
-      version: " - 7.17.3"
+      version: " - 7.17.3, 8.0.0 - 8.2.99"
       reason: allowed in 7.17.4
 
   - do:

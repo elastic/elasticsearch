@@ -153,3 +153,9 @@ tasks.named('splitPackagesAudit').configure {
 tasks.named('checkstyleJavaRestTest').configure {
   enabled = false
 }
+
+// this check is incompatible with the internal-java-rest-test setup we did here
+// to not need to change the docs repo too. fine for 7.17
+tasks.named('testingConventions').configure {
+  enabled = false
+}

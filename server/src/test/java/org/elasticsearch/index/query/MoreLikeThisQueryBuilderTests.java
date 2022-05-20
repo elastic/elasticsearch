@@ -446,8 +446,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
                 "minimum_should_match" : "30%",
                 "boost_terms" : 0.0,
                 "include" : false,
-                "fail_on_unsupported_field" : true,
-                "boost" : 1.0
+                "fail_on_unsupported_field" : true
               }
             }""";
 

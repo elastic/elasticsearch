@@ -355,8 +355,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "auto_generate_synonyms_phrase_query" : true,
                 "fuzzy_prefix_length" : 1,
                 "fuzzy_max_expansions" : 5,
-                "fuzzy_transpositions" : false,
-                "boost" : 1.0
+                "fuzzy_transpositions" : false
               }
             }""";
 

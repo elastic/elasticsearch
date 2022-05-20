@@ -243,8 +243,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         String json = """
             {
               "terms" : {
-                "user" : [ "kimchy", "elasticsearch" ],
-                "boost" : 1.0
+                "user" : [ "kimchy", "elasticsearch" ]
               }
             }""";
 

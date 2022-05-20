@@ -56,7 +56,6 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
                   "source" : "5",
                   "lang" : "mockscript"
                 },
-                "boost" : 1.0,
                 "_name" : "PcKdEyPOmR"
               }
             }""";

@@ -312,7 +312,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.field(VALIDATION_METHOD_FIELD.getPreferredName(), validationMethod);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
 
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
 
         builder.endObject();
     }

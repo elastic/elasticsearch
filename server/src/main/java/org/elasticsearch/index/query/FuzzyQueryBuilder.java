@@ -235,7 +235,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         if (rewrite != null) {
             builder.field(REWRITE_FIELD.getPreferredName(), rewrite);
         }
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
     }

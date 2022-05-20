@@ -136,8 +136,7 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
                 "message" : {
                   "query" : "this is a test",
                   "slop" : 0,
-                  "zero_terms_query" : "NONE",
-                  "boost" : 1.0
+                  "zero_terms_query" : "NONE"
                 }
               }
             }""";
@@ -152,8 +151,7 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
                 "message" : {
                   "query" : "this is a test",
                   "slop" : 2,
-                  "zero_terms_query" : "ALL",
-                  "boost" : 1.0
+                  "zero_terms_query" : "ALL"
                 }
               }
             }""";

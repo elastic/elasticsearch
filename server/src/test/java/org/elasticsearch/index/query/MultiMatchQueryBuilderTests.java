@@ -286,8 +286,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 "lenient" : false,
                 "zero_terms_query" : "NONE",
                 "auto_generate_synonyms_phrase_query" : true,
-                "fuzzy_transpositions" : false,
-                "boost" : 1.0
+                "fuzzy_transpositions" : false
               }
             }""";
 

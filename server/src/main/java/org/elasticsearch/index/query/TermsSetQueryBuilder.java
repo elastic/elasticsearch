@@ -146,7 +146,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         if (minimumShouldMatchScript != null) {
             builder.field(MINIMUM_SHOULD_MATCH_SCRIPT.getPreferredName(), minimumShouldMatchScript);
         }
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
     }

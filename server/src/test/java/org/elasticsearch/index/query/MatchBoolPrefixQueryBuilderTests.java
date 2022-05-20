@@ -165,8 +165,7 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
                   "operator": "OR",
                   "prefix_length": 0,
                   "max_expansions": 50,
-                  "fuzzy_transpositions": true,
-                  "boost": 1.0
+                  "fuzzy_transpositions": true
                 }
               }
             }""";

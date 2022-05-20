@@ -78,7 +78,7 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         builder.field(FIELD_FIELD.getPreferredName(), field);
         builder.field(ORIGIN_FIELD.getPreferredName(), origin.origin);
         builder.field(PIVOT_FIELD.getPreferredName(), pivot);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

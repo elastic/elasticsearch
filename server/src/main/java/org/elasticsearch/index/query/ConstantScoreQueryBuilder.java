@@ -71,7 +71,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
         builder.startObject(NAME);
         builder.field(INNER_QUERY_FIELD.getPreferredName());
         filterBuilder.toXContent(builder, params);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

@@ -230,8 +230,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                   "points" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]
                 },
                 "validation_method" : "STRICT",
-                "ignore_unmapped" : false,
-                "boost" : 1.0
+                "ignore_unmapped" : false
               }
             }""";
         GeoPolygonQueryBuilder parsed = (GeoPolygonQueryBuilder) parseQuery(json);

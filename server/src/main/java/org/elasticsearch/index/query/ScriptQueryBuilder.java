@@ -74,7 +74,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
     protected void doXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject(NAME);
         builder.field(Script.SCRIPT_PARSE_FIELD.getPreferredName(), script);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

@@ -62,7 +62,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
             {
               "ids" : {
                 "values" : [ "1", "100", "4" ],
-                "boost" : 1.0
+                "boost" : 2.0
               }
             }""";
         IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(json);
@@ -73,8 +73,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         json = """
             {
               "ids" : {
-                "values" : [ 1, 100, 4 ],
-                "boost" : 1.0
+                "values" : [ 1, 100, 4 ]
               }
             }""";
         parsed = (IdsQueryBuilder) parseQuery(json);

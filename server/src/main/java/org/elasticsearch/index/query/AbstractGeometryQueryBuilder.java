@@ -433,7 +433,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         builder.endObject();
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
 
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
 
         builder.endObject();
     }
@@ -497,7 +497,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         public String shapePath = null;
         public String shapeRouting = null;
 
-        public float boost;
+        public float boost = 1f;
         public String queryName;
         public boolean ignoreUnmapped;
 

@@ -1089,8 +1089,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "phrase_slop" : 0,
                 "escape" : false,
                 "auto_generate_synonyms_phrase_query" : true,
-                "fuzzy_transpositions" : false,
-                "boost" : 1.0
+                "fuzzy_transpositions" : false
               }
             }""";
 

@@ -359,8 +359,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "distance" : 12000.0,
                 "distance_type" : "arc",
                 "validation_method" : "STRICT",
-                "ignore_unmapped" : false,
-                "boost" : 1.0
+                "ignore_unmapped" : false
               }
             }""";
         GeoDistanceQueryBuilder parsed = (GeoDistanceQueryBuilder) parseQuery(json);

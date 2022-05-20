@@ -400,8 +400,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "timestamp" : {
                   "gte" : "2015-01-01 00:00:00",
                   "lte" : "now",
-                  "time_zone" : "+01:00",
-                  "boost" : 1.0
+                  "time_zone" : "+01:00"
                 }
               }
             }""";

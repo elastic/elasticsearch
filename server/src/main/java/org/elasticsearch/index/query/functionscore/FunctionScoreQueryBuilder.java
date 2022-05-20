@@ -247,7 +247,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         if (minScore != null) {
             builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
         }
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

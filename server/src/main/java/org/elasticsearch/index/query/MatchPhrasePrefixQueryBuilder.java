@@ -172,7 +172,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         builder.field(MatchPhraseQueryBuilder.SLOP_FIELD.getPreferredName(), slop);
         builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
         builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
     }

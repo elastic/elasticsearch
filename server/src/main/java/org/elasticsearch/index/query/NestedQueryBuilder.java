@@ -162,7 +162,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         if (scoreMode != null) {
             builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreModeAsString(scoreMode));
         }
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         if (innerHitBuilder != null) {
             builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitBuilder, params);
         }

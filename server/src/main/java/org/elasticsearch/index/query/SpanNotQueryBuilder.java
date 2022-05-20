@@ -148,7 +148,7 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
         exclude.toXContent(builder, params);
         builder.field(PRE_FIELD.getPreferredName(), pre);
         builder.field(POST_FIELD.getPreferredName(), post);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

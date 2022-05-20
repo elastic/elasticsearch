@@ -196,18 +196,15 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                     }, {
                       "range" : {
                         "obj1.count" : {
-                          "gt" : 5,
-                          "boost" : 1.0
+                          "gt" : 5
                         }
                       }
-                    } ],
-                    "boost" : 1.0
+                    } ]
                   }
                 },
                 "path" : "obj1",
                 "ignore_unmapped" : false,
-                "score_mode" : "avg",
-                "boost" : 1.0
+                "score_mode" : "avg"
               }
             }""", parsed);
 

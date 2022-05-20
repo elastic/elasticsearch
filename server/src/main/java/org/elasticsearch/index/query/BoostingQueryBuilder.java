@@ -121,7 +121,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         builder.field(NEGATIVE_FIELD.getPreferredName());
         negativeQuery.toXContent(builder, params);
         builder.field(NEGATIVE_BOOST_FIELD.getPreferredName(), negativeBoost);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

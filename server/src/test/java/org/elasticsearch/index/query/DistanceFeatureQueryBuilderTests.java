@@ -93,8 +93,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
               "distance_feature": {
                 "field": "%s",
                 "origin": "%s",
-                "pivot": "%s",
-                "boost": 1.0
+                "pivot": "%s"
               }
             }""".formatted(DATE_FIELD_NAME, origin, pivot);
         DistanceFeatureQueryBuilder parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
@@ -110,8 +109,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
               "distance_feature": {
                 "field": "%s",
                 "origin": %s,
-                "pivot": "%s",
-                "boost": 1.0
+                "pivot": "%s"
               }
             }""".formatted(DATE_FIELD_NAME, originLong, pivot);
         parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
@@ -127,8 +125,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
               "distance_feature": {
                 "field": "%s",
                 "origin": "%s",
-                "pivot": "%s",
-                "boost": 1.0
+                "pivot": "%s"
               }
             }""".formatted(DATE_NANOS_FIELD_NAME, origin, pivot);
         DistanceFeatureQueryBuilder parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
@@ -144,8 +141,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
               "distance_feature": {
                 "field": "%s",
                 "origin": %s,
-                "pivot": "%s",
-                "boost": 1.0
+                "pivot": "%s"
               }
             }""".formatted(DATE_NANOS_FIELD_NAME, originLong, pivot);
         parsed = (DistanceFeatureQueryBuilder) parseQuery(json);

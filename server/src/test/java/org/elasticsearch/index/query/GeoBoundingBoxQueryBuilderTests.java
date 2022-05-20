@@ -440,8 +440,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                   "bottom_right" : [ -71.12, 40.01 ]
                 },
                 "validation_method" : "STRICT",
-                "ignore_unmapped" : false,
-                "boost" : 1.0
+                "ignore_unmapped" : false
               }
             }""";
         GeoBoundingBoxQueryBuilder parsed = (GeoBoundingBoxQueryBuilder) parseQuery(json);
@@ -477,8 +476,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                   "bottom_right" : [ -71.12, 40.01 ]
                 },
                 "validation_method" : "STRICT",
-                "ignore_unmapped" : false,
-                "boost" : 1.0
+                "ignore_unmapped" : false
               }
             }""";
 
@@ -517,8 +515,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                   "bottom_right" : [ -67.5, 33.75 ]
                 },
                 "validation_method" : "STRICT",
-                "ignore_unmapped" : false,
-                "boost" : 1.0
+                "ignore_unmapped" : false
               }
             }""";
         GeoBoundingBoxQueryBuilder parsed = (GeoBoundingBoxQueryBuilder) parseQuery(json);

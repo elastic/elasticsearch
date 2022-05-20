@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -50,7 +51,6 @@ public class IndexShardRoutingTable {
     final ShardRouting[] shards;
     final List<ShardRouting> activeShards;
     final List<ShardRouting> assignedShards;
-    final Set<String> allAllocationIds;
     final boolean allShardsStarted;
 
     /**
@@ -69,7 +69,6 @@ public class IndexShardRoutingTable {
         List<ShardRouting> activeShards = new ArrayList<>();
         List<ShardRouting> assignedShards = new ArrayList<>();
         List<ShardRouting> allInitializingShards = new ArrayList<>();
-        Set<String> allAllocationIds = new HashSet<>();
         boolean allShardsStarted = true;
         for (ShardRouting shard : this.shards) {
             if (shard.primary()) {
@@ -87,15 +86,12 @@ public class IndexShardRoutingTable {
             if (shard.relocating()) {
                 // create the target initializing shard routing on the node the shard is relocating to
                 allInitializingShards.add(shard.getTargetRelocatingShard());
-                allAllocationIds.add(shard.getTargetRelocatingShard().allocationId().getId());
-
                 assert shard.assignedToNode() : "relocating from unassigned " + shard;
                 assert shard.getTargetRelocatingShard().assignedToNode() : "relocating to unassigned " + shard.getTargetRelocatingShard();
                 assignedShards.add(shard.getTargetRelocatingShard());
             }
             if (shard.assignedToNode()) {
                 assignedShards.add(shard);
-                allAllocationIds.add(shard.allocationId().getId());
             }
             if (shard.state() != ShardRoutingState.STARTED) {
                 allShardsStarted = false;
@@ -107,7 +103,6 @@ public class IndexShardRoutingTable {
         this.activeShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(activeShards);
         this.assignedShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(assignedShards);
         this.allInitializingShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allInitializingShards);
-        this.allAllocationIds = Collections.unmodifiableSet(allAllocationIds);
     }
 
     /**
@@ -477,6 +472,16 @@ public class IndexShardRoutingTable {
     }
 
     public Set<String> getAllAllocationIds() {
+        assert MasterService.assertNotMasterUpdateThread("not using this on the master thread so we don't have to pre-compute this");
+        Set<String> allAllocationIds = new HashSet<>();
+        for (ShardRouting shard : shards) {
+            if (shard.relocating()) {
+                allAllocationIds.add(shard.getTargetRelocatingShard().allocationId().getId());
+            }
+            if (shard.assignedToNode()) {
+                allAllocationIds.add(shard.allocationId().getId());
+            }
+        }
         return allAllocationIds;
     }
 
@@ -515,6 +520,10 @@ public class IndexShardRoutingTable {
         return shards;
     }
 
+    public static Builder builder(ShardId shardId) {
+        return new Builder(shardId);
+    }
+
     public static class Builder {
 
         private final ShardId shardId;
@@ -524,6 +533,10 @@ public class IndexShardRoutingTable {
             this.shardId = indexShard.shardId;
             this.shards = new ArrayList<>(indexShard.size());
             Collections.addAll(this.shards, indexShard.shards);
+        }
+
+        public ShardId shardId() {
+            return shardId;
         }
 
         public Builder(ShardId shardId) {
@@ -581,12 +594,12 @@ public class IndexShardRoutingTable {
             return true;
         }
 
-        public static IndexShardRoutingTable readFrom(StreamInput in) throws IOException {
+        public static IndexShardRoutingTable.Builder readFrom(StreamInput in) throws IOException {
             Index index = new Index(in);
             return readFromThin(in, index);
         }
 
-        public static IndexShardRoutingTable readFromThin(StreamInput in, Index index) throws IOException {
+        public static IndexShardRoutingTable.Builder readFromThin(StreamInput in, Index index) throws IOException {
             int iShardId = in.readVInt();
             ShardId shardId = new ShardId(index, iShardId);
             Builder builder = new Builder(shardId);
@@ -597,7 +610,7 @@ public class IndexShardRoutingTable {
                 builder.addShard(shard);
             }
 
-            return builder.build();
+            return builder;
         }
 
         public static void writeTo(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {

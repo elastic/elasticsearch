@@ -72,7 +72,12 @@ public final class BitsetFilterCache extends AbstractIndexComponent
     );
 
     private final boolean loadRandomAccessFiltersEagerly;
-    private final Cache<IndexReader.CacheKey, Cache<Query, Value>> loadedFilters;
+
+    /**
+     * Lazy initialized by {@link #buildFiltersCache()} to save heap for indices not using this cache as even empty {@link Cache} are
+     * quite heavy-weight.
+     */
+    private volatile Cache<IndexReader.CacheKey, Cache<Query, Value>> loadedFilters;
     private final Listener listener;
 
     public BitsetFilterCache(IndexSettings indexSettings, Listener listener) {
@@ -81,7 +86,6 @@ public final class BitsetFilterCache extends AbstractIndexComponent
             throw new IllegalArgumentException("listener must not be null");
         }
         this.loadRandomAccessFiltersEagerly = this.indexSettings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
-        this.loadedFilters = CacheBuilder.<IndexReader.CacheKey, Cache<Query, Value>>builder().removalListener(this).build();
         this.listener = listener;
     }
 
@@ -108,7 +112,10 @@ public final class BitsetFilterCache extends AbstractIndexComponent
 
     @Override
     public void onClose(IndexReader.CacheKey ownerCoreCacheKey) {
-        loadedFilters.invalidate(ownerCoreCacheKey);
+        var filters = loadedFilters;
+        if (filters != null) {
+            filters.invalidate(ownerCoreCacheKey);
+        }
     }
 
     @Override
@@ -118,7 +125,10 @@ public final class BitsetFilterCache extends AbstractIndexComponent
 
     public void clear(String reason) {
         logger.debug("clearing all bitsets because [{}]", reason);
-        loadedFilters.invalidateAll();
+        var filters = loadedFilters;
+        if (filters != null) {
+            filters.invalidateAll();
+        }
     }
 
     private BitSet getAndLoadIfNotPresent(final Query query, final LeafReaderContext context) throws ExecutionException {
@@ -140,7 +150,11 @@ public final class BitsetFilterCache extends AbstractIndexComponent
                 "Trying to load bit set for index " + shardId.getIndex() + " with cache of index " + indexSettings.getIndex()
             );
         }
-        Cache<Query, Value> filterToFbs = loadedFilters.computeIfAbsent(coreCacheReader, key -> {
+        var filters = loadedFilters;
+        if (filters == null) {
+            filters = buildFiltersCache();
+        }
+        Cache<Query, Value> filterToFbs = filters.computeIfAbsent(coreCacheReader, key -> {
             cacheHelper.addClosedListener(BitsetFilterCache.this);
             return CacheBuilder.<Query, Value>builder().build();
         });
@@ -151,6 +165,16 @@ public final class BitsetFilterCache extends AbstractIndexComponent
             listener.onCache(shardId, value.bitset);
             return value;
         }).bitset;
+    }
+
+    private synchronized Cache<IndexReader.CacheKey, Cache<Query, Value>> buildFiltersCache() {
+        var existing = loadedFilters;
+        if (existing != null) {
+            return existing;
+        }
+        existing = CacheBuilder.<IndexReader.CacheKey, Cache<Query, Value>>builder().removalListener(this).build();
+        loadedFilters = existing;
+        return existing;
     }
 
     @Override
@@ -190,7 +214,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         }
 
         @Override
-        public BitSet getBitSet(LeafReaderContext context) throws IOException {
+        public BitSet getBitSet(LeafReaderContext context) {
             try {
                 return getAndLoadIfNotPresent(query, context);
             } catch (ExecutionException e) {
@@ -272,6 +296,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
 
     }
 
+    // for testing
     Cache<IndexReader.CacheKey, Cache<Query, Value>> getLoadedFilters() {
         return loadedFilters;
     }

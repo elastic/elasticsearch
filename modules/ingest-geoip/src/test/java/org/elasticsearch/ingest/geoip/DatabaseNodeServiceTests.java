@@ -384,13 +384,18 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         if (noStartedShards == false) {
             shardRouting = shardRouting.moveToStarted();
         }
-        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(shardRouting).build();
         return ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).put(idxMeta))
             .nodes(
                 DiscoveryNodes.builder().add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT)).localNodeId("_id1")
             )
-            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(table)))
+            .routingTable(
+                RoutingTable.builder()
+                    .add(
+                        IndexRoutingTable.builder(index)
+                            .addIndexShard(IndexShardRoutingTable.builder(new ShardId(index, 0)).addShard(shardRouting))
+                    )
+            )
             .build();
     }
 

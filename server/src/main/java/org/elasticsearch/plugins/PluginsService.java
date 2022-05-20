@@ -219,7 +219,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @return A map of plugin names to plugin instances.
      */
     public final Map<String, Plugin> pluginMap() {
-        return plugins.stream().collect(Collectors.toMap(p -> p.descriptor().getName(), LoadedPlugin::instance));
+        return plugins().stream().collect(Collectors.toMap(p -> p.descriptor().getName(), LoadedPlugin::instance));
     }
 
     /**

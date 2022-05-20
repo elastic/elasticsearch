@@ -86,7 +86,9 @@ public class JwtAuthenticationToken implements AuthenticationToken {
                 // found an allowed string claim name
                 if (principalClaimValue.isEmpty()) {
                     throw new IllegalArgumentException(
-                        "Allowed principal claim name '" + principalClaimName + "' exists but cannot be used because the value of that claim is an empty string"
+                        "Allowed principal claim name '"
+                            + principalClaimName
+                            + "' exists but cannot be used because the value of that claim is an empty string"
                     );
                 }
                 LOGGER.trace("Found allowed principal claim name [{}] with value [{}]", principalClaimName, principalClaimValue);

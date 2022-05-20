@@ -92,7 +92,7 @@ public class SystemIndices {
             .flatMap(f -> f.getDataStreamDescriptors().stream())
             .collect(Collectors.toUnmodifiableMap(SystemDataStreamDescriptor::getDataStreamName, Function.identity()));
         checkForOverlappingPatterns(featureDescriptors);
-        ensurePatternsAllowSuffix(toMap(featureDescriptors));
+        ensurePatternsAllowSuffix(featureDescriptors);
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
         Automaton systemIndexAutomata = buildIndexAutomaton(toMap(featureDescriptors));
         this.systemIndexRunAutomaton = new CharacterRunAutomaton(systemIndexAutomata);
@@ -116,13 +116,11 @@ public class SystemIndices {
         return features.stream().collect(Collectors.toMap(Feature::getName, Function.identity()));
     }
 
-    static void ensurePatternsAllowSuffix(Map<String, Feature> features) {
+    static void ensurePatternsAllowSuffix(List<Feature> features) {
         String suffixPattern = "*" + UPGRADED_INDEX_SUFFIX;
-        final List<String> descriptorsWithNoRoomForSuffix = features.entrySet()
-            .stream()
+        final List<String> descriptorsWithNoRoomForSuffix = features.stream()
             .flatMap(
-                feature -> feature.getValue()
-                    .getIndexDescriptors()
+                feature -> feature.getIndexDescriptors()
                     .stream()
                     // The below filter & map are inside the enclosing flapMap so we have access to both the feature and the descriptor
                     .filter(descriptor -> overlaps(descriptor.getIndexPattern(), suffixPattern) == false)
@@ -130,7 +128,7 @@ public class SystemIndices {
                         descriptor -> new ParameterizedMessage(
                             "pattern [{}] from feature [{}]",
                             descriptor.getIndexPattern(),
-                            feature.getKey()
+                            feature.getName()
                         ).getFormattedMessage()
                     )
             )

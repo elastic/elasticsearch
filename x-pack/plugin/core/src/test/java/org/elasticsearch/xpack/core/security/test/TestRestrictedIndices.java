@@ -65,9 +65,7 @@ public class TestRestrictedIndices {
                 List.of(getMainSecurityDescriptor(), getSecurityTokensDescriptor())
             )
         );
-        features.add(
-            new Feature("async search mock", "fake async search for restricted indices", List.of(getAsyncSearchDescriptor()))
-        );
+        features.add(new Feature("async search mock", "fake async search for restricted indices", List.of(getAsyncSearchDescriptor())));
         features.add(
             new Feature(
                 "kibana-mock",

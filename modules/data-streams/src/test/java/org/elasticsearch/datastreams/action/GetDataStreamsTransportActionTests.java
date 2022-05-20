@@ -23,7 +23,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.getClusterStateWithDataStreams;
 import static org.hamcrest.Matchers.contains;

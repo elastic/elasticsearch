@@ -12,9 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
@@ -208,10 +206,9 @@ public class SystemIndicesTests extends ESTestCase {
         final SystemIndexDescriptor okayDescriptor = new SystemIndexDescriptor(".okay*", "concrete index");
         final SystemIndexDescriptor endsWithNumbersThenWildcard = new SystemIndexDescriptor(".desc[0-9]+*", "concrete index");
 
-        final Map<String, SystemIndices.Feature> features = new HashMap<>();
+        final List<SystemIndices.Feature> features = new ArrayList<>();
         final String firstFeature = "first";
-        features.put(
-            firstFeature,
+        features.add(
             new SystemIndices.Feature(
                 firstFeature,
                 this.getTestName() + " - " + firstFeature,
@@ -219,13 +216,11 @@ public class SystemIndicesTests extends ESTestCase {
             )
         );
         final String secondFeature = "second";
-        features.put(
-            secondFeature,
+        features.add(
             new SystemIndices.Feature(secondFeature, this.getTestName() + " - " + secondFeature, List.of(concreteIndex, okayDescriptor))
         );
         final String thirdFeature = "third";
-        features.put(
-            thirdFeature,
+        features.add(
             new SystemIndices.Feature(thirdFeature, this.getTestName() + " - " + thirdFeature, List.of(endsWithNumbersThenWildcard))
         );
 

@@ -496,13 +496,10 @@ public class Node implements Closeable {
                     SystemIndexMigrationExecutor.getNamedXContentParsers().stream()
                 ).flatMap(Function.identity()).collect(toList())
             );
-            final List<SystemIndices.Feature> features = pluginsService.filterPlugins(SystemIndexPlugin.class)
-                .stream()
-                .map(plugin -> {
-                    SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName());
-                    return SystemIndices.Feature.fromSystemIndexPlugin(plugin, settings);
-                })
-                .toList();
+            final List<SystemIndices.Feature> features = pluginsService.filterPlugins(SystemIndexPlugin.class).stream().map(plugin -> {
+                SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName());
+                return SystemIndices.Feature.fromSystemIndexPlugin(plugin, settings);
+            }).toList();
             final SystemIndices systemIndices = new SystemIndices(features);
             final ExecutorSelector executorSelector = systemIndices.getExecutorSelector();
 

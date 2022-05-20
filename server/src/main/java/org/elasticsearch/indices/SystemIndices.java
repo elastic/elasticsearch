@@ -84,11 +84,10 @@ public class SystemIndices {
 
     /**
      * Initialize the SystemIndices object
-     * @param pluginAndModulesDescriptors A map of this node's feature names to
-     *                                    feature objects.
+     * @param features A list of features from which we will load system indices
      */
-    public SystemIndices(Map<String, Feature> pluginAndModulesDescriptors) {
-        featureDescriptors = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
+    public SystemIndices(List<Feature> features) {
+        featureDescriptors = buildSystemIndexDescriptorMap(features);
         indexDescriptors = featureDescriptors.values()
             .stream()
             .flatMap(f -> f.getIndexDescriptors().stream())
@@ -577,9 +576,9 @@ public class SystemIndices {
         return Operations.isEmpty(Operations.intersection(a1Automaton, a2Automaton)) == false;
     }
 
-    private static Map<String, Feature> buildSystemIndexDescriptorMap(Map<String, Feature> featuresMap) {
-        final Map<String, Feature> map = Maps.newMapWithExpectedSize(featuresMap.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size());
-        map.putAll(featuresMap);
+    private static Map<String, Feature> buildSystemIndexDescriptorMap(List<Feature> features) {
+        final Map<String, Feature> map = Maps.newMapWithExpectedSize(features.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size());
+        features.forEach(f -> map.put(f.getName(), f));
         // put the server items last since we expect less of them
         SERVER_SYSTEM_INDEX_DESCRIPTORS.forEach((source, feature) -> {
             if (map.putIfAbsent(source, feature) != null) {

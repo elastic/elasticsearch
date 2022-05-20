@@ -334,14 +334,28 @@ public class SystemIndices {
         return automaton::run;
     }
 
+    /**
+     * Get a set of feature names. This is useful for checking whether particular
+     * features are present on the node.
+     * @return A set of all feature names
+     */
     public Set<String> getFeatureNames() {
         return featureDescriptors.keySet();
     }
 
+    /**
+     * Get a feature by name.
+     * @param name Name of a feature.
+     * @return The corresponding feature if it exists on this node, null otherwise.
+     */
     public Feature getFeature(String name) {
         return featureDescriptors.get(name);
     }
 
+    /**
+     * Get a collection of the Features this SystemIndices object is managing.
+     * @return A collection of Features.
+     */
     public Collection<Feature> getFeatures() {
         return featureDescriptors.values();
     }
@@ -515,7 +529,7 @@ public class SystemIndices {
      * Given a collection of {@link SystemIndexDescriptor}s and their sources, checks to see if the index patterns of the listed
      * descriptors overlap with any of the other patterns. If any do, throws an exception.
      *
-     * @param featureDescriptors A list of Features that will provide SystemIndexDescriptors
+     * @param featureDescriptors A map of feature names to the Features that will provide SystemIndexDescriptors
      * @throws IllegalStateException Thrown if any of the index patterns overlaps with another.
      */
     static void checkForOverlappingPatterns(Map<String, Feature> featureDescriptors) {

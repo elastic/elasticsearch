@@ -1,5 +1,4 @@
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
@@ -76,6 +75,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search/340_type_query/type query", "#47207 type query throws exception in compatible mode")
   task.skipTest("search.aggregation/210_top_hits_nested_metric/top_hits aggregation with sequence numbers", "#42809 the use nested path and filter sort throws an exception")
   task.skipTest("search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception", "#42654 cutoff_frequency, common terms are not supported. Throwing an exception")
+  task.skipTest("search_shards/10_basic/Search shards aliases with and without filters", "Filter representation no longer outputs default boosts")
   task.skipTest("search.aggregation/20_terms/string profiler via global ordinals filters implementation", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/string profiler via global ordinals native implementation", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/string profiler via map", "The profiler results aren't backwards compatible.")

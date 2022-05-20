@@ -59,6 +59,10 @@ class PluginBundle {
         return urls;
     }
 
+    boolean hasSPI() {
+        return spiUrls != null;
+    }
+
     Set<URL> getExtensionUrls() {
         if (spiUrls != null) {
             return spiUrls;

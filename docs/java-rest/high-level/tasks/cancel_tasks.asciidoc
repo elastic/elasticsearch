@@ -9,7 +9,7 @@ A `CancelTasksRequest`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/TasksClientDocumentationIT.java[cancel-tasks-request]
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-request]
 --------------------------------------------------
 There are no required parameters. The task cancellation command supports the same
 task selection parameters as the list tasks command.
@@ -18,7 +18,7 @@ task selection parameters as the list tasks command.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/TasksClientDocumentationIT.java[cancel-tasks-request-filter]
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-request-filter]
 --------------------------------------------------
 <1> Cancel a task
 <2> Cancel only cluster-related tasks
@@ -30,7 +30,7 @@ Otherwise, the request can return soon after the cancellation is started. Defaul
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/TasksClientDocumentationIT.java[cancel-tasks-execute]
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-execute]
 --------------------------------------------------
 
 ==== Asynchronous Execution
@@ -40,7 +40,7 @@ The asynchronous execution requires `CancelTasksRequest` instance and an
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/TasksClientDocumentationIT.java[cancel-tasks-execute-async]
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-execute-async]
 --------------------------------------------------
 <1> The `CancelTasksRequest` to execute and the `ActionListener` to use
 when the execution completes
@@ -54,7 +54,7 @@ A typical listener for `CancelTasksResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/TasksClientDocumentationIT.java[cancel-tasks-execute-listener]
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument
@@ -64,20 +64,20 @@ provided as an argument
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/TasksClientDocumentationIT.java[cancel-tasks-response-tasks]
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-response-tasks]
 --------------------------------------------------
 <1> List of cancelled tasks
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/TasksClientDocumentationIT.java[cancel-tasks-response-calc]
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-response-calc]
 --------------------------------------------------
 <1> List of cancelled tasks grouped by a node
 <2> List of cancelled tasks grouped by a parent task
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/TasksClientDocumentationIT.java[cancel-tasks-response-failures]
+include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-response-failures]
 --------------------------------------------------
 <1> List of node failures
 <2> List of task cancellation failures

@@ -10,7 +10,7 @@ A `DeleteSnapshotRequest`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[delete-snapshot-request]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-snapshot-request]
 --------------------------------------------------
 
 ==== Optional Arguments
@@ -18,7 +18,7 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[delete-snapshot-request-masterTimeout]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-snapshot-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
@@ -28,7 +28,7 @@ include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[delete-snapsho
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[delete-snapshot-execute]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-snapshot-execute]
 --------------------------------------------------
 
 [[java-rest-high-snapshot-delete-snapshot-async]]
@@ -40,7 +40,7 @@ passed to the asynchronous method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[delete-snapshot-execute-async]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-snapshot-execute-async]
 --------------------------------------------------
 <1> The `DeleteSnapshotRequest` to execute and the `ActionListener`
 to use when the execution completes
@@ -54,7 +54,7 @@ A typical listener for `DeleteSnapshotResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[delete-snapshot-execute-listener]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-snapshot-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument
@@ -68,6 +68,6 @@ executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[delete-snapshot-response]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-snapshot-response]
 --------------------------------------------------
 <1> Indicates the node has acknowledged the request

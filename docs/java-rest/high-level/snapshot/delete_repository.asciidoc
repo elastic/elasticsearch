@@ -10,7 +10,7 @@ A `DeleteRepositoryRequest`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[delete-repository-request]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-repository-request]
 --------------------------------------------------
 
 ==== Optional Arguments
@@ -18,7 +18,7 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-request-timeout]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-request-timeout]
 --------------------------------------------------
 <1> Timeout to wait for the all the nodes to acknowledge the settings were applied
 as a `TimeValue`
@@ -27,7 +27,7 @@ as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[delete-repository-request-masterTimeout]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-repository-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
@@ -37,7 +37,7 @@ include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[delete-reposit
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[delete-repository-execute]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-repository-execute]
 --------------------------------------------------
 
 [[java-rest-high-snapshot-delete-repository-async]]
@@ -49,7 +49,7 @@ passed to the asynchronous method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[delete-repository-execute-async]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-repository-execute-async]
 --------------------------------------------------
 <1> The `DeleteRepositoryRequest` to execute and the `ActionListener`
 to use when the execution completes
@@ -63,7 +63,7 @@ A typical listener for `DeleteRepositoryResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[delete-repository-execute-listener]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-repository-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument
@@ -77,6 +77,6 @@ executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[delete-repository-response]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-repository-response]
 --------------------------------------------------
 <1> Indicates the node has acknowledged the request

@@ -9,7 +9,7 @@ method.
 
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------
-include-tagged::{doc-tests-it}/LicensingDocumentationIT.java[start-trial-execute]
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-trial-execute]
 ---------------------------------------------------
 <1> Sets the "acknowledge" parameter to true, indicating the user has
 acknowledged that starting a trial license may affect commercial features
@@ -31,7 +31,7 @@ necessary to check the `acknowledged` flag.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/LicensingDocumentationIT.java[start-trial-response]
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-trial-response]
 --------------------------------------------------
 <1> Whether or not the request had the `acknowledge` flag set
 <2> Whether or not this request caused a trial to start
@@ -51,7 +51,7 @@ This request can be executed asynchronously:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/LicensingDocumentationIT.java[start-trial-execute-async]
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-trial-execute-async]
 --------------------------------------------------
 
 The asynchronous method does not block and returns immediately. Once it is
@@ -63,7 +63,7 @@ A typical listener for `StartTrialResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/LicensingDocumentationIT.java[start-trial-execute-listener]
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-trial-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

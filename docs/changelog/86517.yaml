@@ -1,0 +1,18 @@
+pr: 86517
+summary: Enable HLRC compatibility mode by default
+area: Java High Level REST Client
+type: "breaking"
+issues: []
+breaking:
+  title: Enable HLRC compatibility mode by default
+  area: REST API
+  details: |-
+    Compatibility mode allows HLRC to communicate with {es} 8.x by sending version information in the `Content-Type` and `Accept`
+    request headers, which causes {es} 8 to behave like {es} 7. As this feature isn't very well known, a number of users had
+    the wrong impression that HLRC 7.17 was not working with {es} 8.
+
+    Compatibility mode is now enabled by default, allowing it to work out of the box with {es} 8.
+  impact: |-
+    Compatibilty mode was introduced in {es} 7.11. Using HLRC 7.17.4 with {es} 7.10 and before therefore requires to disable
+    compatibility mode when creating an HLRC instance.
+  notable: true

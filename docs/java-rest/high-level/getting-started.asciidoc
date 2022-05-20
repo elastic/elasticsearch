@@ -33,7 +33,7 @@ major version.
 
 *Compatibility with Elasticsearch 8.x*
 
-The High Level Client version 7.16 and higher can communicate with Elasticsearch version 8.x after enabling API compatibility mode. When this mode is enabled, the client will send HTTP headers that instruct Elasticsearch 8.x to honor 7.x request/responses.
+The High Level Client version 7.16 and higher can communicate with Elasticsearch version 8.x after enabling API compatibility mode. When this mode enabled, the client will send HTTP headers that instruct Elasticsearch 8.x to honor 7.x request/responses.
 
 Compatibility mode is enabled as follows:
 
@@ -45,6 +45,8 @@ RestHighLevelClient esClient = new RestHighLevelClientBuilder(restClient)
 --------------------------------------------------
 
 When compatibility mode is enabled, the client can also communicate with Elasticsearch version 7.11 and higher.
+
+NOTE: Starting with version 7.17.4, compatibility mode is enabled by default.
 
 [[java-rest-high-javadoc]]
 === Javadoc
@@ -162,7 +164,7 @@ to be built as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/MiscellaneousDocumentationIT.java[rest-high-level-client-init]
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-init]
 --------------------------------------------------
 
 The high-level client will internally create the low-level client used to
@@ -174,7 +176,7 @@ resources. This can be done through the `close`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/MiscellaneousDocumentationIT.java[rest-high-level-client-close]
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-close]
 --------------------------------------------------
 
 In the rest of this documentation about the Java High Level Client, the `RestHighLevelClient` instance

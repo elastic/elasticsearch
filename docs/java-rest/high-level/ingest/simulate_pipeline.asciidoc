@@ -10,7 +10,7 @@ for more details on the request body.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[simulate-pipeline-request]
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[simulate-pipeline-request]
 --------------------------------------------------
 <1> The request body as a `ByteArray`.
 <2> The XContentType for the request body supplied above.
@@ -20,14 +20,14 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[simulate-pipeline-request-pipeline-id]
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[simulate-pipeline-request-pipeline-id]
 --------------------------------------------------
 <1> You can either specify an existing pipeline to execute against the provided documents, or supply a
 pipeline definition in the body of the request. This option sets the id for an existing pipeline.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[simulate-pipeline-request-verbose]
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[simulate-pipeline-request-verbose]
 --------------------------------------------------
 <1> To see the intermediate results of each processor in the simulate request, you can add the verbose parameter
 to the request.
@@ -37,7 +37,7 @@ to the request.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[simulate-pipeline-execute]
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[simulate-pipeline-execute]
 --------------------------------------------------
 <1> Execute the request and get back the response in a `SimulatePipelineResponse` object.
 
@@ -50,7 +50,7 @@ method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[simulate-pipeline-execute-async]
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[simulate-pipeline-execute-async]
 --------------------------------------------------
 <1> The `SimulatePipelineRequest` to execute and the `ActionListener` to use when
 the execution completes
@@ -64,7 +64,7 @@ A typical listener for `SimulatePipelineResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[simulate-pipeline-execute-listener]
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[simulate-pipeline-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument
@@ -78,7 +78,7 @@ The returned `SimulatePipelineResponse` allows to retrieve information about the
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/IngestClientDocumentationIT.java[simulate-pipeline-response]
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[simulate-pipeline-response]
 --------------------------------------------------
 <1> Get results for each of the documents provided as instance of `List<SimulateDocumentResult>`.
 <2> If the request was in verbose mode cast the response to `SimulateDocumentVerboseResult`.

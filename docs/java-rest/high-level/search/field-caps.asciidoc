@@ -15,7 +15,7 @@ will cause all fields that match the expression to be returned.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[field-caps-request]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[field-caps-request]
 --------------------------------------------------
 
 [[java-rest-high-field-caps-request-optional]]
@@ -23,7 +23,7 @@ include-tagged::{doc-tests-it}/SearchDocumentationIT.java[field-caps-request]
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[field-caps-request-indicesOptions]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[field-caps-request-indicesOptions]
 --------------------------------------------------
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and
 how wildcard expressions are expanded.
@@ -35,7 +35,7 @@ The `fieldCaps` method executes the request synchronously:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[field-caps-execute]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[field-caps-execute]
 --------------------------------------------------
 
 [[java-rest-high-field-caps-async]]
@@ -46,7 +46,7 @@ calling the provided `ActionListener` when the response is ready:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[field-caps-execute-async]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[field-caps-execute-async]
 --------------------------------------------------
 <1> The `FieldCapabilitiesRequest` to execute and the `ActionListener` to use when
 the execution completes.
@@ -60,7 +60,7 @@ A typical listener for `FieldCapabilitiesResponse` is constructed as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[field-caps-execute-listener]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[field-caps-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed.
 <2> Called when the whole `FieldCapabilitiesRequest` fails.
@@ -74,7 +74,7 @@ information about how each index contributes to the field's capabilities.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[field-caps-response]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[field-caps-response]
 --------------------------------------------------
 <1> A map with entries for the field's possible types, in this case `keyword` and `text`.
 <2> All indices where the `user` field has type `keyword`.

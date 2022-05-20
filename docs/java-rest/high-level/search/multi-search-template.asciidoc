@@ -12,7 +12,7 @@ you wish to execute to it:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[multi-search-template-request-inline]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-template-request-inline]
 --------------------------------------------------
 <1> Create an empty `MultiSearchTemplateRequest`.
 <2> Create one or more `SearchTemplateRequest` objects and populate them just like you
@@ -32,7 +32,7 @@ The `multiSearchTemplate` method executes `MultiSearchTemplateRequest`s synchron
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[multi-search-template-request-sync]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-template-request-sync]
 --------------------------------------------------
 
 [[java-rest-high-multi-search-template-async]]
@@ -43,7 +43,7 @@ calling the provided `ActionListener` when the response is ready.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[multi-search-template-execute-async]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-template-execute-async]
 --------------------------------------------------
 The parameters are the `MultiSearchTemplateRequest` to execute and the `ActionListener` to use when
 the execution completes
@@ -57,7 +57,7 @@ A typical listener for `MultiSearchTemplateResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[multi-search-template-execute-listener]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-template-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed.
 <2> Called when the whole `MultiSearchTemplateRequest` fails.
@@ -73,7 +73,7 @@ the request succeeded:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[multi-search-template-response]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-template-response]
 --------------------------------------------------
 <1> An array of responses is returned - one response for each request
 <2> Failed search template requests have error messages

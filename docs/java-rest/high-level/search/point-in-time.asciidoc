@@ -7,7 +7,7 @@ An OpenPointInTimeRequest requires an `index` and `keepAlive` arguments:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[open-point-in-time]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[open-point-in-time]
 --------------------------------------------------
 <1> Create an `OpenPointInTimeRequest` with the target indices
 <2> Set the `keep_alive` - a required parameter, which tells
@@ -20,20 +20,20 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[open-point-in-time-indices-option]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[open-point-in-time-indices-option]
 --------------------------------------------------
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and
 how wildcard expressions are expanded
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[open-point-in-time-routing]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[open-point-in-time-routing]
 --------------------------------------------------
 <1> Set a routing parameter
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[open-point-in-time-preference]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[open-point-in-time-preference]
 --------------------------------------------------
 <1> Use the preference parameter e.g. to execute the search to prefer local
 shards. The default is to randomize across shards.
@@ -44,7 +44,7 @@ which requires a point in time ID returned from the open API.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[search-point-in-time]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-point-in-time]
 --------------------------------------------------
 <1> Create a PointInTimeBuilder with a PIT id
 <2> (Optional) Set the keep alive of a point in time
@@ -62,6 +62,6 @@ A ClosePointInTime request requires a point in time id argument:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[close-point-in-time]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[close-point-in-time]
 --------------------------------------------------
 <1> Create a close point in time request with a PIT id

@@ -132,7 +132,7 @@ and add it as a dependency. As an example, we will use the `slf4j-simple` logger
 --------------------------------------------------
 
 :client-tests: {elasticsearch-root}/server/src/internalClusterTest/java/org/elasticsearch/client/documentation
-:hlrc-tests: {elasticsearch-root}/client/rest-high-level/src/javaRestTest/java/org/elasticsearch/client
+:hlrc-tests: {elasticsearch-root}/client/rest-high-level/src/test/java/org/elasticsearch/client
 
 :client-reindex-tests: {elasticsearch-root}/modules/reindex/src/internalClusterTest/java/org/elasticsearch/client/documentation
 

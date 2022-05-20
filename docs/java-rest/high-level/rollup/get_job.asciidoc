@@ -16,7 +16,7 @@ rollup jobs or with a job name to get a single job:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-job-request]
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-job-request]
 --------------------------------------------------
 <1> Gets all jobs.
 <2> Gets `job_1`.
@@ -30,7 +30,7 @@ using the `rollup()` method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-job-execute]
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-job-execute]
 --------------------------------------------------
 
 [[java-rest-high-x-pack-rollup-get-rollup-job-response]]
@@ -42,7 +42,7 @@ statistics about the job's past execution.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-job-response]
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-job-response]
 --------------------------------------------------
 <1> We only asked for a single job
 
@@ -53,7 +53,7 @@ This request can be executed asynchronously:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-job-execute-async]
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-job-execute-async]
 --------------------------------------------------
 <1> The `GetRollupJobRequest` to execute and the `ActionListener` to use when
 the execution completes
@@ -67,7 +67,7 @@ A typical listener for `GetRollupJobResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-job-execute-listener]
+include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-get-rollup-job-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

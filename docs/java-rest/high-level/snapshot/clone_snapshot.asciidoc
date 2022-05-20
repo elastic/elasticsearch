@@ -10,7 +10,7 @@ A `CloneSnapshotRequest`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[clone-snapshot-request]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-request]
 --------------------------------------------------
 
 ==== Indices to Clone
@@ -20,7 +20,7 @@ in the snapshot clone:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[clone-snapshot-request-indices]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-request-indices]
 --------------------------------------------------
 <1> Include only `test_index` from the source snapshot.
 
@@ -30,7 +30,7 @@ You can also customize index settings and options when cloning a snapshot:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[clone-snapshot-request-index-settings]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-request-index-settings]
 --------------------------------------------------
 <1> Set `IndicesOptions.Option.IGNORE_UNAVAILABLE` in `#indicesOptions()` to
     have the clone succeed even if indices are missing in the source snapshot.
@@ -41,7 +41,7 @@ You can also provide the following optional arguments:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[clone-snapshot-request-masterTimeout]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
@@ -51,7 +51,7 @@ include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[clone-snapshot
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[clone-snapshot-execute]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-execute]
 --------------------------------------------------
 
 [[java-rest-high-snapshot-clone-snapshot-async]]
@@ -63,7 +63,7 @@ passed to the asynchronous method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[clone-snapshot-execute-async]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-execute-async]
 --------------------------------------------------
 <1> The `CloneSnapshotRequest` to execute and the `ActionListener`
 to use when the execution completes
@@ -77,7 +77,7 @@ A typical listener for `AcknowledgedResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[clone-snapshot-execute-listener]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
     provided as an argument.
@@ -90,6 +90,6 @@ include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[clone-snapshot
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[clone-snapshot-response]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-response]
 --------------------------------------------------
 <1> A boolean value of `true` if the clone successfully completed. Otherwise, the value is `false`.

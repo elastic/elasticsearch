@@ -8,7 +8,7 @@ This API creates and enables a basic license using the `startBasic()` method.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/LicensingDocumentationIT.java[start-basic-execute]
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-basic-execute]
 --------------------------------------------------
 
 [[java-rest-high-start-basic-response]]
@@ -28,7 +28,7 @@ necessary to check the `acknowledged` flag.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/LicensingDocumentationIT.java[start-basic-response]
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-basic-response]
 --------------------------------------------------
 <1> Whether or not the request had the `acknowledge` flag set
 <2> Whether or not this request caused a basic to start
@@ -46,7 +46,7 @@ This request can be executed asynchronously:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/LicensingDocumentationIT.java[start-basic-execute-async]
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-basic-execute-async]
 --------------------------------------------------
 <1> The `StartBasicResponse` to execute and the `ActionListener` to use when
 the execution completes
@@ -60,7 +60,7 @@ A typical listener for `StartBasicResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/LicensingDocumentationIT.java[start-basic-listener]
+include-tagged::{doc-tests}/LicensingDocumentationIT.java[start-basic-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

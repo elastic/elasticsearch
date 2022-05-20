@@ -9,5 +9,5 @@ process requests and returns a boolean:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/MiscellaneousDocumentationIT.java[ping-execute]
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[ping-execute]
 --------------------------------------------------

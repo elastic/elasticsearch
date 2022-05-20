@@ -28,8 +28,7 @@ the same response objects.
 --
 
 :doc-tests: {elasticsearch-root}/client/rest-high-level/src/test/java/org/elasticsearch/client/documentation
-:doc-tests-it: {elasticsearch-root}/client/rest-high-level/src/javaRestTest/java/org/elasticsearch/client/documentation
-:hlrc-tests: {elasticsearch-root}/client/rest-high-level/src/javaRestTest/java/org/elasticsearch/client
+:hlrc-tests: {elasticsearch-root}/client/rest-high-level/src/test/java/org/elasticsearch/client
 
 include::getting-started.asciidoc[]
 include::supported-apis.asciidoc[]

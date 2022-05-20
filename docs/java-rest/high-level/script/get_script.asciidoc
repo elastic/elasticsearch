@@ -9,7 +9,7 @@ A `GetStoredScriptRequest` requires an `id`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/StoredScriptsDocumentationIT.java[get-stored-script-request]
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-request]
 --------------------------------------------------
 <1> The id of the script
 
@@ -18,7 +18,7 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/StoredScriptsDocumentationIT.java[get-stored-script-request-masterTimeout]
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
@@ -27,7 +27,7 @@ include-tagged::{doc-tests-it}/StoredScriptsDocumentationIT.java[get-stored-scri
 ==== Synchronous Execution
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/StoredScriptsDocumentationIT.java[get-stored-script-execute]
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-execute]
 --------------------------------------------------
 
 [[java-rest-high-get-stored-script-async]]
@@ -38,7 +38,7 @@ instance and an `ActionListener` instance to be passed to the asynchronous metho
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/StoredScriptsDocumentationIT.java[get-stored-script-execute-async]
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-execute-async]
 --------------------------------------------------
 <1> The `GetStoredScriptRequest` to execute and the `ActionListener` to use when
 the execution completes
@@ -55,7 +55,7 @@ A typical listener for `GetStoredScriptResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/StoredScriptsDocumentationIT.java[get-stored-script-execute-listener]
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument
@@ -69,7 +69,7 @@ executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/StoredScriptsDocumentationIT.java[get-stored-script-response]
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-response]
 --------------------------------------------------
 <1> The script object consists of a content and a metadata
 <2> The language the script is written in, which defaults to `painless`.

@@ -10,7 +10,7 @@ method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[disable-user-execute]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[disable-user-execute]
 --------------------------------------------------
 
 [[java-rest-high-security-disable-user-response]]
@@ -25,7 +25,7 @@ This request can be executed asynchronously:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[disable-user-execute-async]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[disable-user-execute-async]
 --------------------------------------------------
 <1> The `DisableUser` request to execute and the `ActionListener` to use when
 the execution completes.
@@ -39,7 +39,7 @@ A typical listener for a `Boolean` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[disable-user-execute-listener]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[disable-user-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument.

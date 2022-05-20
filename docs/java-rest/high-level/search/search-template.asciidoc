@@ -13,7 +13,7 @@ In the most basic form of request, the search template is specified inline:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[search-template-request-inline]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-template-request-inline]
 --------------------------------------------------
 <1> The search is executed against the `posts` index.
 <2> The template defines the structure of the search source. It is passed
@@ -28,14 +28,14 @@ example we use the low-level REST client.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[register-script]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[register-script]
 --------------------------------------------------
 
 Instead of providing an inline script, we can refer to this registered template in the request:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[search-template-request-stored]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-template-request-stored]
 --------------------------------------------------
 
 ===== Rendering Templates
@@ -44,7 +44,7 @@ Given parameter values, a template can be rendered without executing a search:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[render-search-template-request]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[render-search-template-request]
 --------------------------------------------------
 <1> Setting `simulate` to `true` causes the search template to only be rendered.
 
@@ -56,7 +56,7 @@ As in standard search requests, the `explain` and `profile` options are supporte
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[search-template-request-options]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-template-request-options]
 --------------------------------------------------
 
 ===== Additional References
@@ -70,7 +70,7 @@ The `searchTemplate` method executes the request synchronously:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[search-template-execute]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-template-execute]
 --------------------------------------------------
 
 ==== Asynchronous Execution
@@ -80,7 +80,7 @@ method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[search-template-execute-async]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-template-execute-async]
 --------------------------------------------------
 <1> The `SearchTemplateRequest` to execute and the `ActionListener` to call when the execution completes.
 
@@ -92,7 +92,7 @@ A typical listener for `SearchTemplateResponse` is constructed as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[search-template-execute-listener]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-template-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed.
 <2> Called when the whole `SearchTemplateRequest` fails.
@@ -104,7 +104,7 @@ with the result of executing the search:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[search-template-response]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-template-response]
 --------------------------------------------------
 
 If `simulate` was set to `true` in the request, then the response
@@ -112,6 +112,6 @@ will contain the rendered search source instead of a `SearchResponse`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SearchDocumentationIT.java[render-search-template-response]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[render-search-template-response]
 --------------------------------------------------
 <1> The rendered source in bytes, in our example `{"query": { "match" : { "title" : "elasticsearch" }}, "size" : 5}`.

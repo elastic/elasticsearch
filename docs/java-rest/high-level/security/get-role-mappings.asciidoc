@@ -10,7 +10,7 @@ method and by setting role mapping name on `GetRoleMappingsRequest`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[get-role-mappings-execute]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[get-role-mappings-execute]
 --------------------------------------------------
 
 Retrieving multiple role mappings can be performed using the `security.getRoleMappings()`
@@ -18,7 +18,7 @@ method and by setting role mapping names on `GetRoleMappingsRequest`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[get-role-mappings-list-execute]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[get-role-mappings-list-execute]
 --------------------------------------------------
 
 Retrieving all role mappings can be performed using the `security.getRoleMappings()`
@@ -26,7 +26,7 @@ method and with no role mapping name on `GetRoleMappingsRequest`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[get-role-mappings-all-execute]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[get-role-mappings-all-execute]
 --------------------------------------------------
 
 [[java-rest-high-security-get-role-mappings-response]]
@@ -36,7 +36,7 @@ The returned `GetRoleMappingsResponse` contains the list of role mapping(s).
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[get-role-mappings-response]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[get-role-mappings-response]
 --------------------------------------------------
 
 [[java-rest-high-security-get-role-mappings-async]]
@@ -47,7 +47,7 @@ method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[get-role-mappings-execute-async]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[get-role-mappings-execute-async]
 --------------------------------------------------
 <1> The `GetRoleMappingsRequest` to execute and the `ActionListener` to use when
 the execution completes
@@ -61,7 +61,7 @@ A typical listener for a `GetRoleMappingsResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[get-role-mappings-execute-listener]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[get-role-mappings-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

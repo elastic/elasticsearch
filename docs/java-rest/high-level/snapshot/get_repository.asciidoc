@@ -10,7 +10,7 @@ A `GetRepositoriesRequest`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[get-repository-request]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-request]
 --------------------------------------------------
 
 ==== Optional Arguments
@@ -18,13 +18,13 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[get-repository-request-repositories]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-request-repositories]
 --------------------------------------------------
 <1> Sets the repositories to retrieve
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[get-repository-request-local]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-request-local]
 --------------------------------------------------
 <1> The `local` flag (defaults to `false`) controls whether the repositories need
 to be looked up in the local cluster state or in the cluster state held by
@@ -32,7 +32,7 @@ the elected master node
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[get-repository-request-masterTimeout]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
@@ -42,7 +42,7 @@ include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[get-repository
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[get-repository-execute]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-execute]
 --------------------------------------------------
 
 [[java-rest-high-snapshot-get-repository-async]]
@@ -54,7 +54,7 @@ passed to the asynchronous method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[get-repository-execute-async]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-execute-async]
 --------------------------------------------------
 <1> The `GetRepositoriesRequest` to execute and the `ActionListener`
 to use when the execution completes
@@ -68,7 +68,7 @@ A typical listener for `GetRepositoriesResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[get-repository-execute-listener]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument
@@ -82,5 +82,5 @@ executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[get-repository-response]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-repository-response]
 --------------------------------------------------

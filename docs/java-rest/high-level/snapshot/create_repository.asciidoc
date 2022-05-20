@@ -10,7 +10,7 @@ A `PutRepositoryRequest`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-request]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-request]
 --------------------------------------------------
 
 ==== Repository Settings
@@ -18,7 +18,7 @@ Settings requirements will differ based on the repository backend chosen.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-request-repository-settings]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-request-repository-settings]
 --------------------------------------------------
 <1> Sets the repository settings
 
@@ -27,25 +27,25 @@ The settings to be applied can be provided in different ways:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-create-settings]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-create-settings]
 --------------------------------------------------
 <1> Settings provided as `Settings`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-settings-builder]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-settings-builder]
 --------------------------------------------------
 <1> Settings provided as `Settings.Builder`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-settings-source]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-settings-source]
 --------------------------------------------------
 <1> Settings provided as `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-settings-map]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-settings-map]
 --------------------------------------------------
 <1> Settings provided as a `Map`
 
@@ -54,13 +54,13 @@ The following arguments must be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-request-name]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-request-name]
 --------------------------------------------------
 <1> The name of the repository
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-request-type]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-request-type]
 --------------------------------------------------
 <1> The type of the repository
 
@@ -69,7 +69,7 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-request-timeout]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-request-timeout]
 --------------------------------------------------
 <1> Timeout to wait for the all the nodes to acknowledge the settings were applied
 as a `TimeValue`
@@ -78,14 +78,14 @@ as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-request-masterTimeout]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-request-verify]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-request-verify]
 --------------------------------------------------
 <1> Verify after creation as a `Boolean`
 
@@ -94,7 +94,7 @@ include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-reposit
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-execute]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-execute]
 --------------------------------------------------
 
 [[java-rest-high-snapshot-create-repository-async]]
@@ -106,7 +106,7 @@ passed to the asynchronous method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-execute-async]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-execute-async]
 --------------------------------------------------
 <1> The `PutRepositoryRequest` to execute and the `ActionListener`
 to use when the execution completes
@@ -120,7 +120,7 @@ A typical listener for `PutRepositoryResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-execute-listener]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument
@@ -134,6 +134,6 @@ executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SnapshotClientDocumentationIT.java[create-repository-response]
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-response]
 --------------------------------------------------
 <1> Indicates the node has acknowledged the request

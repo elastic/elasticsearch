@@ -10,19 +10,19 @@ The `CreateTokenRequest` supports three different OAuth2 _grant types_:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[create-token-password-request]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[create-token-password-request]
 --------------------------------------------------
 
 ===== Refresh Token Grants
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[create-token-refresh-request]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[create-token-refresh-request]
 --------------------------------------------------
 
 ===== Client Credential Grants
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[create-token-client-credentials-request]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[create-token-client-credentials-request]
 --------------------------------------------------
 
 [[java-rest-high-security-create-token-execution]]
@@ -33,7 +33,7 @@ Creating a OAuth2 security token can be performed by passing the appropriate req
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[create-token-execute]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[create-token-execute]
 --------------------------------------------------
 
 [[java-rest-high-security-create-token-response]]
@@ -54,7 +54,7 @@ The returned `CreateTokenResponse` contains the following properties:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[create-token-response]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[create-token-response]
 --------------------------------------------------
 <1> The `accessToken` can be used to authentication to Elasticsearch.
 <2> The `refreshToken` can be used in to create a new `CreateTokenRequest` with a `refresh_token` grant.
@@ -67,7 +67,7 @@ method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[create-token-execute-async]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[create-token-execute-async]
 --------------------------------------------------
 <1> The `CreateTokenRequest` to execute and the `ActionListener` to use when
 the execution completes
@@ -81,7 +81,7 @@ A typical listener for a `CreateTokenResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-it}/SecurityDocumentationIT.java[create-token-execute-listener]
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[create-token-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

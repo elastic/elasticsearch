@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -382,6 +383,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             state,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
+            DesiredNodes.MembershipInformation.EMPTY,
             System.nanoTime()
         );
         allocation.setDebugMode(RoutingAllocation.DebugMode.ON);

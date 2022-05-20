@@ -181,7 +181,7 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
         );
     }
 
-    public static final class MembershipInformation {
+    public static class MembershipInformation {
         public static final MembershipInformation EMPTY = new MembershipInformation(null, Set.of());
 
         private final DesiredNodes desiredNodes;

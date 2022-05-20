@@ -285,7 +285,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             info,
             null,
             Set.of(),
-            Set.of()
+            Set.of(),
+            null
         );
 
         assertThat(allocationState.sizeOf(subjectShard), equalTo(expected));
@@ -361,7 +362,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             shardSizeInfo,
             Set.of(),
-            Set.of()
+            Set.of(),
+            DesiredNodes.MembershipInformation.EMPTY
         );
 
         assertThat(allocationState.sizeOf(primaryShard), equalTo(expected));
@@ -452,7 +454,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             info,
             null,
             Set.of(),
-            Set.of()
+            Set.of(),
+            DesiredNodes.MembershipInformation.EMPTY
         );
 
         long result = allocationState.unmovableSize(nodeId, shards);
@@ -527,10 +530,18 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             ClusterInfo.EMPTY,
             null,
             Set.of(),
-            Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
+            Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE),
+            DesiredNodes.MembershipInformation.EMPTY
         );
 
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, randomLong());
+        RoutingAllocation allocation = new RoutingAllocation(
+            allocationDeciders,
+            clusterState,
+            null,
+            null,
+            DesiredNodes.MembershipInformation.EMPTY,
+            randomLong()
+        );
         return allocationState.canRemainOnlyHighestTierPreference(shardRouting, allocation);
     }
 
@@ -630,10 +641,18 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             ClusterInfo.EMPTY,
             null,
             Set.of(),
-            Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
+            Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE),
+            DesiredNodes.MembershipInformation.EMPTY
         );
 
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, randomLong());
+        RoutingAllocation allocation = new RoutingAllocation(
+            allocationDeciders,
+            clusterState,
+            null,
+            null,
+            DesiredNodes.MembershipInformation.EMPTY,
+            randomLong()
+        );
 
         assertThat(allocationState.needsThisTier(shardRouting, allocation), is(expected));
     }

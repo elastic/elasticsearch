@@ -128,6 +128,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             }
 
             @Override
+            public DesiredNodes.MembershipInformation desiredNodesMembershipInformation() {
+                return null;
+            }
+
+            @Override
             public void ensureNotCancelled() {}
         };
         AutoscalingDeciderResult deciderResult = service.scale(Settings.EMPTY, context);
@@ -178,7 +183,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             null,
             Set.of(),
-            Set.of()
+            Set.of(),
+            null
         );
 
         assertThat(allocationState.forecast(Long.MAX_VALUE, System.currentTimeMillis()), Matchers.sameInstance(allocationState));
@@ -210,7 +216,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             randomClusterInfo(state),
             null,
             Sets.newHashSet(state.nodes()),
-            Set.of()
+            Set.of(),
+            null
         );
 
         assertThat(allocationState.forecast(0, lastCreated + between(-3, 1)), Matchers.sameInstance(allocationState));
@@ -254,7 +261,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             info,
             null,
             Sets.newHashSet(state.nodes()),
-            Set.of()
+            Set.of(),
+            null
         );
 
         for (int window = 0; window < between(1, 20); ++window) {

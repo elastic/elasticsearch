@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.metadata.FakeDesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -416,7 +417,8 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            FakeDesiredNodesMembershipService.INSTANCE
         );
         state = strategy.reroute(state, new AllocationCommands(), true, false).clusterState();
         // the two indices must stay as is, the replicas cannot move to oldNode2 because versions don't match
@@ -489,7 +491,8 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            () -> new SnapshotShardSizeInfo(snapshotShardSizes.build())
+            () -> new SnapshotShardSizeInfo(snapshotShardSizes.build()),
+            FakeDesiredNodesMembershipService.INSTANCE
         );
         state = strategy.reroute(state, new AllocationCommands(), true, false).clusterState();
 
@@ -594,7 +597,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         final ShardRouting primaryShard = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
         final ShardRouting replicaShard = clusterState.routingTable().shardRoutingTable(shardId).replicaShards().get(0);
 
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState, null, null, null, 0);
         routingAllocation.debugDecision(true);
 
         final NodeVersionAllocationDecider allocationDecider = new NodeVersionAllocationDecider();

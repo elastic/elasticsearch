@@ -116,6 +116,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
+            null,
             System.nanoTime()
         );
         allocation.debugDecision(true);
@@ -197,6 +198,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new AllocationDeciders(Collections.singleton(decider)),
             clusterState,
             clusterInfo,
+            null,
             null,
             System.nanoTime()
         );
@@ -320,6 +322,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
+            null,
             System.nanoTime()
         );
         allocation.debugDecision(true);
@@ -394,7 +397,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
         ).metadata(metadata).routingTable(routingTableBuilder.build()).build();
-        RoutingAllocation allocation = new RoutingAllocation(null, clusterState, info, null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(null, clusterState, info, null, null, 0);
 
         final Index index = new Index("test", "1234");
         ShardRouting test_0 = ShardRouting.newUnassigned(
@@ -544,7 +547,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             clusterState.getRoutingTable().index("test").shardsWithState(ShardRoutingState.UNASSIGNED)
         );
 
-        RoutingAllocation allocation = new RoutingAllocation(null, clusterState, info, null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(null, clusterState, info, null, null, 0);
 
         final Index index = new Index("test", "1234");
         ShardRouting test_0 = ShardRouting.newUnassigned(
@@ -616,7 +619,14 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .build();
 
         allocationService.reroute(clusterState, "foo");
-        RoutingAllocation allocationWithMissingSourceIndex = new RoutingAllocation(null, clusterStateWithMissingSourceIndex, info, null, 0);
+        RoutingAllocation allocationWithMissingSourceIndex = new RoutingAllocation(
+            null,
+            clusterStateWithMissingSourceIndex,
+            info,
+            null,
+            null,
+            0
+        );
         assertEquals(42L, getExpectedShardSize(target, 42L, allocationWithMissingSourceIndex));
         assertEquals(42L, getExpectedShardSize(target2, 42L, allocationWithMissingSourceIndex));
     }
@@ -761,6 +771,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
+            null,
             System.nanoTime()
         );
         allocation.debugDecision(true);
@@ -836,6 +847,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new AllocationDeciders(Collections.singleton(decider)),
             clusterState,
             clusterInfo,
+            null,
             null,
             System.nanoTime()
         );

@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -66,6 +67,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             ClusterInfo.EMPTY,
             null,
             AutoscalingMemoryInfo.EMPTY,
+            null,
             () -> {}
         );
         assertThat(resultsMap.keySet(), equalTo(policyNames));
@@ -126,7 +128,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             .build();
 
         assertThat(
-            service.calculate(state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, AutoscalingMemoryInfo.EMPTY, () -> {})
+            service.calculate(state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, AutoscalingMemoryInfo.EMPTY, null, () -> {})
                 .get("test")
                 .results()
                 .keySet(),
@@ -173,12 +175,14 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         SnapshotShardSizeInfo snapshotShardSizeInfo = new SnapshotShardSizeInfo(
             ImmutableOpenMap.<InternalSnapshotsInfoService.SnapshotShard, Long>builder().build()
         );
+        final DesiredNodes.MembershipInformation desiredNodesMembershipInfo = new DesiredNodes.MembershipInformation(null, Set.of());
         AutoscalingDeciderContext context = service.createContext(
             roleNames,
             state,
             info,
             snapshotShardSizeInfo,
             n -> randomNonNegativeLong(),
+            desiredNodesMembershipInfo,
             () -> {}
         );
 
@@ -187,6 +191,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         assertThat(context.currentCapacity(), equalTo(AutoscalingCapacity.ZERO));
         assertThat(context.info(), sameInstance(info));
         assertThat(context.snapshotShardSizeInfo(), sameInstance(snapshotShardSizeInfo));
+        assertThat(context.desiredNodesMembershipInformation(), sameInstance(desiredNodesMembershipInfo));
 
         Set<DiscoveryNodeRole> roles = roleNames.stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Collectors.toSet());
         Set<DiscoveryNodeRole> otherRoles = mutateRoles(roleNames).stream()
@@ -204,6 +209,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             info,
             null,
             n -> memory,
+            null,
             () -> {}
         );
 
@@ -264,6 +270,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             info,
             null,
             n -> memory,
+            null,
             () -> {}
         );
 
@@ -285,6 +292,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 info,
                 null,
                 AutoscalingMemoryInfo.EMPTY,
+                null,
                 () -> {}
             );
             assertThat(context.nodes(), equalTo(expectedNodes));
@@ -311,6 +319,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 info,
                 null,
                 n -> memory,
+                null,
                 () -> {}
             );
             assertThat(context.nodes(), equalTo(expectedNodes));

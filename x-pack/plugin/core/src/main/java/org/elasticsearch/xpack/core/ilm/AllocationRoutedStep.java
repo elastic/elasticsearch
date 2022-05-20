@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -88,7 +89,14 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
     static int getPendingAllocations(Index index, AllocationDeciders allocationDeciders, ClusterState clusterState) {
         // All the allocation attributes are already set so just need to check
         // if the allocation has happened
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, System.nanoTime());
+        RoutingAllocation allocation = new RoutingAllocation(
+            allocationDeciders,
+            clusterState,
+            null,
+            null,
+            DesiredNodes.MembershipInformation.EMPTY,
+            System.nanoTime()
+        );
 
         int allocationPendingAllShards = 0;
 

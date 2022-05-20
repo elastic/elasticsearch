@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ShutdownPersistentTasksStatus;
@@ -60,6 +61,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
     private final PluginShutdownService pluginShutdownService;
+    private final DesiredNodesMembershipService desiredNodesMembershipService;
 
     @Inject
     public TransportGetShutdownStatusAction(
@@ -72,7 +74,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         AllocationDeciders allocationDeciders,
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
-        PluginShutdownService pluginShutdownService
+        PluginShutdownService pluginShutdownService,
+        DesiredNodesMembershipService desiredNodesMembershipService
     ) {
         super(
             GetShutdownStatusAction.NAME,
@@ -90,6 +93,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.pluginShutdownService = pluginShutdownService;
+        this.desiredNodesMembershipService = desiredNodesMembershipService;
     }
 
     @Override
@@ -119,7 +123,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                             clusterInfoService,
                             snapshotsInfoService,
                             allocationService,
-                            allocationDeciders
+                            allocationDeciders,
+                            desiredNodesMembershipService
                         ),
                         new ShutdownPersistentTasksStatus(),
                         new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
@@ -144,7 +149,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                             clusterInfoService,
                             snapshotsInfoService,
                             allocationService,
-                            allocationDeciders
+                            allocationDeciders,
+                            desiredNodesMembershipService
                         ),
                         new ShutdownPersistentTasksStatus(),
                         new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
@@ -167,7 +173,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         AllocationService allocationService,
-        AllocationDeciders allocationDeciders
+        AllocationDeciders allocationDeciders,
+        DesiredNodesMembershipService desiredNodesMembershipService
     ) {
         // Only REMOVE-type shutdowns will try to move shards, so RESTART-type shutdowns should immediately complete
         if (SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownType)) {
@@ -220,6 +227,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             currentState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
+            desiredNodesMembershipService.getMembershipInformation(),
             System.nanoTime()
         );
         allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);

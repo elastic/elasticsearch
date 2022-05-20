@@ -982,6 +982,7 @@ public class Node implements Closeable {
                 b.bind(HealthService.class).toInstance(healthService);
                 b.bind(MasterHistoryService.class).toInstance(masterHistoryService);
                 b.bind(StatsRequestLimiter.class).toInstance(statsRequestLimiter);
+                b.bind(DesiredNodesMembershipService.class).toInstance(desiredNodesMembershipService);
             });
 
             if (ReadinessService.enabled(environment)) {

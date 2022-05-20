@@ -152,7 +152,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             threadPool,
             new ActionFilters(new HashSet<>()),
             indexNameExpressionResolver,
-            new AllocationService(null, new TestGatewayAllocator(), null, null, null)
+            new AllocationService(null, new TestGatewayAllocator(), null, null, null, null)
         );
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(action, null, new ClusterHealthRequest().waitForGreenStatus(), listener);

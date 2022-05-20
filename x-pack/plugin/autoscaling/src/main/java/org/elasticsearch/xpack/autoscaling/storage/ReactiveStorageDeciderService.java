@@ -178,6 +178,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         private final Set<DiscoveryNode> nodes;
         private final Set<String> nodeIds;
         private final Set<DiscoveryNodeRole> roles;
+        private final DesiredNodes.MembershipInformation desiredNodesMembershipInformation;
 
         AllocationState(
             AutoscalingDeciderContext context,
@@ -191,7 +192,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 context.info(),
                 context.snapshotShardSizeInfo(),
                 context.nodes(),
-                context.roles()
+                context.roles(),
+                context.desiredNodesMembershipInformation()
             );
         }
 
@@ -202,7 +204,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             ClusterInfo info,
             SnapshotShardSizeInfo shardSizeInfo,
             Set<DiscoveryNode> nodes,
-            Set<DiscoveryNodeRole> roles
+            Set<DiscoveryNodeRole> roles,
+            DesiredNodes.MembershipInformation desiredNodesMembershipInformation
         ) {
             this.state = state;
             this.allocationDeciders = allocationDeciders;
@@ -213,10 +216,18 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             this.nodeIds = nodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
             this.nodeTierPredicate = nodes::contains;
             this.roles = roles;
+            this.desiredNodesMembershipInformation = desiredNodesMembershipInformation;
         }
 
         public long storagePreventsAllocation() {
-            RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
+            RoutingAllocation allocation = new RoutingAllocation(
+                allocationDeciders,
+                state,
+                info,
+                shardSizeInfo,
+                desiredNodesMembershipInformation,
+                System.nanoTime()
+            );
             return StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
                 .filter(shard -> canAllocate(shard, allocation) == false)
                 .filter(shard -> cannotAllocateDueToStorage(shard, allocation))
@@ -225,7 +236,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public long storagePreventsRemainOrMove() {
-            RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
+            RoutingAllocation allocation = new RoutingAllocation(
+                allocationDeciders,
+                state,
+                info,
+                shardSizeInfo,
+                desiredNodesMembershipInformation,
+                System.nanoTime()
+            );
 
             List<ShardRouting> candidates = new LinkedList<>();
             for (RoutingNode routingNode : state.getRoutingNodes()) {
@@ -501,7 +519,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 forecastInfo,
                 shardSizeInfo,
                 nodes,
-                roles
+                roles,
+                desiredNodesMembershipInformation
             );
         }
 

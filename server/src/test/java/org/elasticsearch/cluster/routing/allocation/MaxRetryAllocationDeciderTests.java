@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.metadata.FakeDesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -49,7 +50,8 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            FakeDesiredNodesMembershipService.INSTANCE
         );
     }
 
@@ -187,7 +189,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 new MaxRetryAllocationDecider().canForceAllocatePrimary(
                     unassignedPrimary,
                     null,
-                    new RoutingAllocation(null, clusterState, null, null, 0)
+                    new RoutingAllocation(null, clusterState, null, null, null, 0)
                 )
             );
         }
@@ -211,7 +213,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 new MaxRetryAllocationDecider().canForceAllocatePrimary(
                     unassignedPrimary,
                     null,
-                    new RoutingAllocation(null, clusterState, null, null, 0)
+                    new RoutingAllocation(null, clusterState, null, null, null, 0)
                 )
             );
         }
@@ -251,7 +253,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             new MaxRetryAllocationDecider().canForceAllocatePrimary(
                 routingTable.index("idx").shard(0).shard(0),
                 null,
-                new RoutingAllocation(null, clusterState, null, null, 0)
+                new RoutingAllocation(null, clusterState, null, null, null, 0)
             )
         );
 
@@ -283,7 +285,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             new MaxRetryAllocationDecider().canForceAllocatePrimary(
                 unassignedPrimary,
                 null,
-                new RoutingAllocation(null, clusterState, null, null, 0)
+                new RoutingAllocation(null, clusterState, null, null, null, 0)
             )
         );
     }

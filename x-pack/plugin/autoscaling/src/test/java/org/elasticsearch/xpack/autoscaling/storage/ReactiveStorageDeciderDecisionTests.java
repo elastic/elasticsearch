@@ -556,6 +556,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         }
 
         @Override
+        public DesiredNodes.MembershipInformation desiredNodesMembershipInformation() {
+            return DesiredNodes.MembershipInformation.EMPTY;
+        }
+
+        @Override
         public void ensureNotCancelled() {
 
         }

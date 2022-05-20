@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.DesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -42,6 +43,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
     private final SnapshotsInfoService snapshotsInfoService;
     private final AutoscalingMemoryInfoService memoryInfoService;
     private final AutoscalingLicenseChecker autoscalingLicenseChecker;
+    private final DesiredNodesMembershipService desiredNodesMembershipService;
     private final CapacityResponseCache<GetAutoscalingCapacityAction.Response> responseCache = new CapacityResponseCache<>(
         run -> threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(run),
         this::computeCapacity
@@ -59,7 +61,8 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         final SnapshotsInfoService snapshotsInfoService,
         final AutoscalingMemoryInfoService memoryInfoService,
         final AllocationDeciders allocationDeciders,
-        final AutoscalingLicenseChecker autoscalingLicenseChecker
+        final AutoscalingLicenseChecker autoscalingLicenseChecker,
+        final DesiredNodesMembershipService desiredNodesMembershipService
     ) {
         super(
             GetAutoscalingCapacityAction.NAME,
@@ -77,6 +80,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         this.capacityService = capacityServiceHolder.get(allocationDeciders);
         this.clusterInfoService = clusterInfoService;
         this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
+        this.desiredNodesMembershipService = desiredNodesMembershipService;
         assert this.capacityService != null;
     }
 
@@ -105,6 +109,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
                 clusterInfoService.getClusterInfo(),
                 snapshotsInfoService.snapshotShardSizes(),
                 memoryInfoService.snapshot(),
+                desiredNodesMembershipService.getMembershipInformation(),
                 ensureNotCancelled
             )
         );

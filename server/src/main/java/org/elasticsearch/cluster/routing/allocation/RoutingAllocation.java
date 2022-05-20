@@ -81,9 +81,10 @@ public class RoutingAllocation {
         ClusterState clusterState,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
+        DesiredNodes.MembershipInformation desiredNodesMembershipInformation,
         long currentNanoTime
     ) {
-        this(deciders, null, clusterState, clusterInfo, shardSizeInfo, DesiredNodes.MembershipInformation.EMPTY, currentNanoTime);
+        this(deciders, null, clusterState, clusterInfo, shardSizeInfo, desiredNodesMembershipInformation, currentNanoTime);
     }
 
     /**
@@ -91,6 +92,9 @@ public class RoutingAllocation {
      * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
      * @param routingNodes Routing nodes in the current cluster or {@code null} if using those in the given cluster state
      * @param clusterState cluster state before rerouting
+     * @param clusterInfo information about node disk usage and shard disk usage
+     * @param shardSizeInfo information about snapshot shard sizes
+     * @param desiredNodesMembershipInformation information about the desired nodes that are cluster members
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
     public RoutingAllocation(

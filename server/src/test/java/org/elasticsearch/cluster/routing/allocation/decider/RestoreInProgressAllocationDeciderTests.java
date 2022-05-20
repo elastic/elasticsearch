@@ -205,6 +205,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             clusterState,
             null,
             null,
+            null,
             0L
         );
         allocation.debugDecision(true);

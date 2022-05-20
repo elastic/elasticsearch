@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.DesiredNodesMembershipService;
-import org.elasticsearch.cluster.metadata.EmptyDesiredNodesMembershipService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -82,9 +81,10 @@ public class AllocationService {
         GatewayAllocator gatewayAllocator,
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService
+        SnapshotsInfoService snapshotsInfoService,
+        DesiredNodesMembershipService desiredNodesMembershipService
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, EmptyDesiredNodesMembershipService.INSTANCE);
+        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, desiredNodesMembershipService);
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -318,6 +318,7 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
+            desiredNodesMembershipService.getMembershipInformation(),
             currentNanoTime()
         );
         final Map<Integer, List<String>> autoExpandReplicaChanges = AutoExpandReplicas.getAutoExpandReplicaChanges(

@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import static org.elasticsearch.xpack.rollup.Rollup.TASK_THREAD_POOL_NAME;
 
 /**
- * A {@link TransportBroadcastAction} that rollups all the shards of a single index into a new one.
+ * A {@link TransportBroadcastAction} that rollups all the shards of a source index into a new rollup index.
  *
  * TODO: Enforce that we don't retry on another replica if we throw an error after sending some buckets.
  */

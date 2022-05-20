@@ -225,7 +225,7 @@ class RollupShardIndexer {
             final Map<String, FormattedDocValues> metricsFieldLeaves = new HashMap<>();
             for (FieldValueFetcher fetcher : metricFieldFetchers) {
                 FormattedDocValues leafField = fetcher.getLeaf(ctx);
-                metricsFieldLeaves.put(fetcher.name, leafField);
+                metricsFieldLeaves.put(fetcher.name(), leafField);
             }
 
             return new LeafBucketCollector() {

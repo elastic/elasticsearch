@@ -25,16 +25,20 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
+/**
+ * Utility class used for fetching field values by reading field data
+ */
 class FieldValueFetcher {
+
     private static final Set<Class<?>> VALID_TYPES = Collections.unmodifiableSet(
         new HashSet<>(Arrays.asList(Long.class, Double.class, BigInteger.class, String.class, BytesRef.class))
     );
 
-    final String name;
-    final MappedFieldType fieldType;
-    final DocValueFormat format;
-    final IndexFieldData<?> fieldData;
-    final Function<Object, Object> valueFunc;
+    private final String name;
+    private final MappedFieldType fieldType;
+    private final DocValueFormat format;
+    private final IndexFieldData<?> fieldData;
+    private final Function<Object, Object> valueFunc;
 
     protected FieldValueFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData, Function<Object, Object> valueFunc) {
         this.name = name;
@@ -44,7 +48,24 @@ class FieldValueFetcher {
         this.valueFunc = valueFunc;
     }
 
+    public String name() {
+        return name;
+    }
+
+    public MappedFieldType fieldType() {
+        return fieldType;
+    }
+
+    public DocValueFormat format() {
+        return format;
+    }
+
+    public IndexFieldData<?> fieldData() {
+        return fieldData;
+    }
+
     FormattedDocValues getLeaf(LeafReaderContext context) {
+
         final FormattedDocValues delegate = fieldData.load(context).getFormattedValues(DocValueFormat.RAW);
         return new FormattedDocValues() {
             @Override
@@ -78,8 +99,11 @@ class FieldValueFetcher {
         }
     }
 
+    /**
+     * Retrieve field fetchers for a list of fields.
+     */
     static List<FieldValueFetcher> build(SearchExecutionContext context, String[] fields) {
-        List<FieldValueFetcher> fetchers = new ArrayList<>();
+        List<FieldValueFetcher> fetchers = new ArrayList<>(fields.length);
         for (String field : fields) {
             MappedFieldType fieldType = context.getFieldType(field);
             if (fieldType == null) {
@@ -102,13 +126,4 @@ class FieldValueFetcher {
         };
     }
 
-    static Function<Object, Object> getIntervalValueFunc(String field, double interval) {
-        return value -> {
-            if (value instanceof Number == false) {
-                throw new IllegalArgumentException("Expected [Number] for field [" + field + "], got [" + value.getClass() + "]");
-            }
-            double number = ((Number) value).doubleValue();
-            return Math.floor(number / interval) * interval;
-        };
-    }
 }

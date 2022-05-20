@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.sql.JDBCType;
 import java.sql.SQLType;
@@ -229,6 +230,9 @@ public class SqlDataTypes {
         }
         if (value instanceof GeoShape) {
             return GEO_SHAPE;
+        }
+        if (value instanceof Version) {
+            return VERSION;
         }
 
         return null;

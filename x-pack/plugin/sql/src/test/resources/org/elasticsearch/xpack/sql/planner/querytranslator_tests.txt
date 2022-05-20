@@ -114,7 +114,7 @@ SELECT CONCAT('1.', version::string)::version v, count(*) FROM test GROUP BY v;
 
 OrderByVersionScript
 SELECT CONCAT('1.', version::string)::version v FROM test ORDER BY v;
-{"script":{"source":"InternalQlScriptUtils.nullSafeSortVersion(InternalSqlScriptUtils.cast(InternalSqlScriptUtils.concat(params.v0,InternalSqlScriptUtils.cast(InternalQlScriptUtils.docValue(doc,params.v1),params.v2)),params.v3))","lang":"painless","params":{"v0":"1.","v1":"version","v2":"KEYWORD","v3":"VERSION"}}
+{"script":{"source":"InternalQlScriptUtils.nullSafeSortString(InternalSqlScriptUtils.cast(InternalSqlScriptUtils.concat(params.v0,InternalSqlScriptUtils.cast(InternalQlScriptUtils.docValue(doc,params.v1),params.v2)),params.v3))","lang":"painless","params":{"v0":"1.","v1":"version","v2":"KEYWORD","v3":"VERSION"}}
 ;
 
 // Having

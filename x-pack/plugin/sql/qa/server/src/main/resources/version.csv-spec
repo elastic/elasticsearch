@@ -298,6 +298,52 @@ SELECT '1.2.3'::version as v;
 ;
 
 
+castConstantToVersion2
+select '1.2.3'::version v from apps;
+
+ v
+------
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+
+;
+
+
+multipleCast
+select '1.2.3'::version::string v from apps;
+
+ v
+------
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+1.2.3
+
+;
+
+
 compareVersions
 SELECT '1.2.3'::version < '1.11.4'::version as v;
 
@@ -365,3 +411,11 @@ FROM apps WHERE version IS NULL OR version_text LIKE '1%' ORDER BY version DESC 
 
 ;
 
+selectFirstLastVersion
+select first(version) as first, last(version) as last from apps;
+
+first:s  | last:s
+---------+------------
+1        | bad
+
+;

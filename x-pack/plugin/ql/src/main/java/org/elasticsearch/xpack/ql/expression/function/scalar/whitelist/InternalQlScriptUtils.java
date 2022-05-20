@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.ql.util.StringUtils;
-import org.elasticsearch.xpack.versionfield.Version;
 
 import java.util.List;
 import java.util.Map;
@@ -54,17 +53,6 @@ public class InternalQlScriptUtils {
 
     public static String nullSafeSortString(Object sort) {
         return sort == null ? StringUtils.EMPTY : sort.toString();
-    }
-
-    public static String nullSafeSortVersion(Object sort) {
-        if (sort instanceof String) {
-            return (String) sort;
-        }
-        Version version = (Version) sort;
-        if (version == null) {
-            return StringUtils.EMPTY;
-        }
-        return version.toString();
     }
 
     public static Number nullSafeCastNumeric(Number number, String typeName) {

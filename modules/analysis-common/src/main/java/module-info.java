@@ -18,6 +18,7 @@ module org.elasticsearch.analysis.common {
     requires org.apache.lucene.analysis.common;
 
     exports org.elasticsearch.analysis.common;  // for painless
+
     opens org.elasticsearch.analysis.common to org.elasticsearch.painless.spi; // whitelist resource access
 
     provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.analysis.common.AnalysisPainlessExtension;

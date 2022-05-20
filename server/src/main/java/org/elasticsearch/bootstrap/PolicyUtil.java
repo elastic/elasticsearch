@@ -11,7 +11,7 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.script.ClassPermission;
 
 import java.io.FilePermission;
@@ -299,7 +299,7 @@ public class PolicyUtil {
 
     // pakcage private for tests
     static PluginPolicyInfo readPolicyInfo(Path pluginRoot) throws IOException {
-        Path policyFile = pluginRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
+        Path policyFile = pluginRoot.resolve(PluginDescriptor.ES_PLUGIN_POLICY);
         if (Files.exists(policyFile) == false) {
             return null;
         }

@@ -265,7 +265,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (request.includeGlobalState() || requestedStates.isEmpty() == false) {
             if (request.includeGlobalState() && requestedStates.isEmpty()) {
                 // If we're including global state and feature states aren't specified, include all of them
-                featureStatesSet = systemIndices.getFeatures().keySet();
+                featureStatesSet = systemIndices.getFeatures().stream().map(SystemIndices.Feature::getName).collect(Collectors.toSet());
             } else if (requestedStates.size() == 1 && NO_FEATURE_STATES_VALUE.equalsIgnoreCase(requestedStates.get(0))) {
                 // If there's exactly one value and it's "none", include no states
                 featureStatesSet = Collections.emptySet();
@@ -284,7 +284,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     return;
                 }
                 featureStatesSet = new HashSet<>(requestedStates);
-                featureStatesSet.retainAll(systemIndices.getFeatures().keySet());
+                featureStatesSet.retainAll(systemIndices.getFeatures().stream().map(SystemIndices.Feature::getName).toList());
             }
         } else {
             featureStatesSet = Collections.emptySet();
@@ -336,7 +336,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // been requested by the request directly
                 final Set<String> indexNames = new HashSet<>(indices);
                 for (String featureName : featureStatesSet) {
-                    SystemIndices.Feature feature = systemIndices.getFeatures().get(featureName);
+                    SystemIndices.Feature feature = systemIndices.getFeature(featureName);
 
                     Set<String> featureSystemIndices = feature.getIndexDescriptors()
                         .stream()

@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -75,7 +76,7 @@ public class SystemIndices {
     private final CharacterRunAutomaton systemIndexRunAutomaton;
     private final CharacterRunAutomaton systemDataStreamIndicesRunAutomaton;
     private final Predicate<String> systemDataStreamPredicate;
-    private final List<Feature> featureDescriptors;
+    private final List<Feature> features;
     private final SystemIndexDescriptor[] indexDescriptors;
     private final Map<String, SystemDataStreamDescriptor> dataStreamDescriptors;
     private final Map<String, CharacterRunAutomaton> productToSystemIndicesMatcher;
@@ -86,24 +87,24 @@ public class SystemIndices {
      * @param features A list of features from which we will load system indices
      */
     public SystemIndices(List<Feature> features) {
-        featureDescriptors = buildFullFeatureList(features);
-        indexDescriptors = featureDescriptors.stream().flatMap(f -> f.getIndexDescriptors().stream()).toArray(SystemIndexDescriptor[]::new);
-        dataStreamDescriptors = featureDescriptors.stream()
+        this.features = buildFullFeatureList(features);
+        indexDescriptors = this.features.stream().flatMap(f -> f.getIndexDescriptors().stream()).toArray(SystemIndexDescriptor[]::new);
+        dataStreamDescriptors = this.features.stream()
             .flatMap(f -> f.getDataStreamDescriptors().stream())
             .collect(Collectors.toUnmodifiableMap(SystemDataStreamDescriptor::getDataStreamName, Function.identity()));
-        checkForOverlappingPatterns(featureDescriptors);
-        ensurePatternsAllowSuffix(featureDescriptors);
+        checkForOverlappingPatterns(this.features);
+        ensurePatternsAllowSuffix(this.features);
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
-        Automaton systemIndexAutomata = buildIndexAutomaton(featureDescriptors);
+        Automaton systemIndexAutomata = buildIndexAutomaton(this.features);
         this.systemIndexRunAutomaton = new CharacterRunAutomaton(systemIndexAutomata);
-        Automaton systemDataStreamIndicesAutomata = buildDataStreamBackingIndicesAutomaton(featureDescriptors);
+        Automaton systemDataStreamIndicesAutomata = buildDataStreamBackingIndicesAutomaton(this.features);
         this.systemDataStreamIndicesRunAutomaton = new CharacterRunAutomaton(systemDataStreamIndicesAutomata);
-        this.systemDataStreamPredicate = buildDataStreamNamePredicate(featureDescriptors);
-        this.netNewSystemIndexAutomaton = buildNetNewIndexCharacterRunAutomaton(featureDescriptors);
-        this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(featureDescriptors);
+        this.systemDataStreamPredicate = buildDataStreamNamePredicate(this.features);
+        this.netNewSystemIndexAutomaton = buildNetNewIndexCharacterRunAutomaton(this.features);
+        this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(this.features);
         this.executorSelector = new ExecutorSelector(this);
         this.systemNameAutomaton = MinimizationOperations.minimize(
-            Operations.union(List.of(systemIndexAutomata, systemDataStreamIndicesAutomata, buildDataStreamAutomaton(featureDescriptors))),
+            Operations.union(List.of(systemIndexAutomata, systemDataStreamIndicesAutomata, buildDataStreamAutomaton(this.features))),
             Integer.MAX_VALUE
         );
         this.systemNameRunAutomaton = new CharacterRunAutomaton(systemNameAutomaton);
@@ -326,8 +327,12 @@ public class SystemIndices {
         return automaton::run;
     }
 
-    public Map<String, Feature> getFeatures() {
-        return featureDescriptors.stream().collect(Collectors.toMap(Feature::getName, Function.identity()));
+    public Feature getFeature(String name) {
+        return getFeatures().stream().filter(f -> Objects.equals(name, f.getName())).findFirst().orElse(null);
+    }
+
+    public List<Feature> getFeatures() {
+        return features;
     }
 
     private static Automaton buildIndexAutomaton(List<Feature> features) {
@@ -385,7 +390,7 @@ public class SystemIndices {
 
     public SystemDataStreamDescriptor validateDataStreamAccess(String dataStreamName, ThreadContext threadContext) {
         if (systemDataStreamPredicate.test(dataStreamName)) {
-            SystemDataStreamDescriptor dataStreamDescriptor = featureDescriptors.stream()
+            SystemDataStreamDescriptor dataStreamDescriptor = features.stream()
                 .flatMap(feature -> feature.getDataStreamDescriptors().stream())
                 .filter(descriptor -> descriptor.getDataStreamName().equals(dataStreamName))
                 .findFirst()
@@ -580,7 +585,7 @@ public class SystemIndices {
     }
 
     Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return this.featureDescriptors.stream().flatMap(f -> f.getIndexDescriptors().stream()).toList();
+        return this.features.stream().flatMap(f -> f.getIndexDescriptors().stream()).toList();
     }
 
     /**

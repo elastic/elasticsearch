@@ -179,18 +179,12 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAliasesResponse.getDataStreamAliases().keySet(), containsInAnyOrder("ds", "other-ds"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getName(), equalTo("my-alias"));
-        assertThat(
-            getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{}}")
-        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(), equalTo("{\"match_all\":{}}"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getWriteDataStream(), equalTo("other-ds"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getName(), equalTo("my-alias"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds"));
-        assertThat(
-            getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{}}")
-        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(), equalTo("{\"match_all\":{}}"));
     }
 
     public void testSnapshotAndRestoreAllDataStreamsInPlace() throws Exception {
@@ -417,18 +411,12 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getName(), equalTo("my-alias"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getDataStreams(), containsInAnyOrder("ds", "other-ds"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getWriteDataStream(), equalTo("other-ds"));
-        assertThat(
-            getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{}}")
-        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(), equalTo("{\"match_all\":{}}"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getName(), equalTo("my-alias"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getDataStreams(), containsInAnyOrder("ds", "other-ds"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds"));
-        assertThat(
-            getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{}}")
-        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(), equalTo("{\"match_all\":{}}"));
 
         DeleteDataStreamAction.Request r = new DeleteDataStreamAction.Request(new String[] { "*" });
         assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, r).get());
@@ -471,19 +459,13 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getName(), equalTo("my-alias"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getWriteDataStream(), equalTo("other-ds"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getDataStreams(), containsInAnyOrder("ds", "other-ds"));
-        assertThat(
-            getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{}}")
-        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(), equalTo("{\"match_all\":{}}"));
 
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getName(), equalTo("my-alias"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getDataStreams(), containsInAnyOrder("ds", "other-ds"));
-        assertThat(
-            getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{}}")
-        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(), equalTo("{\"match_all\":{}}"));
 
         assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" })).get());
     }
@@ -565,24 +547,15 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAliasesResponse.getDataStreamAliases().keySet(), containsInAnyOrder("ds", "ds2", "other-ds"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds2").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds2").get(0).getName(), equalTo("my-alias"));
-        assertThat(
-            getAliasesResponse.getDataStreamAliases().get("ds2").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{}}")
-        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds2").get(0).getFilter().string(), equalTo("{\"match_all\":{}}"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getName(), equalTo("my-alias"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getWriteDataStream(), equalTo("other-ds"));
-        assertThat(
-            getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{}}")
-        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(), equalTo("{\"match_all\":{}}"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getName(), equalTo("my-alias"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds"));
-        assertThat(
-            getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{}}")
-        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(), equalTo("{\"match_all\":{}}"));
     }
 
     public void testRenameWriteDataStream() throws Exception {
@@ -619,24 +592,15 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds2").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds2").get(0).getName(), equalTo("my-alias"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds2").get(0).getWriteDataStream(), equalTo("other-ds2"));
-        assertThat(
-            getAliasesResponse.getDataStreamAliases().get("other-ds2").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{}}")
-        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds2").get(0).getFilter().string(), equalTo("{\"match_all\":{}}"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getName(), equalTo("my-alias"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getWriteDataStream(), equalTo("other-ds2"));
-        assertThat(
-            getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{}}")
-        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(), equalTo("{\"match_all\":{}}"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getName(), equalTo("my-alias"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds2"));
-        assertThat(
-            getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(),
-            equalTo("{\"match_all\":{}}")
-        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(), equalTo("{\"match_all\":{}}"));
     }
 
     public void testBackingIndexIsNotRenamedWhenRestoringDataStream() {

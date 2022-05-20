@@ -20,13 +20,21 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.io.IOException;
+import java.lang.ModuleLayer.Controller;
+import java.lang.module.Configuration;
+import java.lang.module.ModuleDescriptor;
+import java.lang.module.ModuleFinder;
 import java.lang.reflect.Constructor;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
@@ -41,6 +49,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -56,8 +65,25 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param info Metadata about the plugin, usually loaded from plugin properties
      * @param instance The constructed instance of the plugin's main class
      * @param loader   The classloader for the plugin
+     * @param layer   The module layer for the plugin
      */
-    record LoadedPlugin(PluginInfo info, Plugin instance, ClassLoader loader) {}
+    record LoadedPlugin(PluginInfo info, Plugin instance, ClassLoader loader, ModuleLayer layer) {
+
+        LoadedPlugin {
+            Objects.requireNonNull(info);
+            Objects.requireNonNull(instance);
+            Objects.requireNonNull(loader);
+            Objects.requireNonNull(layer);
+        }
+
+        /**
+         * Creates a loaded <i>classpath plugin</i>. A <i>classpath plugin</i> is a plugin loaded
+         * by the system classloader and defined to the unnamed module of the boot layer.
+         */
+        LoadedPlugin(PluginInfo info, Plugin instance) {
+            this(info, instance, PluginsService.class.getClassLoader(), ModuleLayer.boot());
+        }
+    }
 
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
 
@@ -119,7 +145,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
-            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, null));
+            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin));
             pluginsList.add(pluginInfo);
             pluginsNames.add(pluginInfo.getName());
         }
@@ -354,11 +380,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private Plugin loadBundle(PluginBundle bundle, Map<String, LoadedPlugin> loaded) {
         String name = bundle.plugin.getName();
+        logger.debug(() -> "Loading bundle: " + name);
 
         PluginsUtils.verifyCompatibility(bundle.plugin);
 
-        // collect loaders of extended plugins
-        List<ClassLoader> extendedLoaders = new ArrayList<>();
+        // collect the list of extended plugins
+        List<LoadedPlugin> extendedPlugins = new ArrayList<>();
         for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
             LoadedPlugin extendedPlugin = loaded.get(extendedPluginName);
             assert extendedPlugin != null;
@@ -366,36 +393,42 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
             }
             assert extendedPlugin.loader() != null : "All non-classpath plugins should be loaded with a classloader";
-            extendedLoaders.add(extendedPlugin.loader());
+            extendedPlugins.add(extendedPlugin);
+            logger.debug(
+                () -> "Loading bundle: " + name + ", ext plugins: " + extendedPlugins.stream().map(lp -> lp.info().getName()).toList()
+            );
         }
 
-        ClassLoader parentLoader = PluginLoaderIndirection.createLoader(getClass().getClassLoader(), extendedLoaders);
-        ClassLoader spiLoader = null;
-        if (bundle.spiUrls != null) {
-            spiLoader = URLClassLoader.newInstance(bundle.spiUrls.toArray(new URL[0]), parentLoader);
+        final ClassLoader parentLoader = PluginLoaderIndirection.createLoader(
+            getClass().getClassLoader(),
+            extendedPlugins.stream().map(LoadedPlugin::loader).toList()
+        );
+        LayerAndLoader spiLayerAndLoader = null;
+        if (bundle.hasSPI()) {
+            spiLayerAndLoader = createSPI(bundle, parentLoader, extendedPlugins);
         }
 
-        ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), spiLoader == null ? parentLoader : spiLoader);
-        if (spiLoader == null) {
+        final ClassLoader pluginParentLoader = spiLayerAndLoader == null ? parentLoader : spiLayerAndLoader.loader();
+        final LayerAndLoader pluginLayerAndLoader = createPlugin(bundle, pluginParentLoader, extendedPlugins, spiLayerAndLoader);
+        final ClassLoader pluginClassLoader = pluginLayerAndLoader.loader();
+
+        if (spiLayerAndLoader == null) {
             // use full implementation for plugins extending this one
-            spiLoader = loader;
+            spiLayerAndLoader = pluginLayerAndLoader;
         }
 
         // reload SPI with any new services from the plugin
-        reloadLuceneSPI(loader);
+        reloadLuceneSPI(pluginClassLoader);
 
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
         try {
             // Set context class loader to plugin's class loader so that plugins
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                Thread.currentThread().setContextClassLoader(loader);
-                return null;
-            });
+            privilegedSetContextClassLoader(pluginClassLoader);
 
-            Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
-            if (loader != pluginClass.getClassLoader()) {
+            Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
+            if (pluginClassLoader != pluginClass.getClassLoader()) {
                 throw new IllegalStateException(
                     "Plugin ["
                         + name
@@ -407,13 +440,41 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 );
             }
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            loaded.put(name, new LoadedPlugin(bundle.plugin, plugin, spiLoader));
+            loaded.put(name, new LoadedPlugin(bundle.plugin, plugin, spiLayerAndLoader.loader(), spiLayerAndLoader.layer()));
             return plugin;
         } finally {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                Thread.currentThread().setContextClassLoader(cl);
-                return null;
-            });
+            privilegedSetContextClassLoader(cl);
+        }
+    }
+
+    static LayerAndLoader createSPI(PluginBundle bundle, ClassLoader parentLoader, List<LoadedPlugin> extendedPlugins) {
+        final PluginInfo plugin = bundle.plugin;
+        if (plugin.getModuleName().isPresent()) {
+            logger.debug(() -> "Loading bundle: " + plugin.getName() + ", creating spi, modular");
+            return createSpiModuleLayer(bundle.spiUrls, parentLoader, extendedPlugins.stream().map(LoadedPlugin::layer).toList());
+        } else {
+            logger.debug(() -> "Loading bundle: " + plugin.getName() + ", creating spi, non-modular");
+            return LayerAndLoader.ofLoader(URLClassLoader.newInstance(bundle.spiUrls.toArray(new URL[0]), parentLoader));
+        }
+    }
+
+    static LayerAndLoader createPlugin(
+        PluginBundle bundle,
+        ClassLoader pluginParentLoader,
+        List<LoadedPlugin> extendedPlugins,
+        LayerAndLoader spiLayerAndLoader
+    ) {
+        final PluginInfo plugin = bundle.plugin;
+        if (plugin.getModuleName().isPresent()) {
+            logger.debug(() -> "Loading bundle: " + plugin.getName() + ", modular");
+            var parentLayers = Stream.concat(
+                Stream.ofNullable(spiLayerAndLoader != null ? spiLayerAndLoader.layer() : null),
+                extendedPlugins.stream().map(LoadedPlugin::layer)
+            ).toList();
+            return createPluginModuleLayer(bundle, pluginParentLoader, parentLayers);
+        } else {
+            logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular");
+            return LayerAndLoader.ofLoader(URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), pluginParentLoader));
         }
     }
 
@@ -484,5 +545,172 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     @SuppressWarnings("unchecked")
     public <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance())).toList();
+    }
+
+    static final LayerAndLoader createPluginModuleLayer(PluginBundle bundle, ClassLoader parentLoader, List<ModuleLayer> parentLayers) {
+        assert bundle.plugin.getModuleName().isPresent();
+        return createModuleLayer(
+            bundle.plugin.getClassname(),
+            bundle.plugin.getModuleName().get(),
+            urlsToPaths(bundle.urls),
+            parentLoader,
+            parentLayers
+        );
+    }
+
+    static final LayerAndLoader createSpiModuleLayer(Set<URL> urls, ClassLoader parentLoader, List<ModuleLayer> parentLayers) {
+        // assert bundle.plugin.getModuleName().isPresent();
+        return createModuleLayer(
+            null,  // no entry point
+            spiModuleName(urls),
+            urlsToPaths(urls),
+            parentLoader,
+            parentLayers
+        );
+    }
+
+    private static final Module serverModule = PluginsService.class.getModule();
+
+    static final LayerAndLoader createModuleLayer(
+        String className,
+        String moduleName,
+        Path[] paths,
+        ClassLoader parentLoader,
+        List<ModuleLayer> parentLayers
+    ) {
+        logger.debug(() -> "Loading bundle: creating module layer and loader for module " + moduleName);
+        var finder = ModuleFinder.of(paths);
+
+        var configuration = Configuration.resolveAndBind(
+            ModuleFinder.of(),
+            parentConfigurationOrBoot(parentLayers),
+            finder,
+            Set.of(moduleName)
+        );
+        var controller = privilegedDefineModulesWithOneLoader(configuration, parentLayersOrBoot(parentLayers), parentLoader);
+        var pluginModule = controller.layer().findModule(moduleName).get();
+        ensureEntryPointAccessible(controller, pluginModule, className);
+        addQualifiedExports(pluginModule);
+        addQualifiedOpens(pluginModule);
+        logger.debug(() -> "Loading bundle: created module layer and loader for module " + moduleName);
+        return new LayerAndLoader(controller.layer(), privilegedFindLoader(controller.layer(), moduleName));
+    }
+
+    private static List<ModuleLayer> parentLayersOrBoot(List<ModuleLayer> parentLayers) {
+        if (parentLayers == null || parentLayers.isEmpty()) {
+            return List.of(ModuleLayer.boot());
+        } else {
+            return parentLayers;
+        }
+    }
+
+    private static List<Configuration> parentConfigurationOrBoot(List<ModuleLayer> parentLayers) {
+        if (parentLayers == null || parentLayers.isEmpty()) {
+            return List.of(ModuleLayer.boot().configuration());
+        } else {
+            return parentLayers.stream().map(ModuleLayer::configuration).toList();
+        }
+    }
+
+    /** Ensures that the plugins main class (its entry point), if any, is accessible to the server. */
+    private static void ensureEntryPointAccessible(Controller controller, Module pluginModule, String className) {
+        if (className != null) {
+            controller.addOpens(pluginModule, toPackageName(className), serverModule);
+        }
+    }
+
+    /**
+     * Adds qualified exports declared in the server module descriptor to the target module.
+     * This is required since qualified exports targeting yet-to-be-created modules, i.e. plugins,
+     * are silently dropped when the boot layer is created.
+     */
+    private static void addQualifiedExports(Module target) {
+        serverModule.getDescriptor()
+            .exports()
+            .stream()
+            .filter(ModuleDescriptor.Exports::isQualified)
+            .filter(exports -> exports.targets().contains(target.getName()))
+            .forEach(exports -> serverModule.addExports(exports.source(), target));
+    }
+
+    /**
+     * Adds qualified opens declared in the server module descriptor to the target module.
+     * This is required since qualified opens targeting yet-to-be-created modules, i.e. plugins,
+     * are silently dropped when the boot layer is created.
+     */
+    private static void addQualifiedOpens(Module target) {
+        serverModule.getDescriptor()
+            .opens()
+            .stream()
+            .filter(ModuleDescriptor.Opens::isQualified)
+            .filter(opens -> opens.targets().contains(target.getName()))
+            .forEach(opens -> serverModule.addExports(opens.source(), target));
+    }
+
+    /** Determines the module name of the SPI module, given its URL. */
+    static String spiModuleName(Set<URL> spiURLS) {
+        ModuleFinder finder = ModuleFinder.of(urlsToPaths(spiURLS));
+        var mrefs = finder.findAll();
+        assert mrefs.size() == 1 : "Expected a single module, got:" + mrefs;
+        return mrefs.stream().findFirst().get().descriptor().name();
+    }
+
+    /**
+     * Tuple of module layer and loader.
+     * Modular Plugins have a plugin specific loader and layer.
+     * Non-Modular plugins have a plugin specific loader and the boot layer.
+     */
+    record LayerAndLoader(ModuleLayer layer, ClassLoader loader) {
+
+        LayerAndLoader {
+            Objects.requireNonNull(layer);
+            Objects.requireNonNull(loader);
+        }
+
+        static LayerAndLoader ofLoader(ClassLoader loader) {
+            return new LayerAndLoader(ModuleLayer.boot(), loader);
+        }
+    }
+
+    @SuppressForbidden(reason = "I need to convert URL's to Paths")
+    static final Path[] urlsToPaths(Set<URL> urls) {
+        return urls.stream().map(PluginsService::uncheckedToURI).map(PathUtils::get).toArray(Path[]::new);
+    }
+
+    static final URI uncheckedToURI(URL url) {
+        try {
+            return url.toURI();
+        } catch (URISyntaxException e) {
+            throw new AssertionError(new IOException(e));
+        }
+    }
+
+    static final String toPackageName(String className) {
+        assert className.endsWith(".") == false;
+        int index = className.lastIndexOf(".");
+        if (index == -1) {
+            throw new IllegalStateException("invalid class name:" + className);
+        }
+        return className.substring(0, index);
+    }
+
+    @SuppressWarnings("removal")
+    private static void privilegedSetContextClassLoader(ClassLoader loader) {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            Thread.currentThread().setContextClassLoader(loader);
+            return null;
+        });
+    }
+
+    @SuppressWarnings("removal")
+    static Controller privilegedDefineModulesWithOneLoader(Configuration cf, List<ModuleLayer> parentLayers, ClassLoader parentLoader) {
+        return AccessController.doPrivileged(
+            (PrivilegedAction<Controller>) () -> ModuleLayer.defineModulesWithOneLoader(cf, parentLayers, parentLoader)
+        );
+    }
+
+    @SuppressWarnings("removal")
+    static ClassLoader privilegedFindLoader(ModuleLayer layer, String name) {
+        return AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () -> layer.findLoader(name));
     }
 }

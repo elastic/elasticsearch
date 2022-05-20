@@ -476,10 +476,10 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         Set<IndexSettingProvider> providers = new HashSet<>();
-        filterPlugins(Plugin.class).stream().forEach(p -> providers.addAll(p.getAdditionalIndexSettingProviders()));
-        providers.addAll(super.getAdditionalIndexSettingProviders());
+        filterPlugins(Plugin.class).stream().forEach(p -> providers.addAll(p.getAdditionalIndexSettingProviders(parameters)));
+        providers.addAll(super.getAdditionalIndexSettingProviders(parameters));
         return providers;
 
     }

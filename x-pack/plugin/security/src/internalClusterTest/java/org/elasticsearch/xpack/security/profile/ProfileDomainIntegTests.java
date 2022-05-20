@@ -82,7 +82,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         assertThat(profile2.user().domainName(), equalTo("my_domain"));
         assertThat(profile2.user().email(), equalTo(RAC_USER_NAME + "@example.com"));
         assertThat(profile2.user().fullName(), nullValue());
-        assertThat(profile2.user().roles(), containsInAnyOrder(RAC_ROLE));
+        assertThat(profile2.user().roles(), containsInAnyOrder(RAC_ROLE, NATIVE_RAC_ROLE));
 
         // Activate 3rd time with the file realm user again and it should get the same profile
         // User fields are updated to the file user's info again
@@ -264,13 +264,12 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         indexDocument();
 
         final String username = randomAlphaOfLengthBetween(5, 12);
-        final Authentication.RealmRef realmRef = AuthenticationTests.randomRealmRef(randomBoolean());
 
         final boolean existingCollision = randomBoolean();
         final String existingUid;
         // Manually create a collision document
         if (existingCollision) {
-            final Authentication authentication = assembleAuthentication(username, realmRef);
+            final Authentication authentication = assembleAuthentication(username, AuthenticationTests.randomRealmRef(randomBoolean()));
             final PlainActionFuture<Profile> future = new PlainActionFuture<>();
             getInstanceFromRandomNode(ProfileService.class).activateProfile(authentication, future);
             existingUid = future.actionGet().uid();
@@ -296,7 +295,10 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
                 try {
-                    final Authentication authentication = assembleAuthentication(username, realmRef);
+                    final Authentication authentication = assembleAuthentication(
+                        username,
+                        AuthenticationTests.randomRealmRef(randomBoolean())
+                    );
                     final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
                     final PlainActionFuture<Profile> future = new PlainActionFuture<>();
                     profileService.activateProfile(authentication, future);

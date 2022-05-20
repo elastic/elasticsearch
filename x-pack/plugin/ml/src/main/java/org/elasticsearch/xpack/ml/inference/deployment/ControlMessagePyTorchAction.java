@@ -68,7 +68,7 @@ class ControlMessagePyTorchAction extends AbstractPyTorchAction<ThreadSettings> 
 
             getProcessContext().getProcess().get().writeInferenceRequest(message);
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] error writing control message to the inference process", getModelId()), e);
+            logger.error(() -> "[" + getModelId() + "] error writing control message to the inference process", e);
             onFailure(ExceptionsHelper.serverError("Error writing control message to the inference process", e));
         } catch (Exception e) {
             onFailure(e);

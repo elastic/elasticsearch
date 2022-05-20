@@ -12,7 +12,6 @@ import com.unboundid.util.LDAPSDKUsageException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
@@ -182,7 +181,7 @@ public interface UserRoleMapper {
                 return new DN(string);
             } catch (LDAPException | LDAPSDKUsageException e) {
                 if (LOGGER.isTraceEnabled()) {
-                    LOGGER.trace(new ParameterizedMessage("failed to parse [{}] as a DN", string), e);
+                    LOGGER.trace(() -> "failed to parse [" + string + "] as a DN", e);
                 }
                 return null;
             }

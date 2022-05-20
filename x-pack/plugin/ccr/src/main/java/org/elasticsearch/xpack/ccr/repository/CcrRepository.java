@@ -698,10 +698,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                         listener.onFailure(e);
                                     } catch (Exception ex) {
                                         e.addSuppressed(ex);
-                                        logger.warn(
-                                            () -> new ParameterizedMessage("failed to execute failure callback for chunk request"),
-                                            e
-                                        );
+                                        logger.warn("failed to execute failure callback for chunk request", e);
                                     }
                                 });
                             }

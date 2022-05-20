@@ -109,7 +109,7 @@ public class PyTorchResultProcessor {
         } catch (Exception e) {
             // No need to report error as we're stopping
             if (isStopping == false) {
-                logger.error(new ParameterizedMessage("[{}] Error processing results", deploymentId), e);
+                logger.error(() -> "[" + deploymentId + "] Error processing results", e);
             }
             pendingResults.forEach(
                 (id, pendingResult) -> pendingResult.listener.onResponse(
@@ -134,7 +134,7 @@ public class PyTorchResultProcessor {
             );
             pendingResults.clear();
         }
-        logger.debug(() -> new ParameterizedMessage("[{}] Results processing finished", deploymentId));
+        logger.debug(() -> "[" + deploymentId + "] Results processing finished");
     }
 
     void processInferenceResult(PyTorchResult result) {

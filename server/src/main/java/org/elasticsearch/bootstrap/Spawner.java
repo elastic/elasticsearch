@@ -8,15 +8,21 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Platforms;
-import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.plugins.PluginsUtils;
 
+import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -34,22 +40,30 @@ final class Spawner implements Closeable {
      * References to the processes that have been spawned, so that we can destroy them.
      */
     private final List<Process> processes = new ArrayList<>();
+    private final List<Thread> pumpThreads = new ArrayList<>();
     private AtomicBoolean spawned = new AtomicBoolean();
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(() -> processes.stream().map(s -> (Closeable) s::destroy).iterator());
+        List<Closeable> closeables = new ArrayList<>();
+        closeables.addAll(processes.stream().map(s -> (Closeable) s::destroy).toList());
+        closeables.addAll(pumpThreads.stream().map(t -> (Closeable) () -> {
+            try {
+                t.join(); // wait for thread to complete now that the spawned process is destroyed
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // best effort, ignore
+            }
+        }).toList());
+        IOUtils.close(closeables);
     }
 
     /**
      * Spawns the native controllers for each module.
      *
      * @param environment The node environment
-     * @param inheritIo   Should the stdout and stderr of the spawned process inherit the
-     *                    stdout and stderr of the JVM spawning it?
      * @throws IOException if an I/O error occurs reading the module or spawning a native process
      */
-    void spawnNativeControllers(final Environment environment, final boolean inheritIo) throws IOException {
+    void spawnNativeControllers(final Environment environment) throws IOException {
         if (spawned.compareAndSet(false, true) == false) {
             throw new IllegalStateException("native controllers already spawned");
         }
@@ -60,9 +74,9 @@ final class Spawner implements Closeable {
          * For each module, attempt to spawn the controller daemon. Silently ignore any module that doesn't include a controller for the
          * correct platform.
          */
-        List<Path> paths = PluginsService.findPluginDirs(environment.modulesFile());
+        List<Path> paths = PluginsUtils.findPluginDirs(environment.modulesFile());
         for (final Path modules : paths) {
-            final PluginInfo info = PluginInfo.readFromProperties(modules);
+            final PluginDescriptor info = PluginDescriptor.readFromProperties(modules);
             final Path spawnPath = Platforms.nativeControllerPath(modules);
             if (Files.isRegularFile(spawnPath) == false) {
                 continue;
@@ -75,16 +89,39 @@ final class Spawner implements Closeable {
                 );
                 throw new IllegalArgumentException(message);
             }
-            final Process process = spawnNativeController(spawnPath, environment.tmpFile(), inheritIo);
+            final Process process = spawnNativeController(spawnPath, environment.tmpFile());
+            // The process _shouldn't_ write any output via its stdout or stderr, but if it does then
+            // it will block if nothing is reading that output. To avoid this we can pipe the
+            // outputs and create pump threads to write any messages there to the ES log.
+            startPumpThread(info.getName(), "stdout", process.getInputStream());
+            startPumpThread(info.getName(), "stderr", process.getErrorStream());
             processes.add(process);
         }
+    }
+
+    private void startPumpThread(String componentName, String streamName, InputStream stream) {
+        String loggerName = componentName + "-controller-" + streamName;
+        final Logger logger = LogManager.getLogger(loggerName);
+        Thread t = new Thread(() -> {
+            try (var br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    // since we do not expect native controllers to ever write to stdout/stderr, we always log at warn level
+                    logger.warn(line);
+                }
+            } catch (IOException e) {
+                logger.error("error while reading " + streamName, e);
+            }
+        }, loggerName + "-pump");
+        t.start();
+        pumpThreads.add(t);
     }
 
     /**
      * Attempt to spawn the controller daemon for a given module. The spawned process will remain connected to this JVM via its stdin,
      * stdout, and stderr streams, but the references to these streams are not available to code outside this package.
      */
-    private static Process spawnNativeController(final Path spawnPath, final Path tmpPath, final boolean inheritIo) throws IOException {
+    private static Process spawnNativeController(final Path spawnPath, final Path tmpPath) throws IOException {
         final String command;
         if (Constants.WINDOWS) {
             /*
@@ -105,14 +142,6 @@ final class Spawner implements Closeable {
         // the only environment variable passes on the path to the temporary directory
         pb.environment().clear();
         pb.environment().put("TMPDIR", tmpPath.toString());
-
-        // The process _shouldn't_ write any output via its stdout or stderr, but if it does then
-        // it will block if nothing is reading that output. To avoid this we can inherit the
-        // JVM's stdout and stderr (which are redirected to files in standard installations).
-        if (inheritIo) {
-            pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
-        }
 
         // the output stream of the process object corresponds to the daemon's stdin
         return pb.start();

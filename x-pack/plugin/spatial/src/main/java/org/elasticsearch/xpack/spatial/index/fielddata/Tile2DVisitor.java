@@ -13,9 +13,7 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  * A reusable tree reader visitor for a previous serialized {@link org.elasticsearch.geometry.Geometry} using
  * {@link TriangleTreeWriter}.
  *
- * This class supports checking bounding box relations against a serialized triangle tree. Note that this differ
- * from Rectangle2D lucene implementation because it excludes north and east boundary intersections with tiles
- * from intersection consideration for consistent tiling definition of shapes on the boundaries of tiles
+ * This class supports checking bounding box relations against a serialized triangle tree.
  *
  */
 class Tile2DVisitor implements TriangleTreeReader.Visitor {
@@ -91,8 +89,6 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
     @Override
     @SuppressWarnings("HiddenField")
     public boolean push(int minX, int minY, int maxX, int maxY) {
-        // exclude north and east boundary intersections with tiles from intersection consideration
-        // for consistent tiling definition of shapes on the boundaries of tiles
         if (minX > this.maxX || maxX < this.minX || minY > this.maxY || maxY < this.minY) {
             // shapes are disjoint
             relation = GeoRelation.QUERY_DISJOINT;
@@ -150,7 +146,7 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
         int tMinY = StrictMath.min(StrictMath.min(aY, bY), cY);
         int tMaxY = StrictMath.max(StrictMath.max(aY, bY), cY);
 
-        // 1. check bounding boxes are disjoint, where north and east boundaries are not considered as crossing
+        // 1. check bounding boxes are disjoint
         if (tMaxX < minX || tMinX > maxX || tMinY > maxY || tMaxY < minY) {
             return GeoRelation.QUERY_DISJOINT;
         }

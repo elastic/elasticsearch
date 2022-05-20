@@ -167,6 +167,52 @@ public class ObjectMapperMergeTests extends ESTestCase {
         assertEquals("host.name", keywordFieldMapper.simpleName());
     }
 
+    public void testMergeMultiFields() {
+        RootObjectMapper mergeInto = createRootObjectMapper(
+            "_doc",
+            true,
+            Collections.singletonMap("text", createTextKeywordMultiField("text", MapperBuilderContext.ROOT))
+        );
+        RootObjectMapper mergeWith = createRootObjectMapper(
+            "_doc",
+            true,
+            Collections.singletonMap("text", createTextKeywordMultiField("text", MapperBuilderContext.ROOT))
+        );
+
+        final ObjectMapper merged = mergeInto.merge(mergeWith, MapperBuilderContext.ROOT);
+
+        TextFieldMapper text = (TextFieldMapper) merged.getMapper("text");
+        assertEquals("text", text.name());
+        assertEquals("text", text.simpleName());
+        KeywordFieldMapper keyword = (KeywordFieldMapper) text.multiFields().iterator().next();
+        assertEquals("text.keyword", keyword.name());
+        assertEquals("keyword", keyword.simpleName());
+    }
+
+    public void testMergeMultiFieldsWithinSubobjectsFalse() {
+        RootObjectMapper mergeInto = createRootObjectMapper(
+            "_doc",
+            true,
+            Collections.singletonMap("foo", createObjectSubobjectsFalseLeafWithMultiField())
+        );
+        RootObjectMapper mergeWith = createRootObjectMapper(
+            "_doc",
+            true,
+            Collections.singletonMap("foo", createObjectSubobjectsFalseLeafWithMultiField())
+        );
+
+        final ObjectMapper merged = mergeInto.merge(mergeWith, MapperBuilderContext.ROOT);
+
+        ObjectMapper foo = (ObjectMapper) merged.getMapper("foo");
+        ObjectMapper metrics = (ObjectMapper) foo.getMapper("metrics");
+        final TextFieldMapper textFieldMapper = (TextFieldMapper) metrics.getMapper("host.name");
+        assertEquals("foo.metrics.host.name", textFieldMapper.name());
+        assertEquals("host.name", textFieldMapper.simpleName());
+        FieldMapper fieldMapper = textFieldMapper.multiFields.iterator().next();
+        assertEquals("foo.metrics.host.name.keyword", fieldMapper.name());
+        assertEquals("keyword", fieldMapper.simpleName());
+    }
+
     private static RootObjectMapper createRootSubobjectFalseLeafWithDots() {
         FieldMapper fieldMapper = new KeywordFieldMapper.Builder("host.name", Version.CURRENT).build(MapperBuilderContext.ROOT);
         assertEquals("host.name", fieldMapper.simpleName());
@@ -196,7 +242,26 @@ public class ObjectMapperMergeTests extends ESTestCase {
         return new ObjectMapper.Builder("foo").addMappers(Collections.singletonMap("metrics", metrics)).build(MapperBuilderContext.ROOT);
     }
 
+    private ObjectMapper createObjectSubobjectsFalseLeafWithMultiField() {
+        TextFieldMapper textKeywordMultiField = createTextKeywordMultiField("host.name", new MapperBuilderContext("foo.metrics"));
+        assertEquals("host.name", textKeywordMultiField.simpleName());
+        assertEquals("foo.metrics.host.name", textKeywordMultiField.name());
+        FieldMapper fieldMapper = textKeywordMultiField.multiFields.iterator().next();
+        assertEquals("keyword", fieldMapper.simpleName());
+        assertEquals("foo.metrics.host.name.keyword", fieldMapper.name());
+        ObjectMapper metrics = new ObjectMapper.Builder("metrics").subobjects(false)
+            .addMappers(Collections.singletonMap("host.name", textKeywordMultiField))
+            .build(new MapperBuilderContext("foo"));
+        return new ObjectMapper.Builder("foo").addMappers(Collections.singletonMap("metrics", metrics)).build(MapperBuilderContext.ROOT);
+    }
+
     private TextFieldMapper createTextFieldMapper(String name) {
         return new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers()).build(MapperBuilderContext.ROOT);
+    }
+
+    private TextFieldMapper createTextKeywordMultiField(String name, MapperBuilderContext mapperBuilderContext) {
+        TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
+        builder.multiFieldsBuilder.add(new KeywordFieldMapper.Builder("keyword", Version.CURRENT));
+        return builder.build(mapperBuilderContext);
     }
 }

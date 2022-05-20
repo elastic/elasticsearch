@@ -1290,23 +1290,6 @@ public class MetadataTests extends ESTestCase {
         b.put("my-alias", "d1", null, null);
         e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
-
-        b = Metadata.builder();
-        b.put(
-            IndexMetadata.builder("index1")
-                .settings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                )
-                .putAlias(new AliasMetadata.Builder("my-alias"))
-        );
-
-        addDataStream("d1", b);
-        b.put("my-alias", "d1", null, null);
-        e = expectThrows(IllegalStateException.class, b::build);
-        assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (my-alias)"));
     }
 
     public void testDataStreamAliasValidationRestoreScenario() {
@@ -1325,21 +1308,6 @@ public class MetadataTests extends ESTestCase {
         );
         e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
-
-        b = Metadata.builder();
-        b.put(
-            IndexMetadata.builder("index1")
-                .settings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                )
-                .putAlias(new AliasMetadata.Builder("my-alias"))
-        );
-        b.dataStreams(Map.of("d1", createDataStream("d1")), Map.of("my-alias", new DataStreamAlias("my-alias", List.of("d1"), null, null)));
-        e = expectThrows(IllegalStateException.class, b::build);
-        assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (my-alias)"));
     }
 
     private void addDataStream(String name, Metadata.Builder b) {

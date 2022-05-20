@@ -38,9 +38,8 @@ public class AliasTests extends ScriptTestCase {
             )
         );
         assertEquals(
-            "Cannot have same alias [AliasedTestInnerClass] for multiple classes "
-                + "[class org.elasticsearch.painless.AliasedTestInnerClass"
-                + ",class org.elasticsearch.painless.AliasTestClass$AliasedTestInnerClass]",
+            "Cannot add alias [AliasedTestInnerClass] for [class org.elasticsearch.painless.AliasTestClass$AliasedTestInnerClass]"
+                + " that shadows class [class org.elasticsearch.painless.AliasedTestInnerClass]",
             err.getCause().getMessage()
         );
     }

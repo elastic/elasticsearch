@@ -25,23 +25,23 @@ package org.elasticsearch.painless.spi.annotation;
  * }
  * </pre>
  *
- * Normally scripts would need to reference <pre>Outer.Inner</pre>.
+ * Normally scripts would need to reference {@code Outer.Inner}.
  *
- * With an alias annotation <pre>@alias[class="Inner"]</pre> on the class
+ * With an alias annotation {@code @alias[class="Inner"]} on the class
  * <pre>
  * class Outer$Inner @alias[class="AliasedTestInnerClass"] {
  * }
  * </pre>
  *
- * Then whitelist can have <pre>Inner</pre> as the return value for <pre>inner</pre> instead of <pre>Outer.Inner</pre>
+ * Then whitelist can have {@code Inner} as the return value for {@code inner} instead of {@code Outer.Inner}
  * <pre>
  * class Outer {
  *   Inner inner()
  * }
  * </pre>
  *
- * And scripts refer can to <pre>Inner</pre> directly, <pre>Inner inner = Outer.inner()</pre>, instead of using the outer class to scope
- * the type name <pre>Outer.Inner</pre> as would normally be required <pre>Outer.Inner inner = Outer.inner()</pre>
+ * And scripts refer can to {@code Inner} directly, {@code Inner inner = Outer.inner()}, instead of using the outer class to scope
+ * the type name {@code Outer.Inner} as would normally be required {@code Outer.Inner inner = Outer.inner()}
  *
  * Only class alias types are available.
  *

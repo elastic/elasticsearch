@@ -379,7 +379,7 @@ public final class PainlessLookupBuilder {
                         Class<?> existing = canonicalClassNamesToClasses.put(alias.alias(), clazz);
                         if (existing != null) {
                             throw new IllegalArgumentException(
-                                "Cannot have same alias [" + alias.alias() + "] for multiple classes [" + existing + "," + clazz + "]"
+                                "Cannot add alias [" + alias.alias() + "] for [" + clazz + "] that shadows class [" + existing + "]"
                             );
                         }
                     }

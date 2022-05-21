@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -176,32 +177,30 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         final List<SnapshotId> snapshotIds = context.snapshotIds();
         assert snapshotIds.size() == 1 && SNAPSHOT_ID.equals(snapshotIds.iterator().next())
             : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId but saw " + snapshotIds;
-        Client remoteClient = getRemoteClusterClient();
-        ClusterStateResponse response = remoteClient.admin()
-            .cluster()
-            .prepareState()
-            .clear()
-            .setMetadata(true)
-            .setNodes(true)
-            .get(ccrSettings.getRecoveryActionTimeout());
-        Metadata responseMetadata = response.getState().metadata();
-        ImmutableOpenMap<String, IndexMetadata> indicesMap = responseMetadata.indices();
-        List<String> indices = new ArrayList<>(indicesMap.keySet());
-
-        // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
-        threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
-            .execute(
-                () -> context.onResponse(
-                    new SnapshotInfo(
+        try {
+            getRemoteClusterClient().admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setMetadata(true)
+                .setNodes(true)
+                // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
+                .execute(new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SNAPSHOT_META, context.map(response -> {
+                    Metadata responseMetadata = response.getState().metadata();
+                    ImmutableOpenMap<String, IndexMetadata> indicesMap = responseMetadata.indices();
+                    List<String> indices = new ArrayList<>(indicesMap.keySet());
+                    return new SnapshotInfo(
                         new Snapshot(this.metadata.name(), SNAPSHOT_ID),
                         indices,
                         new ArrayList<>(responseMetadata.dataStreams().keySet()),
                         Collections.emptyList(),
                         response.getState().getNodes().getMaxNodeVersion(),
                         SnapshotState.SUCCESS
-                    )
-                )
-            );
+                    );
+                }), false));
+        } catch (Exception e) {
+            context.onFailure(e);
+        }
     }
 
     @Override

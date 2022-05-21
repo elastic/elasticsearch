@@ -144,8 +144,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
         }
 
-        this.info = new PluginsAndModules(pluginsList, modulesList);
-        this.plugins = loadBundles(seenBundles);
+        Map<String, LoadedPlugin> loadedPlugins = loadBundles(seenBundles);
+        this.info = new PluginsAndModules(getRuntimeInfos(pluginsList, loadedPlugins), modulesList);
+        this.plugins = List.copyOf(loadedPlugins.values());
+
 
         checkMandatoryPlugins(
             pluginsList.stream().map(PluginDescriptor::getName).collect(Collectors.toSet()),
@@ -186,7 +188,19 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private static PluginsAndModules createInfo()
+    private static List<PluginRuntimeInfo> getRuntimeInfos(List<PluginDescriptor> pluginDescriptors, Map<String, LoadedPlugin> plugins) {
+        List<PluginRuntimeInfo> runtimeInfos = new ArrayList<>();
+        for (PluginDescriptor descriptor : pluginDescriptors) {
+            LoadedPlugin plugin = plugins.get(descriptor.getName());
+            assert plugin != null;
+            Class<?> pluginClazz = plugin.instance.getClass();
+            PluginApiInfo apiInfo = null;
+            // TODO: use reflection to find all the *Plugin interfaces extended (what if they have an intermediate base class?)
+            // TODO: use reflection to find all the methods implemented from the *Plugin interfaces and also the Plugin class itself
+            runtimeInfos.add(new PluginRuntimeInfo(descriptor, apiInfo));
+        }
+        return runtimeInfos;
+    }
 
     /**
      * Map a function over all plugins
@@ -236,7 +250,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return this.plugins;
     }
 
-    private List<LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
+    private Map<String, LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
         Map<String, LoadedPlugin> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
@@ -249,7 +263,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
 
         loadExtensions(loaded.values());
-        return List.copyOf(loaded.values());
+        return loaded;
     }
 
     // package-private for test visibility

@@ -255,6 +255,8 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
      */
     public ReleasableBytesReference[] returnByteComponentsAndReset() {
         final ReleasableBytesReference[] toReturn = (ReleasableBytesReference[]) getByteComponents(true);
+        // Clear the current page list so that reset does not release them.
+        pages.clear();
         reset();
         return toReturn;
     }

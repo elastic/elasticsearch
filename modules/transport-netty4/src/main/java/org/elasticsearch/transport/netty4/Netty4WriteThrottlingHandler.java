@@ -9,13 +9,18 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.transport.OutboundMessage;
 import org.elasticsearch.transport.Transports;
 
 import java.nio.channels.ClosedChannelException;
@@ -40,10 +45,23 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
-        assert msg instanceof ByteBuf;
+        assert msg instanceof OutboundMessage.SerializedBytes || msg instanceof ByteBuf;
         assert Transports.assertDefaultThreadContext(threadContext);
         assert Transports.assertTransportThread();
-        final boolean queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
+        final boolean queued;
+        if (msg instanceof OutboundMessage.SerializedBytes) {
+            ArrayDeque<ReleasableBytesReference> components = ((OutboundMessage.SerializedBytes) msg).components();
+            ByteBuf[] byteBufs = new ByteBuf[components.size()];
+            int i = 0;
+            for (ReleasableBytesReference component : components) {
+//                byteBufs[i++] = new PagedByteBuf(component.array(), component.arrayOffset(), component.arrayOffset() + component.length(), component::close);
+            }
+
+            // TODO: Fix
+            queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
+        } else {
+            queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
+        }
         assert queued;
     }
 
@@ -84,6 +102,7 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
                 break;
             }
             final WriteOperation write = currentWrite;
+
             final int readableBytes = write.buf.readableBytes();
             final int bufferSize = Math.min(readableBytes, 1 << 18);
             final int readerIndex = write.buf.readerIndex();

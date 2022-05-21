@@ -166,17 +166,15 @@ final class OutboundHandler {
     }
 
     private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
-        final RecyclerBytesStreamOutput byteStreamOutput = new RecyclerBytesStreamOutput(recycler);
-        final ActionListener<Void> wrappedListener = ActionListener.runBefore(listener, byteStreamOutput::close);
         final OutboundMessage.SerializedBytes message;
-        try {
+        try (RecyclerBytesStreamOutput byteStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
             message = networkMessage.serializeC(byteStreamOutput);
         } catch (Exception e) {
             logger.warn(() -> "failed to serialize outbound message [" + networkMessage + "]", e);
-            wrappedListener.onFailure(e);
+            listener.onFailure(e);
             throw e;
         }
-        internalSend(channel, message, networkMessage, wrappedListener);
+        internalSend(channel, message, networkMessage, listener);
     }
 
     private void internalSend(

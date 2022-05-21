@@ -259,44 +259,40 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
-        ActionListener.completeWith(listener, () -> {
-            Client remoteClient = getRemoteClusterClient();
-            ClusterStateResponse response = remoteClient.admin()
-                .cluster()
-                .prepareState()
-                .clear()
-                .setMetadata(true)
-                .get(ccrSettings.getRecoveryActionTimeout());
-            Metadata remoteMetadata = response.getState().getMetadata();
+        ActionRunnable.wrap(
+            listener,
+            l -> getRemoteClusterClient().admin().cluster().prepareState().clear().setMetadata(true).execute(l.map(response -> {
+                Metadata remoteMetadata = response.getState().getMetadata();
 
-            Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
-            Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
-            Map<IndexId, List<SnapshotId>> indexSnapshots = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
+                Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
+                Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
+                Map<IndexId, List<SnapshotId>> indexSnapshots = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
 
-            ImmutableOpenMap<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
-            for (String indexName : remoteMetadata.getConcreteAllIndices()) {
-                // Both the Snapshot name and UUID are set to _latest_
-                SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
-                copiedSnapshotIds.put(indexName, snapshotId);
-                final long nowMillis = threadPool.absoluteTimeInMillis();
-                snapshotsDetails.put(
-                    indexName,
-                    new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, Version.CURRENT, nowMillis, nowMillis, "")
+                ImmutableOpenMap<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
+                for (String indexName : remoteMetadata.getConcreteAllIndices()) {
+                    // Both the Snapshot name and UUID are set to _latest_
+                    SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
+                    copiedSnapshotIds.put(indexName, snapshotId);
+                    final long nowMillis = threadPool.absoluteTimeInMillis();
+                    snapshotsDetails.put(
+                        indexName,
+                        new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, Version.CURRENT, nowMillis, nowMillis, "")
+                    );
+                    Index index = remoteIndices.get(indexName).getIndex();
+                    indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singletonList(snapshotId));
+                }
+                return new RepositoryData(
+                    MISSING_UUID,
+                    1,
+                    copiedSnapshotIds,
+                    snapshotsDetails,
+                    indexSnapshots,
+                    ShardGenerations.EMPTY,
+                    IndexMetaDataGenerations.EMPTY,
+                    MISSING_UUID
                 );
-                Index index = remoteIndices.get(indexName).getIndex();
-                indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singletonList(snapshotId));
-            }
-            return new RepositoryData(
-                MISSING_UUID,
-                1,
-                copiedSnapshotIds,
-                snapshotsDetails,
-                indexSnapshots,
-                ShardGenerations.EMPTY,
-                IndexMetaDataGenerations.EMPTY,
-                MISSING_UUID
-            );
-        });
+            }))
+        ).run();
     }
 
     @Override

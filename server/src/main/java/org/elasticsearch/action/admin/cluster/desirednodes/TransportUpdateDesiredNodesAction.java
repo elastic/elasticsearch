@@ -90,6 +90,21 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         }
     }
 
+    @Override
+    protected void doExecute(Task task, UpdateDesiredNodesRequest request, ActionListener<UpdateDesiredNodesResponse> listener) {
+        final var minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
+        if (request.isCompatibleWithVersion(minNodeVersion) == false) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "Unable to use processor ranges or floating-point processors in mixed-clusters with nodes in version: " + minNodeVersion
+                )
+            );
+            return;
+        }
+
+        super.doExecute(task, request, listener);
+    }
+
     static ClusterState replaceDesiredNodes(ClusterState clusterState, DesiredNodes newDesiredNodes) {
         return clusterState.copyAndUpdateMetadata(
             metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(newDesiredNodes))
@@ -149,6 +164,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             final var initialDesiredNodes = DesiredNodesMetadata.fromClusterState(currentState).getLatestDesiredNodes();
             var desiredNodes = initialDesiredNodes;
             for (final var taskContext : taskContexts) {
+
                 final var previousDesiredNodes = desiredNodes;
                 try {
                     desiredNodes = updateDesiredNodes(desiredNodes, taskContext.getTask().request());

@@ -251,7 +251,7 @@ public class ServerCliTests extends CommandTestCase {
     public void testKeystorePassword() throws Exception {
         assertKeystorePassword(null); // no keystore exists
         assertKeystorePassword("");
-        assertKeystorePassword("dummypassword");
+        assertKeystorePassword("a-dummy-password");
     }
 
     public void testCloseStopsServer() throws Exception {
@@ -259,6 +259,16 @@ public class ServerCliTests extends CommandTestCase {
         command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
         command.close();
         assertThat(mockServer.stopCalled, is(true));
+    }
+
+    public void testIgnoreNullExceptionOutput() throws Exception {
+        Command command = newCommand();
+
+        autoConfigCallback = (t, options, env, processInfo) -> { throw new UserException(ExitCodes.NOOP, null); };
+        terminal.reset();
+        command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+        command.close();
+        assertThat(terminal.getErrorOutput(), not(containsString("null")));
     }
 
     interface AutoConfigMethod {

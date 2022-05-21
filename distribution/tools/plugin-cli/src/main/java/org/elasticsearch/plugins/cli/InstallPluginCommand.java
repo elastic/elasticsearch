@@ -78,10 +78,10 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         SyncPluginsAction.ensureNoConfigFile(env);
 
-        List<org.elasticsearch.plugins.cli.PluginDescriptor> plugins = arguments.values(options)
+        List<InstallablePlugin> plugins = arguments.values(options)
             .stream()
             // We only have one piece of data, which could be an ID or could be a location, so we use it for both
-            .map(idOrLocation -> new org.elasticsearch.plugins.cli.PluginDescriptor(idOrLocation, idOrLocation))
+            .map(idOrLocation -> new InstallablePlugin(idOrLocation, idOrLocation))
             .collect(Collectors.toList());
         final boolean isBatch = options.has(batchOption);
 

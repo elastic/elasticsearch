@@ -204,13 +204,13 @@ public class InstallPluginAction implements Closeable {
     }
 
     // pkg private for testing
-    public void execute(List<org.elasticsearch.plugins.cli.PluginDescriptor> plugins) throws Exception {
+    public void execute(List<InstallablePlugin> plugins) throws Exception {
         if (plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "at least one plugin id is required");
         }
 
         final Set<String> uniquePluginIds = new HashSet<>();
-        for (final org.elasticsearch.plugins.cli.PluginDescriptor plugin : plugins) {
+        for (final InstallablePlugin plugin : plugins) {
             if (uniquePluginIds.add(plugin.getId()) == false) {
                 throw new UserException(ExitCodes.USAGE, "duplicate plugin id [" + plugin.getId() + "]");
             }
@@ -219,7 +219,7 @@ public class InstallPluginAction implements Closeable {
         final String logPrefix = terminal.isHeadless() ? "" : "-> ";
 
         final Map<String, List<Path>> deleteOnFailures = new LinkedHashMap<>();
-        for (final org.elasticsearch.plugins.cli.PluginDescriptor plugin : plugins) {
+        for (final InstallablePlugin plugin : plugins) {
             final String pluginId = plugin.getId();
             terminal.println(logPrefix + "Installing " + pluginId);
             try {
@@ -278,7 +278,7 @@ public class InstallPluginAction implements Closeable {
     /**
      * Downloads the plugin and returns the file it was downloaded to.
      */
-    private Path download(org.elasticsearch.plugins.cli.PluginDescriptor plugin, Path tmpDir) throws Exception {
+    private Path download(InstallablePlugin plugin, Path tmpDir) throws Exception {
         final String pluginId = plugin.getId();
 
         final String logPrefix = terminal.isHeadless() ? "" : "-> ";
@@ -890,7 +890,7 @@ public class InstallPluginAction implements Closeable {
      * Installs the plugin from {@code tmpRoot} into the plugins dir.
      * If the plugin has a bin dir and/or a config dir, those are moved.
      */
-    private PluginDescriptor installPlugin(org.elasticsearch.plugins.cli.PluginDescriptor descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
+    private PluginDescriptor installPlugin(InstallablePlugin descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
         final PluginDescriptor info = loadPluginInfo(tmpRoot);
         PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpFile());
         if (pluginPolicy != null) {
@@ -925,8 +925,13 @@ public class InstallPluginAction implements Closeable {
     /**
      * Moves bin and config directories from the plugin if they exist
      */
-    private void installPluginSupportFiles(PluginDescriptor info, Path tmpRoot, Path destBinDir, Path destConfigDir, List<Path> deleteOnFailure)
-        throws Exception {
+    private void installPluginSupportFiles(
+        PluginDescriptor info,
+        Path tmpRoot,
+        Path destBinDir,
+        Path destConfigDir,
+        List<Path> deleteOnFailure
+    ) throws Exception {
         Path tmpBinDir = tmpRoot.resolve("bin");
         if (Files.exists(tmpBinDir)) {
             deleteOnFailure.add(destBinDir);

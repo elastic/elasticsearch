@@ -259,9 +259,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
-        ActionRunnable.wrap(
-            listener,
-            l -> getRemoteClusterClient().admin().cluster().prepareState().clear().setMetadata(true).execute(l.map(response -> {
+        try {
+            getRemoteClusterClient().admin().cluster().prepareState().clear().setMetadata(true).execute(listener.map(response -> {
                 Metadata remoteMetadata = response.getState().getMetadata();
 
                 Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
@@ -291,8 +290,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     IndexMetaDataGenerations.EMPTY,
                     MISSING_UUID
                 );
-            }))
-        ).run();
+            }));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     @Override

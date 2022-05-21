@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * {@link TokenListCategory} cannot be serialized between nodes as its token IDs
@@ -36,12 +37,6 @@ public class SerializableTokenListCategory implements Writeable {
      */
     public static final int KEY_BUDGET = 10000;
 
-    /**
-     * Not intended to be used in normal operation. Can be used as a placeholder
-     * when talking to old nodes to avoid null pointer exceptions.
-     */
-    static final SerializableTokenListCategory EMPTY = new SerializableTokenListCategory();
-
     final BytesRef[] baseTokens;
     final int[] baseTokenWeights;
     final int baseUnfilteredLength;
@@ -53,21 +48,6 @@ public class SerializableTokenListCategory implements Writeable {
     final int[] keyTokenIndexes;
     final int origUniqueTokenWeight;
     final long numMatches;
-
-    private SerializableTokenListCategory() {
-        baseTokens = new BytesRef[0];
-        int[] emptyIntArray = new int[0];
-        baseTokenWeights = emptyIntArray;
-        baseUnfilteredLength = 0;
-        maxUnfilteredStringLength = 0;
-        orderedCommonTokenBeginIndex = 0;
-        orderedCommonTokenEndIndex = 0;
-        commonUniqueTokenIndexes = emptyIntArray;
-        commonUniqueTokenWeights = emptyIntArray;
-        keyTokenIndexes = emptyIntArray;
-        origUniqueTokenWeight = 0;
-        numMatches = 0;
-    }
 
     /**
      * @param category     The category to be serialized.
@@ -229,5 +209,14 @@ public class SerializableTokenListCategory implements Writeable {
             && Arrays.equals(this.keyTokenIndexes, that.keyTokenIndexes)
             && this.origUniqueTokenWeight == that.origUniqueTokenWeight
             && this.numMatches == that.numMatches;
+    }
+
+    @Override
+    public String toString() {
+        return Arrays.stream(keyTokenIndexes)
+            .mapToObj(index -> baseTokens[index].utf8ToString())
+            .collect(Collectors.joining(", ", "Category with key tokens [", "]")) + Arrays.stream(baseTokens)
+                .map(BytesRef::utf8ToString)
+                .collect(Collectors.joining(", ", " and base tokens [", "]"));
     }
 }

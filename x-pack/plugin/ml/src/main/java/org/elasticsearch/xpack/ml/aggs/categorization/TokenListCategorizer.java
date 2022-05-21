@@ -152,7 +152,7 @@ public class TokenListCategorizer implements Accountable {
         return computeCategory(
             foreignCategory.getBaseWeightedTokenIds(),
             foreignCategory.getCommonUniqueTokenIds(),
-            foreignCategory.getCommonUniqueTokenWeight(),
+            foreignCategory.getBaseWeight(),
             foreignCategory.getBaseUnfilteredLength(),
             foreignCategory.getMaxUnfilteredStringLength(),
             foreignCategory.getNumMatches()
@@ -348,17 +348,15 @@ public class TokenListCategorizer implements Accountable {
     }
 
     /**
-     * Compute similarity between two vectors
+     * Compute the similarity between two vectors.
      */
     static float similarity(List<TokenAndWeight> left, int leftWeight, List<TokenAndWeight> right, int rightWeight) {
-        float similarity = 1.0f;
-
         int maxWeight = Math.max(leftWeight, rightWeight);
         if (maxWeight > 0) {
-            similarity = 1.0f - (float) TokenListSimilarityTester.weightedEditDistance(left, right) / (float) maxWeight;
+            return 1.0f - (float) TokenListSimilarityTester.weightedEditDistance(left, right) / (float) maxWeight;
+        } else {
+            return 1.0f;
         }
-
-        return similarity;
     }
 
     public InternalCategorizationAggregation.Bucket[] toOrderedBuckets(int size) {

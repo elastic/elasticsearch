@@ -1378,10 +1378,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         /**
          * Returns the number of shards.
          *
-         * @return the provided value or -1 if it has not been set.
+         * @return the provided value or 1 if it has not been set.
          */
         public int numberOfShards() {
-            return settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1);
+            return settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1);
         }
 
         public Builder numberOfReplicas(int numberOfReplicas) {

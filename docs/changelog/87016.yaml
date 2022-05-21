@@ -1,0 +1,5 @@
+pr: 87016
+summary: Remove blocking in `CcrRespository#getRepositoryData`
+area: CCR
+type: bug
+issues: []

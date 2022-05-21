@@ -66,9 +66,19 @@ public class SystemIndices {
 
     private static final Automaton EMPTY = Automata.makeEmpty();
 
-    private static final Map<String, Feature> SERVER_SYSTEM_INDEX_DESCRIPTORS = Stream.of(
+    /**
+     * This is the source for non-plugin system features.
+     */
+    private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS = Stream.of(
         new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR))
-    ).collect(Collectors.toMap(Feature::getName, Function.identity()));
+    ).collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
+
+    /**
+     * The node's full list of system features is stored here. The map is keyed
+     * on the value of {@link Feature#getName()}, and is used for fast lookup of
+     * feature objects via {@link #getFeature(String)}.
+     */
+    private final Map<String, Feature> featureDescriptors;
 
     private final Automaton systemNameAutomaton;
     private final CharacterRunAutomaton netNewSystemIndexAutomaton;
@@ -76,7 +86,6 @@ public class SystemIndices {
     private final CharacterRunAutomaton systemIndexRunAutomaton;
     private final CharacterRunAutomaton systemDataStreamIndicesRunAutomaton;
     private final Predicate<String> systemDataStreamPredicate;
-    private final Map<String, Feature> featureDescriptors;
     private final SystemIndexDescriptor[] indexDescriptors;
     private final Map<String, SystemDataStreamDescriptor> dataStreamDescriptors;
     private final Map<String, CharacterRunAutomaton> productToSystemIndicesMatcher;
@@ -340,7 +349,7 @@ public class SystemIndices {
      * @return A set of all feature names
      */
     public Set<String> getFeatureNames() {
-        return featureDescriptors.keySet();
+        return Set.copyOf(featureDescriptors.keySet());
     }
 
     /**
@@ -357,7 +366,7 @@ public class SystemIndices {
      * @return A collection of Features.
      */
     public Collection<Feature> getFeatures() {
-        return featureDescriptors.values();
+        return List.copyOf(featureDescriptors.values());
     }
 
     private static Automaton buildIndexAutomaton(Map<String, Feature> featureDescriptors) {
@@ -601,10 +610,10 @@ public class SystemIndices {
     }
 
     private static Map<String, Feature> buildFeatureMap(List<Feature> features) {
-        final Map<String, Feature> map = Maps.newMapWithExpectedSize(features.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size());
+        final Map<String, Feature> map = Maps.newMapWithExpectedSize(features.size() + SERVER_SYSTEM_FEATURE_DESCRIPTORS.size());
         features.forEach(feature -> map.put(feature.getName(), feature));
         // put the server items last since we expect less of them
-        SERVER_SYSTEM_INDEX_DESCRIPTORS.forEach((source, feature) -> {
+        SERVER_SYSTEM_FEATURE_DESCRIPTORS.forEach((source, feature) -> {
             if (map.putIfAbsent(source, feature) != null) {
                 throw new IllegalArgumentException(
                     "plugin or module attempted to define the same source [" + source + "] as a built-in system index"

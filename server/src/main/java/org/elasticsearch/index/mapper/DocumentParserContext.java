@@ -364,6 +364,14 @@ public abstract class DocumentParserContext {
 
     public abstract ContentPath path();
 
+    public final MapperBuilderContext createMapperBuilderContext() {
+        String p = path().pathAsText("");
+        if (p.endsWith(".")) {
+            p = p.substring(0, p.length() - 1);
+        }
+        return new MapperBuilderContext(p);
+    }
+
     public abstract XContentParser parser();
 
     public abstract LuceneDocument rootDoc();

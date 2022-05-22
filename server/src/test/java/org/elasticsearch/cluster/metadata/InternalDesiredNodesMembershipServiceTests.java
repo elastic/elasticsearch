@@ -231,6 +231,71 @@ public class InternalDesiredNodesMembershipServiceTests extends DesiredNodesTest
         }
     }
 
+    public void testKnownDesiredNodesAreKeptAsMembersEvenIfTheyAreDownTemporarily() {
+        final var tracker = new InternalDesiredNodesMembershipService(clusterService);
+
+        applyClusterState("add new nodes", this::withNewNodes);
+        applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
+
+        final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
+
+        {
+            final var members = tracker.getMembershipInformation();
+            for (DesiredNode desiredNode : desiredNodes) {
+                assertThat(members.isMember(desiredNode), is(true));
+            }
+        }
+
+        final var discoveryNodes = clusterService.state().nodes();
+        final var removedNode = randomValueOtherThan(discoveryNodes.getMasterNode(), () -> randomFrom(discoveryNodes));
+
+        applyClusterState(
+            "remove a node temporarily",
+            state -> ClusterState.builder(state).nodes(DiscoveryNodes.builder(discoveryNodes).remove(removedNode)).build()
+        );
+
+        {
+            final var members = tracker.getMembershipInformation();
+            for (DesiredNode desiredNode : desiredNodes) {
+                assertThat(members.isMember(desiredNode), is(true));
+            }
+        }
+
+        final List<DesiredNode> desiredNodesWithReplacedNode = new ArrayList<>();
+        for (DesiredNode desiredNode : desiredNodes) {
+            if (desiredNode.externalId().equals(removedNode.getExternalId())) {
+                //
+                desiredNodesWithReplacedNode.add(newDesiredNode(desiredNode.externalId()));
+            } else {
+                desiredNodesWithReplacedNode.add(desiredNode);
+            }
+        }
+
+        final var upgradedDesiredNodes = new DesiredNodes(
+            desiredNodes.historyID(),
+            desiredNodes.version() + 1,
+            desiredNodesWithReplacedNode
+        );
+
+        applyClusterState(
+            "Upgrade desired nodes",
+            state -> ClusterState.builder(state)
+                .metadata(
+                    Metadata.builder(state.metadata())
+                        .putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(upgradedDesiredNodes))
+                        .build()
+                )
+                .build()
+        );
+
+        {
+            final var members = tracker.getMembershipInformation();
+            for (DesiredNode desiredNode : desiredNodes) {
+                assertThat(members.isMember(desiredNode), is(true));
+            }
+        }
+    }
+
     private ClusterState withNewNodes(ClusterState clusterState) {
         final var discoveryNodes = DiscoveryNodes.builder(clusterState.nodes());
         for (DiscoveryNode newNode : randomList(5, 10, this::newNode)) {

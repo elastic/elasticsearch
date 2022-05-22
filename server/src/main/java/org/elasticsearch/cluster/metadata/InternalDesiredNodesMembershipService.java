@@ -15,7 +15,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class InternalDesiredNodesMembershipService implements ClusterStateListener, DesiredNodesMembershipService {
     private final ClusterService clusterService;
@@ -54,8 +57,11 @@ public class InternalDesiredNodesMembershipService implements ClusterStateListen
                 : new HashSet<>();
             latestHistoryId = desiredNodes.historyID();
 
-            final Set<DesiredNode> removedDesiredNodes = new HashSet<>(updatedMembers);
-            desiredNodes.nodes().forEach(removedDesiredNodes::remove);
+            final Map<String, DesiredNode> removedDesiredNodes = updatedMembers.stream()
+                .collect(Collectors.toMap(DesiredNode::externalId, Function.identity()));
+            for (DesiredNode desiredNode : desiredNodes) {
+                removedDesiredNodes.remove(desiredNode.externalId());
+            }
 
             for (DiscoveryNode node : clusterState.nodes()) {
                 final var desiredNode = desiredNodes.find(node.getExternalId());
@@ -64,7 +70,7 @@ public class InternalDesiredNodesMembershipService implements ClusterStateListen
                 }
             }
 
-            updatedMembers.removeAll(removedDesiredNodes);
+            removedDesiredNodes.values().forEach(updatedMembers::remove);
             members = Collections.unmodifiableSet(updatedMembers);
         }
     }

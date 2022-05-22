@@ -13,12 +13,13 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
 public class InternalDesiredNodesMembershipService implements ClusterStateListener, DesiredNodesMembershipService {
     private final ClusterService clusterService;
-    private final Set<DesiredNode> members;
+    private volatile Set<DesiredNode> members;
     private String latestHistoryId = null;
 
     public InternalDesiredNodesMembershipService(ClusterService clusterService) {
@@ -28,51 +29,50 @@ public class InternalDesiredNodesMembershipService implements ClusterStateListen
     }
 
     @Override
-    public synchronized void clusterChanged(ClusterChangedEvent event) {
+    public void clusterChanged(ClusterChangedEvent event) {
         final var clusterState = event.state();
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
         if (desiredNodes == null) {
-            members.clear();
+            members = Collections.emptySet();
             return;
         }
 
         if (event.nodesChanged()) {
             final var nodesDelta = event.nodesDelta();
 
+            final Set<DesiredNode> updatedMembers = new HashSet<>(members);
             for (DiscoveryNode addedNode : nodesDelta.addedNodes()) {
                 final var desiredNode = desiredNodes.find(addedNode.getExternalId());
                 if (desiredNode != null) {
-                    members.add(desiredNode);
+                    updatedMembers.add(desiredNode);
                 }
             }
+            members = Collections.unmodifiableSet(updatedMembers);
         } else if (event.changedCustomMetadataSet().contains(DesiredNodesMetadata.TYPE) || latestHistoryId == null) {
-            if (desiredNodes.historyID().equals(latestHistoryId) == false) {
-                members.clear();
-            }
+            final Set<DesiredNode> updatedMembers = desiredNodes.historyID().equals(latestHistoryId)
+                ? new HashSet<>(members)
+                : new HashSet<>();
             latestHistoryId = desiredNodes.historyID();
 
-            final Set<DesiredNode> removedDesiredNodes = new HashSet<>(members);
+            final Set<DesiredNode> removedDesiredNodes = new HashSet<>(updatedMembers);
             desiredNodes.nodes().forEach(removedDesiredNodes::remove);
 
             for (DiscoveryNode node : clusterState.nodes()) {
                 final var desiredNode = desiredNodes.find(node.getExternalId());
                 if (desiredNode != null) {
-                    members.add(desiredNode);
+                    updatedMembers.add(desiredNode);
                 }
             }
 
-            members.removeAll(removedDesiredNodes);
+            updatedMembers.removeAll(removedDesiredNodes);
+            members = Collections.unmodifiableSet(updatedMembers);
         }
     }
 
     @Override
-    public synchronized DesiredNodes.MembershipInformation getMembershipInformation() {
-        if (members.isEmpty()) {
-            return DesiredNodes.MembershipInformation.EMPTY;
-        }
+    public DesiredNodes.MembershipInformation getMembershipInformation() {
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
 
-        return new DesiredNodes.MembershipInformation(desiredNodes, Set.copyOf(members));
+        return new DesiredNodes.MembershipInformation(desiredNodes, members);
     }
-
 }

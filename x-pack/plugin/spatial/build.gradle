@@ -15,8 +15,6 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
   api project(":libs:elasticsearch-h3")
-  // lucene topology library that uses spherical geometry
-  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('vector-tile'))
 }

@@ -14,20 +14,25 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -153,12 +158,6 @@ public abstract class GeoShapeQueryTestCase extends GeoPointShapeQueryTestCase {
         // Create a random geometry collection to index.
         GeometryCollection<Geometry> randomIndexCollection = GeometryTestUtils.randomGeometryCollectionWithoutCircle(false);
         org.apache.lucene.geo.Polygon randomPoly = GeoTestUtil.nextPolygon();
-
-        assumeTrue(
-            "Skipping the check for the polygon with a degenerated dimension",
-            randomPoly.maxLat - randomPoly.minLat > 8.4e-8 && randomPoly.maxLon - randomPoly.minLon > 8.4e-8
-        );
-
         Polygon polygon = new Polygon(new LinearRing(randomPoly.getPolyLons(), randomPoly.getPolyLats()));
         List<Geometry> indexGeometries = new ArrayList<>();
         for (Geometry geometry : randomIndexCollection) {
@@ -552,11 +551,6 @@ public abstract class GeoShapeQueryTestCase extends GeoPointShapeQueryTestCase {
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder).get();
         assertSearchResponse(result);
-        assumeTrue(
-            "Skipping the check for the polygon with a degenerated dimension until "
-                + " https://issues.apache.org/jira/browse/LUCENE-8634 is fixed",
-            randomPoly.maxLat - randomPoly.minLat > 8.4e-8 && randomPoly.maxLon - randomPoly.minLon > 8.4e-8
-        );
         assertHitCount(result, 1);
     }
 
@@ -705,5 +699,91 @@ public abstract class GeoShapeQueryTestCase extends GeoPointShapeQueryTestCase {
         SearchResponse result = client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
+    }
+
+    public void testIndexLineQueryPoints() throws Exception {
+        createMapping(defaultIndexName, defaultGeoFieldName);
+        ensureGreen();
+
+        Line line = randomValueOtherThanMany(
+            l -> GeometryNormalizer.needsNormalize(Orientation.CCW, l),
+            () -> GeometryTestUtils.randomLine(false)
+        );
+
+        client().prepareIndex(defaultIndexName)
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, WellKnownText.toWKT(line)).endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        // all points from a line intersect with the line
+        for (int i = 0; i < line.length(); i++) {
+            Point point = new Point(line.getLon(i), line.getLat(i));
+            SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
+                .setTrackTotalHits(true)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.INTERSECTS))
+                .get();
+            assertSearchResponse(searchResponse);
+            SearchHits searchHits = searchResponse.getHits();
+            assertThat(searchHits.getTotalHits().value, equalTo(1L));
+        }
+    }
+
+    public void testIndexPolygonQueryPoints() throws Exception {
+        createMapping(defaultIndexName, defaultGeoFieldName);
+        ensureGreen();
+
+        Polygon polygon = randomValueOtherThanMany(
+            p -> GeometryNormalizer.needsNormalize(Orientation.CCW, p),
+            () -> GeometryTestUtils.randomPolygon(false)
+        );
+
+        client().prepareIndex(defaultIndexName)
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, WellKnownText.toWKT(polygon)).endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        // all points from a polygon intersect with the polygon
+        LinearRing linearRing = polygon.getPolygon();
+        for (int i = 0; i < linearRing.length(); i++) {
+            Point point = new Point(linearRing.getLon(i), linearRing.getLat(i));
+            SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
+                .setTrackTotalHits(true)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.INTERSECTS))
+                .get();
+            assertSearchResponse(searchResponse);
+            SearchHits searchHits = searchResponse.getHits();
+            assertThat(searchHits.getTotalHits().value, equalTo(1L));
+        }
+    }
+
+    public void testNeighbours() throws Exception {
+        createMapping(defaultIndexName, defaultGeoFieldName);
+        ensureGreen();
+
+        String[] polygons = new String[] {
+            "POLYGON((1 1, 2 1, 2 2, 1 2, 1 1))", // center
+            "POLYGON((0 1, 1 1, 1 2, 0 2, 0 1))", // west
+            "POLYGON((0 2, 1 2, 1 3, 0 3, 0 2))", // northwest
+            "POLYGON((1 2, 2 2, 2 3, 1 3, 1 2))", // north
+            "POLYGON((2 2, 3 2, 3 3, 2 3, 2 2))", // northeast
+            "POLYGON((2 1, 3 1, 3 2, 2 2, 2 1))", // east
+            "POLYGON((2 0, 3 0, 3 1, 2 1, 2 0))", // southeast
+            "POLYGON((1 0, 2 0, 2 1, 1 1, 1 0))", // south
+            "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))" // southwest
+        };
+
+        for (String polygon : polygons) {
+            client().prepareIndex(defaultIndexName)
+                .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, polygon).endObject())
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+        }
+        Geometry center = WellKnownText.fromWKT(StandardValidator.instance(false), false, polygons[0]);
+        SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
+            .setTrackTotalHits(true)
+            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, center).relation(ShapeRelation.INTERSECTS))
+            .get();
+        assertSearchResponse(searchResponse);
+        SearchHits searchHits = searchResponse.getHits();
+        assertThat(searchHits.getTotalHits().value, equalTo((long) polygons.length));
     }
 }

@@ -10,10 +10,10 @@ package org.elasticsearch.xcontent;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.Streams;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
-import java.io.FilterOutputStream;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -1197,13 +1197,9 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
         generator.writeDirectField(name, os -> {
             os.write('\"');
-            final FilterOutputStream noClose = new FilterOutputStream(os) {
-                @Override
-                public void close() {
-                    // We need to close the output stream that is wrapped by a Base64 encoder to flush the outstanding buffer
-                    // of the encoder, but we must not close the underlying output stream of the XContentBuilder.
-                }
-            };
+            // We need to close the output stream that is wrapped by a Base64 encoder to flush the outstanding buffer
+            // of the encoder, but we must not close the underlying output stream of the XContentBuilder.
+            final OutputStream noClose = Streams.noCloseStream(os);
             final OutputStream encodedOutput = Base64.getEncoder().wrap(noClose);
             writer.accept(encodedOutput);
             encodedOutput.close(); // close to flush the outstanding buffer used in the Base64 Encoder

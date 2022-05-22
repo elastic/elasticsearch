@@ -156,7 +156,7 @@ teardown:
         transform_id: "simple-remote-transform"
 
   - do:
-      catch: /Cannot preview transform \[simple-remote-transform\] because user bob lacks all the required permissions for indices. \[my_remote_cluster:remote_test_index\*, simple-remote-transform\]/
+      catch: /Cannot preview transform \[simple-remote-transform\] because user bob lacks the required permissions \[my_remote_cluster:remote_test_index\*:\[read, view_index_metadata\], simple-remote-transform:\[\]\]/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.preview_transform:
         transform_id: "simple-remote-transform"
@@ -311,7 +311,7 @@ teardown:
 ---
 "Batch transform from remote cluster when the user is not authorized":
   - do:
-      catch: /Cannot create transform \[simple-remote-transform\] because user bob lacks all the required permissions for indices. \[my_remote_cluster:remote_test_index, simple-remote-transform\]/
+      catch: /Cannot create transform \[simple-remote-transform\] because user bob lacks the required permissions \[my_remote_cluster:remote_test_index:\[read, view_index_metadata\], simple-remote-transform:\[\]\]/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.put_transform:
         transform_id: "simple-remote-transform"
@@ -342,7 +342,7 @@ teardown:
           }
   - match: { acknowledged: true }
   - do:
-      catch: /Cannot update transform \[simple-remote-transform-2\] because user bob lacks all the required permissions for indices. \[my_remote_cluster:remote_test_index, simple-remote-transform-2\]/
+      catch: /Cannot update transform \[simple-remote-transform-2\] because user bob lacks the required permissions \[my_remote_cluster:remote_test_index:\[read, view_index_metadata\], simple-remote-transform-2:\[\]\]/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.update_transform:
         transform_id: "simple-remote-transform-2"
@@ -355,7 +355,7 @@ teardown:
 ---
 "Batch transform preview from remote cluster when the user is not authorized":
   - do:
-      catch: /Cannot preview transform \[transform-preview\] because user bob lacks all the required permissions for indices. \[my_remote_cluster:remote_test_index, simple-remote-transform-2\]/
+      catch: /Cannot preview transform \[transform-preview\] because user bob lacks the required permissions \[my_remote_cluster:remote_test_index:\[read, view_index_metadata\], simple-remote-transform-2:\[\]\]/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.preview_transform:
         body: >
@@ -368,7 +368,7 @@ teardown:
             }
           }
   - do:
-      catch: /Cannot preview transform \[transform-preview\] because user bob lacks all the required permissions for indices. \[my_remote_cluster:test_index\]/
+      catch: /Cannot preview transform \[transform-preview\] because user bob lacks the required permissions \[my_remote_cluster:test_index:\[read, view_index_metadata\]\]/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.preview_transform:
         body: >

@@ -30,7 +30,6 @@ import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.TreeMap;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 
@@ -103,14 +102,12 @@ public class JobNodeSelector {
         };
     }
 
-    public Tuple<NativeMemoryCapacity, Long> perceivedCapacityAndMaxFreeMemory(
+    public Tuple<NativeMemoryCapacity, Long> currentCapacityAndMaxFreeMemory(
         int maxMachineMemoryPercent,
         boolean useAutoMemoryPercentage,
         int maxOpenJobs
     ) {
-        List<DiscoveryNode> capableNodes = candidateNodes.stream()
-            .filter(n -> this.nodeFilter.apply(n) == null)
-            .collect(Collectors.toList());
+        List<DiscoveryNode> capableNodes = candidateNodes.stream().filter(n -> this.nodeFilter.apply(n) == null).toList();
         NativeMemoryCapacity currentCapacityForMl = MlAutoscalingDeciderService.currentScale(
             capableNodes,
             maxMachineMemoryPercent,

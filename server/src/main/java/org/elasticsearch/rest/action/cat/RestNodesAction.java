@@ -132,7 +132,6 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("http_address", "default:false;alias:http;desc:bound http address");
 
         table.addCell("version", "default:false;alias:v;desc:es version");
-        table.addCell("flavor", "default:false;alias:f;desc:es distribution flavor");
         table.addCell("type", "default:false;alias:t;desc:es distribution type");
         table.addCell("build", "default:false;alias:b;desc:es build hash");
         table.addCell("jdk", "default:false;alias:j;desc:jdk version");
@@ -345,7 +344,6 @@ public class RestNodesAction extends AbstractCatAction {
             }
 
             table.addCell(node.getVersion().toString());
-            table.addCell(info == null ? null : info.getBuild().flavor().displayName());
             table.addCell(info == null ? null : info.getBuild().type().displayName());
             table.addCell(info == null ? null : info.getBuild().hash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());

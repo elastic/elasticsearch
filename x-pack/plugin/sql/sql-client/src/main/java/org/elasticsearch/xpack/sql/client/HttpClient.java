@@ -100,7 +100,8 @@ public class HttpClient {
             new RequestInfo(Mode.CLI, ClientVersion.CURRENT),
             fieldMultiValueLeniency,
             false,
-            cfg.binaryCommunication()
+            cfg.binaryCommunication(),
+            cfg.allowPartialSearchResults()
         );
         return query(sqlRequest).response();
     }
@@ -116,7 +117,8 @@ public class HttpClient {
             TimeValue.timeValueMillis(cfg.queryTimeout()),
             TimeValue.timeValueMillis(cfg.pageTimeout()),
             new RequestInfo(Mode.CLI),
-            cfg.binaryCommunication()
+            cfg.binaryCommunication(),
+            cfg.allowPartialSearchResults()
         );
         return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, Payloads::parseQueryResponse).response();
     }
@@ -173,7 +175,8 @@ public class HttpClient {
             cfg.authUser(),
             cfg.authPass(),
             cfg.sslConfig(),
-            cfg.proxyConfig()
+            cfg.proxyConfig(),
+            CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS
         );
         try {
             return java.security.AccessController.doPrivileged(

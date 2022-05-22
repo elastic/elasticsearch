@@ -1,0 +1,31 @@
+[[release-notes-8.1.3]]
+== {es} version 8.1.3
+
+coming[8.1.3]
+
+Also see <<breaking-changes-8.1,Breaking changes in 8.1>>.
+
+[[bug-8.1.3]]
+[float]
+=== Bug fixes
+
+Authorization::
+* Ignore app priv failures when resolving superuser {es-pull}85519[#85519]
+
+Machine Learning::
+* Avoid multiple queued quantiles documents in renormalizer {es-pull}85555[#85555] (issue: {es-issue}85539[#85539])
+
+Mapping::
+* Do not fail on duplicated content field filters {es-pull}85382[#85382]
+
+Search::
+* Fix skip caching factor with `indices.queries.cache.all_segments` {es-pull}85510[#85510]
+
+Snapshot/Restore::
+* Expose proxy settings for GCS repositories {es-pull}85785[#85785] (issue: {es-issue}84569[#84569])
+
+Watcher::
+* Avoiding watcher validation errors when a data stream points to more than one index {es-pull}85507[#85507] (issue: {es-issue}85508[#85508])
+* Log at WARN level for Watcher cluster state validation errors {es-pull}85632[#85632]
+
+

@@ -1,0 +1,5 @@
+pr: 85744
+summary: Grant `kibana_system` role read access to APM data streams
+area: Authorization
+type: bug
+issues: []

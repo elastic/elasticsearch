@@ -132,21 +132,21 @@ communicate with a secured {es} cluster.
 * <<security-api-node-enrollment, Enroll a new node>>
 * <<security-api-kibana-enrollment, Enroll a new {kib} instance>>
 
+ifeval::["{release-state}"!="released"]
 [discrete]
 [[security-user-profile-apis]]
 === User Profile
 
 Use the following APIs to retrieve and manage user profiles.
 
-* <<security-api-activiate-user-profile, Activate user profile>>
+* <<security-api-activate-user-profile, Activate user profile>>
 * <<security-api-get-user-profile, Get user profile>>
 * <<security-api-update-user-profile-data, Update user profile data>>
 * <<security-api-enable-user-profile, Enable user profile>>
 * <<security-api-disable-user-profile, Disable user profile>>
 * <<security-api-suggest-user-profile, Suggest user profile>>
+endif::[]
 
-
-include::security/activate-user-profile.asciidoc[]
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
@@ -168,8 +168,6 @@ include::security/delete-service-token.asciidoc[]
 include::security/delete-users.asciidoc[]
 include::security/disable-users.asciidoc[]
 include::security/enable-users.asciidoc[]
-include::security/disable-user-profile.asciidoc[]
-include::security/enable-user-profile.asciidoc[]
 include::security/enroll-kibana.asciidoc[]
 include::security/enroll-node.asciidoc[]
 include::security/get-api-keys.asciidoc[]
@@ -181,7 +179,7 @@ include::security/get-service-accounts.asciidoc[]
 include::security/get-service-credentials.asciidoc[]
 include::security/get-tokens.asciidoc[]
 include::security/get-user-privileges.asciidoc[]
-include::security/get-user-profile.asciidoc[]
+
 include::security/get-users.asciidoc[]
 include::security/grant-api-keys.asciidoc[]
 include::security/has-privileges.asciidoc[]
@@ -198,5 +196,11 @@ include::security/saml-invalidate-api.asciidoc[]
 include::security/saml-complete-logout-api.asciidoc[]
 include::security/saml-sp-metadata.asciidoc[]
 include::security/ssl.asciidoc[]
+ifeval::["{release-state}"!="released"]
+include::security/activate-user-profile.asciidoc[]
+include::security/disable-user-profile.asciidoc[]
+include::security/enable-user-profile.asciidoc[]
+include::security/get-user-profile.asciidoc[]
 include::security/suggest-user-profile.asciidoc[]
 include::security/update-user-profile-data.asciidoc[]
+endif::[]

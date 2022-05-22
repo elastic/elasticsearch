@@ -1,5 +1,0 @@
-pr: 85534
-summary: "Fix: remove tests from 7.17"
-area: Aggregations
-type: bug
-issues: []

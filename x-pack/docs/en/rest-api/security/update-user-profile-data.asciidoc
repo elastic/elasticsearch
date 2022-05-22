@@ -27,12 +27,12 @@ referenced in the request.
 [[security-api-update-user-profile-data-desc]]
 ==== {api-description-title}
 
-The update user profile API updates the `access` and `data` fields of an
+The update user profile API updates the `labels` and `data` fields of an
 existing user profile document with JSON objects. New keys and their values are
 added to the profile document, and conflicting keys are replaced by data that's
 included in the request.
 
-For both `access` and `data`, content is namespaced by the top-level fields.
+For both `labels` and `data`, content is namespaced by the top-level fields.
 The `update_profile_data` global privilege grants privileges for updating only
 the allowed namespaces.
 
@@ -57,10 +57,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 [[security-api-update-user-profile-data-request-body]]
 ==== {api-request-body-title}
 
-`access`::
+`labels`::
 (Required*, object)
 Searchable data that you want to associate with the user profile.
-This field supports a nested data structure. Within the `access` object,
+This field supports a nested data structure. Within the `labels` object,
 top-level keys cannot begin with an underscore (`_`) or contain a period (`.`).
 
 `data`::
@@ -97,7 +97,7 @@ The following request updates a profile document for a `uid` matching
 ----
 POST /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw/_data
 {
-  "access": {
+  "labels": {
     "app1": {
       "tag": "prod"
     }
@@ -117,7 +117,7 @@ You can update the profile data to replace some keys and add new keys:
 ----
 POST /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw/_data
 {
-  "access": {
+  "labels": {
     "app1": {
       "tag": "dev"
     }
@@ -147,10 +147,9 @@ If you run the request again, the consolidated profile data is returned:
       ],
       "realm_name": "native1",
       "full_name": "Jack Nicholson",
-      "email": "jacknich@example.com",
-      "active": true
+      "email": "jacknich@example.com"
     },
-    "access": {
+    "labels": {
       "app1": {
         "tag": "dev"
       }

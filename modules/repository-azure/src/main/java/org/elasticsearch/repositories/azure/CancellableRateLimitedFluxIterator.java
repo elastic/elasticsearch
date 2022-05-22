@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.azure;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
@@ -215,7 +214,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
         try {
             cleaner.accept(element);
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("Unable to clean unused element"), e);
+            logger.warn("Unable to clean unused element", e);
         }
     }
 

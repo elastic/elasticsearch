@@ -90,8 +90,7 @@ The API returns:
         "full_name": "Jack Nicholson",
         "email": "jacknich@example.org",
         "roles": [ "admin", "other_role1" ],
-        "realm_name": "native1",
-        "active": true
+        "realm_name": "native1"
       }
     }
   ]

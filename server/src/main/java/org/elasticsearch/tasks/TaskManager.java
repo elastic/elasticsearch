@@ -8,9 +8,6 @@
 
 package org.elasticsearch.tasks;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -60,8 +57,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -273,6 +268,15 @@ public class TaskManager implements ClusterStateApplier {
                 logger.trace("unregister child connection [{}] task [{}]", childConnection, taskId);
                 holder.unregisterChildConnection(childConnection);
             });
+        }
+        return null;
+    }
+
+    // package private for testing
+    Integer childTasksPerConnection(long taskId, Transport.Connection childConnection) {
+        final CancellableTaskHolder holder = cancellableTasks.get(taskId);
+        if (holder != null) {
+            return holder.childTasksPerConnection.get(childConnection);
         }
         return null;
     }
@@ -506,7 +510,7 @@ public class TaskManager implements ClusterStateApplier {
         private final CancellableTask task;
         private boolean finished = false;
         private List<Runnable> cancellationListeners = null;
-        private ObjectIntMap<Transport.Connection> childTasksPerConnection = null;
+        private Map<Transport.Connection, Integer> childTasksPerConnection = null;
         private String banChildrenReason;
         private List<Runnable> childTaskCompletedListeners = null;
 
@@ -587,15 +591,15 @@ public class TaskManager implements ClusterStateApplier {
                 throw new TaskCancelledException("parent task was cancelled [" + banChildrenReason + ']');
             }
             if (childTasksPerConnection == null) {
-                childTasksPerConnection = new ObjectIntHashMap<>();
+                childTasksPerConnection = new HashMap<>();
             }
-            childTasksPerConnection.addTo(connection, 1);
+            childTasksPerConnection.merge(connection, 1, Integer::sum);
         }
 
         void unregisterChildConnection(Transport.Connection node) {
             final List<Runnable> listeners;
             synchronized (this) {
-                if (childTasksPerConnection.addTo(node, -1) == 0) {
+                if (childTasksPerConnection.merge(node, -1, Integer::sum) == 0) {
                     childTasksPerConnection.remove(node);
                 }
                 if (childTasksPerConnection.isEmpty() == false || this.childTaskCompletedListeners == null) {
@@ -617,9 +621,7 @@ public class TaskManager implements ClusterStateApplier {
                 if (childTasksPerConnection == null) {
                     pendingChildConnections = Collections.emptySet();
                 } else {
-                    pendingChildConnections = StreamSupport.stream(childTasksPerConnection.spliterator(), false)
-                        .map(e -> e.key)
-                        .collect(Collectors.toUnmodifiableSet());
+                    pendingChildConnections = Set.copyOf(childTasksPerConnection.keySet());
                 }
                 if (pendingChildConnections.isEmpty()) {
                     assert childTaskCompletedListeners == null;

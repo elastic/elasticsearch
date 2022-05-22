@@ -25,7 +25,7 @@ To use this API, you must have the `manage_user_profile` cluster privilege.
 [[security-api-enable-user-profile-desc]]
 ==== {api-description-title}
 
-When you <<security-api-activiate-user-profile,activate a user profile>>, it's
+When you <<security-api-activate-user-profile,activate a user profile>>, it's
 automatically enabled and visible in user profile searches. If you later
 <<security-api-disable-user-profile,disable the user profile>>, you can use the
 enable user profile API to make the profile visible in these searches again.

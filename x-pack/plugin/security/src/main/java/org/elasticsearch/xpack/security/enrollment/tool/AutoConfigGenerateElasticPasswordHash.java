@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.enrollment.tool;
 import joptsimple.OptionSet;
 
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.KeyStoreAwareCommand;
@@ -36,18 +37,14 @@ import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePasswor
  *
  * The generated password is written to stdout upon success. Error messages are printed to stderr.
  */
-public class AutoConfigGenerateElasticPasswordHash extends KeyStoreAwareCommand {
+class AutoConfigGenerateElasticPasswordHash extends KeyStoreAwareCommand {
 
-    public AutoConfigGenerateElasticPasswordHash() {
+    AutoConfigGenerateElasticPasswordHash() {
         super("Generates a password hash for for the elastic user and stores it in elasticsearch.keystore");
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new AutoConfigGenerateElasticPasswordHash().main(args, Terminal.DEFAULT));
-    }
-
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()));
         try (
             SecureString elasticPassword = new SecureString(generatePassword(20));

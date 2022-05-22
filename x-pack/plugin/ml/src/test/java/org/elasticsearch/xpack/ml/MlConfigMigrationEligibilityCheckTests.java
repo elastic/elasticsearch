@@ -134,9 +134,7 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
         );
         shardRouting = shardRouting.initialize("node_id", null, 0L);
         shardRouting = shardRouting.moveToStarted();
-        routingTable.add(
-            IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
-        );
+        routingTable.add(IndexRoutingTable.builder(index).addIndexShard(IndexShardRoutingTable.builder(shardId).addShard(shardRouting)));
     }
 
     private void givenClusterSettings(Settings settings) {

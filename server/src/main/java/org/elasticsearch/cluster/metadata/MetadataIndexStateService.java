@@ -1153,7 +1153,7 @@ public class MetadataIndexStateService {
                     512,
                     indexNames
                 );
-                return new ParameterizedMessage("opening indices [{}]", indexNames);
+                return "opening indices [" + indexNames + "]";
             });
 
             final Metadata.Builder metadata = Metadata.builder(currentState.metadata());

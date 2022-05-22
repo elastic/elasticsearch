@@ -10,7 +10,6 @@ package org.elasticsearch.discovery;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
@@ -232,7 +231,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         // once the old master node un-freezes it gets executed. The old master node will send this update + the cluster state where it is
         // flagged as master to the other nodes that follow the new master. These nodes should ignore this update.
         internalCluster().getInstance(ClusterService.class, oldMasterNode)
-            .submitStateUpdateTask("sneaky-update", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+            .submitUnbatchedStateUpdateTask("sneaky-update", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return ClusterState.builder(currentState).build();
@@ -242,7 +241,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 public void onFailure(Exception e) {
                     logger.warn("failure [sneaky-update]", e);
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            });
 
         // Save the new elected master node
         final String newMasterNode = internalCluster().getMasterName(majoritySide.get(0));

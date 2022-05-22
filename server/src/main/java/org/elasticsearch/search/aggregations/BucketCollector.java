@@ -44,7 +44,7 @@ public abstract class BucketCollector implements Collector {
     // TODO: will remove it in a follow up PR
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        return getLeafCollector(new AggregationExecutionContext(ctx, null));
+        return getLeafCollector(new AggregationExecutionContext(ctx, null, null));
     }
 
     public abstract LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException;

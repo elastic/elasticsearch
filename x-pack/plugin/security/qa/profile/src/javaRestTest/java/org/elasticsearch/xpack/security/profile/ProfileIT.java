@@ -56,11 +56,10 @@ public class ProfileIT extends ESRestTestCase {
                 "node_name": "node1"
               },
               "email": "foo@example.com",
-              "full_name": "User Foo",
-              "active": true
+              "full_name": "User Foo"
             },
             "last_synchronized": %s,
-            "access": {
+            "labels": {
             },
             "application_data": {
               "app1": { "name": "app1" },
@@ -86,6 +85,34 @@ public class ProfileIT extends ESRestTestCase {
         final String profileUid = (String) activateProfileMap.get("uid");
         final Map<String, Object> profile1 = doGetProfile(profileUid);
         assertThat(profile1, equalTo(activateProfileMap));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProfileHasPrivileges() throws IOException {
+        final Map<String, Object> activateProfileMap = doActivateProfile();
+        final String profileUid = (String) activateProfileMap.get("uid");
+        final Request profileHasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
+        profileHasPrivilegesRequest.setJsonEntity("""
+            {
+              "uids": ["some_missing_profile", "%s"],
+              "privileges": {
+                "index": [
+                  {
+                    "names": [ "rac_index_1" ],
+                    "privileges": [ "read" ]
+                  }
+                ],
+                "cluster": [
+                  "cluster:monitor/health"
+                ]
+              }
+            }""".formatted(profileUid));
+
+        final Response profileHasPrivilegesResponse = adminClient().performRequest(profileHasPrivilegesRequest);
+        assertOK(profileHasPrivilegesResponse);
+        Map<String, Object> profileHasPrivilegesResponseMap = responseAsMap(profileHasPrivilegesResponse);
+        assertThat(profileHasPrivilegesResponseMap.keySet(), contains("has_privilege_uids"));
+        assertThat(((List<String>) profileHasPrivilegesResponseMap.get("has_privilege_uids")), contains(profileUid));
     }
 
     public void testGetProfile() throws IOException {
@@ -127,7 +154,7 @@ public class ProfileIT extends ESRestTestCase {
         final Request updateProfileRequest1 = new Request(randomFrom("PUT", "POST"), "_security/profile/" + uid + "/_data");
         updateProfileRequest1.setJsonEntity("""
             {
-              "access": {
+              "labels": {
                 "app1": { "tags": [ "prod", "east" ] }
               },
               "data": {
@@ -137,26 +164,80 @@ public class ProfileIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(updateProfileRequest1));
 
         final Map<String, Object> profileMap1 = doGetProfile(uid, "app1");
-        assertThat(castToMap(profileMap1.get("access")), equalTo(Map.of("app1", Map.of("tags", List.of("prod", "east")))));
+        assertThat(castToMap(profileMap1.get("labels")), equalTo(Map.of("app1", Map.of("tags", List.of("prod", "east")))));
         assertThat(castToMap(profileMap1.get("data")), equalTo(Map.of("app1", Map.of("theme", "default"))));
     }
 
-    public void testSearchProfile() throws IOException {
+    public void testSuggestProfile() throws IOException {
         final Map<String, Object> activateProfileMap = doActivateProfile();
         final String uid = (String) activateProfileMap.get("uid");
-        final Request searchProfilesRequest1 = new Request(randomFrom("GET", "POST"), "_security/profile/_suggest");
-        searchProfilesRequest1.setJsonEntity("""
+        final Request suggestProfilesRequest1 = new Request(randomFrom("GET", "POST"), "_security/profile/_suggest");
+        suggestProfilesRequest1.setJsonEntity("""
             {
               "name": "rac",
               "size": 10
             }""");
-        final Response searchProfilesResponse1 = adminClient().performRequest(searchProfilesRequest1);
-        assertOK(searchProfilesResponse1);
-        final Map<String, Object> searchProfileResponseMap1 = responseAsMap(searchProfilesResponse1);
-        assertThat(searchProfileResponseMap1, hasKey("took"));
-        assertThat(searchProfileResponseMap1.get("total"), equalTo(Map.of("value", 1, "relation", "eq")));
+        final Response suggestProfilesResponse1 = adminClient().performRequest(suggestProfilesRequest1);
+        assertOK(suggestProfilesResponse1);
+        final Map<String, Object> suggestProfileResponseMap1 = responseAsMap(suggestProfilesResponse1);
+        assertThat(suggestProfileResponseMap1, hasKey("took"));
+        assertThat(suggestProfileResponseMap1.get("total"), equalTo(Map.of("value", 1, "relation", "eq")));
         @SuppressWarnings("unchecked")
-        final List<Map<String, Object>> users = (List<Map<String, Object>>) searchProfileResponseMap1.get("profiles");
+        final List<Map<String, Object>> users = (List<Map<String, Object>>) suggestProfileResponseMap1.get("profiles");
+        assertThat(users, hasSize(1));
+        assertThat(users.get(0).get("uid"), equalTo(uid));
+    }
+
+    // Purpose of this test is to ensure the hint field works in the REST layer, e.g. parsing correctly etc.
+    // It does not attempt to test whether the query works correctly once it reaches the transport and service layer
+    // (other than the behaviour that hint does not decide whether a record should be returned).
+    // More comprehensive tests for hint behaviours are performed in internal cluster test.
+    public void testSuggestProfileWithHint() throws IOException {
+        final Map<String, Object> activateProfileMap = doActivateProfile();
+        final String uid = (String) activateProfileMap.get("uid");
+        final Request suggestProfilesRequest1 = new Request(randomFrom("GET", "POST"), "_security/profile/_suggest");
+        final String payload;
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> {
+                payload = """
+                    {
+                      "name": "rac",
+                      "hint": {
+                        "uids": ["%s"]
+                      }
+                    }
+                    """.formatted("not-" + uid);
+            }
+            case 1 -> {
+                payload = """
+                    {
+                      "name": "rac",
+                      "hint": {
+                        "labels": {
+                          "kibana.spaces": %s
+                        }
+                      }
+                    }
+                    """.formatted(randomBoolean() ? "\"demo\"" : "[\"demo\"]");
+            }
+            default -> {
+                payload = """
+                    {
+                      "name": "rac",
+                      "hint": {
+                        "uids": ["%s"],
+                        "labels": {
+                          "kibana.spaces": %s
+                        }
+                      }
+                    }""".formatted("not-" + uid, randomBoolean() ? "\"demo\"" : "[\"demo\"]");
+            }
+        }
+        suggestProfilesRequest1.setJsonEntity(payload);
+        final Response suggestProfilesResponse1 = adminClient().performRequest(suggestProfilesRequest1);
+        final Map<String, Object> suggestProfileResponseMap1 = responseAsMap(suggestProfilesResponse1);
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> users = (List<Map<String, Object>>) suggestProfileResponseMap1.get("profiles");
         assertThat(users, hasSize(1));
         assertThat(users.get(0).get("uid"), equalTo(uid));
     }

@@ -90,6 +90,11 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
      */
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        // Certain leaf collectors can aggregate values without seeing any documents, even when sampled
+        // To handle this, exit early if the sub collector is a no-op
+        if (sub.isNoop()) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
         // No sampling is being done, collect all docs
         if (probability >= 1.0) {
             return new LeafBucketCollector() {

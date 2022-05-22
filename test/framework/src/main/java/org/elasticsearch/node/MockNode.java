@@ -28,6 +28,7 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.script.ScriptContext;
@@ -36,12 +37,14 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -56,6 +59,7 @@ import java.util.function.LongSupplier;
  * <ul>
  *   <li>Overriding Version.CURRENT</li>
  *   <li>Adding test plugins that exist on the classpath</li>
+ *   <li>Swapping in various mock services</li>
  * </ul>
  */
 public class MockNode extends Node {
@@ -81,7 +85,12 @@ public class MockNode extends Node {
         final boolean forbidPrivateIndexSettings
     ) {
         this(
-            InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath, () -> "mock_ node"),
+            InternalSettingsPreparer.prepareEnvironment(
+                Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build(),
+                Collections.emptyMap(),
+                configPath,
+                () -> "mock_ node"
+            ),
             classpathPlugins,
             forbidPrivateIndexSettings
         );
@@ -92,7 +101,7 @@ public class MockNode extends Node {
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final boolean forbidPrivateIndexSettings
     ) {
-        super(environment, classpathPlugins, forbidPrivateIndexSettings);
+        super(environment, settings -> new MockPluginsService(settings, environment, classpathPlugins), forbidPrivateIndexSettings);
         this.classpathPlugins = classpathPlugins;
     }
 

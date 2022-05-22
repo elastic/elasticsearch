@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -207,7 +208,10 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
     }
 
     private Authentication buildAuthentication(String username) {
-        return new Authentication(new User(username), new Authentication.RealmRef("realm_name", "realm_type", "node_name"), null);
+        return AuthenticationTestHelper.builder()
+            .user(new User(username))
+            .realmRef(new Authentication.RealmRef("realm_name", "realm_type", "node_name"))
+            .build(false);
     }
 
     private CreateApiKeyResponse mockResponse(GrantApiKeyRequest request) {

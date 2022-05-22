@@ -8,8 +8,8 @@
 
 package org.elasticsearch.ingest.common;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public class URLDecodeProcessorTests extends AbstractStringProcessorTestCase<String> {
@@ -25,11 +25,7 @@ public class URLDecodeProcessorTests extends AbstractStringProcessorTestCase<Str
 
     @Override
     protected String expectedResult(String input) {
-        try {
-            return "Hello Günter" + URLDecoder.decode(input, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            throw new IllegalArgumentException("invalid");
-        }
+        return "Hello Günter" + URLDecoder.decode(input, StandardCharsets.UTF_8);
     }
 
     @Override

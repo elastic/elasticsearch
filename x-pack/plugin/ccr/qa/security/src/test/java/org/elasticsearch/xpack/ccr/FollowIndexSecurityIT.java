@@ -69,7 +69,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             followIndex("leader_cluster", allowedIndex, allowedIndex);
             assertBusy(() -> verifyDocuments(allowedIndex, numDocs, "*:*"));
             assertThat(getCcrNodeTasks(), contains(new CcrNodeTask("leader_cluster", allowedIndex, allowedIndex, 0)));
-            assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex), 30, TimeUnit.SECONDS);
+            assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex), 120L, TimeUnit.SECONDS);
             pauseFollow(allowedIndex);
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
@@ -176,8 +176,8 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             assertBusy(() -> ensureYellow(allowedIndex), 30, TimeUnit.SECONDS);
             assertBusy(() -> verifyDocuments(allowedIndex, 5, "*:*"), 30, TimeUnit.SECONDS);
             assertThat(indexExists(disallowedIndex), is(false));
-            assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex), 30, TimeUnit.SECONDS);
-            assertBusy(ESCCRRestTestCase::verifyAutoFollowMonitoring, 30, TimeUnit.SECONDS);
+            assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex), 120L, TimeUnit.SECONDS);
+            assertBusy(ESCCRRestTestCase::verifyAutoFollowMonitoring, 120L, TimeUnit.SECONDS);
         } finally {
             // Cleanup by deleting auto follow pattern and pause following:
             try {

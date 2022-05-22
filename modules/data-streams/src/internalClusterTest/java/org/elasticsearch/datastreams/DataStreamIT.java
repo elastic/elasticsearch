@@ -8,7 +8,6 @@
 package org.elasticsearch.datastreams;
 
 import org.apache.logging.log4j.core.util.Throwables;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -1154,7 +1153,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true, null)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
         );
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
@@ -1466,7 +1465,7 @@ public class DataStreamIT extends ESIntegTestCase {
                     }
                 }
             } catch (Exception e) {
-                logger.error(new ParameterizedMessage("thread [{}] encountered unexpected exception", i), e);
+                logger.error(() -> "thread [" + i + "] encountered unexpected exception", e);
                 fail("we should not encounter unexpected exceptions");
             }
         }, "rollover-thread-" + i)).collect(Collectors.toSet());
@@ -1804,7 +1803,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true, null)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
         );
         ComposableIndexTemplate finalTemplate = template;
         client().execute(
@@ -1830,7 +1829,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true, null)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
         );
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
@@ -1856,7 +1855,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false, null)
+            new ComposableIndexTemplate.DataStreamTemplate(false, false)
         );
         ComposableIndexTemplate finalTemplate1 = template;
         Exception e = expectThrows(
@@ -1898,7 +1897,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true, null)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
         );
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,

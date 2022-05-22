@@ -11,6 +11,7 @@ import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.xpack.sql.cli.command.ClearScreenCliCommand;
@@ -63,7 +64,7 @@ public class Cli extends Command {
                 true
             )
         );
-        int status = cli.main(args, Terminal.DEFAULT);
+        int status = cli.main(args, Terminal.DEFAULT, ProcessInfo.fromSystem());
         if (status != ExitCodes.OK) {
             exit(status);
         }
@@ -85,7 +86,7 @@ public class Cli extends Command {
      * Build the CLI.
      */
     public Cli(CliTerminal cliTerminal) {
-        super("Elasticsearch SQL CLI", () -> {});
+        super("Elasticsearch SQL CLI");
 
         this.cliTerminal = cliTerminal;
         parser.acceptsAll(Arrays.asList("d", "debug"), "Enable debug logging");
@@ -107,7 +108,7 @@ public class Cli extends Command {
     }
 
     @Override
-    protected void execute(org.elasticsearch.cli.Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         boolean debug = options.has("d") || options.has("debug");
         boolean binary = binaryCommunication.value(options);
         boolean checkConnection = checkOption.value(options);

@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -112,7 +111,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         Params taskParams,
         ActionListener<PersistentTask<?>> listener
     ) {
-        clusterService.submitStateUpdateTask("create persistent task", new ClusterStateUpdateTask() {
+        submitUnbatchedTask("create persistent task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetadata.Builder builder = builder(currentState);
@@ -145,12 +144,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                     listener.onResponse(null);
                 }
             }
-        }, newExecutor());
+        });
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     /**
@@ -169,7 +168,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         } else {
             source = "finish persistent task (success)";
         }
-        clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
+        submitUnbatchedTask(source, new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
@@ -201,7 +200,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 // Using old state since in the new state the task is already gone
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(oldState, id));
             }
-        }, newExecutor());
+        });
     }
 
     /**
@@ -211,7 +210,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
      * @param listener the listener that will be called when task is removed
      */
     public void removePersistentTask(String id, ActionListener<PersistentTask<?>> listener) {
-        clusterService.submitStateUpdateTask("remove persistent task", new ClusterStateUpdateTask() {
+        submitUnbatchedTask("remove persistent task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
@@ -232,7 +231,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 // Using old state since in the new state the task is already gone
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(oldState, id));
             }
-        }, newExecutor());
+        });
     }
 
     /**
@@ -249,7 +248,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         final PersistentTaskState taskState,
         final ActionListener<PersistentTask<?>> listener
     ) {
-        clusterService.submitStateUpdateTask("update task state [" + taskId + "]", new ClusterStateUpdateTask() {
+        submitUnbatchedTask("update task state [" + taskId + "]", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
@@ -274,7 +273,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(newState, taskId));
             }
-        }, newExecutor());
+        });
     }
 
     /**
@@ -294,7 +293,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         final String reason,
         final ActionListener<PersistentTask<?>> listener
     ) {
-        clusterService.submitStateUpdateTask("unassign persistent task from any node", new ClusterStateUpdateTask() {
+        submitUnbatchedTask("unassign persistent task from any node", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
@@ -315,7 +314,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(newState, taskId));
             }
-        }, newExecutor());
+        });
     }
 
     /**
@@ -393,7 +392,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         if (this.reassigningTasks.compareAndSet(false, true) == false) {
             return;
         }
-        clusterService.submitStateUpdateTask("reassign persistent tasks", new ClusterStateUpdateTask() {
+        submitUnbatchedTask("reassign persistent tasks", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return reassignTasks(currentState);
@@ -418,7 +417,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                     periodicRechecker.rescheduleIfNecessary();
                 }
             }
-        }, newExecutor());
+        });
     }
 
     /**

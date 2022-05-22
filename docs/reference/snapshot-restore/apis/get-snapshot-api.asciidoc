@@ -99,6 +99,11 @@ version of Elasticsearch which took the snapshot, the start and end times of
 the snapshot, and the number of shards snapshotted. Defaults to `true`. If
 `false`, omits the additional information.
 
+`index_names`::
+(Optional, Boolean)
+If `true`, returns the list of index names included in each snapshot in the response.
+Defaults to `true`.
+
 `index_details`::
 (Optional, Boolean)
 If `true`, returns additional information about each index in the snapshot

@@ -29,7 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -242,7 +242,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                         return;
                     }
                 }
-                logger.warn(new ParameterizedMessage("fetching nodes from external cluster [{}] failed", clusterAlias), e);
+                logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
                 listener.onFailure(e);
             };
 
@@ -426,7 +426,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public void handleException(TransportException exp) {
-            logger.warn(new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterAlias), exp);
+            logger.warn(() -> "fetching nodes from external cluster " + clusterAlias + " failed", exp);
             try {
                 IOUtils.closeWhileHandlingException(connection);
             } finally {

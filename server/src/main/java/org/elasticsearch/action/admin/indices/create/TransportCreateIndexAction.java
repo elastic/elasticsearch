@@ -182,7 +182,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         if (descriptor.getAliasName() == null) {
             aliases = Set.of();
         } else {
-            aliases = Set.of(new Alias(descriptor.getAliasName()).isHidden(true));
+            aliases = Set.of(new Alias(descriptor.getAliasName()).isHidden(true).writeIndex(true));
         }
 
         // Here, we override the user's requested index with the descriptor's primary index

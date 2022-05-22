@@ -186,6 +186,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     @AfterClass
     public static void tearDownClass() throws Exception {
         stopNode();
+        ESIntegTestCase.awaitGlobalNettyThreadsFinish();
     }
 
     /**

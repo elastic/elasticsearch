@@ -748,7 +748,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
                 localNodeId,
                 minNonClientNodeVersion == null ? Version.CURRENT : minNonClientNodeVersion,
                 maxNodeVersion == null ? Version.CURRENT : maxNodeVersion,
-                minNodeVersion == null ? Version.CURRENT : minNodeVersion
+                minNodeVersion == null ? Version.CURRENT.minimumCompatibilityVersion() : minNodeVersion
             );
         }
 

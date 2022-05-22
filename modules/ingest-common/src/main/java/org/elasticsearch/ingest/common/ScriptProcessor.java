@@ -9,7 +9,6 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
@@ -79,7 +78,6 @@ public final class ScriptProcessor extends AbstractProcessor {
             ingestScript = precompiledIngestScript;
         }
         ingestScript.execute(document.getSourceAndMetadata());
-        CollectionUtils.ensureNoSelfReferences(document.getSourceAndMetadata(), "ingest script");
         return document;
     }
 

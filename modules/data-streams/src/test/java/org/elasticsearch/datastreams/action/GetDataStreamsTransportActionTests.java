@@ -11,21 +11,30 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.getClusterStateWithDataStreams;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class GetDataStreamsTransportActionTests extends ESTestCase {
 
     private final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
+    private final SystemIndices systemIndices = new SystemIndices(Map.of());
 
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";
@@ -105,6 +114,66 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             () -> GetDataStreamsTransportAction.getDataStreams(cs, resolver, req)
         );
         assertThat(e.getMessage(), containsString("no such index [" + dataStreamName + "]"));
+    }
+
+    public void testGetTimeSeriesDataStream() {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        String dataStream1 = "ds-1";
+        String dataStream2 = "ds-2";
+        Instant sixHoursAgo = now.minus(6, ChronoUnit.HOURS);
+        Instant fourHoursAgo = now.minus(4, ChronoUnit.HOURS);
+        Instant twoHoursAgo = now.minus(2, ChronoUnit.HOURS);
+        Instant twoHoursAhead = now.plus(2, ChronoUnit.HOURS);
+
+        ClusterState state;
+        {
+            var mBuilder = new Metadata.Builder();
+            DataStreamTestHelper.getClusterStateWithDataStream(
+                mBuilder,
+                dataStream1,
+                List.of(
+                    new Tuple<>(sixHoursAgo, fourHoursAgo),
+                    new Tuple<>(fourHoursAgo, twoHoursAgo),
+                    new Tuple<>(twoHoursAgo, twoHoursAhead)
+                )
+            );
+            DataStreamTestHelper.getClusterStateWithDataStream(
+                mBuilder,
+                dataStream2,
+                List.of(
+                    new Tuple<>(sixHoursAgo, fourHoursAgo),
+                    new Tuple<>(fourHoursAgo, twoHoursAgo),
+                    new Tuple<>(twoHoursAgo, twoHoursAhead)
+                )
+            );
+            state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
+        }
+
+        var req = new GetDataStreamAction.Request(new String[] {});
+        var response = GetDataStreamsTransportAction.innerOperation(state, req, resolver, systemIndices);
+        assertThat(response.getDataStreams(), hasSize(2));
+        assertThat(response.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStream1));
+        assertThat(response.getDataStreams().get(0).getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)));
+        assertThat(response.getDataStreams().get(1).getDataStream().getName(), equalTo(dataStream2));
+        assertThat(response.getDataStreams().get(1).getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)));
+
+        // Remove the middle backing index first data stream, so that there is time gap in the data stream:
+        {
+            Metadata.Builder mBuilder = Metadata.builder(state.getMetadata());
+            DataStream dataStream = state.getMetadata().dataStreams().get(dataStream1);
+            mBuilder.put(dataStream.removeBackingIndex(dataStream.getIndices().get(1)));
+            mBuilder.remove(dataStream.getIndices().get(1).getName());
+            state = ClusterState.builder(state).metadata(mBuilder).build();
+        }
+        response = GetDataStreamsTransportAction.innerOperation(state, req, resolver, systemIndices);
+        assertThat(response.getDataStreams(), hasSize(2));
+        assertThat(response.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStream1));
+        assertThat(
+            response.getDataStreams().get(0).getTimeSeries().temporalRanges(),
+            contains(new Tuple<>(sixHoursAgo, fourHoursAgo), new Tuple<>(twoHoursAgo, twoHoursAhead))
+        );
+        assertThat(response.getDataStreams().get(1).getDataStream().getName(), equalTo(dataStream2));
+        assertThat(response.getDataStreams().get(1).getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)));
     }
 
 }

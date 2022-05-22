@@ -1,0 +1,6 @@
+pr: 85792
+summary: Handle `.geoip_databases` being an alias or a concrete index
+area: Ingest
+type: bug
+issues:
+ - 85756

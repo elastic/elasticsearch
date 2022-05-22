@@ -1651,18 +1651,18 @@ public class AuthenticationServiceTests extends ESTestCase {
         }).when(secondRealm).lookupUser(eq("run_as"), anyActionListener());
 
         final AtomicBoolean completed = new AtomicBoolean(false);
-        ActionListener<Authentication> listener = ActionListener.wrap(result -> {
-            assertThat(result, notNullValue());
-            assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
-            User authenticated = result.getUser();
+        ActionListener<Authentication> listener = ActionListener.wrap(authentication -> {
+            assertThat(authentication, notNullValue());
+            assertThat(authentication.getAuthenticationType(), is(AuthenticationType.REALM));
+            User effectiveUser = authentication.getUser();
 
-            assertThat(authenticated.principal(), is("looked up user"));
-            assertThat(authenticated.roles(), arrayContaining("some role"));
-            assertThreadContextContainsAuthentication(result);
+            assertThat(effectiveUser.principal(), is("looked up user"));
+            assertThat(effectiveUser.roles(), arrayContaining("some role"));
+            assertThreadContextContainsAuthentication(authentication);
 
-            assertThat(SystemUser.is(authenticated), is(false));
-            assertThat(authenticated.isRunAs(), is(true));
-            User authUser = authenticated.authenticatedUser();
+            assertThat(SystemUser.is(effectiveUser), is(false));
+            assertThat(authentication.isRunAs(), is(true));
+            User authUser = authentication.getAuthenticatingSubject().getUser();
             assertThat(authUser.principal(), is("lookup user"));
             assertThat(authUser.roles(), arrayContaining("user"));
             assertEquals(user.metadata(), authUser.metadata());
@@ -1674,7 +1674,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             } else {
                 expectAuditRequestId(threadContext);
             }
-            verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
+            verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), eq(threadContext));
             setCompletedToTrue(completed);
         }, this::logAndFail);
 
@@ -1708,24 +1708,25 @@ public class AuthenticationServiceTests extends ESTestCase {
         }).when(firstRealm).lookupUser(eq("run_as"), anyActionListener());
 
         final AtomicBoolean completed = new AtomicBoolean(false);
-        ActionListener<Authentication> listener = ActionListener.wrap(result -> {
-            assertThat(result, notNullValue());
-            assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
-            User authenticated = result.getUser();
+        ActionListener<Authentication> listener = ActionListener.wrap(authentication -> {
+            assertThat(authentication, notNullValue());
+            assertThat(authentication.getAuthenticationType(), is(AuthenticationType.REALM));
+            final User effectiveUser = authentication.getUser();
+            final User authenticatingUser = authentication.getAuthenticatingSubject().getUser();
 
-            assertThat(SystemUser.is(authenticated), is(false));
-            assertThat(authenticated.isRunAs(), is(true));
-            assertThat(authenticated.authenticatedUser().principal(), is("lookup user"));
-            assertThat(authenticated.authenticatedUser().roles(), arrayContaining("user"));
-            assertThat(authenticated.principal(), is("looked up user"));
-            assertThat(authenticated.roles(), arrayContaining("some role"));
-            assertThreadContextContainsAuthentication(result);
+            assertThat(SystemUser.is(effectiveUser), is(false));
+            assertThat(authentication.isRunAs(), is(true));
+            assertThat(authenticatingUser.principal(), is("lookup user"));
+            assertThat(authenticatingUser.roles(), arrayContaining("user"));
+            assertThat(effectiveUser.principal(), is("looked up user"));
+            assertThat(effectiveUser.roles(), arrayContaining("some role"));
+            assertThreadContextContainsAuthentication(authentication);
             if (requestIdAlreadyPresent) {
                 assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
             } else {
                 expectAuditRequestId(threadContext);
             }
-            verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
+            verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), eq(threadContext));
             setCompletedToTrue(completed);
         }, this::logAndFail);
 

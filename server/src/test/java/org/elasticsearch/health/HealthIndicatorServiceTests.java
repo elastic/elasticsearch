@@ -64,7 +64,12 @@ public class HealthIndicatorServiceTests extends ESTestCase {
             }
 
             @Override
-            public HealthIndicatorResult calculate(boolean calculateDetails) {
+            public String helpURL() {
+                return null;
+            }
+
+            @Override
+            public HealthIndicatorResult calculate(boolean explain) {
                 return null;
             }
         };

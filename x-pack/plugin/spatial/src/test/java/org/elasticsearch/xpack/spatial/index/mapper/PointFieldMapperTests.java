@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 
@@ -367,5 +368,15 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

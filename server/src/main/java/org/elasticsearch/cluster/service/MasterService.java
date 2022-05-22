@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
@@ -186,14 +187,6 @@ public class MasterService extends AbstractLifecycleComponent {
                 }
             }
 
-            public void onNoLongerMaster() {
-                try (ThreadContext.StoredContext ignore = threadContextSupplier.get()) {
-                    listener.onNoLongerMaster();
-                } catch (Exception e) {
-                    logger.error("exception thrown by listener while notifying no longer master", e);
-                }
-            }
-
             @Nullable
             public ContextPreservingAckListener wrapInTaskContext(@Nullable ClusterStateAckListener clusterStateAckListener) {
                 return clusterStateAckListener == null
@@ -243,7 +236,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         if (previousClusterState.nodes().isLocalNodeElectedMaster() == false && executor.runOnlyOnMaster()) {
             logger.debug("failing [{}]: local node is no longer master", summary);
-            updateTasks.forEach(Batcher.UpdateTask::onNoLongerMaster);
+            updateTasks.forEach(t -> t.onFailure(new NotMasterException("no longer master, failing [" + t.source() + "]")));
             return;
         }
 
@@ -382,7 +375,7 @@ public class MasterService extends AbstractLifecycleComponent {
                                     notificationMillis
                                 );
                             } else {
-                                assert false : exception;
+                                assert publicationMayFail() : exception;
                                 clusterStateUpdateStatsTracker.onPublicationFailure(
                                     threadPool.rawRelativeTimeInMillis(),
                                     clusterStatePublicationEvent,
@@ -397,6 +390,10 @@ public class MasterService extends AbstractLifecycleComponent {
                 handleException(summary, publicationStartTime, newClusterState, e);
             }
         }
+    }
+
+    protected boolean publicationMayFail() {
+        return false;
     }
 
     private TimeValue getTimeSince(long startTimeMillis) {
@@ -1098,4 +1095,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
+    public static boolean isPublishFailureException(Exception e) {
+        return e instanceof NotMasterException || e instanceof FailedToCommitClusterStateException;
+    }
 }

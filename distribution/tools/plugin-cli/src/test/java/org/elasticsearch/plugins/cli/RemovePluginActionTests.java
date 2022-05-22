@@ -90,9 +90,9 @@ public class RemovePluginActionTests extends ESTestCase {
     static MockTerminal removePlugin(List<String> pluginIds, Path home, boolean purge) throws Exception {
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = MockTerminal.create();
-        final List<PluginDescriptor> plugins = pluginIds == null
+        final List<InstallablePlugin> plugins = pluginIds == null
             ? null
-            : pluginIds.stream().map(PluginDescriptor::new).collect(Collectors.toList());
+            : pluginIds.stream().map(InstallablePlugin::new).collect(Collectors.toList());
         new RemovePluginAction(terminal, env, purge).execute(plugins);
         return terminal;
     }
@@ -239,9 +239,6 @@ public class RemovePluginActionTests extends ESTestCase {
         MockTerminal terminal = MockTerminal.create();
 
         new MockRemovePluginCommand(env) {
-            protected boolean addShutdownHook() {
-                return false;
-            }
         }.main(new String[] { "-Epath.home=" + home, "fake" }, terminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
         try (
             BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()));

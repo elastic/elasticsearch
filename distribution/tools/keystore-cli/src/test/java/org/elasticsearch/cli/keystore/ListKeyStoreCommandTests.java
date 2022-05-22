@@ -16,8 +16,11 @@ import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
@@ -42,7 +45,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
         createKeystore(password);
         terminal.addSecretInput(password);
         execute();
-        assertEquals("keystore.seed\n", terminal.getOutput());
+        assertThat(terminal.getOutput(), containsString("keystore.seed"));
     }
 
     public void testOne() throws Exception {
@@ -50,7 +53,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
         createKeystore(password, "foo", "bar");
         terminal.addSecretInput(password);
         execute();
-        assertEquals("foo\nkeystore.seed\n", terminal.getOutput());
+        assertThat(terminal.getOutput().lines().toList(), equalTo(List.of("foo", "keystore.seed")));
     }
 
     public void testMultiple() throws Exception {
@@ -58,7 +61,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
         createKeystore(password, "foo", "1", "baz", "2", "bar", "3");
         terminal.addSecretInput(password);
         execute();
-        assertEquals("bar\nbaz\nfoo\nkeystore.seed\n", terminal.getOutput()); // sorted
+        assertThat(terminal.getOutput().lines().toList(), equalTo(List.of("bar", "baz", "foo", "keystore.seed"))); // sorted
     }
 
     public void testListWithIncorrectPassword() throws Exception {
@@ -85,6 +88,6 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
         createKeystore("", "foo", "bar");
         execute();
         // Not prompted for a password
-        assertEquals("foo\nkeystore.seed\n", terminal.getOutput());
+        assertThat(terminal.getOutput().lines().toList(), equalTo(List.of("foo", "keystore.seed")));
     }
 }

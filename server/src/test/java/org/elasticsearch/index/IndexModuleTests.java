@@ -618,11 +618,6 @@ public class IndexModuleTests extends ESTestCase {
         }
 
         @Override
-        public Index index() {
-            return new Index("test", "_na_");
-        }
-
-        @Override
         public Weight doCache(Weight weight, QueryCachingPolicy policy) {
             return weight;
         }

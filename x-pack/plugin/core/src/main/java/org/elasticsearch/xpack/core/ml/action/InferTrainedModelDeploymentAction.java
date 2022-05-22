@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -87,6 +88,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         private final List<Map<String, Object>> docs;
         private final InferenceConfigUpdate update;
         private final TimeValue inferenceTimeout;
+        private boolean skipQueue = false;
 
         public Request(String deploymentId, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
             this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, DEPLOYMENT_ID);
@@ -101,6 +103,9 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             docs = Collections.unmodifiableList(in.readList(StreamInput::readMap));
             update = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
             inferenceTimeout = in.readOptionalTimeValue();
+            if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+                skipQueue = in.readBoolean();
+            }
         }
 
         public String getDeploymentId() {
@@ -129,6 +134,14 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return null;
         }
 
+        public void setSkipQueue(boolean skipQueue) {
+            this.skipQueue = skipQueue;
+        }
+
+        public boolean isSkipQueue() {
+            return skipQueue;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = super.validate();
@@ -153,6 +166,9 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             out.writeCollection(docs, StreamOutput::writeGenericMap);
             out.writeOptionalNamedWriteable(update);
             out.writeOptionalTimeValue(inferenceTimeout);
+            if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+                out.writeBoolean(skipQueue);
+            }
         }
 
         @Override

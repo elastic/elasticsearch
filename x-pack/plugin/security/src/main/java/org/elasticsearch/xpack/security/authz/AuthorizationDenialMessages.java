@@ -25,7 +25,7 @@ class AuthorizationDenialMessages {
     private AuthorizationDenialMessages() {}
 
     static String runAsDenied(Authentication authentication, String action) {
-        assert authentication.getUser().isRunAs() : "constructing run as denied message but authentication for action was not run as";
+        assert authentication.isRunAs() : "constructing run as denied message but authentication for action was not run as";
 
         String userText = authenticatedUserDescription(authentication);
         String actionIsUnauthorizedMessage = actionIsUnauthorizedMessage(action, userText);
@@ -42,7 +42,7 @@ class AuthorizationDenialMessages {
     static String actionDenied(Authentication authentication, String action, TransportRequest request, @Nullable String context) {
         String userText = authenticatedUserDescription(authentication);
 
-        if (authentication.getUser().isRunAs()) {
+        if (authentication.isRunAs()) {
             userText = userText + " run as [" + authentication.getUser().principal() + "]";
         }
 
@@ -82,7 +82,7 @@ class AuthorizationDenialMessages {
     private static String authenticatedUserDescription(Authentication authentication) {
         String userText = (authentication.isAuthenticatedWithServiceAccount() ? "service account" : "user")
             + " ["
-            + authentication.getUser().authenticatedUser().principal()
+            + authentication.getAuthenticatingSubject().getUser().principal()
             + "]";
         if (authentication.isAuthenticatedAsApiKey()) {
             final String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);

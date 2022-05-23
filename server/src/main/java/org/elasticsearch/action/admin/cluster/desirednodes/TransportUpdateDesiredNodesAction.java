@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -38,8 +39,8 @@ import static java.lang.String.format;
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, UpdateDesiredNodesResponse> {
 
     private final DesiredNodesSettingsValidator settingsValidator;
-
-    private final ClusterStateTaskExecutor<UpdateDesiredNodesTask> taskExecutor = new UpdateDesiredNodesExecutor();
+    private final AllocationService allocationService;
+    private final ClusterStateTaskExecutor<UpdateDesiredNodesTask> taskExecutor;
 
     @Inject
     public TransportUpdateDesiredNodesAction(
@@ -48,7 +49,8 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DesiredNodesSettingsValidator settingsValidator
+        DesiredNodesSettingsValidator settingsValidator,
+        AllocationService allocationService
     ) {
         super(
             UpdateDesiredNodesAction.NAME,
@@ -63,6 +65,8 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             ThreadPool.Names.SAME
         );
         this.settingsValidator = settingsValidator;
+        this.allocationService = allocationService;
+        this.taskExecutor = new UpdateDesiredNodesExecutor(allocationService);
     }
 
     @Override
@@ -138,6 +142,11 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     }
 
     private static class UpdateDesiredNodesExecutor implements ClusterStateTaskExecutor<UpdateDesiredNodesTask> {
+        private final AllocationService allocationService;
+
+        UpdateDesiredNodesExecutor(AllocationService allocationService) {
+            this.allocationService = allocationService;
+        }
 
         private static final BiConsumer<ActionListener<UpdateDesiredNodesResponse>, ClusterState> SUCCESS_SAME_HISTORY_ID = (l, s) -> l
             .onResponse(new UpdateDesiredNodesResponse(false));
@@ -163,8 +172,14 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                         .listener()
                         .delegateFailure(replacedExistingHistoryId ? SUCCESS_NEW_HISTORY_ID : SUCCESS_SAME_HISTORY_ID)
                 );
+
             }
-            return desiredNodes == initialDesiredNodes ? currentState : replaceDesiredNodes(currentState, desiredNodes);
+            if (desiredNodes == initialDesiredNodes) {
+                return currentState;
+            } else {
+                final var upgradedState = replaceDesiredNodes(currentState, desiredNodes);
+                return allocationService.reroute(upgradedState, "upgraded desired nodes");
+            }
         }
     }
 }

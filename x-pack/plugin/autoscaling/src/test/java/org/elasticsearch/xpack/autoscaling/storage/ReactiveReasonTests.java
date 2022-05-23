@@ -55,7 +55,7 @@ public class ReactiveReasonTests extends ESTestCase {
             assertEquals(unassigned, map.get("unassigned"));
             assertEquals(assigned, map.get("assigned"));
             assertEquals(unassignedShardIds.stream().map(ShardId::toString).collect(Collectors.toList()), map.get("unassigned_shard_ids"));
-            List<String> xContentAssignedShardIds = (List<String>) map.get("assigned_shard_ids");
+            List<String> xContentAssignedShardIds = (List<String>) map.get("assigned_shards");
             assertEquals(
                 assignedShardIds.stream()
                     .map(ShardId::toString)
@@ -64,7 +64,7 @@ public class ReactiveReasonTests extends ESTestCase {
                 xContentAssignedShardIds
             );
             assertSorted(xContentAssignedShardIds.stream().map(ShardId::fromString).collect(Collectors.toList()));
-            assertEquals(assignedShardIds.size(), map.get("amount_of_assigned_shards"));
+            assertEquals(assignedShardIds.size(), map.get("assigned_shards_count"));
         }
     }
 

@@ -29,6 +29,7 @@ public class Downsample implements ToXContentObject, Writeable {
     public static final ParseField FUNCTION_FIELD = new ParseField("function");
     public static final ParseField PARAMS_FIELD = new ParseField("params");
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Downsample, String> PARSER = new ConstructingObjectParser<>(
         NAME,
         false,

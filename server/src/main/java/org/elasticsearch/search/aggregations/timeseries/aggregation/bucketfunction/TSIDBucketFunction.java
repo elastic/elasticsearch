@@ -11,7 +11,7 @@ package org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunct
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.TSIDBucketFunction.TSIDValue;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.TSIDValue;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TSIDInternalAggregation;
 
 import java.util.HashMap;
@@ -73,15 +73,4 @@ public class TSIDBucketFunction implements AggregatorBucketFunction<TSIDValue> {
         }
     }
 
-    public static class TSIDValue {
-        public TSIDValue(BytesRef tsid, Object value, boolean detailed) {
-            this.tsid = tsid;
-            this.value = value;
-            this.detailed = detailed;
-        }
-
-        BytesRef tsid;
-        Object value;
-        boolean detailed;
-    }
 }

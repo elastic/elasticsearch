@@ -43,7 +43,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.AggregatorBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.TSIDBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.function.LastFunction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -443,11 +442,11 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                 }
                 if (timestamp - interval <= timestampBounds.startTime() || timestamp > timestampBounds.endTime()) {
                     aggregatorBucketFunction.collect(
-                        new TSIDBucketFunction.TSIDValue(preTsid, value.getAggregation(format, metadata()), true),
+                        new TSIDValue(preTsid, value.getAggregation(format, metadata()), true),
                         ord
                     );
                 } else {
-                    aggregatorBucketFunction.collect(new TSIDBucketFunction.TSIDValue(preTsid, value.get(), false), ord);
+                    aggregatorBucketFunction.collect(new TSIDValue(preTsid, value.get(), false), ord);
                 }
             }
         } else {

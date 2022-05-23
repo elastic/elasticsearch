@@ -98,7 +98,7 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        final Path home = nodePath(PARENT_DIR, nodeOrdinal);
+        final Path home = dataPath(PARENT_DIR, nodeOrdinal);
         final Path xpackConf = home.resolve("config");
         try {
             Files.createDirectories(xpackConf);
@@ -163,7 +163,7 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Path nodeConfigPath(int nodeOrdinal) {
-        return nodePath(PARENT_DIR, nodeOrdinal).resolve("config");
+        return dataPath(PARENT_DIR, nodeOrdinal).resolve("config");
     }
 
     private String configRoles() {
@@ -223,7 +223,7 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
             + "\n";
     }
 
-    Path nodePath(Path confDir, final int nodeOrdinal) {
+    Path dataPath(Path confDir, final int nodeOrdinal) {
         return confDir.resolve(getCurrentClusterScope() + "-" + nodeOrdinal);
     }
 

@@ -21,12 +21,12 @@ public class HealthNodeSelectionTaskParamsTests extends AbstractNamedWriteableTe
 
     @Override
     protected HealthNodeSelectorTaskParams createTestInstance() {
-        return new HealthNodeSelectorTaskParams();
+        return HealthNodeSelectorTaskParams.INSTANCE;
     }
 
     @Override
     protected HealthNodeSelectorTaskParams copyInstance(HealthNodeSelectorTaskParams instance, Version version) throws IOException {
-        return new HealthNodeSelectorTaskParams();
+        return HealthNodeSelectorTaskParams.INSTANCE;
     }
 
     @Override

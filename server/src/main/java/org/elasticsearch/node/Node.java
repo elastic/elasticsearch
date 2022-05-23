@@ -865,6 +865,7 @@ public class Node implements Closeable {
                 executorSelector
             );
 
+            final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
             final SystemIndexMigrationExecutor systemIndexMigrationExecutor = new SystemIndexMigrationExecutor(
                 client,
                 clusterService,
@@ -874,7 +875,7 @@ public class Node implements Closeable {
                 settingsModule.getIndexScopedSettings()
             );
             final HealthNodeSelectorTaskExecutor healthNodeSelectorTaskExecutor = HealthNodeSelector.isEnabled()
-                ? new HealthNodeSelectorTaskExecutor(client, clusterService, threadPool)
+                ? new HealthNodeSelectorTaskExecutor(clusterService, persistentTasksService)
                 : null;
             final HealthNodeSelectorLifecycleHandler healthNodeSelectorLifecycleHandler = HealthNodeSelector.isEnabled()
                 ? new HealthNodeSelectorLifecycleHandler(healthNodeSelectorTaskExecutor)
@@ -905,7 +906,6 @@ public class Node implements Closeable {
                 threadPool
             );
             resourcesToClose.add(persistentTasksClusterService);
-            final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
 
             final List<ShutdownAwarePlugin> shutdownAwarePlugins = pluginsService.filterPlugins(ShutdownAwarePlugin.class);
             final PluginShutdownService pluginShutdownService = new PluginShutdownService(shutdownAwarePlugins);

@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -47,10 +46,10 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
     private final PersistentTasksService persistentTasksService;
     private final AtomicReference<HealthNodeSelector> currentTask = new AtomicReference<>();
 
-    public HealthNodeSelectorTaskExecutor(Client client, ClusterService clusterService, ThreadPool threadPool) {
+    public HealthNodeSelectorTaskExecutor(ClusterService clusterService, PersistentTasksService persistentTasksService) {
         super(TASK_NAME, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
-        persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
+        this.persistentTasksService = persistentTasksService;
     }
 
     @Override
@@ -94,7 +93,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
         persistentTasksService.sendStartRequest(
             TASK_NAME,
             TASK_NAME,
-            new HealthNodeSelectorTaskParams(),
+            HealthNodeSelectorTaskParams.INSTANCE,
             ActionListener.wrap(r -> logger.debug("Created the health node selector task"), e -> {
                 Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
                 if (t instanceof ResourceAlreadyExistsException == false) {

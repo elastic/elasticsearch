@@ -50,10 +50,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
-import static java.lang.System.nanoTime;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.core.TimeValue.nsecToMSec;
-import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 public class JoinHelper {
@@ -201,7 +198,7 @@ public class JoinHelper {
             logger.warn(
                 () -> format(
                     "last failed join attempt was %s ago, failed to join %s with %s",
-                    timeValueMillis(nsecToMSec(nanoTime() - timestamp)),
+                    TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - timestamp)),
                     destination,
                     joinRequest
                 ),

@@ -15,11 +15,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
-import java.util.Arrays;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.core.Strings.format;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -44,7 +42,6 @@ public class LoggersTests extends ESTestCase {
         assertThat(appender.lastEvent.getLevel(), equalTo(Level.WARN));
         assertThat(appender.lastEvent.getThrown(), equalTo(ex));
         assertThat(appender.lastMessage().getFormattedMessage(), equalTo("a warn message: [long gc]"));
-        assertThat(appender.lastMessage().getParameters(), arrayContaining("long gc"));
 
         testLogger.info(() -> format("an info message a=[%s], b=[%s], c=[%s]", 1, 2, 3));
         assertThat(appender.lastEvent.getLevel(), equalTo(Level.INFO));
@@ -56,14 +53,12 @@ public class LoggersTests extends ESTestCase {
         assertThat(appender.lastEvent.getLevel(), equalTo(Level.DEBUG));
         assertThat(appender.lastEvent.getThrown(), equalTo(ex));
         assertThat(appender.lastMessage().getFormattedMessage(), equalTo("a debug message options = [yes, no]"));
-        assertThat(appender.lastMessage().getParameters(), arrayContaining(Arrays.asList("yes", "no")));
 
         ex = randomException();
         testLogger.trace(() -> format("a trace message; element = [%s]", new Object[] { null }), ex);
         assertThat(appender.lastEvent.getLevel(), equalTo(Level.TRACE));
         assertThat(appender.lastEvent.getThrown(), equalTo(ex));
         assertThat(appender.lastMessage().getFormattedMessage(), equalTo("a trace message; element = [null]"));
-        assertThat(appender.lastMessage().getParameters(), arrayContaining(new Object[] { null }));
     }
 
     private Throwable randomException() {

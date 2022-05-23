@@ -21,7 +21,6 @@ import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 /**
  * A action that will be retried on failure if {@link RetryableAction#shouldRetry(Exception)} returns true.
@@ -151,7 +150,7 @@ public abstract class RetryableAction<Response> {
             if (shouldRetry(e)) {
                 final long elapsedMillis = threadPool.relativeTimeInMillis() - startMillis;
                 if (elapsedMillis >= timeoutMillis) {
-                    logger.debug(() -> format("retryable action timed out after %s", timeValueMillis(elapsedMillis)), e);
+                    logger.debug(() -> format("retryable action timed out after %s", TimeValue.timeValueMillis(elapsedMillis)), e);
                     onFinalFailure(e);
                 } else {
                     addException(e);

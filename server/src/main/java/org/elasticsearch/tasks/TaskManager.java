@@ -57,7 +57,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.ExceptionsHelper.stackTrace;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -296,7 +295,7 @@ public class TaskManager implements ClusterStateApplier {
         try {
             taskResult = task.result(localNode, error);
         } catch (IOException ex) {
-            logger.warn(() -> format("couldn't store error %s", stackTrace(error)), ex);
+            logger.warn(() -> format("couldn't store error %s", ExceptionsHelper.stackTrace(error)), ex);
             listener.onFailure(ex);
             return;
         }
@@ -308,7 +307,7 @@ public class TaskManager implements ClusterStateApplier {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> format("couldn't store error %s", stackTrace(error)), e);
+                logger.warn(() -> format("couldn't store error %s", ExceptionsHelper.stackTrace(error)), e);
                 listener.onFailure(e);
             }
         });

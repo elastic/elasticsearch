@@ -527,7 +527,7 @@ public class RBACEngine implements AuthorizationEngine {
         }
         final Role userRole = ((RBACAuthorizationInfo) authorizationInfo).getRole();
         logger.trace(
-            () -> new format(
+            () -> format(
                 "Check whether role [{}] has privileges [{}]",
                 Strings.arrayToCommaDelimitedString(userRole.names()),
                 privilegesToCheck
@@ -600,7 +600,7 @@ public class RBACEngine implements AuthorizationEngine {
             .map(RoleDescriptor.ApplicationResourcePrivileges::getApplication)
             .collect(Collectors.toSet());
         for (String applicationName : applicationNames) {
-            logger.debug(() -> new ParameterizedMessage("Checking privileges for application {}", applicationName));
+            logger.debug(() -> format("Checking privileges for application [{}]", applicationName));
             final ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder = privilegesToCheck.runDetailedCheck()
                 ? ResourcePrivilegesMap.builder()
                 : null;

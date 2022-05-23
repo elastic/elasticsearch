@@ -84,7 +84,7 @@ GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node
 +
 <1> The index we want to diagnose.
 +
-<2> The unassigned shard.
+<2> The unassigned shard ID.
 +
 <3> Indicates that we are diagnosing a primary shard.
 +

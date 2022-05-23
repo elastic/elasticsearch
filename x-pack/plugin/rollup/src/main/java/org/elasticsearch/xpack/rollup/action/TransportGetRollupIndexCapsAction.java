@@ -63,7 +63,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
 
     static Map<String, RollableIndexCaps> getCapsByRollupIndex(
         List<String> resolvedIndexNames,
-        ImmutableOpenMap<String, IndexMetadata> indices
+        Map<String, IndexMetadata> indices
     ) {
         Map<String, List<RollupJobCaps>> allCaps = new TreeMap<>();
 

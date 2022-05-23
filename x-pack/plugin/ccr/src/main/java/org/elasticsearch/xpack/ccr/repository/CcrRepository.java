@@ -186,7 +186,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             .setNodes(true)
             .get(ccrSettings.getRecoveryActionTimeout());
         Metadata responseMetadata = response.getState().metadata();
-        ImmutableOpenMap<String, IndexMetadata> indicesMap = responseMetadata.indices();
+        Map<String, IndexMetadata> indicesMap = responseMetadata.indices();
         List<String> indices = new ArrayList<>(indicesMap.keySet());
 
         // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
@@ -274,7 +274,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
             Map<IndexId, List<SnapshotId>> indexSnapshots = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
 
-            ImmutableOpenMap<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
+            Map<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
             for (String indexName : remoteMetadata.getConcreteAllIndices()) {
                 // Both the Snapshot name and UUID are set to _latest_
                 SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);

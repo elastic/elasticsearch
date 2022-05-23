@@ -68,6 +68,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -408,7 +409,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         }
     }
 
-    static RollupSearchContext separateIndices(String[] indices, ImmutableOpenMap<String, IndexMetadata> indexMetadata) {
+    static RollupSearchContext separateIndices(String[] indices, Map<String, IndexMetadata> indexMetadata) {
 
         if (indices.length == 0) {
             throw new IllegalArgumentException("Must specify at least one concrete index.");

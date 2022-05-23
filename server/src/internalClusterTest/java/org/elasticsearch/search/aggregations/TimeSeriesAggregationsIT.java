@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeries;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.Function;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.InternalTimeSeriesAggregation;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesLineAggreagation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -534,11 +535,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         Rounding.Prepared rounding = Rounding.builder(new TimeValue(fixedInterval.estimateMillis())).build().prepareForUnknown();
         SearchResponse response = client().prepareSearch("index")
             .setSize(0)
-            .addAggregation(
-                timeSeriesAggregation("by_ts").field("metric_0")
-                    .interval(fixedInterval)
-                    .size(data.size())
-            )
+            .addAggregation(timeSeriesAggregation("by_ts").field("metric_0").interval(fixedInterval).size(data.size()))
             .get();
         Aggregations aggregations = response.getAggregations();
         assertNotNull(aggregations);
@@ -564,8 +561,9 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
             });
 
             dataBucketValues.forEach((timestamp, value) -> {
-                assertTrue(bucket.getTimeBucketValues().containsKey(timestamp));
-                InternalAggregation aggregation = bucket.getTimeBucketValues().get(timestamp);
+                assertTrue(((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues().containsKey(timestamp));
+                InternalAggregation aggregation = ((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues()
+                    .get(timestamp);
                 assertTrue(aggregation instanceof InternalNumericMetricsAggregation.SingleValue);
                 assertThat(((InternalNumericMetricsAggregation.SingleValue) aggregation).value(), closeTo(value.v1(), 0.0001d));
             });
@@ -606,8 +604,9 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
             });
 
             dataBucketValues.forEach((timestamp, value) -> {
-                assertTrue(bucket.getTimeBucketValues().containsKey(timestamp));
-                InternalAggregation aggregation = bucket.getTimeBucketValues().get(timestamp);
+                assertTrue(((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues().containsKey(timestamp));
+                InternalAggregation aggregation = ((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues()
+                    .get(timestamp);
                 assertTrue(aggregation instanceof InternalNumericMetricsAggregation.SingleValue);
                 assertThat(((InternalNumericMetricsAggregation.SingleValue) aggregation).value(), closeTo(value, 0.0001d));
             });
@@ -619,12 +618,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         Rounding.Prepared rounding = Rounding.builder(new TimeValue(fixedInterval.estimateMillis())).build().prepareForUnknown();
         SearchResponse response = client().prepareSearch("index")
             .setSize(0)
-            .addAggregation(
-                timeSeriesAggregation("by_ts").field("metric_0")
-                    .interval(fixedInterval)
-                    .aggregator("sum")
-                    .size(data.size())
-            )
+            .addAggregation(timeSeriesAggregation("by_ts").field("metric_0").interval(fixedInterval).aggregator("sum").size(data.size()))
             .get();
         Aggregations aggregations = response.getAggregations();
         assertNotNull(aggregations);
@@ -662,8 +656,9 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
 
         for (InternalTimeSeriesAggregation.InternalBucket bucket : timeSeries.getBuckets()) {
             aggResults.forEach((timestamp, metric) -> {
-                assertTrue(bucket.getTimeBucketValues().containsKey(timestamp));
-                InternalAggregation aggregation = bucket.getTimeBucketValues().get(timestamp);
+                assertTrue(((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues().containsKey(timestamp));
+                InternalAggregation aggregation = ((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues()
+                    .get(timestamp);
                 assertTrue(aggregation instanceof InternalNumericMetricsAggregation.SingleValue);
                 assertThat(((InternalNumericMetricsAggregation.SingleValue) aggregation).value(), closeTo(metric, 0.0001d));
             });
@@ -735,8 +730,9 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
             Map<String, Object> key = bucket.getKey();
             Map<Long, Double> dataValues = aggResults.get(key);
             dataValues.forEach((timestamp, metric) -> {
-                assertTrue(bucket.getTimeBucketValues().containsKey(timestamp));
-                InternalAggregation aggregation = bucket.getTimeBucketValues().get(timestamp);
+                assertTrue(((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues().containsKey(timestamp));
+                InternalAggregation aggregation = ((TimeSeriesLineAggreagation) bucket.getMetricAggregation()).getTimeBucketValues()
+                    .get(timestamp);
                 assertTrue(aggregation instanceof InternalNumericMetricsAggregation.SingleValue);
                 assertThat(((InternalNumericMetricsAggregation.SingleValue) aggregation).value(), closeTo(metric, 0.0001d));
             });

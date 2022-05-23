@@ -22,13 +22,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class Last extends InternalNumericMetricsAggregation.SingleValue {
-    public static final String NAME = "last";
+public class TimeSeriesLast extends InternalNumericMetricsAggregation.SingleValue {
+    public static final String NAME = "time_series_last";
 
     private final double last;
     private final long timestamp;
 
-    public Last(String name, double last, long timestamp, DocValueFormat formatter, Map<String, Object> metadata) {
+    public TimeSeriesLast(String name, double last, long timestamp, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, formatter, metadata);
         this.last = last;
         this.timestamp = timestamp;
@@ -37,7 +37,7 @@ public class Last extends InternalNumericMetricsAggregation.SingleValue {
     /**
      * Read from a stream.
      */
-    public Last(StreamInput in) throws IOException {
+    public TimeSeriesLast(StreamInput in) throws IOException {
         super(in);
         last = in.readDouble();
         timestamp = in.readLong();
@@ -69,16 +69,16 @@ public class Last extends InternalNumericMetricsAggregation.SingleValue {
     }
 
     @Override
-    public Last reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    public TimeSeriesLast reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         double last = Double.NEGATIVE_INFINITY;
         long timestamp = Long.MIN_VALUE;
         for (InternalAggregation aggregation : aggregations) {
-            if (((Last) aggregation).timestamp > timestamp) {
-                last = ((Last) aggregation).last;
-                timestamp = ((Last) aggregation).timestamp;
+            if (((TimeSeriesLast) aggregation).timestamp > timestamp) {
+                last = ((TimeSeriesLast) aggregation).last;
+                timestamp = ((TimeSeriesLast) aggregation).timestamp;
             }
         }
-        return new Last(name, last, timestamp, format, getMetadata());
+        return new TimeSeriesLast(name, last, timestamp, format, getMetadata());
     }
 
     @Override
@@ -102,7 +102,7 @@ public class Last extends InternalNumericMetricsAggregation.SingleValue {
         if (false == super.equals(o)) {
             return false;
         }
-        Last last1 = (Last) o;
+        TimeSeriesLast last1 = (TimeSeriesLast) o;
         return Double.compare(last1.last, last) == 0 && timestamp == last1.timestamp;
     }
 

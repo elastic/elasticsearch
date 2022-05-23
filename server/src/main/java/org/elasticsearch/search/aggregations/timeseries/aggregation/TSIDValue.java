@@ -11,13 +11,11 @@ package org.elasticsearch.search.aggregations.timeseries.aggregation;
 import org.apache.lucene.util.BytesRef;
 
 public class TSIDValue<Value> {
-    public TSIDValue(BytesRef tsid, Value value, boolean detailed) {
+    public TSIDValue(BytesRef tsid, Value value) {
         this.tsid = tsid;
         this.value = value;
-        this.detailed = detailed;
     }
 
     public BytesRef tsid;
     public Value value;
-    public boolean detailed;
 }

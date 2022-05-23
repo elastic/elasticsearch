@@ -8,30 +8,39 @@
 
 package org.elasticsearch.search.aggregations.timeseries.aggregation.function;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TSIDValue;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesTopk;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 public class TopkFunction implements AggregatorFunction<TSIDValue<Double>, List<TSIDValue<Double>>> {
     private final PriorityQueue<TSIDValue<Double>> queue;
+    private final int topkSize;
+    private final boolean isTop;
 
-    public TopkFunction(int size) {
+    public TopkFunction(int size, boolean isTop) {
         queue = new PriorityQueue<>(size) {
             @Override
             protected boolean lessThan(TSIDValue<Double> a, TSIDValue<Double> b) {
-                return a.value < b.value;
+                if (isTop) {
+                    return a.value > b.value;
+                } else {
+                    return a.value < b.value;
+                }
             }
         };
+        this.isTop = isTop;
+        this.topkSize = size;
     }
 
     @Override
     public void collect(TSIDValue<Double> value) {
-        queue.add(value);
+        queue.insertWithOverflow(value);
     }
 
     @Override
@@ -44,8 +53,7 @@ public class TopkFunction implements AggregatorFunction<TSIDValue<Double>, List<
     }
 
     @Override
-    public InternalAggregation getAggregation(
-        DocValueFormat formatter, Map<String, Object> metadata) {
-        return null;
+    public InternalAggregation getAggregation(DocValueFormat formatter, Map<String, Object> metadata) {
+        return new TimeSeriesTopk(TimeSeriesTopk.NAME, get(), topkSize, isTop, formatter, metadata);
     }
 }

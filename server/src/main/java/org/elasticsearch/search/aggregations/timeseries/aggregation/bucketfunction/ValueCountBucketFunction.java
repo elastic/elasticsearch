@@ -45,7 +45,7 @@ public class ValueCountBucketFunction implements AggregatorBucketFunction<Double
     }
 
     @Override
-    public InternalAggregation getAggregation(long bucket, DocValueFormat formatter, Map<String, Object> metadata) {
+    public InternalAggregation getAggregation(long bucket, Map<String, Object> aggregatorParams, DocValueFormat formatter, Map<String, Object> metadata) {
         return new InternalValueCount(name(), counts.get(bucket), metadata);
     }
 

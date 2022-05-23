@@ -11,7 +11,7 @@ package org.elasticsearch.search.aggregations.timeseries.aggregation.function;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimePoint;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.Last;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesLast;
 
 import java.util.Map;
 
@@ -32,6 +32,6 @@ public class LastFunction implements AggregatorFunction<TimePoint, Double> {
 
     @Override
     public InternalAggregation getAggregation(DocValueFormat formatter, Map<String, Object> metadata) {
-        return new Last(Last.NAME, point.getValue(), point.getTimestamp(), formatter, metadata);
+        return new TimeSeriesLast(TimeSeriesLast.NAME, point.getValue(), point.getTimestamp(), formatter, metadata);
     }
 }

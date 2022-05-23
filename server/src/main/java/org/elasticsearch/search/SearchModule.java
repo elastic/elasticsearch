@@ -217,10 +217,12 @@ import org.elasticsearch.search.aggregations.timeseries.InternalTimeSeries;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.InternalTimeSeriesAggregation;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregationAggregationBuilder;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.Last;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesLast;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TSIDInternalAggregation;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesIRate;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesLineAggreagation;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesRate;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesTopk;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainPhase;
@@ -677,10 +679,12 @@ public class SearchModule {
                     TimeSeriesAggregationAggregationBuilder::new,
                     TimeSeriesAggregationAggregationBuilder.PARSER
                 ).addResultReader(InternalTimeSeriesAggregation::new)
-                    .addResultReader(Last.NAME, Last::new)
+                    .addResultReader(TimeSeriesLast.NAME, TimeSeriesLast::new)
                     .addResultReader(TSIDInternalAggregation.NAME, TSIDInternalAggregation::new)
                     .addResultReader(TimeSeriesRate.NAME, TimeSeriesRate::new)
                     .addResultReader(TimeSeriesIRate.NAME, TimeSeriesIRate::new)
+                    .addResultReader(TimeSeriesLineAggreagation.NAME, TimeSeriesLineAggreagation::new)
+                    .addResultReader(TimeSeriesTopk.NAME, TimeSeriesTopk::new)
                     .setAggregatorRegistrar(TimeSeriesAggregationAggregationBuilder::registerAggregators),
                 builder
             );

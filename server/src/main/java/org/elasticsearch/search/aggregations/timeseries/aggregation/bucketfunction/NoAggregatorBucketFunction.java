@@ -10,7 +10,7 @@ package org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunct
 
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.Last;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesLast;
 
 import java.util.Map;
 
@@ -28,8 +28,8 @@ public class NoAggregatorBucketFunction implements AggregatorBucketFunction<Doub
     }
 
     @Override
-    public InternalAggregation getAggregation(long bucket, DocValueFormat formatter, Map<String, Object> metadata) {
-        return new Last(name(), value, 0, formatter, metadata);
+    public InternalAggregation getAggregation(long bucket, Map<String, Object> aggregatorParams, DocValueFormat formatter, Map<String, Object> metadata) {
+        return new TimeSeriesLast(name(), value, 0, formatter, metadata);
     }
 
     @Override

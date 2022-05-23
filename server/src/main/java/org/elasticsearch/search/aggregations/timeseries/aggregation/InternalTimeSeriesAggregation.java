@@ -28,9 +28,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.TreeMap;
 
 import static org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation.declareMultiBucketAggregationFields;
 import static org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME;
@@ -60,7 +58,7 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
         protected final boolean keyed;
         protected final Map<String, Object> key;
         protected long docCount;
-        protected Map<Long, InternalAggregation> timeBucketValues;
+        protected InternalAggregation metricAggregation;
         protected boolean showDocCountError;
         protected long docCountError;
         protected InternalAggregations aggregations;
@@ -68,7 +66,7 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
         public InternalBucket(
             Map<String, Object> key,
             long docCount,
-            Map<Long, InternalAggregation> timeBucketValues,
+            InternalAggregation metricAggregation,
             InternalAggregations aggregations,
             boolean keyed,
             boolean showDocCountError,
@@ -78,7 +76,7 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
             this.docCount = docCount;
             this.aggregations = aggregations;
             this.keyed = keyed;
-            this.timeBucketValues = timeBucketValues;
+            this.metricAggregation = metricAggregation;
             this.showDocCountError = showDocCountError;
             this.docCountError = docCountError;
         }
@@ -90,7 +88,7 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
             this.keyed = keyed;
             key = in.readOrderedMap(StreamInput::readString, StreamInput::readGenericValue);
             docCount = in.readVLong();
-            timeBucketValues = in.readOrderedMap(StreamInput::readLong, stream -> stream.readNamedWriteable(InternalAggregation.class));
+            metricAggregation = in.readNamedWriteable(InternalAggregation.class);
             this.showDocCountError = showDocCountError;
             docCountError = -1;
             if (showDocCountError) {
@@ -103,7 +101,7 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(key, StreamOutput::writeString, StreamOutput::writeGenericValue);
             out.writeVLong(docCount);
-            out.writeMap(timeBucketValues, StreamOutput::writeLong, StreamOutput::writeNamedWriteable);
+            out.writeNamedWriteable(metricAggregation);
             if (showDocCountError) {
                 // TODO recover -Dtests.seed=142C4BE4C242FF8B
                 // out.writeLong(docCountError);
@@ -126,8 +124,8 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
             return docCount;
         }
 
-        public Map<Long, InternalAggregation> getTimeBucketValues() {
-            return timeBucketValues;
+        public InternalAggregation getMetricAggregation() {
+            return metricAggregation;
         }
 
         @Override
@@ -151,11 +149,7 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
                 builder.field(DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName(), docCountError);
             }
             builder.startObject(CommonFields.VALUES.getPreferredName());
-            for (Entry<Long, InternalAggregation> entry : timeBucketValues.entrySet()) {
-                builder.startObject(String.valueOf(entry.getKey()));
-                entry.getValue().doXContentBody(builder, params);
-                builder.endObject();
-            }
+            metricAggregation.doXContentBody(builder, params);
             builder.endObject();
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
@@ -174,12 +168,12 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
             return Objects.equals(key, that.key)
                 && Objects.equals(keyed, that.keyed)
                 && Objects.equals(docCount, that.docCount)
-                && Objects.equals(timeBucketValues, that.timeBucketValues);
+                && Objects.equals(metricAggregation, that.metricAggregation);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(getClass(), key, keyed, docCount, timeBucketValues);
+            return Objects.hash(getClass(), key, keyed, docCount, metricAggregation);
         }
 
         @Override
@@ -363,7 +357,7 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
         return new InternalBucket(
             prototype.key,
             prototype.docCount,
-            prototype.timeBucketValues,
+            prototype.metricAggregation,
             prototype.aggregations,
             prototype.keyed,
             prototype.showDocCountError,
@@ -376,7 +370,7 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
         return new InternalBucket(
             prototype.key,
             prototype.docCount,
-            prototype.timeBucketValues,
+            prototype.metricAggregation,
             prototype.aggregations,
             prototype.keyed,
             prototype.showDocCountError,
@@ -442,8 +436,7 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
     public InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
         InternalBucket reduced = null;
         List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
-        Map<Long, InternalAggregation> timeBucketResults = new TreeMap<>();
-        Map<Long, List<InternalAggregation>> timeBucketAggregationsList = new TreeMap<>();
+        List<InternalAggregation> metricAggregationsList = new ArrayList<>(buckets.size());
         long docCountError = 0;
         for (InternalBucket bucket : buckets) {
             if (docCountError != -1) {
@@ -457,7 +450,7 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
                 reduced = new InternalBucket(
                     bucket.key,
                     bucket.docCount,
-                    bucket.timeBucketValues,
+                    bucket.metricAggregation,
                     bucket.aggregations,
                     bucket.keyed,
                     bucket.showDocCountError,
@@ -466,26 +459,12 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
             } else {
                 reduced.docCount += bucket.docCount;
             }
-            for (Entry<Long, InternalAggregation> entry : bucket.timeBucketValues.entrySet()) {
-                Long timestamp = entry.getKey();
-                InternalAggregation value = entry.getValue();
-                List<InternalAggregation> values = timeBucketAggregationsList.get(timestamp);
-                if (values == null) {
-                    values = new ArrayList<>();
-                    timeBucketAggregationsList.put(timestamp, values);
-                }
-                values.add(value);
-            }
+
+            metricAggregationsList.add(bucket.metricAggregation);
             aggregationsList.add(bucket.aggregations);
         }
 
-        timeBucketAggregationsList.forEach((timestamp, aggs) -> {
-            if (aggs.size() > 0) {
-                InternalAggregation first = aggs.get(0);
-                timeBucketResults.put(timestamp, first.reduce(aggs, context));
-            }
-        });
-        reduced.timeBucketValues = timeBucketResults;
+        reduced.metricAggregation = reduced.metricAggregation.reduce(metricAggregationsList, context);
         reduced.docCountError = docCountError;
         if (reduced.docCountError == -1) {
             reduced.showDocCountError = false;

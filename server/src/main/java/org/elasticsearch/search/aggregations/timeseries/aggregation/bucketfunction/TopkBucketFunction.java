@@ -8,22 +8,27 @@
 
 package org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TSIDValue;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesTopk;
 
-public class TopkBucketFunction implements AggregatorBucketFunction<TSIDValue<Double>>{
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-    Map<Long, PriorityQueue<TSIDValue<Double>>> values;
-    private int topkSize;
+public class TopkBucketFunction implements AggregatorBucketFunction<TSIDValue<Double>> {
 
-    public TopkBucketFunction(int size) {
+    private Map<Long, PriorityQueue<TSIDValue<Double>>> values;
+    private final int topkSize;
+    private final boolean isTop;
+
+    public TopkBucketFunction(int size, boolean isTop) {
         values = new HashMap<>();
         this.topkSize = size;
+        this.isTop = isTop;
     }
 
     @Override
@@ -38,19 +43,32 @@ public class TopkBucketFunction implements AggregatorBucketFunction<TSIDValue<Do
             queue = new PriorityQueue<>(topkSize) {
                 @Override
                 protected boolean lessThan(TSIDValue<Double> a, TSIDValue<Double> b) {
-                    return a.value < b.value;
+                    if (isTop) {
+                        return a.value > b.value;
+                    } else {
+                        return a.value < b.value;
+                    }
                 }
             };
             values.put(bucket, queue);
         }
 
-        queue.add(number);
+        queue.insertWithOverflow(number);
     }
 
     @Override
-    public InternalAggregation getAggregation(long bucket,
-        DocValueFormat formatter, Map<String, Object> metadata) {
-        return null;
+    public InternalAggregation getAggregation(
+        long bucket,
+        Map<String, Object> aggregatorParams,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
+        PriorityQueue<TSIDValue<Double>> queue = values.get(bucket);
+        List<TSIDValue<Double>> values = new ArrayList<>(queue.size());
+        for (int b = queue.size() - 1; b >= 0; --b) {
+            values.add(queue.pop());
+        }
+        return new TimeSeriesTopk(name(), values, topkSize, isTop, formatter, metadata);
     }
 
     @Override

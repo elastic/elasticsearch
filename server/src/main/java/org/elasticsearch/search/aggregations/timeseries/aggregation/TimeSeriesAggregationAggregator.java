@@ -43,6 +43,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.AggregatorBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.TSIDBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesLineAggreagation;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -177,7 +178,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                 InternalTimeSeriesAggregation.InternalBucket bucket = new InternalTimeSeriesAggregation.InternalBucket(
                     TimeSeriesIdFieldMapper.decodeTsid(spareKey),
                     docCount,
-                    new HashMap<>(),
+                    null,
                     null,
                     keyed,
                     false,
@@ -200,13 +201,13 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                     while (timeOrdsEnum.next()) {
                         values.put(
                             timeOrdsEnum.value() + offset,
-                            aggregatorBucketFunction.getAggregation(timeOrdsEnum.ord(), format, metadata())
+                            aggregatorBucketFunction.getAggregation(timeOrdsEnum.ord(), aggregatorParams, format, metadata())
                         );
                     }
                 } else {
                     values = groupBucketValues.get(ord);
                 }
-                bucket.timeBucketValues = values;
+                bucket.metricAggregation = new TimeSeriesLineAggreagation(TimeSeriesLineAggreagation.NAME, values, format, metadata());
                 allBucketsPerOrd[ordIdx][b] = bucket;
                 otherDocCounts[ordIdx] -= allBucketsPerOrd[ordIdx][b].getDocCount();
             }
@@ -418,7 +419,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         if (needAggregator) {
             AggregatorBucketFunction aggregatorBucketFunction = aggregatorCollectors.get(bucketOrd);
             if (aggregatorBucketFunction == null) {
-                AggregatorBucketFunction internal = aggregator.getAggregatorBucketFunction(bigArrays());
+                AggregatorBucketFunction internal = aggregator.getAggregatorBucketFunction(bigArrays(), aggregatorParams);
                 aggregatorBucketFunction = new TSIDBucketFunction(internal);
                 aggregatorCollectors.put(bucketOrd, aggregatorBucketFunction);
             }
@@ -441,12 +442,9 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                     ord = -1 - ord;
                 }
                 if (timestamp - interval <= timestampBounds.startTime() || timestamp > timestampBounds.endTime()) {
-                    aggregatorBucketFunction.collect(
-                        new TSIDValue(preTsid, value.getAggregation(format, metadata()), true),
-                        ord
-                    );
+                    aggregatorBucketFunction.collect(new TSIDValue(preTsid, value.getAggregation(format, metadata())), ord);
                 } else {
-                    aggregatorBucketFunction.collect(new TSIDValue(preTsid, value.get(), false), ord);
+                    aggregatorBucketFunction.collect(new TSIDValue(preTsid, value.get()), ord);
                 }
             }
         } else {

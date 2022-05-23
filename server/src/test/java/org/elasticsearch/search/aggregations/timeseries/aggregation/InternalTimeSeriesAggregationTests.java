@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.timeseries.aggregation;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.InternalTimeSeriesAggregation.InternalBucket;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
@@ -84,7 +85,7 @@ public class InternalTimeSeriesAggregationTests extends InternalMultiBucketAggre
                 new InternalTimeSeriesAggregation.InternalBucket(
                     keys.get(j),
                     docCount,
-                    new HashMap<>(),
+                    null,
                     InternalAggregations.EMPTY,
                     keyed,
                     showTermDocCountError,

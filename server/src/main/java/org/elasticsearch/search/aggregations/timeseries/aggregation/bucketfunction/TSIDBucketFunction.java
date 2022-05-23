@@ -42,18 +42,20 @@ public class TSIDBucketFunction implements AggregatorBucketFunction<TSIDValue> {
 
     @Override
     public String name() {
-        return "tsid";
+        return TSIDInternalAggregation.NAME;
     }
 
     @Override
     public void collect(TSIDValue tsidValue, long bucket) {
-        if (tsidValue.detailed) {
+        if (tsidValue.value instanceof InternalAggregation) {
             Map<BytesRef, InternalAggregation> tsidValues = values.get(bucket);
             if (tsidValues == null) {
                 tsidValues = new HashMap<>();
                 values.put(bucket, tsidValues);
             }
             tsidValues.put(tsidValue.tsid, (InternalAggregation) tsidValue.value);
+        } else if (aggregatorBucketFunction instanceof TopkBucketFunction) {
+            aggregatorBucketFunction.collect(tsidValue, bucket);
         } else {
             aggregatorBucketFunction.collect(tsidValue.value, bucket);
         }
@@ -65,11 +67,11 @@ public class TSIDBucketFunction implements AggregatorBucketFunction<TSIDValue> {
     }
 
     @Override
-    public InternalAggregation getAggregation(long bucket, DocValueFormat formatter, Map<String, Object> metadata) {
+    public InternalAggregation getAggregation(long bucket, Map<String, Object> aggregatorParams, DocValueFormat formatter, Map<String, Object> metadata) {
         if (values.containsKey(bucket)) {
-            return new TSIDInternalAggregation(name(), values.get(bucket), aggregatorBucketFunction.name(), formatter, metadata);
+            return new TSIDInternalAggregation(name(), values.get(bucket), aggregatorBucketFunction.name(), aggregatorParams, formatter, metadata);
         } else {
-            return aggregatorBucketFunction.getAggregation(bucket, formatter, metadata);
+            return aggregatorBucketFunction.getAggregation(bucket, aggregatorParams, formatter, metadata);
         }
     }
 

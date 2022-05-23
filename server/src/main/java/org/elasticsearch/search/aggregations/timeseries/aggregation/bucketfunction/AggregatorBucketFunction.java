@@ -35,7 +35,7 @@ public interface AggregatorBucketFunction<Input> {
      * get the {@link InternalAggregation}, it used to transport cross nodes and reduce result in the coordinate node
      * @return the {@link InternalAggregation} of the input bucket
      */
-    InternalAggregation getAggregation(long bucket, DocValueFormat formatter, Map<String, Object> metadata);
+    InternalAggregation getAggregation(long bucket, Map<String, Object> aggregatorParams, DocValueFormat formatter, Map<String, Object> metadata);
 
     /**
      * close the inner big array

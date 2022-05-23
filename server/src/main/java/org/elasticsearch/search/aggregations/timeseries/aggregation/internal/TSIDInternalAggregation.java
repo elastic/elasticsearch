@@ -17,9 +17,11 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.Aggregator;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.TSIDValue;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimePoint;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.TSIDBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.function.TopkFunction;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -34,16 +36,18 @@ import java.util.TreeMap;
  */
 @SuppressWarnings({ "unchecked", "rawtypes" })
 public class TSIDInternalAggregation extends InternalAggregation {
-    public static final String NAME = "tsid";
+    public static final String NAME = "time_series_tsid";
 
     private final Map<BytesRef, InternalAggregation> values;
     private final String aggregator;
+    private final Map<String, Object> aggregatorParams;
     private final DocValueFormat formatter;
 
     public TSIDInternalAggregation(
         String name,
         Map<BytesRef, InternalAggregation> values,
         String aggregator,
+        Map<String, Object> aggregatorParams,
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) {
@@ -51,12 +55,14 @@ public class TSIDInternalAggregation extends InternalAggregation {
         this.values = values;
         this.formatter = formatter;
         this.aggregator = aggregator;
+        this.aggregatorParams = aggregatorParams;
     }
 
     public TSIDInternalAggregation(StreamInput in) throws IOException {
         super(in);
         formatter = in.readNamedWriteable(DocValueFormat.class);
         aggregator = in.readString();
+        aggregatorParams = in.readMap();
         values = in.readOrderedMap(StreamInput::readBytesRef, stream -> stream.readNamedWriteable(InternalAggregation.class));
     }
 
@@ -69,6 +75,7 @@ public class TSIDInternalAggregation extends InternalAggregation {
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(formatter);
         out.writeString(aggregator);
+        out.writeGenericMap(aggregatorParams);
         out.writeMap(values, StreamOutput::writeBytesRef, StreamOutput::writeNamedWriteable);
     }
 
@@ -78,10 +85,15 @@ public class TSIDInternalAggregation extends InternalAggregation {
             TSIDInternalAggregation tsidAgg = (TSIDInternalAggregation) aggregations.get(0);
             if (reduceContext.isFinalReduce()) {
                 Aggregator function = Aggregator.valueOf(aggregator);
-                final AggregatorFunction aggregatorFunction = function.getAggregatorFunction();
+                final AggregatorFunction aggregatorFunction = function.getAggregatorFunction(aggregatorParams);
                 tsidAgg.values.forEach(
                     (tsid, agg) -> {
-                        aggregatorFunction.collect(new TimePoint(0, ((InternalNumericMetricsAggregation.SingleValue) agg).value()));
+                        if (aggregatorFunction instanceof TopkFunction) {
+                            aggregatorFunction.collect(new TSIDValue<>(tsid, ((InternalNumericMetricsAggregation.SingleValue) agg).value()));
+                        } else {
+                            aggregatorFunction.collect(new TimePoint(0, ((InternalNumericMetricsAggregation.SingleValue) agg).value()));
+                        }
+
                     }
                 );
                 return aggregatorFunction.getAggregation(formatter, getMetadata());
@@ -105,12 +117,16 @@ public class TSIDInternalAggregation extends InternalAggregation {
 
         if (reduceContext.isFinalReduce()) {
             Aggregator function = Aggregator.valueOf(aggregator);
-            final AggregatorFunction aggregatorFunction = function.getAggregatorFunction();
+            final AggregatorFunction aggregatorFunction = function.getAggregatorFunction(aggregatorParams);
             reduced.forEach((tsid, aggs) -> {
                 if (aggs.size() > 0) {
                     InternalAggregation first = aggs.get(0);
                     InternalNumericMetricsAggregation.SingleValue internalAggregation = (SingleValue) first.reduce(aggs, reduceContext);
-                    aggregatorFunction.collect(new TimePoint(0, internalAggregation.value()));
+                    if (aggregatorFunction instanceof TopkFunction) {
+                        aggregatorFunction.collect(new TSIDValue<>(tsid, internalAggregation.value()));
+                    } else {
+                        aggregatorFunction.collect(new TimePoint(0, internalAggregation.value()));
+                    }
                 }
             });
             return aggregatorFunction.getAggregation(formatter, getMetadata());
@@ -122,7 +138,7 @@ public class TSIDInternalAggregation extends InternalAggregation {
                     finalReduces.put(tsid, first.reduce(aggs, reduceContext));
                 }
             });
-            return new TSIDInternalAggregation(name, finalReduces, aggregator, formatter, getMetadata());
+            return new TSIDInternalAggregation(name, finalReduces, aggregator, aggregatorParams, formatter, getMetadata());
         }
     }
 

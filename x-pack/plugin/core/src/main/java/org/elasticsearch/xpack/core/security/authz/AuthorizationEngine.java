@@ -399,7 +399,13 @@ public interface AuthorizationEngine {
             Map<String, Boolean> cluster,
             Map<String, ResourcePrivileges> index,
             Map<String, Collection<ResourcePrivileges>> application
-        ) {}
+        ) {
+            public Details {
+                Objects.requireNonNull(cluster);
+                Objects.requireNonNull(index);
+                Objects.requireNonNull(application);
+            }
+        }
     }
 
     /**

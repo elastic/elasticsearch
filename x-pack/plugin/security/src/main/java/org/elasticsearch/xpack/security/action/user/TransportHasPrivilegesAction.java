@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -20,6 +18,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -37,8 +36,6 @@ import java.util.stream.Collectors;
  * {@link RoleDescriptor.IndicesPrivileges privileges}
  */
 public class TransportHasPrivilegesAction extends HandledTransportAction<HasPrivilegesRequest, HasPrivilegesResponse> {
-
-    private static final Logger logger = LogManager.getLogger(TransportHasPrivilegesAction.class);
 
     private final AuthorizationService authorizationService;
     private final NativePrivilegeStore privilegeStore;
@@ -88,16 +85,14 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
                     request.getPrivilegesToCheck(),
                     applicationPrivilegeDescriptors,
                     listener.map(privilegesCheckResult -> {
-                        if (privilegesCheckResult.getDetails() == null) {
-                            logger.error("User 'has privileges' call returns empty details, which breaks the check method contract");
-                        }
-                        assert privilegesCheckResult.getDetails() != null : "runDetailedCheck is 'true' but the result has no details";
+                        AuthorizationEngine.PrivilegesCheckResult.Details checkResultDetails = privilegesCheckResult.getDetails();
+                        assert checkResultDetails != null : "runDetailedCheck is 'true' but the result has no details";
                         return new HasPrivilegesResponse(
                             request.username(),
                             privilegesCheckResult.allChecksSuccess(),
-                            privilegesCheckResult.getDetails() != null ? privilegesCheckResult.getDetails().cluster() : Map.of(),
-                            privilegesCheckResult.getDetails() != null ? privilegesCheckResult.getDetails().index().values() : List.of(),
-                            privilegesCheckResult.getDetails() != null ? privilegesCheckResult.getDetails().application() : Map.of()
+                            checkResultDetails != null ? checkResultDetails.cluster() : Map.of(),
+                            checkResultDetails != null ? checkResultDetails.index().values() : List.of(),
+                            checkResultDetails != null ? checkResultDetails.application() : Map.of()
                         );
                     })
                 ),

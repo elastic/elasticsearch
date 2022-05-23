@@ -48,6 +48,7 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
 
     @Override
     public ActionRequestValidationException validate() {
+        assert getPrivilegesToCheck().runDetailedCheck();
         return getPrivilegesToCheck().validate(null);
     }
 

@@ -517,10 +517,10 @@ public class RBACEngine implements AuthorizationEngine {
         AuthorizationInfo authorizationInfo,
         PrivilegesToCheck privilegesToCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
-        ActionListener<PrivilegesCheckResult> listener
+        ActionListener<PrivilegesCheckResult> originaListener
     ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
-            listener.onFailure(
+            originaListener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
             );
             return;
@@ -534,7 +534,7 @@ public class RBACEngine implements AuthorizationEngine {
             )
         );
 
-        final ActionListener<PrivilegesCheckResult> maybeCachingListener;
+        final ActionListener<PrivilegesCheckResult> listener;
         if (userRole instanceof SimpleRole simpleRole) {
             final PrivilegesCheckResult result = simpleRole.checkPrivilegesWithCache(privilegesToCheck);
             if (result != null) {
@@ -545,13 +545,13 @@ public class RBACEngine implements AuthorizationEngine {
                         privilegesToCheck
                     )
                 );
-                listener.onResponse(result);
+                originaListener.onResponse(result);
                 return;
             }
-            maybeCachingListener = listener.delegateFailure((delegateListener, privilegesCheckResult) -> {
+            listener = originaListener.delegateFailure((delegateListener, privilegesCheckResult) -> {
                 try {
                     simpleRole.cacheHasPrivileges(settings, privilegesToCheck, privilegesCheckResult);
-                } catch (ExecutionException e) {
+                } catch (Exception e) {
                     logger.error("Failed to cache check result for [{}]", privilegesToCheck);
                     delegateListener.onFailure(e);
                     return;
@@ -560,7 +560,7 @@ public class RBACEngine implements AuthorizationEngine {
             });
         } else {
             // caching of check result unsupported
-            maybeCachingListener = listener;
+            listener = originaListener;
         }
 
         boolean allMatch = true;
@@ -572,7 +572,7 @@ public class RBACEngine implements AuthorizationEngine {
             if (privilegesToCheck.runDetailedCheck()) {
                 clusterPrivilegesCheckResults.put(checkAction, privilegeGranted);
             } else if (false == allMatch) {
-                maybeCachingListener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
+                listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
                 return;
             }
         }
@@ -589,7 +589,7 @@ public class RBACEngine implements AuthorizationEngine {
             );
             allMatch = allMatch && privilegesGranted;
             if (false == privilegesToCheck.runDetailedCheck() && false == allMatch) {
-                maybeCachingListener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
+                listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
                 return;
             }
         }
@@ -615,7 +615,7 @@ public class RBACEngine implements AuthorizationEngine {
                     );
                     allMatch = allMatch && privilegesGranted;
                     if (false == privilegesToCheck.runDetailedCheck() && false == allMatch) {
-                        maybeCachingListener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
+                        listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
                         return;
                     }
                 }
@@ -630,7 +630,7 @@ public class RBACEngine implements AuthorizationEngine {
 
         if (privilegesToCheck.runDetailedCheck()) {
             assert combineIndicesResourcePrivileges != null;
-            maybeCachingListener.onResponse(
+            listener.onResponse(
                 new PrivilegesCheckResult(
                     allMatch,
                     new PrivilegesCheckResult.Details(
@@ -642,7 +642,7 @@ public class RBACEngine implements AuthorizationEngine {
             );
         } else {
             assert allMatch;
-            maybeCachingListener.onResponse(PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS);
+            listener.onResponse(PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS);
         }
     }
 

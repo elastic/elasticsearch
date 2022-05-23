@@ -41,16 +41,6 @@ each checkpoint.
 [IMPORTANT]
 ====
 
-<<<<<<< HEAD
-* When {es} {security-features} are enabled, your {transform} remembers which
-roles the user who updated it had at the time of update and runs with those
-privileges.
-* You must use {kib} or this API to update a {transform}. Do not update a
-{transform} directly via `.transform-internal*` indices using the {es} index API.
-If {es} {security-features} are enabled, do not give users any privileges on
-`.transform-internal*` indices. If you used {transforms} prior 7.5, also do not
-give users any privileges on `.data-frame-internal*` indices.
-=======
 * Your {transform} remembers which roles the user who updated it had at the time
 of update and runs with those privileges. If you provide
 <<http-clients-secondary-authorization,secondary authorization headers>>, those
@@ -58,7 +48,6 @@ credentials are used instead.
 * You must use {kib} or this API to update a {transform}. Directly updating any 
 {transform} internal, system, or hidden indices is not supported and may cause 
 permanent failure.
->>>>>>> 2804ff49b6f ([DOCS] Improves warning message in Update transform API docs (#86920))
 
 ====
 
@@ -161,6 +150,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-doc
 `align_checkpoints`:::
 (Optional, boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-align-checkpoints]
+`deduce_mappings`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-deduce-mappings]
 `max_page_search_size`:::
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]

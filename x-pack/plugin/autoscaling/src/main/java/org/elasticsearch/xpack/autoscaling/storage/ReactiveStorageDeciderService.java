@@ -706,7 +706,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
     public static class ReactiveReason implements AutoscalingDeciderResult.Reason {
 
-        static final int MAX_ASSIGNED_SHARD_IDS = 512;
+        static final int MAX_AMOUNT_OF_SHARDS = 512;
         private static final Version SHARD_IDS_OUTPUT_VERSION = Version.V_8_3_0;
 
         private final String reason;
@@ -788,10 +788,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             builder.startObject();
             builder.field("reason", reason);
             builder.field("unassigned", unassigned);
-            builder.field("unassigned_shards", unassignedShardIds.stream().limit(MAX_ASSIGNED_SHARD_IDS).toList());
+            builder.field("unassigned_shards", unassignedShardIds.stream().limit(MAX_AMOUNT_OF_SHARDS).toList());
             builder.field("unassigned_shards_count", unassignedShardIds.size());
             builder.field("assigned", assigned);
-            builder.field("assigned_shards", assignedShardIds.stream().limit(MAX_ASSIGNED_SHARD_IDS).collect(Collectors.toList()));
+            builder.field("assigned_shards", assignedShardIds.stream().limit(MAX_AMOUNT_OF_SHARDS).collect(Collectors.toList()));
             builder.field("assigned_shards_count", assignedShardIds.size());
             builder.endObject();
             return builder;

@@ -59,7 +59,7 @@ public class ReactiveReasonTests extends ESTestCase {
             assertEquals(
                 unassignedShardIds.stream()
                     .map(ShardId::toString)
-                    .limit(ReactiveStorageDeciderService.ReactiveReason.MAX_ASSIGNED_SHARD_IDS)
+                    .limit(ReactiveStorageDeciderService.ReactiveReason.MAX_AMOUNT_OF_SHARDS)
                     .toList(),
                 xContentUnassignedShardIds
             );
@@ -70,7 +70,7 @@ public class ReactiveReasonTests extends ESTestCase {
             assertEquals(
                 assignedShardIds.stream()
                     .map(ShardId::toString)
-                    .limit(ReactiveStorageDeciderService.ReactiveReason.MAX_ASSIGNED_SHARD_IDS)
+                    .limit(ReactiveStorageDeciderService.ReactiveReason.MAX_AMOUNT_OF_SHARDS)
                     .collect(Collectors.toList()),
                 xContentAssignedShardIds
             );

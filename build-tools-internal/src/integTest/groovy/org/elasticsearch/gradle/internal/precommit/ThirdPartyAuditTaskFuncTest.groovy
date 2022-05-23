@@ -13,19 +13,16 @@ import net.bytebuddy.description.modifier.Ownership
 import net.bytebuddy.description.modifier.Visibility
 import net.bytebuddy.dynamic.DynamicType
 import net.bytebuddy.implementation.FixedValue
+import org.apache.logging.log4j.LogManager
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+
 
 import static org.elasticsearch.gradle.internal.test.TestClasspathUtils.setupJarJdkClasspath
 
 class ThirdPartyAuditTaskFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
-        subProject(":libs:elasticsearch-core") {
-            buildFile << """apply plugin:'java'
-            group = 'org.elasticsearch'
-            version = 'current' """
-        }
         buildFile << """
 import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin
 import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditTask
@@ -52,13 +49,12 @@ repositories {
 }
 
 """
-
     }
 
     def "ignores dependencies with org.elasticsearch"() {
         given:
         def group = "org.elasticsearch.gradle"
-        generateJars(group)
+        generateDummyJars(group)
         file('signature-file.txt') << "@defaultMessage non-public internal runtime class"
 
         buildFile << """
@@ -82,14 +78,13 @@ tasks.register("thirdPartyCheck", ThirdPartyAuditTask) {
     def "reports violations and ignores compile only"() {
         given:
         def group = "org.acme"
-        generateJars(group)
+        generateDummyJars(group)
 
         file('signature-file.txt') << """@defaultMessage non-public internal runtime class
 java.io.**
 """
-        setupJarJdkClasspath(projectDir)
+        setupJarJdkClasspath(dir('local-repo/org/elasticsearch/elasticsearch-core/current/'))
         buildFile << """
-
 dependencies {
   jdkJarHell 'org.elasticsearch:elasticsearch-core:current'
   compileOnly "$group:broken-log4j:0.0.1"
@@ -118,7 +113,86 @@ Classes with violations:
         assertNoDeprecationWarning(result);
     }
 
-    Object generateJars(String groupId) {
+    def "reports missing classes for analysis"() {
+        given:
+        def group = "org.acme"
+        generateDummyJars(group)
+
+        file('signature-file.txt') << """@defaultMessage non-public internal runtime class
+java.io.**
+"""
+        setupJarJdkClasspath(dir('local-repo/org/elasticsearch/elasticsearch-core/current/'))
+        buildFile << """
+
+dependencies {
+  jdkJarHell 'org.elasticsearch:elasticsearch-core:current'
+  compileOnly "$group:dummy-io:0.0.1"
+  implementation "$group:broken-log4j:0.0.1"
+}
+
+tasks.register("thirdPartyCheck", ThirdPartyAuditTask) {
+  signatureFile = file('signature-file.txt')
+}
+"""
+        when:
+        def result = gradleRunner(":thirdPartyCheck").buildAndFail()
+        then:
+        result.task(":thirdPartyCheck").outcome == TaskOutcome.FAILED
+
+        def output = normalized(result.getOutput())
+        assertOutputContains(output, """Forbidden APIs output:
+WARNING: Class 'org.apache.logging.log4j.LogManager' cannot be loaded (while looking up details about referenced class 'org.apache.logging.log4j.LogManager'). Please fix the classpath!
+==end of forbidden APIs==
+Missing classes:
+  * org.apache.logging.log4j.LogManager""")
+        assertOutputMissing(output, "Classes with violations:");
+        assertNoDeprecationWarning(result);
+    }
+
+    def "reports jar hell with jdk"() {
+        given:
+        def group = "org.acme"
+        generateDummyJars(group)
+
+        file('signature-file.txt') << """@defaultMessage non-public internal runtime class
+java.io.**
+"""
+        setupJarJdkClasspath(
+                dir('local-repo/org/elasticsearch/elasticsearch-core/current/'),
+                "> Audit of third party dependencies failed:" + "   Jar Hell with the JDK:" + "    * java.lang.String"
+        );
+        buildFile << """
+
+dependencies {
+  jdkJarHell 'org.elasticsearch:elasticsearch-core:current'
+  compileOnly "$group:dummy-io:0.0.1"
+  implementation "$group:dummy-string:0.0.1"
+}
+
+tasks.register("thirdPartyCheck", ThirdPartyAuditTask) {
+  signatureFile = file('signature-file.txt')
+}
+"""
+        when:
+        def result = gradleRunner(":thirdPartyCheck").buildAndFail()
+        then:
+        result.task(":thirdPartyCheck").outcome == TaskOutcome.FAILED
+
+        def output = normalized(result.getOutput())
+        assertOutputContains(output, """Exception in thread "main" java.lang.IllegalStateException: > Audit of third party dependencies failed:   Jar Hell with the JDK:    * java.lang.String
+\tat org.elasticsearch.jdk.JdkJarHellCheck.main(Unknown Source)
+""")
+        assertOutputContains(output, """* What went wrong:
+Execution failed for task ':thirdPartyCheck'.
+> Audit of third party dependencies failed:
+    Jar Hell with the JDK:
+    * 
+""")
+        assertOutputMissing(output, "Classes with violations:");
+        assertNoDeprecationWarning(result);
+    }
+
+    Object generateDummyJars(String groupId) {
         def baseGroupFolderPath = "local-repo/${groupId.replace('.', '/')}"
         DynamicType.Unloaded<?> stringDynamicType = new ByteBuddy().subclass(Object.class)
                 .name("java.lang.String")
@@ -137,6 +211,8 @@ Classes with violations:
 
         DynamicType.Unloaded<?> loggingDynamicType = new ByteBuddy().subclass(Object.class)
                 .name("org.acme.TestingLogging")
+                .defineMethod("getLogManager", LogManager.class, Visibility.PUBLIC, Ownership.MEMBER)
+                .intercept(FixedValue.nullValue())
                 .make()
         loggingDynamicType.toJar(targetFile(dir("${baseGroupFolderPath}/broken-log4j/0.0.1/"), "broken-log4j-0.0.1.jar"))
     }

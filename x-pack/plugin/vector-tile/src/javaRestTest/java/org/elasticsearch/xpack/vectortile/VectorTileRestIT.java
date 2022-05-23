@@ -677,6 +677,16 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertLayer(tile, META_LAYER, 4096, 1, 13);
     }
 
+    public void testWithIgnoreMalformedValueFields() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("{\"fields\": [ \"ignore_value\"] }");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 1, 2);
+        assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+    }
+
     public void testWithFieldsWildCard() throws Exception {
         final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
         mvtRequest.setJsonEntity("{\"fields\": [\"*\"] }");

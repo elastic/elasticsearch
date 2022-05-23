@@ -1727,7 +1727,6 @@ public class DataStreamIT extends ESIntegTestCase {
         ClusterState before = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         assertThat(before.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(2));
 
-
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<DataStream> brokenDataStreamHolder = new AtomicReference<>();
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class)

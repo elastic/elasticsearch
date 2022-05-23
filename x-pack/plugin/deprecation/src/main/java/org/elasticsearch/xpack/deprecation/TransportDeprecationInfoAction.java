@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.node.NodeClient;
@@ -125,20 +126,29 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                     new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN, true),
                     state
                 );
-                pluginSettingIssues(PLUGIN_CHECKERS, components, ActionListener.wrap(deprecationIssues -> {
-                    listener.onResponse(
-                        DeprecationInfoAction.Response.from(
-                            state,
-                            indexNameExpressionResolver,
-                            request,
-                            response,
-                            INDEX_SETTINGS_CHECKS,
-                            CLUSTER_SETTINGS_CHECKS,
-                            deprecationIssues,
-                            skipTheseDeprecations
-                        )
-                    );
-                }, listener::onFailure));
+                pluginSettingIssues(
+                    PLUGIN_CHECKERS,
+                    components,
+                    new ThreadedActionListener<>(
+                        logger,
+                        client.threadPool(),
+                        ThreadPool.Names.GENERIC,
+                        listener.map(
+                            deprecationIssues -> DeprecationInfoAction.Response.from(
+                                state,
+                                indexNameExpressionResolver,
+                                request,
+                                response,
+                                INDEX_SETTINGS_CHECKS,
+                                CLUSTER_SETTINGS_CHECKS,
+                                deprecationIssues,
+                                skipTheseDeprecations
+                            )
+                        ),
+                        false
+                    )
+                );
+
             }, listener::onFailure)
         );
     }

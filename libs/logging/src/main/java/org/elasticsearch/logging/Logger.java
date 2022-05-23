@@ -15,23 +15,82 @@ package org.elasticsearch.logging;
  * the message supplier is {@code java.util.function.Supplier<String>}
  */
 public interface Logger {
-
+    /**
+     * Logs a message object with the given level.
+     *
+     * @param level   the logging level
+     * @param message the message object to log.
+     */
     void log(Level level, Object message);
 
+    /**
+     * Logs a String message which is only to be constructed if the logging level is the specified level.
+     *
+     * @param level       the logging level
+     * @param msgSupplier A function, which when called, produces the desired log String message;
+     */
     void log(Level level, java.util.function.Supplier<String> msgSupplier, Throwable thrown);
 
+    /**
+     * Returns the Level associated with the Logger.
+     *
+     * @return the Level associate with the Logger.
+     */
     Level getLevel();
 
+    /**
+     * Returns the logger name.
+     *
+     * @return the logger name.
+     */
     String getName();
 
+    /**
+     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#FATAL FATAL} Level.
+     *
+     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#FATAL FATAL}, {@code false}
+     * otherwise.
+     */
+    boolean isFatalEnabled();
+
+    /**
+     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#ERROR ERROR} Level.
+     *
+     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#ERROR ERROR}, {@code false}
+     * otherwise.
+     */
     boolean isErrorEnabled();
 
+    /**
+     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#WARN WARN} Level.
+     *
+     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#WARN WARN}, {@code false}
+     * otherwise.
+     */
     boolean isWarnEnabled();
 
+    /**
+     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#INFO INFO} Level.
+     *
+     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#INFO INFO}, {@code false}
+     * otherwise.
+     */
     boolean isInfoEnabled();
 
+    /**
+     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#DEBUG DEBUG} Level.
+     *
+     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#DEBUG DEBUG}, {@code false}
+     * otherwise.
+     */
     boolean isDebugEnabled();
 
+    /**
+     * Checks whether this Logger is enabled for the {@link org.elasticsearch.logging.Level#TRACE TRACE} Level.
+     *
+     * @return boolean - {@code true} if this Logger is enabled for level {@link org.elasticsearch.logging.Level#TRACE TRACE}, {@code false}
+     * otherwise.
+     */
     boolean isTraceEnabled();
 
     boolean isEnabled(Level level);

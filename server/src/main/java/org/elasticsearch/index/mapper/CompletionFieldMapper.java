@@ -342,6 +342,8 @@ public class CompletionFieldMapper extends FieldMapper {
     private final int maxInputLength;
     private final Builder builder;
 
+    private final NamedAnalyzer indexAnalyzer;
+
     public CompletionFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -349,9 +351,15 @@ public class CompletionFieldMapper extends FieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, builder.buildAnalyzer(), multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.builder = builder;
         this.maxInputLength = builder.maxInputLength.getValue();
+        this.indexAnalyzer = builder.buildAnalyzer();
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), indexAnalyzer);
     }
 
     @Override

@@ -38,6 +38,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * A runnable class that reads the autodetect process output in the
  * {@link #process()} method and persists parsed
@@ -207,8 +209,8 @@ public class JobSnapshotUpgraderResultProcessor {
         FlushAcknowledgement flushAcknowledgement = result.getFlushAcknowledgement();
         if (flushAcknowledgement != null) {
             LOGGER.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] [{}] Flush acknowledgement parsed from output for ID {}",
+                () -> format(
+                    "[%s] [%s] Flush acknowledgement parsed from output for ID %s",
                     jobId,
                     snapshotId,
                     flushAcknowledgement.getId()

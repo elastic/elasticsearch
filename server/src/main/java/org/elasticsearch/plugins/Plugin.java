@@ -202,7 +202,7 @@ public abstract class Plugin implements Closeable {
      * the default values for an index-level setting, these act as though the setting has been set
      * explicitly, but still allow the setting to be overridden by a template or creation request body.
      */
-    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         return Collections.emptyList();
     }
 }

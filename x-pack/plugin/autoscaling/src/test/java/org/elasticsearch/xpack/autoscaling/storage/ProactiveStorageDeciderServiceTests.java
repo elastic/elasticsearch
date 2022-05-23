@@ -277,7 +277,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             List<Index> addedIndices = forecastDataStream.getIndices().subList(indices, forecastDataStream.getIndices().size());
             long actualTotal = totalSize(addedIndices, forecastRoutingTable, forecast.info());
 
-            // three round downs -> max 3 sizeInBytes lower and never above.
+            // three round downs -> max 3 bytes lower and never above.
             assertThat(actualTotal, Matchers.lessThanOrEqualTo(expectedTotal));
             assertThat(actualTotal, Matchers.greaterThanOrEqualTo(actualTotal - 3));
             // omit last index, since it is reduced a bit for rounding. Total validated above so it all adds up.

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 
@@ -119,20 +120,27 @@ public class MetadataDataStreamsService {
     private static void removeBackingIndex(Metadata metadata, Metadata.Builder builder, String dataStreamName, String indexName) {
         var dataStream = validateDataStream(metadata, dataStreamName);
         var index = validateIndex(metadata, indexName);
-        var writeIndex = metadata.index(index.getWriteIndex());
-        if (writeIndex == null) {
-            // Removing a ghost reference to a backing index that no longer exists. The index uuid part of the reference no longer matches.
-            // This should allow the data stream definition to get in a valid state again.
-            builder.put(dataStream.getDataStream().removeBackingIndex(index.getWriteIndex()));
+        if (dataStream.getIndices().contains(index.getWriteIndex()) == false) {
+            Index backingIndexToRemove = null;
+            for (Index backingIndex : dataStream.getDataStream().getIndices()) {
+                if (backingIndex.getName().equals(index.getName())) {
+                    backingIndexToRemove = backingIndex;
+                    break;
+                }
+            }
+            if (backingIndexToRemove != null) {
+                builder.put(dataStream.getDataStream().removeBackingIndex(backingIndexToRemove));
+            }
             return;
         }
 
-        builder.put(dataStream.getDataStream().removeBackingIndex(writeIndex.getIndex()));
+        var indexMetadata = metadata.index(index.getWriteIndex());
+        builder.put(dataStream.getDataStream().removeBackingIndex(indexMetadata.getIndex()));
         // un-hide index
         builder.put(
-            IndexMetadata.builder(writeIndex)
-                .settings(Settings.builder().put(writeIndex.getSettings()).put("index.hidden", "false").build())
-                .settingsVersion(writeIndex.getSettingsVersion() + 1)
+            IndexMetadata.builder(indexMetadata)
+                .settings(Settings.builder().put(indexMetadata.getSettings()).put("index.hidden", "false").build())
+                .settingsVersion(indexMetadata.getSettingsVersion() + 1)
         );
     }
 

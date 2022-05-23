@@ -68,7 +68,7 @@ public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMaste
         }
 
         // Iterate directly over the mentioned indices to check for blocks instead of over data streams,
-        // in case the data stream is in an invalid state:
+        // in case a data stream instance is in an invalid state:
         var indexNames = request.getActions().stream().map(DataStreamAction::getIndex).toArray(String[]::new);
         return state.blocks()
             .indicesBlockedException(

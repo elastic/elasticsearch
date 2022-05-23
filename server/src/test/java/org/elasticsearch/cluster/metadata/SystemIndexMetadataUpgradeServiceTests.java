@@ -20,7 +20,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -46,7 +45,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
     public void setUpTest() {
         // set up a system index upgrade service
         this.service = new SystemIndexMetadataUpgradeService(
-            new SystemIndices(Map.of("MyIndex", new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)))),
+            new SystemIndices(List.of(new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)))),
             mock(ClusterService.class)
         );
     }

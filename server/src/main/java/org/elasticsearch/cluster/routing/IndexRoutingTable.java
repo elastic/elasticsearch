@@ -28,10 +28,8 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -66,14 +64,13 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
 
     private final List<ShardRouting> allActiveShards;
 
-    IndexRoutingTable(Index index, Map<Integer, IndexShardRoutingTable> shards) {
+    IndexRoutingTable(Index index, IndexShardRoutingTable[] shards) {
         this.index = index;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
-        this.shards = new IndexShardRoutingTable[shards.size()];
+        this.shards = shards;
         List<ShardRouting> allActiveShards = new ArrayList<>();
-        for (Map.Entry<Integer, IndexShardRoutingTable> cursor : shards.entrySet()) {
-            this.shards[cursor.getKey()] = cursor.getValue();
-            allActiveShards.addAll(cursor.getValue().activeShards());
+        for (IndexShardRoutingTable shard : shards) {
+            allActiveShards.addAll(shard.activeShards());
         }
         this.allActiveShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allActiveShards);
     }
@@ -301,6 +298,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         Builder builder = new Builder(index);
 
         int size = in.readVInt();
+        builder.ensureShardArray(size);
         for (int i = 0; i < size; i++) {
             builder.addIndexShard(IndexShardRoutingTable.Builder.readFromThin(in, index));
         }
@@ -328,7 +326,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
     public static class Builder {
 
         private final Index index;
-        private final Map<Integer, IndexShardRoutingTable> shards = new HashMap<>();
+        private IndexShardRoutingTable.Builder[] shards;
 
         public Builder(Index index) {
             this.index = index;
@@ -414,12 +412,13 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
             UnassignedInfo unassignedInfo
         ) {
             assert indexMetadata.getIndex().equals(index);
-            if (shards.isEmpty() == false) {
+            if (shards != null) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
+            shards = new IndexShardRoutingTable.Builder[indexMetadata.getNumberOfShards()];
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
                 ShardId shardId = new ShardId(index, shardNumber);
-                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
                 for (int i = 0; i <= indexMetadata.getNumberOfReplicas(); i++) {
                     boolean primary = i == 0;
                     if (asNew && ignoreShards.contains(shardNumber)) {
@@ -443,7 +442,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                         );
                     }
                 }
-                shards.put(shardNumber, indexShardRoutingBuilder.build());
+                shards[shardNumber] = indexShardRoutingBuilder;
             }
             return this;
         }
@@ -453,9 +452,10 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
          */
         private Builder initializeEmpty(IndexMetadata indexMetadata, UnassignedInfo unassignedInfo) {
             assert indexMetadata.getIndex().equals(index);
-            if (shards.isEmpty() == false) {
+            if (shards != null) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
+            shards = new IndexShardRoutingTable.Builder[indexMetadata.getNumberOfShards()];
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
                 ShardId shardId = new ShardId(index, shardNumber);
                 final RecoverySource primaryRecoverySource;
@@ -469,7 +469,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                     // a freshly created index with no restriction
                     primaryRecoverySource = EmptyStoreRecoverySource.INSTANCE;
                 }
-                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
                 for (int i = 0; i <= indexMetadata.getNumberOfReplicas(); i++) {
                     boolean primary = i == 0;
                     indexShardRoutingBuilder.addShard(
@@ -481,35 +481,40 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                         )
                     );
                 }
-                shards.put(shardNumber, indexShardRoutingBuilder.build());
+                shards[shardNumber] = indexShardRoutingBuilder;
             }
             return this;
         }
 
         public Builder addReplica() {
-            for (var shardNumber : shards.keySet()) {
-                ShardId shardId = new ShardId(index, shardNumber);
+            assert shards != null;
+            for (IndexShardRoutingTable.Builder existing : shards) {
+                assert existing != null;
                 // version 0, will get updated when reroute will happen
-                ShardRouting shard = ShardRouting.newUnassigned(
-                    shardId,
-                    false,
-                    PeerRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null)
+                existing.addShard(
+                    ShardRouting.newUnassigned(
+                        existing.shardId(),
+                        false,
+                        PeerRecoverySource.INSTANCE,
+                        new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null)
+                    )
                 );
-                shards.put(shardNumber, new IndexShardRoutingTable.Builder(shards.get(shard.id())).addShard(shard).build());
             }
             return this;
         }
 
         public Builder removeReplica() {
-            for (var shardId : shards.keySet()) {
-                IndexShardRoutingTable indexShard = shards.get(shardId);
+            assert shards != null;
+            for (int shardId = 0; shardId < shards.length; shardId++) {
+                IndexShardRoutingTable.Builder found = shards[shardId];
+                assert found != null;
+                final IndexShardRoutingTable indexShard = found.build();
                 if (indexShard.replicaShards().isEmpty()) {
                     // nothing to do here!
                     return this;
                 }
                 // re-add all the current ones
-                IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(indexShard.shardId());
+                IndexShardRoutingTable.Builder builder = IndexShardRoutingTable.builder(indexShard.shardId());
                 for (int copy = 0; copy < indexShard.size(); copy++) {
                     ShardRouting shardRouting = indexShard.shard(copy);
                     builder.addShard(shardRouting);
@@ -528,15 +533,17 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                         }
                     }
                 }
-                shards.put(shardId, builder.build());
+                shards[shardId] = builder;
             }
             return this;
         }
 
-        public Builder addIndexShard(IndexShardRoutingTable indexShard) {
+        public Builder addIndexShard(IndexShardRoutingTable.Builder indexShard) {
             assert indexShard.shardId().getIndex().equals(index)
                 : "cannot add shard routing table for " + indexShard.shardId() + " to index routing table for " + index;
-            shards.put(indexShard.shardId().id(), indexShard);
+            final int sid = indexShard.shardId().id();
+            ensureShardArray(sid + 1);
+            shards[sid] = indexShard;
             return this;
         }
 
@@ -546,18 +553,38 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
          */
         public Builder addShard(ShardRouting shard) {
             assert shard.index().equals(index) : "cannot add [" + shard + "] to routing table for " + index;
-            IndexShardRoutingTable indexShard = shards.get(shard.id());
+            int shardId = shard.id();
+            ensureShardArray(shardId + 1);
+            IndexShardRoutingTable.Builder indexShard = shards[shardId];
             if (indexShard == null) {
-                indexShard = new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard).build();
+                shards[shardId] = IndexShardRoutingTable.builder(shard.shardId()).addShard(shard);
             } else {
-                indexShard = new IndexShardRoutingTable.Builder(indexShard).addShard(shard).build();
+                indexShard.addShard(shard);
             }
-            shards.put(indexShard.shardId().id(), indexShard);
             return this;
         }
 
+        void ensureShardArray(int shardCount) {
+            if (shards == null) {
+                shards = new IndexShardRoutingTable.Builder[shardCount];
+            } else if (shards.length < shardCount) {
+                IndexShardRoutingTable.Builder[] updated = new IndexShardRoutingTable.Builder[shardCount];
+                System.arraycopy(shards, 0, updated, 0, shards.length);
+                shards = updated;
+            }
+        }
+
         public IndexRoutingTable build() {
-            return new IndexRoutingTable(index, shards);
+            final IndexShardRoutingTable[] res;
+            if (shards != null) {
+                res = new IndexShardRoutingTable[shards.length];
+                for (int i = 0; i < shards.length; i++) {
+                    res[i] = shards[i].build();
+                }
+            } else {
+                res = new IndexShardRoutingTable[0];
+            }
+            return new IndexRoutingTable(index, res);
         }
     }
 

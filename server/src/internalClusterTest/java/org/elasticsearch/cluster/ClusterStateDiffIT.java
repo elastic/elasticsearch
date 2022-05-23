@@ -296,7 +296,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     )
                 );
             }
-            builder.addIndexShard(indexShard.build());
+            builder.addIndexShard(indexShard);
         }
         return builder.build();
     }

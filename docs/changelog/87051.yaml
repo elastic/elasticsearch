@@ -1,0 +1,5 @@
+pr: 87051
+summary: Guard for adding null value tags to vector tiles
+area: Geo
+type: bug
+issues: []

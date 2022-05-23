@@ -60,7 +60,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -308,8 +307,8 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(index, docValues, store, format, locale, nullValue, ignoreMalformed, script, onScriptError, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { index, docValues, store, format, locale, nullValue, ignoreMalformed, script, onScriptError, meta };
         }
 
         private Long parseNullValue(DateFieldType fieldType) {

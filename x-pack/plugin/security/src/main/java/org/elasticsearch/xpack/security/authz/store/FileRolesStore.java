@@ -297,7 +297,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 token = parser.nextToken();
                 if (token == XContentParser.Token.FIELD_NAME) {
                     roleName = parser.currentName();
-                    Validation.Error validationError = Validation.Roles.validateRoleName(roleName);
+                    Validation.Error validationError = Validation.Roles.validateRoleName(roleName, false);
                     if (validationError != null) {
                         logger.error(
                             "invalid role definition [{}] in roles file [{}]. invalid role name - {}. skipping role... ",

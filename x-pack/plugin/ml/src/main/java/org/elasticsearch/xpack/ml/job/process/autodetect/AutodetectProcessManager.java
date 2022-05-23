@@ -97,6 +97,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -187,12 +188,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     public void killProcess(JobTask jobTask, boolean awaitCompletion, String reason) {
         logger.trace(
-            () -> new ParameterizedMessage(
-                "[{}] Killing process: awaitCompletion = [{}]; reason = [{}]",
-                jobTask.getJobId(),
-                awaitCompletion,
-                reason
-            )
+            () -> format("[%s] Killing process: awaitCompletion = [%s]; reason = [%s]", jobTask.getJobId(), awaitCompletion, reason)
         );
         ProcessContext processContext = processByAllocation.remove(jobTask.getAllocationId());
         if (processContext != null) {
@@ -480,11 +476,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 }
                 if (resetInProgress) {
                     logger.trace(
-                        () -> new ParameterizedMessage(
-                            "Aborted upgrading snapshot [{}] for job [{}] as ML feature is being reset",
-                            snapshotId,
-                            jobId
-                        )
+                        () -> format("Aborted upgrading snapshot [%s] for job [%s] as ML feature is being reset", snapshotId, jobId)
                     );
                     closeHandler.accept(null);
                     return;
@@ -499,23 +491,13 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     @Override
                     protected void doRun() {
                         if (nodeDying) {
-                            logger.info(
-                                () -> new ParameterizedMessage(
-                                    "Aborted upgrading snapshot [{}] for job [{}] as node is dying",
-                                    snapshotId,
-                                    jobId
-                                )
-                            );
+                            logger.info(() -> format("Aborted upgrading snapshot [%s] for job [%s] as node is dying", snapshotId, jobId));
                             closeHandler.accept(null);
                             return;
                         }
                         if (resetInProgress) {
                             logger.trace(
-                                () -> new ParameterizedMessage(
-                                    "Aborted upgrading snapshot [{}] for job [{}] as ML feature is being reset",
-                                    snapshotId,
-                                    jobId
-                                )
+                                () -> format("Aborted upgrading snapshot [%s] for job [%s] as ML feature is being reset", snapshotId, jobId)
                             );
                             closeHandler.accept(null);
                             return;

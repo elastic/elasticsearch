@@ -101,24 +101,6 @@ number of shards for each node, use the
 setting.
 --
 
-[[stats-requests-limit]]
-===== Stats request limit
-
-A stats request might require information from all nodes to be aggregated before it returns to the user.
-These requests can be heavy and they put extra pressure on the coordinating node (the node collecting the
-responses from all the nodes), for this reason there is a limit on the concurrent requests that a node can coordinate.
-
---
-
-[[node-stats-max-concurrent-requests]]
-`node.stats.max_concurrent_requests`::
-+
---
-(<<dynamic-cluster-setting,Dynamic>>)
-Limits the stats requests a coordinating node can concurrently handle. Defaults to `100`.
-
-
-
 [[user-defined-data]]
 ===== User-defined cluster metadata
 

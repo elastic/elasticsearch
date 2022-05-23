@@ -404,7 +404,10 @@ public final class MappingLookup {
         return sfm != null && sfm.enabled();
     }
 
-    public SourceLoader newSourceLoader() {
+    public SourceLoader newSourceLoader(boolean forceSyntheticSource) {
+        if (forceSyntheticSource) {
+            return new SourceLoader.Synthetic(mapping.getRoot());
+        }
         SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
         return sfm == null ? SourceLoader.FROM_STORED_SOURCE : sfm.newSourceLoader(mapping.getRoot());
     }

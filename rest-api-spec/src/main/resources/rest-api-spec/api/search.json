@@ -77,6 +77,10 @@
         "type":"number",
         "description":"Starting offset (default: 0)"
       },
+      "force_synthetic_source":{
+        "type":"boolean",
+        "description":"Should we force synthetic source for all fetches from this index?"
+      },
       "ignore_unavailable":{
         "type":"boolean",
         "description":"Whether specified concrete indices should be ignored when unavailable (missing or closed)"

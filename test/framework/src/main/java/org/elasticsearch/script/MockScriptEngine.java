@@ -168,11 +168,11 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(UpdateScript.class)) {
-            UpdateScript.Factory factory = (parameters, ctx) -> new UpdateScript(parameters, ctx) {
+            UpdateScript.Factory factory = (parameters, metadata) -> new UpdateScript(parameters, metadata) {
                 @Override
                 public void execute() {
                     final Map<String, Object> vars = new HashMap<>();
-                    vars.put("ctx", ctx);
+                    vars.put("ctx", metadata.getCtx());
                     vars.put("params", parameters);
                     vars.putAll(parameters);
                     script.apply(vars);
@@ -180,11 +180,11 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ReindexScript.class)) {
-            ReindexScript.Factory factory = (parameters, md) -> new ReindexScript(parameters, md) {
+            ReindexScript.Factory factory = (parameters, metadata) -> new ReindexScript(parameters, metadata) {
                 @Override
                 public void execute() {
                     final Map<String, Object> vars = new HashMap<>();
-                    vars.put("ctx", md.getCtx());
+                    vars.put("ctx", metadata.getCtx());
                     vars.put("params", parameters);
                     vars.putAll(parameters);
                     script.apply(vars);
@@ -192,11 +192,11 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(UpdateByQueryScript.class)) {
-            UpdateByQueryScript.Factory factory = (parameters, md) -> new UpdateByQueryScript(parameters, md) {
+            UpdateByQueryScript.Factory factory = (parameters, metadata) -> new UpdateByQueryScript(parameters, metadata) {
                 @Override
                 public void execute() {
                     final Map<String, Object> vars = new HashMap<>();
-                    vars.put("ctx", md.getCtx());
+                    vars.put("ctx", metadata.getCtx());
                     vars.put("params", parameters);
                     vars.putAll(parameters);
                     script.apply(vars);

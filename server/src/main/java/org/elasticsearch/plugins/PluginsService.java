@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +29,7 @@ import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.ModuleLayer.Controller;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleDescriptor;
@@ -59,6 +61,16 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
 public class PluginsService implements ReportingService<PluginsAndModules> {
+
+    /** The official plugins that can be installed simply by name. */
+    public static final Set<String> OFFICIAL_PLUGINS;
+    static {
+        try (var stream = PluginsService.class.getResourceAsStream("/plugins.txt")) {
+            OFFICIAL_PLUGINS = Streams.readAllLines(stream).stream().map(String::trim).collect(Sets.toUnmodifiableSortedSet());
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 
     /**
      * A loaded plugin is one for which Elasticsearch has successfully constructed an instance of the plugin's class
@@ -194,8 +206,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             LoadedPlugin plugin = plugins.get(descriptor.getName());
             assert plugin != null;
             Class<?> pluginClazz = plugin.instance.getClass();
-            PluginApiInfo apiInfo = new PluginApiInfo(plugInspector.interfaces(pluginClazz), plugInspector.overriddenMethods(pluginClazz));
-            runtimeInfos.add(new PluginRuntimeInfo(descriptor, apiInfo));
+            boolean isOfficial = OFFICIAL_PLUGINS.contains(descriptor.getName());
+            PluginApiInfo apiInfo = null;
+            if (isOfficial == false) {
+                apiInfo = new PluginApiInfo(plugInspector.interfaces(pluginClazz), plugInspector.overriddenMethods(pluginClazz));
+            }
+            runtimeInfos.add(new PluginRuntimeInfo(descriptor, isOfficial, apiInfo));
         }
         return runtimeInfos;
     }

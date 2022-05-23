@@ -32,7 +32,7 @@ public record PluginApiInfo(List<String> legacyInterfaces, List<String> legacyMe
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("legacy_interfaces", legacyInterfaces);
-        builder.field("legacy_methods", legacyInterfaces);
+        builder.field("legacy_methods", legacyMethods);
         return builder;
     }
 

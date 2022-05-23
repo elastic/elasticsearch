@@ -22,16 +22,26 @@ import java.io.IOException;
  * Runtime information about a plugin that was loaded.
  *
  * @param descriptor Static information about the plugin
- * @param pluginApiInfo Runtime information about a non-official lugin
+ * @param isOfficial {@code true} if the plugin is an official plugin, or {@code false} otherwise.
+ *                   For nodes before 8.3.0 this is {@code null}.
+ * @param pluginApiInfo Runtime information about a custom plugin
  */
-public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable PluginApiInfo pluginApiInfo) implements Writeable, ToXContentObject {
+public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable Boolean isOfficial, @Nullable PluginApiInfo pluginApiInfo) implements Writeable, ToXContentObject {
 
     public PluginRuntimeInfo(PluginDescriptor descriptor) {
-        this(descriptor, null);
+        this(descriptor, null, null);
     }
 
     public PluginRuntimeInfo(StreamInput in) throws IOException {
-        this(new PluginDescriptor(in), readApiInfo(in));
+        this(new PluginDescriptor(in), readIsOfficial(in), readApiInfo(in));
+    }
+
+    private static Boolean readIsOfficial(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+            return in.readBoolean();
+        } else {
+            return null;
+        }
     }
 
     private static PluginApiInfo readApiInfo(StreamInput in) throws IOException {
@@ -46,6 +56,9 @@ public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable PluginApi
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         descriptor.toXContentFragment(builder, params);
+        if (isOfficial != null) {
+            builder.field("is_official", isOfficial);
+        }
         if (pluginApiInfo != null) {
             pluginApiInfo.toXContent(builder, params);
         }
@@ -57,6 +70,7 @@ public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable PluginApi
     public void writeTo(StreamOutput out) throws IOException {
         descriptor.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            out.writeBoolean(isOfficial);
             out.writeOptionalWriteable(pluginApiInfo);
         }
     }

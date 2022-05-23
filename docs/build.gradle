@@ -58,7 +58,7 @@ restResources {
   }
 }
 
-testClusters.matching { it.name == "integTest"}.configureEach {
+testClusters.matching { it.name == "yamlRestTest"}.configureEach {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
@@ -86,8 +86,8 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 
-  extraConfigFile 'ingest-geoip/GeoLite2-City.mmdb', file("${project.projectDir}/src/test/resources/GeoLite2-City.mmdb")
-  extraConfigFile 'ingest-geoip/GeoLite2-Country.mmdb', file("${project.projectDir}/src/test/resources/GeoLite2-Country.mmdb")
+  extraConfigFile 'ingest-geoip/GeoLite2-City.mmdb', file("src/yamlRestTest/resources/GeoLite2-City.mmdb")
+  extraConfigFile 'ingest-geoip/GeoLite2-Country.mmdb', file("src/yamlRestTest/resources/GeoLite2-Country.mmdb")
 
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
@@ -108,7 +108,7 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   }
 }
 
-tasks.named("integTest").configure {
+tasks.named("yamlRestTest").configure {
   doFirst {
     delete("${buildDir}/cluster/shared/repo")
   }
@@ -1626,7 +1626,7 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
   }
 
   /* Load the actual events only if we're going to use them. */
-  File atomicRedRegsvr32File = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
+  File atomicRedRegsvr32File = new File("$projectDir/src/yamlRestTest/resources/normalized-T1117-AtomicRed-regsvr32.json")
   inputs.file(atomicRedRegsvr32File)
 
   doFirst {

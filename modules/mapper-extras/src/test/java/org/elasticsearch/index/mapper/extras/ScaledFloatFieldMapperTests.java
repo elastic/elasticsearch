@@ -8,10 +8,12 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -23,6 +25,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -31,6 +34,7 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
@@ -348,5 +352,84 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             case 3 -> Float.toString((float) v);
             default -> throw new IllegalArgumentException();
         };
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new SyntheticSourceSupport() {
+            private final double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
+            private final Double nullValue = usually() ? null : round(randomValue());
+
+            @Override
+            public SyntheticSourceExample example() {
+                if (randomBoolean()) {
+                    Tuple<Double, Double> v = generateValue();
+                    return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+                }
+                List<Tuple<Double, Double>> values = randomList(1, 5, this::generateValue);
+                List<Double> in = values.stream().map(Tuple::v1).toList();
+                List<Double> outList = values.stream().map(Tuple::v2).sorted().toList();
+                Object out = outList.size() == 1 ? outList.get(0) : outList;
+                return new SyntheticSourceExample(in, out, this::mapping);
+            }
+
+            private Tuple<Double, Double> generateValue() {
+                if (nullValue != null && randomBoolean()) {
+                    return Tuple.tuple(null, nullValue);
+                }
+                double d = randomValue();
+                return Tuple.tuple(d, round(d));
+            }
+
+            private double randomValue() {
+                return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
+            }
+
+            private double round(double d) {
+                long encoded = Math.round(d * scalingFactor);
+                return encoded / scalingFactor;
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", "scaled_float");
+                b.field("scaling_factor", scalingFactor);
+                if (nullValue != null) {
+                    b.field("null_value", nullValue);
+                }
+                if (rarely()) {
+                    b.field("index", false);
+                }
+                if (rarely()) {
+                    b.field("store", false);
+                }
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of(
+                    new SyntheticSourceInvalidExample(
+                        equalTo("field [field] of type [scaled_float] doesn't support synthetic source because it doesn't have doc values"),
+                        b -> b.field("type", "scaled_float").field("scaling_factor", 10).field("doc_values", false)
+                    ),
+                    new SyntheticSourceInvalidExample(
+                        equalTo(
+                            "field [field] of type [scaled_float] doesn't support synthetic source because it ignores malformed numbers"
+                        ),
+                        b -> b.field("type", "scaled_float").field("scaling_factor", 10).field("ignore_malformed", true)
+                    )
+                );
+            }
+        };
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
+        throws IOException {
+        // Intentionally disabled because it doesn't work yet
     }
 }

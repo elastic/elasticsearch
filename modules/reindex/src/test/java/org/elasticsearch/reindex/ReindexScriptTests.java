@@ -9,6 +9,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -20,7 +21,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Tests index-by-search with a script modifying the documents.
+ * Tests reindex with a script modifying the documents.
  */
 public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTestCase<ReindexRequest, BulkByScrollResponse> {
 
@@ -76,12 +77,25 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
 
     @Override
     protected ReindexRequest request() {
-        return new ReindexRequest();
+        ReindexRequest request = new ReindexRequest();
+        request.getDestination().index("test");
+        return request;
     }
 
     @Override
     protected Reindexer.AsyncIndexBySearchAction action(ScriptService scriptService, ReindexRequest request) {
         ReindexSslConfig sslConfig = Mockito.mock(ReindexSslConfig.class);
-        return new Reindexer.AsyncIndexBySearchAction(task, logger, null, null, threadPool, scriptService, sslConfig, request, listener());
+        return new Reindexer.AsyncIndexBySearchAction(
+            task,
+            logger,
+            null,
+            null,
+            threadPool,
+            scriptService,
+            ClusterState.EMPTY_STATE,
+            sslConfig,
+            request,
+            listener()
+        );
     }
 }

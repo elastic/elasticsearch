@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -203,15 +202,8 @@ class AuthenticatorChain {
             return;
         }
 
-        // Run-as is supported for authentication with realm or api_key. Run-as for other authentication types is ignored.
-        // Both realm user and api_key can create tokens. They can also run-as another user and create tokens.
-        // In both cases, the created token will have a TOKEN authentication type and hence does not support run-as.
-        if (Authentication.AuthenticationType.REALM != authentication.getAuthenticationType()
-            && Authentication.AuthenticationType.API_KEY != authentication.getAuthenticationType()) {
-            logger.info(
-                "ignore run-as header since it is currently not supported for authentication type [{}]",
-                authentication.getAuthenticationType().name().toLowerCase(Locale.ROOT)
-            );
+        if (false == authentication.supportsRunAs(anonymousUser)) {
+            logger.info("ignore run-as header since it is currently not supported for authentication [{}]", authentication);
             finishAuthentication(context, authentication, listener);
             return;
         }
@@ -329,7 +321,7 @@ class AuthenticatorChain {
      * one. If authentication is successful, this method also ensures that the authentication is written to the ThreadContext
      */
     void finishAuthentication(Authenticator.Context context, Authentication authentication, ActionListener<Authentication> listener) {
-        if (authentication.getUser().enabled() == false || authentication.getUser().authenticatedUser().enabled() == false) {
+        if (authentication.getUser().enabled() == false || authentication.getAuthenticatingSubject().getUser().enabled() == false) {
             // TODO: these should be different log messages if the runas vs auth user is disabled?
             logger.debug("user [{}] is disabled. failing authentication", authentication.getUser());
             listener.onFailure(context.getRequest().authenticationFailed(context.getMostRecentAuthenticationToken()));

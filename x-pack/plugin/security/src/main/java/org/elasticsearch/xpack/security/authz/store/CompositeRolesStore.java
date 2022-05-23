@@ -211,11 +211,10 @@ public class CompositeRolesStore {
         final User user = subject.getUser();
         if (SystemUser.is(user)) {
             throw new IllegalArgumentException(
-                "the user [" + user.principal() + "] is the system user and we should never try to get its" + " roles"
+                "the user [" + user.principal() + "] is the system user and we should never try to get its roles"
             );
         }
         if (XPackUser.is(user)) {
-            assert XPackUser.INSTANCE.roles().length == 1;
             return xpackUserRole;
         }
         if (XPackSecurityUser.is(user)) {
@@ -306,6 +305,16 @@ public class CompositeRolesStore {
     // for testing
     Role getAsyncSearchUserRole() {
         return asyncSearchUserRole;
+    }
+
+    // for testing
+    Role getXpackSecurityRole() {
+        return xpackSecurityRole;
+    }
+
+    // for testing
+    Role getSecurityProfileRole() {
+        return securityProfileRole;
     }
 
     private void buildThenMaybeCacheRole(

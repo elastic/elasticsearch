@@ -22,7 +22,9 @@ public interface HealthIndicatorService {
 
     String component();
 
-    HealthIndicatorResult calculate(boolean calculateDetails);
+    String helpURL();
+
+    HealthIndicatorResult calculate(boolean explain);
 
     /**
      * This method creates a HealthIndicatorResult with the given information. Note that it sorts the impacts by severity (the lower the
@@ -44,6 +46,10 @@ public interface HealthIndicatorService {
             .sorted(Comparator.comparingInt(HealthIndicatorImpact::severity))
             .limit(3)
             .collect(Collectors.toList());
-        return new HealthIndicatorResult(name(), component(), status, summary, details, impactsList, userActions);
+        String helpURL = null;
+        if (status.indicatesHealthProblem()) {
+            helpURL = helpURL();
+        }
+        return new HealthIndicatorResult(name(), component(), status, summary, helpURL, details, impactsList, userActions);
     }
 }

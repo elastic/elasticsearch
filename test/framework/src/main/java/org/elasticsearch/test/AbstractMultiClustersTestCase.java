@@ -138,6 +138,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             cluster.wipe(Set.of());
             cluster.assertAfterTest();
         }
+        ESIntegTestCase.awaitGlobalNettyThreadsFinish();
     }
 
     @AfterClass

@@ -20,6 +20,7 @@ import org.elasticsearch.painless.spi.WhitelistConstructor;
 import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistMethod;
+import org.elasticsearch.painless.spi.annotation.AliasAnnotation;
 import org.elasticsearch.painless.spi.annotation.AugmentedAnnotation;
 import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
 import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
@@ -30,6 +31,7 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -260,6 +262,26 @@ public final class PainlessLookupBuilder {
         }
     }
 
+    /**
+     * Returns a lookup with the capability of looking up members in the target
+     * class.
+     *
+     * <p> If the target class is in the same module as this module, then the
+     * returned lookup has this class as its lookup class and holds the
+     * {@link Lookup#MODULE} mode. If the target class is not in this module,
+     * then the returned lookup has the target class as its lookup class and
+     * holds the {@link Lookup#UNCONDITIONAL} mode.
+     */
+    private static Lookup lookup(Class<?> targetClass) {
+        if (targetClass.getModule() == PainlessLookupBuilder.class.getModule()) {
+            var l = MethodHandles.lookup().dropLookupMode(Lookup.PACKAGE);
+            assert l.lookupModes() == (Lookup.PUBLIC | Lookup.MODULE) : "lookup modes:" + Integer.toHexString(l.lookupModes());
+            return l;
+        } else {
+            return MethodHandles.publicLookup().in(targetClass);
+        }
+    }
+
     public void addPainlessClass(ClassLoader classLoader, String javaClassName, Map<Class<?>, Object> annotations) {
 
         Objects.requireNonNull(classLoader);
@@ -353,6 +375,14 @@ public final class PainlessLookupBuilder {
                     }
 
                     canonicalClassNamesToClasses.put(importedCanonicalClassName.intern(), clazz);
+                    if (annotations.get(AliasAnnotation.class)instanceof AliasAnnotation alias) {
+                        Class<?> existing = canonicalClassNamesToClasses.put(alias.alias(), clazz);
+                        if (existing != null) {
+                            throw new IllegalArgumentException(
+                                "Cannot add alias [" + alias.alias() + "] for [" + clazz + "] that shadows class [" + existing + "]"
+                            );
+                        }
+                    }
                 }
             } else if (importedClass != clazz) {
                 throw new IllegalArgumentException(
@@ -481,7 +511,7 @@ public final class PainlessLookupBuilder {
         MethodHandle methodHandle;
 
         try {
-            methodHandle = MethodHandles.publicLookup().in(targetClass).unreflectConstructor(javaConstructor);
+            methodHandle = lookup(targetClass).unreflectConstructor(javaConstructor);
         } catch (IllegalAccessException iae) {
             throw new IllegalArgumentException(
                 "method handle not found for constructor "
@@ -799,7 +829,7 @@ public final class PainlessLookupBuilder {
 
         if (augmentedClass == null) {
             try {
-                methodHandle = MethodHandles.publicLookup().in(targetClass).unreflect(javaMethod);
+                methodHandle = lookup(targetClass).unreflect(javaMethod);
             } catch (IllegalAccessException iae) {
                 throw new IllegalArgumentException(
                     "method handle not found for method "
@@ -809,13 +839,16 @@ public final class PainlessLookupBuilder {
                         + methodName
                         + "], "
                         + typesToCanonicalTypeNames(typeParameters)
+                        + "], "
+                        + "with lookup ["
+                        + lookup(targetClass)
                         + "]",
                     iae
                 );
             }
         } else {
             try {
-                methodHandle = MethodHandles.publicLookup().in(augmentedClass).unreflect(javaMethod);
+                methodHandle = lookup(augmentedClass).unreflect(javaMethod);
             } catch (IllegalAccessException iae) {
                 throw new IllegalArgumentException(
                     "method handle not found for method "
@@ -1383,7 +1416,7 @@ public final class PainlessLookupBuilder {
         MethodHandle methodHandle;
 
         try {
-            methodHandle = MethodHandles.publicLookup().in(targetClass).unreflect(javaMethod);
+            methodHandle = lookup(targetClass).unreflect(javaMethod);
         } catch (IllegalAccessException iae) {
             throw new IllegalArgumentException(
                 "imported method handle [["
@@ -2314,7 +2347,7 @@ public final class PainlessLookupBuilder {
                     painlessMethod.javaMethod().getName(),
                     bridgeTypeParameters.toArray(new Class<?>[0])
                 );
-                MethodHandle bridgeHandle = MethodHandles.publicLookup().in(bridgeClass).unreflect(bridgeClass.getMethods()[0]);
+                MethodHandle bridgeHandle = lookup(bridgeClass).unreflect(bridgeClass.getMethods()[0]);
                 bridgePainlessMethod = new PainlessMethod(
                     bridgeMethod,
                     bridgeClass,

@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -297,9 +296,9 @@ public class MetadataCreateIndexService {
                 @Override
                 public void onFailure(Exception e) {
                     if (e instanceof ResourceAlreadyExistsException) {
-                        logger.trace(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
+                        logger.trace(() -> "[" + request.index() + "] failed to create", e);
                     } else {
-                        logger.debug(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
+                        logger.debug(() -> "[" + request.index() + "] failed to create", e);
                     }
                     super.onFailure(e);
                 }
@@ -532,6 +531,7 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             resolveSettings(templates),
+            mappings == null ? List.of() : List.of(mappings),
             null,
             settings,
             indexScopedSettings,
@@ -598,6 +598,7 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             resolveSettings(currentState.metadata(), templateName),
+            mappings,
             null,
             settings,
             indexScopedSettings,
@@ -654,6 +655,7 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             resolveSettings(template, componentTemplates),
+            mappings,
             null,
             settings,
             indexScopedSettings,
@@ -748,6 +750,7 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             Settings.EMPTY,
+            null,
             sourceMetadata,
             settings,
             indexScopedSettings,
@@ -832,6 +835,7 @@ public class MetadataCreateIndexService {
         ClusterState currentState,
         CreateIndexClusterStateUpdateRequest request,
         Settings combinedTemplateSettings,
+        List<CompressedXContent> combinedTemplateMappings,
         @Nullable IndexMetadata sourceMetadata,
         Settings settings,
         IndexScopedSettings indexScopedSettings,
@@ -868,7 +872,8 @@ public class MetadataCreateIndexService {
                         timeSeriesTemplate,
                         currentState.getMetadata(),
                         resolvedAt,
-                        templateAndRequestSettings
+                        templateAndRequestSettings,
+                        combinedTemplateMappings
                     )
                 );
             }

@@ -297,7 +297,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 token = parser.nextToken();
                 if (token == XContentParser.Token.FIELD_NAME) {
                     roleName = parser.currentName();
-                    Validation.Error validationError = Validation.Roles.validateRoleName(roleName);
+                    Validation.Error validationError = Validation.Roles.validateRoleName(roleName, false);
                     if (validationError != null) {
                         logger.error(
                             "invalid role definition [{}] in roles file [{}]. invalid role name - {}. skipping role... ",
@@ -329,7 +329,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
             assert roleName != null;
             if (logger.isDebugEnabled()) {
                 final String finalRoleName = roleName;
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("parsing exception for role [{}]", finalRoleName), e);
+                logger.debug((Supplier<?>) () -> "parsing exception for role [" + finalRoleName + "]", e);
             } else {
                 logger.error(e.getMessage() + ". skipping role...");
             }
@@ -345,10 +345,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     e
                 );
             } else {
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage("invalid role definition in roles file [{}]. skipping role...", path),
-                    e
-                );
+                logger.error((Supplier<?>) () -> "invalid role definition in roles file [" + path + "]. skipping role...", e);
             }
         }
         return null;

@@ -243,14 +243,14 @@ fieldNoEquals
 process where bool
 ;
 {"bool":{"must":[
-{"term":{"bool":{"value":true,
+{"term":{"bool":{"value":true
 ;
 
 fieldNoEqualsInExpression
 process where length(file_name) > 0 and bool
 ;
 {"bool":{"must":[
-{"term":{"bool":{"value":true,
+{"term":{"bool":{"value":true
 ;
 
 
@@ -258,7 +258,7 @@ fieldEqualsTrue
 process where bool == true
 ;
 {"bool":{"must":[
-{"term":{"bool":{"value":true,
+{"term":{"bool":{"value":true
 ;
 
 fieldEqualsFalse
@@ -323,7 +323,7 @@ process where startsWith(user_name, "A")
 startsWithFunctionWithCondition-caseSensitive
 process where startsWith(user_name, "A") or startsWith(user_name, "B")
 ;
-{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"bool":{"must":[{"term":{"event.category":{"value":"process"}}},
 {"bool":{"should":[{"prefix":{"user_name":{"value":"A","boost":1.0}}},
 {"prefix":{"user_name":{"value":"B","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
 ;

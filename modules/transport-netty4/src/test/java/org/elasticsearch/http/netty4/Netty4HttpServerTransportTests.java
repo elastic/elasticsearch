@@ -15,10 +15,15 @@ import io.netty.buffer.PoolArenaMetric;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocatorMetric;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerAdapter;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
+import io.netty.channel.ChannelOutboundHandlerAdapter;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
@@ -312,6 +317,14 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
     }
 
     public void testLargeCompressedResponse() throws InterruptedException {
+        testLargeResponse(true);
+    }
+
+    public void testLargeUncompressedResponse() throws InterruptedException {
+        testLargeResponse(false);
+    }
+
+    private void testLargeResponse(boolean compressed) throws InterruptedException {
         final String responseString = randomAlphaOfLength(4 * 1024 * 1024);
         final String url = "/thing";
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
@@ -343,14 +356,33 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(Settings.EMPTY)
-            )
+            ) {
+                @Override
+                public ChannelHandler configureServerChannelHandler() {
+                    return new HttpChannelHandler(this, handlingSettings) {
+                        @Override
+                        protected void initChannel(Channel ch) throws Exception {
+                            super.initChannel(ch);
+                            ch.pipeline().addBefore("pipelining", "assert-throttling", new ChannelOutboundHandlerAdapter() {
+                                @Override
+                                public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                                    assertTrue("handler should throttle to only write into writable channels", ctx.channel().isWritable());
+                                    super.write(ctx, msg, promise);
+                                }
+                            });
+                        }
+                    };
+                }
+            }
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             try (Netty4HttpClient client = new Netty4HttpClient()) {
                 DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
-                request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
+                if (compressed) {
+                    request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
+                }
                 long numOfHugeAllocations = getHugeAllocationCount();
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
                 try {

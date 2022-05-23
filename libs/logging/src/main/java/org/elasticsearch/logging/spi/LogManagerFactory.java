@@ -8,7 +8,6 @@
 
 package org.elasticsearch.logging.spi;
 
-
 import org.elasticsearch.logging.Logger;
 
 import java.util.ServiceLoader;
@@ -26,7 +25,7 @@ public interface LogManagerFactory {
     }
 
     static LogManagerFactory provider() {
-       return INSTANCE;
+        return INSTANCE;
     }
 
     Logger getLogger(String name);

@@ -35,6 +35,5 @@ public class LogManager {
         return LogManagerFactory.provider().getLogger(clazz);
     }
 
-    private LogManager() {
-    }
+    private LogManager() {}
 }

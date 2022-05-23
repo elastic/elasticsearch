@@ -8,14 +8,13 @@
 
 package org.elasticsearch.common.logging.api.impl;
 
-
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.logging.Logger;
 
 public class LogManagerFactory implements org.elasticsearch.logging.spi.LogManagerFactory {
     @Override
     public Logger getLogger(String name) {
-        //TODO PG logger impl instance caching
+        // TODO PG logger impl instance caching
         return new LoggerImpl(LogManager.getLogger(name));
     }
 

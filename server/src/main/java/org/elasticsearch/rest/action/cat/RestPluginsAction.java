@@ -101,7 +101,7 @@ public class RestPluginsAction extends AbstractCatAction {
             if (plugins == null) {
                 continue;
             }
-            for (PluginRuntimeInfo pluginInfo: plugins.getPluginInfos()) {
+            for (PluginRuntimeInfo pluginInfo : plugins.getPluginInfos()) {
                 PluginDescriptor pluginDescriptor = pluginInfo.descriptor();
                 if (pluginDescriptor.getType() == PluginType.BOOTSTRAP && includeBootstrapPlugins == false) {
                     continue;

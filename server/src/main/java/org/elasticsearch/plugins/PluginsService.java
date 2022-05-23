@@ -148,7 +148,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         this.info = new PluginsAndModules(getRuntimeInfos(pluginsList, loadedPlugins), modulesList);
         this.plugins = List.copyOf(loadedPlugins.values());
 
-
         checkMandatoryPlugins(
             pluginsList.stream().map(PluginDescriptor::getName).collect(Collectors.toSet()),
             new HashSet<>(MANDATORY_SETTING.get(settings))
@@ -194,8 +193,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             LoadedPlugin plugin = plugins.get(descriptor.getName());
             assert plugin != null;
             Class<?> pluginClazz = plugin.instance.getClass();
-            PluginApiInfo apiInfo = null;
-            // TODO: use reflection to find all the *Plugin interfaces extended (what if they have an intermediate base class?)
+            PluginApiInfo apiInfo = new PluginApiInfo(PluginIntrospector.interfaces(pluginClazz), null);
             // TODO: use reflection to find all the methods implemented from the *Plugin interfaces and also the Plugin class itself
             runtimeInfos.add(new PluginRuntimeInfo(descriptor, apiInfo));
         }

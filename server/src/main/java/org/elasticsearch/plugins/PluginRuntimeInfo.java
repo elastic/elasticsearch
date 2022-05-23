@@ -26,6 +26,10 @@ import java.io.IOException;
  */
 public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable PluginApiInfo pluginApiInfo) implements Writeable, ToXContentObject {
 
+    public PluginRuntimeInfo(PluginDescriptor descriptor) {
+        this(descriptor, null);
+    }
+
     public PluginRuntimeInfo(StreamInput in) throws IOException {
         this(new PluginDescriptor(in), readApiInfo(in));
     }

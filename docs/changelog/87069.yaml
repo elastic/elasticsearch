@@ -1,0 +1,5 @@
+pr: 87069
+summary: Diagnose unassigned shards in health indicator even when reason is NODE_LEFT
+area: Health
+type: bug
+issues: []

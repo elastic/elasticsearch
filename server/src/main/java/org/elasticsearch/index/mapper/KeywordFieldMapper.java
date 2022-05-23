@@ -250,8 +250,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 indexed,
                 hasDocValues,
                 stored,
@@ -266,8 +266,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 script,
                 onScriptError,
                 meta,
-                dimension
-            );
+                dimension };
         }
 
         private KeywordFieldType buildFieldType(MapperBuilderContext context, FieldType fieldType) {

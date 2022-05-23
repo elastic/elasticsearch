@@ -114,10 +114,10 @@ The response will look like this:
 // end::cloud[]
 
 // tag::self-managed[]
-In order to get the shards assigned we'll need to make sure the deployment is 
+In order to get the shards assigned we need to make sure the deployment is 
 using the <<data-tiers,data tiers>> node roles and then call the 
 <<ilm-migrate-to-data-tiers, migrate to data tiers routing>> API which will
-resolve the conflicting routing configurations towards using the standardised
+resolve the conflicting routing configurations towards using the standardized
 <<data-tiers, data tiers>>. This will also future-proof the system by migrating 
 the index templates and ILM policies if needed.
 

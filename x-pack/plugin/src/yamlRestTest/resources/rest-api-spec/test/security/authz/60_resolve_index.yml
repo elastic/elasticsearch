@@ -122,13 +122,6 @@ teardown:
   - match: { data_streams.0.backing_indices.0: $idx0name }
   - match: { data_streams.0.timestamp_field: "@timestamp" }
 
-  # should fail because no_authz_user is not authorized for view_index_metadata
-  - do:
-      catch: forbidden
-      headers: { Authorization: "Basic bm9fYXV0aHpfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # no_authz_user
-      indices.resolve_index:
-        name: '*'
-
   - do: # superuser
       indices.delete_data_stream:
         name: simple-data-stream1

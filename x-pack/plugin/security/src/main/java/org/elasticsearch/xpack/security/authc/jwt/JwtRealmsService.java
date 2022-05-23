@@ -21,12 +21,12 @@ import java.util.List;
 
 /**
  * Parse common settings shared by all JwtRealm instances on behalf of InternalRealms.
- * Construct JwtRealm instances on behalf of InternalRealms.
+ * Construct JwtRealm instances on behalf of lambda defined in InternalRealms.
  * Construct AuthenticationToken instances on behalf of JwtRealm instances.
  * @see InternalRealms
  * @see JwtRealm
  */
-public class JwtRealms {
+public class JwtRealmsService {
 
     private final List<String> principalClaimNames;
 
@@ -34,7 +34,7 @@ public class JwtRealms {
      * Parse all xpack settings passed in from {@link InternalRealms#getFactories}
      * @param settings All xpack settings
      */
-    public JwtRealms(final Settings settings) {
+    public JwtRealmsService(final Settings settings) {
         this.principalClaimNames = Collections.unmodifiableList(JwtRealmsSettings.PRINCIPAL_CLAIMS_SETTING.get(settings));
     }
 

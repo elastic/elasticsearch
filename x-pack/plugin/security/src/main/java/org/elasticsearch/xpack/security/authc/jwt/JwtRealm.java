@@ -71,7 +71,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public static final String HEADER_END_USER_AUTHENTICATION_SCHEME = "Bearer";
     public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
 
-    private final JwtRealms jwtRealms;
+    private final JwtRealmsService jwtRealmsService;
     final UserRoleMapper userRoleMapper;
     final String allowedIssuer;
     final List<String> allowedAudiences;
@@ -92,10 +92,14 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final CacheIteratorHelper<BytesKey, ExpiringUser> jwtCacheHelper;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
 
-    JwtRealm(final RealmConfig realmConfig, final JwtRealms jwtRealms, final SSLService sslService, final UserRoleMapper userRoleMapper)
-        throws SettingsException {
+    JwtRealm(
+        final RealmConfig realmConfig,
+        final JwtRealmsService jwtRealmsService,
+        final SSLService sslService,
+        final UserRoleMapper userRoleMapper
+    ) throws SettingsException {
         super(realmConfig);
-        this.jwtRealms = jwtRealms; // common configuration settings shared by all JwtRealm instances
+        this.jwtRealmsService = jwtRealmsService; // common configuration settings shared by all JwtRealm instances
         this.userRoleMapper = userRoleMapper;
         this.userRoleMapper.refreshRealmOnChange(this);
         this.allowedIssuer = realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER);
@@ -331,7 +335,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         // Token parsing is common code for all realms
         // First JWT realm will parse in a way that is compatible with all JWT realms,
         // taking into consideration each JWT realm might have a different principal claim name
-        return this.jwtRealms.token(threadContext);
+        return this.jwtRealmsService.token(threadContext);
     }
 
     @Override

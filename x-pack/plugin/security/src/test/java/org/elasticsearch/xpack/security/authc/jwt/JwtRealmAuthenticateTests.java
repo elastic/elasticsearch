@@ -147,8 +147,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
      * @throws Exception Unexpected test failure
      */
     public void testPkcJwkSetUrlNotFound() throws Exception {
-        final JwtRealms jwtRealms = this.generateJwtRealms(this.createJwtRealmsSettingsBuilder());
-        final String principalClaimName = randomFrom(jwtRealms.getPrincipalClaimNames());
+        final JwtRealmsService jwtRealmsService = this.generateJwtRealmsService(this.createJwtRealmsSettingsBuilder());
+        final String principalClaimName = randomFrom(jwtRealmsService.getPrincipalClaimNames());
 
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
         final boolean createHttpsServer = true; // force issuer to create HTTPS server for its PKC JWKSet
@@ -161,7 +161,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             jwtRealmSettingsBuilder.settingsBuilder().put(configKey, configValue);
             final Exception exception = expectThrows(
                 SettingsException.class,
-                () -> this.createJwtRealm(allRealms, jwtRealms, jwtIssuer, jwtRealmSettingsBuilder)
+                () -> this.createJwtRealm(allRealms, jwtRealmsService, jwtIssuer, jwtRealmSettingsBuilder)
             );
             assertThat(exception.getMessage(), equalTo("Can't get contents for setting [" + configKey + "] value [" + configValue + "]."));
             assertThat(exception.getCause().getMessage(), equalTo("Get [" + configValue + "] failed, status [404], reason [Not Found]."));
@@ -322,8 +322,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
      * @throws Exception Unexpected test failure
      */
     public void testSameIssuerTwoRealmsDifferentClientSecrets() throws Exception {
-        final JwtRealms jwtRealms = this.generateJwtRealms(this.createJwtRealmsSettingsBuilder());
-        final String principalClaimName = randomFrom(jwtRealms.getPrincipalClaimNames());
+        final JwtRealmsService jwtRealmsService = this.generateJwtRealmsService(this.createJwtRealmsSettingsBuilder());
+        final String principalClaimName = randomFrom(jwtRealmsService.getPrincipalClaimNames());
 
         final int realmsCount = 2;
         final List<Realm> allRealms = new ArrayList<>(realmsCount); // two identical realms for same issuer, except different client secret
@@ -372,7 +372,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             );
             authcSettings.setSecureSettings(secureSettings);
             final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = new JwtRealmSettingsBuilder(realmName, authcSettings);
-            final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtRealms, jwtIssuer, jwtRealmSettingsBuilder);
+            final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtRealmsService, jwtIssuer, jwtRealmSettingsBuilder);
             jwtRealm.initialize(allRealms, super.licenseState);
             final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm, jwtRealmSettingsBuilder);
             this.jwtIssuerAndRealms.add(jwtIssuerAndRealm); // add them so the test will clean them up

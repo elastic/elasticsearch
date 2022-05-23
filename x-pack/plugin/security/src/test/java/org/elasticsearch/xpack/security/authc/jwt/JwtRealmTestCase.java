@@ -69,7 +69,7 @@ import static org.mockito.Mockito.when;
 public abstract class JwtRealmTestCase extends JwtTestCase {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealmTestCase.class);
 
-    record JwtRealmsSettingsBuilder(Settings.Builder settingsBuilder) {}
+    record JwtRealmsServiceSettingsBuilder(Settings.Builder settingsBuilder) {}
 
     record JwtRealmSettingsBuilder(String name, Settings.Builder settingsBuilder) {}
 
@@ -119,12 +119,12 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         assertThat(plainActionFuture.get().isAuthenticated(), is(false));
     }
 
-    protected JwtRealms generateJwtRealms(final JwtRealmsSettingsBuilder jwtRealmRealmsSettingsBuilder) {
-        return new JwtRealms(jwtRealmRealmsSettingsBuilder.settingsBuilder.build());
+    protected JwtRealmsService generateJwtRealmsService(final JwtRealmsServiceSettingsBuilder jwtRealmRealmsSettingsBuilder) {
+        return new JwtRealmsService(jwtRealmRealmsSettingsBuilder.settingsBuilder.build());
     }
 
     protected List<JwtIssuerAndRealm> generateJwtIssuerRealmPairs(
-        final JwtRealmsSettingsBuilder jwtRealmsSettingsBuilder,
+        final JwtRealmsServiceSettingsBuilder jwtRealmsServiceSettingsBuilder,
         final MinMax realmsRange,
         final MinMax authzRange,
         final MinMax algsRange,
@@ -143,7 +143,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         assertThat(jwtCacheSizeRange.min(), is(greaterThanOrEqualTo(0)));
 
         // Create JWT authc realms and mocked authz realms. Initialize each JWT realm, and test ensureInitialized() before and after.
-        final JwtRealms jwtRealms = this.generateJwtRealms(jwtRealmsSettingsBuilder);
+        final JwtRealmsService jwtRealmsService = this.generateJwtRealmsService(jwtRealmsServiceSettingsBuilder);
         final int realmsCount = randomIntBetween(realmsRange.min(), realmsRange.max());
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
         this.jwtIssuerAndRealms = new ArrayList<>(realmsCount);
@@ -157,7 +157,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
 
             final JwtIssuer jwtIssuer = this.createJwtIssuer(
                 i,
-                randomFrom(jwtRealms.getPrincipalClaimNames()),
+                randomFrom(jwtRealmsService.getPrincipalClaimNames()),
                 algsCount,
                 audiencesCount,
                 usersCount,
@@ -171,7 +171,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                     authzCount,
                     jwtCacheSize
                 );
-                final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtRealms, jwtIssuer, realmSettingsBuilder);
+                final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtRealmsService, jwtIssuer, realmSettingsBuilder);
 
                 // verify exception before initialize()
                 final Exception exception = expectThrows(IllegalStateException.class, jwtRealm::ensureInitialized);
@@ -240,19 +240,19 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         );
     }
 
-    protected JwtRealmsSettingsBuilder createJwtRealmsSettingsBuilder() throws Exception {
+    protected JwtRealmsServiceSettingsBuilder createJwtRealmsSettingsBuilder() throws Exception {
         final List<String> principalClaimNames = randomBoolean()
             ? List.of("principalClaim_" + randomAlphaOfLength(6))
             : randomSubsetOf(randomIntBetween(1, 6), JwtRealmsSettings.DEFAULT_PRINCIPAL_CLAIMS);
 
-        final Settings.Builder jwtRealmsSettings = Settings.builder()
+        final Settings.Builder jwtRealmsServiceSettings = Settings.builder()
             .put(this.globalSettings)
             .put(JwtRealmsSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimNames));
 
         final MockSecureSettings secureSettings = new MockSecureSettings(); // none for now, placeholder for future
-        jwtRealmsSettings.setSecureSettings(secureSettings);
+        jwtRealmsServiceSettings.setSecureSettings(secureSettings);
 
-        return new JwtRealmsSettingsBuilder(jwtRealmsSettings);
+        return new JwtRealmsServiceSettingsBuilder(jwtRealmsServiceSettings);
     }
 
     protected JwtRealmSettingsBuilder createJwtRealmSettingsBuilder(final JwtIssuer jwtIssuer, final int authzCount, final int jwtCacheSize)
@@ -403,7 +403,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
 
     protected JwtRealm createJwtRealm(
         final List<Realm> allRealms, // JWT realms and authz realms
-        final JwtRealms jwtRealms,
+        final JwtRealmsService jwtRealmsService,
         final JwtIssuer jwtIssuer,
         final JwtRealmSettingsBuilder realmSettingsBuilder
     ) {
@@ -417,7 +417,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final UserRoleMapper userRoleMapper = super.buildRoleMapper(authzRealmNames.isEmpty() ? jwtIssuer.principals : Map.of());
 
         // If authz names is not set, register the users here in the JWT authc realm.
-        final JwtRealm jwtRealm = new JwtRealm(authcConfig, jwtRealms, sslService, userRoleMapper);
+        final JwtRealm jwtRealm = new JwtRealm(authcConfig, jwtRealmsService, sslService, userRoleMapper);
         allRealms.add(jwtRealm);
 
         // If authz names is set, register the users here in one of the authz realms.

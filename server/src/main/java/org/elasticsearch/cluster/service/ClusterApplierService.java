@@ -213,7 +213,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     /**
-     * Add a listener for updated cluster states
+     * Add a listener for updated cluster states. Listeners are executed in the system thread context.
      */
     public void addListener(ClusterStateListener listener) {
         clusterStateListeners.add(listener);
@@ -222,7 +222,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     /**
      * Removes a listener for updated cluster states.
      */
-    public void removeListener(ClusterStateListener listener) {
+    public void removeListener(final ClusterStateListener listener) {
         clusterStateListeners.remove(listener);
     }
 
@@ -551,7 +551,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         callClusterStateListener(clusterChangedEvent, stopWatch, timeoutClusterStateListeners.keySet());
     }
 
-    private void callClusterStateListener(
+    private static void callClusterStateListener(
         ClusterChangedEvent clusterChangedEvent,
         Recorder stopWatch,
         Collection<? extends ClusterStateListener> listeners
@@ -591,7 +591,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 assert false : inner;
-                logger.error(new ParameterizedMessage("exception thrown by listener notifying of failure from [{}]", source), inner);
+                logger.error(() -> "exception thrown by listener notifying of failure from [" + source + "]", inner);
             }
         }
 
@@ -601,10 +601,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 listener.onResponse(null);
             } catch (Exception e) {
                 assert false : e;
-                logger.error(
-                    new ParameterizedMessage("exception thrown by listener while notifying of cluster state processed from [{}]", source),
-                    e
-                );
+                logger.error(() -> "exception thrown by listener while notifying of cluster state processed from [" + source + "]", e);
             }
         }
     }

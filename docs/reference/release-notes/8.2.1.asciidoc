@@ -1,0 +1,71 @@
+[[release-notes-8.2.1]]
+== {es} version 8.2.1
+
+coming[8.2.1]
+
+Also see <<breaking-changes-8.2,Breaking changes in 8.2>>.
+
+[[bug-8.2.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix `AdaptingAggregator` `toString` method {es-pull}86042[#86042]
+* Less complexity in after-key parsing for unmapped fields {es-pull}86359[#86359] (issue: {es-issue}85928[#85928])
+
+Authentication::
+* Ensure authentication is wire compatible when setting user {es-pull}86741[#86741] (issue: {es-issue}86716[#86716])
+
+Cluster Coordination::
+* Avoid breaking add/clear voting exclusions {es-pull}86657[#86657]
+
+Geo::
+* Fix bounded hexagonal grids when they contain the bin on one of the poles {es-pull}86460[#86460]
+* Fix mvt polygon orientation {es-pull}86555[#86555] (issue: {es-issue}86560[#86560])
+
+ILM+SLM::
+* Fix `max_primary_shard_size` resize factor math {es-pull}86897[#86897]
+* Reroute after migrating to data tiers routing {es-pull}86574[#86574] (issue: {es-issue}86572[#86572])
+
+Infra/Core::
+* Fix `assertDefaultThreadContext` enumerating allowed headers {es-pull}86262[#86262]
+* Forward port MDP deprecation info API {es-pull}86103[#86103]
+* Make data directories work with symlinks again {es-pull}85878[#85878] (issue: {es-issue}85701[#85701])
+* Set autoexpand replicas on Fleet actions data stream {es-pull}85511[#85511]
+* Do not autocreate alias for non-primary system indices {es-pull}85977[#85977] (issue: {es-issue}85072[#85072])
+
+Ingest::
+* Don't download geoip databases if geoip system index is blocked {es-pull}86842[#86842]
+* Fix NPE when using object field as match field for enrich policy {es-pull}86089[#86089] (issue: {es-issue}86058[#86058])
+* Handle `.geoip_databases` being an alias or a concrete index {es-pull}85792[#85792] (issue: {es-issue}85756[#85756])
+
+Machine Learning::
+* Adjust memory overhead for `PyTorch` models {es-pull}86416[#86416]
+* Fix `max_model_memory_limit` reported by `_ml/info` when autoscaling is enabled {es-pull}86660[#86660]
+* Improve reliability of job stats in larger clusters {es-pull}86305[#86305]
+* Make autoscaling and task assignment use same memory staleness definition {es-pull}86632[#86632] (issue: {es-issue}86616[#86616])
+* Fix edge case which could cause the model bounds to inflate after detecting seasonality {ml-pull}2261[#2261]
+
+Packaging::
+* Fix edge case where user-defined heap settings are ignored {es-pull}86438[#86438] (issue: {es-issue}86431[#86431])
+
+Security::
+* Authentication.token now uses version from the existing authentication {es-pull}85978[#85978]
+
+Snapshot/Restore::
+* Better failure for source-only snapshots of partially/fully mounted indices {es-pull}86207[#86207]
+* Check if searchable snapshots cache pre-allocation is successful in Windows {es-pull}86192[#86192] (issue: {es-issue}85725[#85725])
+* Delay searchable snapshot allocation during shutdown {es-pull}86153[#86153] (issue: {es-issue}85052[#85052])
+* Support generating AWS role session name in case it's not provided {es-pull}86255[#86255]
+
+Stats::
+* Correctly calculate disk usage for frozen data tier telemetry {es-pull}86580[#86580] (issue: {es-issue}86055[#86055])
+
+[[upgrade-8.2.1]]
+[float]
+=== Upgrades
+
+Packaging::
+* Switch to OpenJDK and upgrade to 18.0.1 {es-pull}86554[#86554]
+
+

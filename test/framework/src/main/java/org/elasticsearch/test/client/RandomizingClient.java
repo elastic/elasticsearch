@@ -10,7 +10,7 @@ package org.elasticsearch.test.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.internal.Client;

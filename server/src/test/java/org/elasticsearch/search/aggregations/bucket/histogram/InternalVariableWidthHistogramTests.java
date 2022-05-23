@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -44,6 +44,11 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
         format = randomNumericDocValueFormat();
         emptyBucktInfo = new InternalVariableWidthHistogram.EmptyBucketInfo(InternalAggregations.EMPTY);
         this.numBuckets = 3;
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
     }
 
     private InternalVariableWidthHistogram createEmptyTestInstance() {

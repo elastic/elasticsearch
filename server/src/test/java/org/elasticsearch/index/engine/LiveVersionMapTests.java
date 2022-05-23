@@ -8,11 +8,11 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.tests.util.RamUsageTester;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.RamUsageTester;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;

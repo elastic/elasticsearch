@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
@@ -163,7 +162,7 @@ public class SqlDataTypes {
             GEO_POINT,
             SHAPE
         )
-    ).sorted(Comparator.comparing(DataType::typeName)).collect(toUnmodifiableList());
+    ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 

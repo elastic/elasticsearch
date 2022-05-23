@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.segments;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -38,6 +39,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
     ShardSegments> {
 
     private final IndicesService indicesService;
+    private final StatsRequestLimiter statsRequestLimiter;
 
     @Inject
     public TransportIndicesSegmentsAction(
@@ -45,7 +47,8 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        StatsRequestLimiter statsRequestLimiter
     ) {
         super(
             IndicesSegmentsAction.NAME,
@@ -57,6 +60,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
             ThreadPool.Names.MANAGEMENT
         );
         this.indicesService = indicesService;
+        this.statsRequestLimiter = statsRequestLimiter;
     }
 
     /**
@@ -119,5 +123,10 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
             IndexShard indexShard = indexService.getShard(shardRouting.id());
             return new ShardSegments(indexShard.routingEntry(), indexShard.segments());
         });
+    }
+
+    @Override
+    protected void doExecute(Task task, IndicesSegmentsRequest request, ActionListener<IndicesSegmentResponse> listener) {
+        statsRequestLimiter.tryToExecute(task, request, listener, super::doExecute);
     }
 }

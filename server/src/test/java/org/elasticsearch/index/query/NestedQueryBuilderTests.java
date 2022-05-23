@@ -139,7 +139,11 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         assertThat(e.getMessage(), equalTo("[nested] requires 'score_mode' field"));
     }
 
-    public void testFromJson() throws IOException {
+    public void testParseDefaultsRemoved() throws IOException {
+        /*
+         * This json includes many defaults. When we parse the query and then
+         * call toString on it all of the defaults are removed.
+         */
         String json = """
             {
               "nested" : {
@@ -178,7 +182,34 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             }""";
 
         NestedQueryBuilder parsed = (NestedQueryBuilder) parseQuery(json);
-        checkGeneratedJson(json, parsed);
+        checkGeneratedJson("""
+              {
+              "nested" : {
+                "query" : {
+                  "bool" : {
+                    "must" : [ {
+                      "match" : {
+                        "obj1.name" : {
+                          "query" : "blue"
+                        }
+                      }
+                    }, {
+                      "range" : {
+                        "obj1.count" : {
+                          "gt" : 5,
+                          "boost" : 1.0
+                        }
+                      }
+                    } ],
+                    "boost" : 1.0
+                  }
+                },
+                "path" : "obj1",
+                "ignore_unmapped" : false,
+                "score_mode" : "avg",
+                "boost" : 1.0
+              }
+            }""", parsed);
 
         assertEquals(json, ScoreMode.Avg, parsed.scoreMode());
     }

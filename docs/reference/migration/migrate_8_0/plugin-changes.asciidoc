@@ -13,7 +13,7 @@ TIP: {ess-skip-section}
 ====
 *Details* +
 In previous versions of {es}, in order to register a snapshot repository
-backed by Amazon S3, Google Cloud Storge (GCS) or Microsoft Azure Blob
+backed by Amazon S3, Google Cloud Storage (GCS) or Microsoft Azure Blob
 Storage, you first had to install the corresponding Elasticsearch plugin,
 for example `repository-s3`. These plugins are now included in {es} by
 default.

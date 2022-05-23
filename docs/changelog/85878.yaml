@@ -1,0 +1,6 @@
+pr: 85878
+summary: Make data directories work with symlinks again
+area: Infra/Core
+type: bug
+issues:
+ - 85701

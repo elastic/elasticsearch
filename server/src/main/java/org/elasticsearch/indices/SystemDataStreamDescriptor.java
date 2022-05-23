@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.AssociatedIndexDescriptor.buildAutomaton;
 
@@ -91,7 +90,7 @@ public class SystemDataStreamDescriptor {
      * @return List of names of backing indices
      */
     public List<String> getBackingIndexNames(Metadata metadata) {
-        return metadata.indices().keySet().stream().filter(this.characterRunAutomaton::run).collect(Collectors.toUnmodifiableList());
+        return metadata.indices().keySet().stream().filter(this.characterRunAutomaton::run).toList();
     }
 
     public String getDescription() {

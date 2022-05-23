@@ -1,0 +1,6 @@
+pr: 68649
+summary: Prevent `ThreadContext` header leak when sending response
+area: Infra/Core
+type: bug
+issues:
+ - 68278

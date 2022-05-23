@@ -19,7 +19,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,6 +53,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 
 public final class JobModelSnapshotUpgrader {
@@ -102,7 +103,10 @@ public final class JobModelSnapshotUpgrader {
     }
 
     synchronized void start() {
-        task.setJobModelSnapshotUpgrader(this);
+        if (task.setJobModelSnapshotUpgrader(this) == false) {
+            this.killProcess(task.getReasonCancelled());
+            return;
+        }
 
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService autodetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
@@ -235,7 +239,7 @@ public final class JobModelSnapshotUpgrader {
         }
 
         FlushAcknowledgement waitFlushToCompletion(String flushId) throws Exception {
-            logger.debug(() -> new ParameterizedMessage("[{}] [{}] waiting for flush [{}]", jobId, snapshotId, flushId));
+            logger.debug(() -> format("[%s] [%s] waiting for flush [%s]", jobId, snapshotId, flushId));
 
             FlushAcknowledgement flushAcknowledgement;
             try {
@@ -248,7 +252,7 @@ public final class JobModelSnapshotUpgrader {
             } finally {
                 processor.clearAwaitingFlush(flushId);
             }
-            logger.debug(() -> new ParameterizedMessage("[{}] [{}] flush completed [{}]", jobId, snapshotId, flushId));
+            logger.debug(() -> format("[%s] [%s] flush completed [%s]", jobId, snapshotId, flushId));
             return flushAcknowledgement;
         }
 
@@ -277,8 +281,8 @@ public final class JobModelSnapshotUpgrader {
                     );
                 } else {
                     logger.debug(
-                        () -> new ParameterizedMessage(
-                            "[{}] [{}] flush [{}] acknowledged requesting state write",
+                        () -> format(
+                            "[%s] [%s] flush [%s] acknowledged requesting state write",
                             jobId,
                             snapshotId,
                             flushAcknowledgement.getId()
@@ -344,7 +348,7 @@ public final class JobModelSnapshotUpgrader {
                             )
                         );
                     } else {
-                        logger.error(new ParameterizedMessage("[{}] Unexpected exception writing to process", job.getId()), e);
+                        logger.error(() -> "[" + job.getId() + "] Unexpected exception writing to process", e);
                         handler.accept(null, e);
                     }
                 }

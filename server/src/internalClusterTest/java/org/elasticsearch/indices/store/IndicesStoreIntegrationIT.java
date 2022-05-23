@@ -477,10 +477,11 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         ClusterState currentState = clusterApplierService.state();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         for (int j = 0; j < numShards; j++) {
+            final var shardId = new ShardId(index, j);
             indexRoutingTableBuilder.addIndexShard(
-                new IndexShardRoutingTable.Builder(new ShardId(index, j)).addShard(
-                    TestShardRouting.newShardRouting("test", j, masterId, true, ShardRoutingState.STARTED)
-                ).build()
+                new IndexShardRoutingTable.Builder(shardId).addShard(
+                    TestShardRouting.newShardRouting(shardId, masterId, true, ShardRoutingState.STARTED)
+                )
             );
         }
         ClusterState newState = ClusterState.builder(currentState)

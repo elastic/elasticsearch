@@ -21,7 +21,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.mockfile.ExtrasFS;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -34,6 +33,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -50,8 +50,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
@@ -1314,7 +1314,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 CorruptionUtils.corruptFile(random(), randomFrom(StreamSupport.stream(directoryStream.spliterator(), false).filter(p -> {
                     final String filename = p.getFileName().toString();
                     return ExtrasFS.isExtra(filename) == false && filename.equals(WRITE_LOCK_NAME) == false;
-                }).collect(Collectors.toList())));
+                }).toList()));
             }
 
             assertThat(
@@ -1568,7 +1568,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     private NodeEnvironment newNodeEnvironment(Path[] dataPaths) throws IOException {
         return newNodeEnvironment(
             Settings.builder()
-                .putList(Environment.PATH_DATA_SETTING.getKey(), Arrays.stream(dataPaths).map(Path::toString).collect(Collectors.toList()))
+                .putList(Environment.PATH_DATA_SETTING.getKey(), Arrays.stream(dataPaths).map(Path::toString).toList())
                 .build()
         );
     }

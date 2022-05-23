@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
@@ -43,9 +42,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
 import java.security.KeyStore;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -258,27 +255,9 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
         kmf.init(ks, passphrase);
         TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
         tmf.init(ks);
-        SSLContext ssl = SSLContext.getInstance(getProtocol());
+        SSLContext ssl = SSLContext.getInstance("TLS");
         ssl.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
         return ssl;
-    }
-
-    /**
-     * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
-     * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
-     */
-    private static String getProtocol() {
-        if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
-            return "TLSv1.2";
-        } else {
-            JavaVersion full = AccessController.doPrivileged(
-                (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version"))
-            );
-            if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
-                return "TLSv1.2";
-            }
-        }
-        return "TLS";
     }
 
     @AfterClass

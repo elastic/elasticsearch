@@ -468,14 +468,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
         // Nested document:
         assertNotNull(result.docs().get(0).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(0).getField(IdFieldMapper.NAME).binaryValue());
-        assertEquals(IdFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
+        assertEquals(ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
         assertNotNull(result.docs().get(0).getField(NestedPathFieldMapper.NAME));
         assertEquals("foo", result.docs().get(0).getField(NestedPathFieldMapper.NAME).stringValue());
         assertEquals("value1", result.docs().get(0).getField("foo.bar").binaryValue().utf8ToString());
         // Root document:
         assertNotNull(result.docs().get(1).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(1).getField(IdFieldMapper.NAME).binaryValue());
-        assertEquals(IdFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());
+        assertEquals(ProvidedIdFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());
         assertNull(result.docs().get(1).getField(NestedPathFieldMapper.NAME));
         assertEquals("value2", result.docs().get(1).getField("baz").binaryValue().utf8ToString());
     }
@@ -1452,7 +1452,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testDocumentContainsAllowedMetadataField() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        DocumentMapper mapper = createDocumentMapper("""
+            { "_doc": { "dynamic" : "strict", "properties" : { "object" : { "type" : "object" } } } }
+            """);
         {
             // A metadata field that parses a value fails to parse a null value
             MapperParsingException e = expectThrows(
@@ -1482,6 +1484,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
             );
             IndexableField field = doc.rootDoc().getField(DocumentParserTestsPlugin.MockMetadataMapper.CONTENT_TYPE);
             assertEquals("mock-metadata-field-value", field.stringValue());
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+                b.startObject("object");
+                b.field(DocumentParserTestsPlugin.MockMetadataMapper.CONTENT_TYPE, "mock-metadata-field-value");
+                b.endObject();
+            })));
+            assertTrue(e.getMessage(), e.getMessage().contains("dynamic introduction of [_mock_metadata] within [object]"));
         }
     }
 
@@ -1526,7 +1536,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper builtDocMapper = createDocumentMapper(builtMapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         LuceneDocument doc = builtDocMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.getBinaryValue(builtDocMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
+        assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(builtDocMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
 
@@ -1538,7 +1548,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
+        assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
 
@@ -1547,7 +1557,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper docMapper = createDocumentMapper(mapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
         LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
-        assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
+        assertThat(doc.getBinaryValue(IdFieldMapper.NAME), equalTo(Uid.encodeId("1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").name()), equalTo("shay"));
     }
 
@@ -1832,6 +1842,196 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(err.getCause().getMessage(), containsString("field name cannot contain only dots"));
     }
 
+    public void testSubobjectsFalseWithInnerObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
+        );
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
+            {
+              "metrics": {
+                "service": {
+                  "time" : {
+                    "max" : 10
+                  }
+                }
+              }
+            }
+            """)));
+        assertEquals(
+            "Object [metrics.service] has subobjects set to false hence it does not support inner object [time]",
+            err.getMessage()
+        );
+    }
+
+    public void testSubobjectsFalseWithInnerDottedObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
+        );
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
+            {
+              "metrics": {
+                "service": {
+                  "test.with.dots" : {
+                    "max" : 10
+                  }
+                }
+              }
+            }
+            """)));
+        assertEquals(
+            "Object [metrics.service] has subobjects set to false hence it does not support inner object [test.with.dots]",
+            err.getMessage()
+        );
+    }
+
+    public void testSubobjectsFalseRootWithInnerObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("subobjects", false)));
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
+            {
+              "metrics": {
+                "service": {
+                  "time.max" : 10
+                }
+              }
+            }
+            """)));
+        assertEquals("Object [_doc] has subobjects set to false hence it does not support inner object [metrics]", err.getMessage());
+    }
+
+    public void testSubobjectsFalseRoot() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("subobjects", false)));
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "metrics.service.time" : 10,
+              "metrics.service.time.max" : 500,
+              "metrics.service.time.min" : 1,
+              "metrics.object.inner.field" : 1,
+              "metrics.service.test.with.dots" : "value"
+            }
+            """));
+
+        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+        assertNotNull(mappingsUpdate);
+        assertNotNull(mappingsUpdate.getRoot().getMapper("metrics.service.time"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("metrics.service.time.max"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("metrics.service.test.with.dots"));
+
+        assertNotNull(doc.rootDoc().getFields("metrics.service.time"));
+        assertNotNull(doc.rootDoc().getFields("metrics.service.time.max"));
+        assertNotNull(doc.rootDoc().getFields("metrics.service.test.with.dots"));
+    }
+
+    public void testSubobjectsFalseStructuredPath() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
+        );
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "metrics": {
+                "service": {
+                  "time" : 10,
+                  "time.max" : 500,
+                  "time.min" : 1,
+                  "test.with.dots" : "value"
+                },
+                "object.inner.field": "value"
+              }
+            }
+            """));
+        assertNoSubobjects(doc);
+    }
+
+    public void testSubobjectsFalseFlatPaths() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
+        );
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "metrics.service.time" : 10,
+              "metrics.service.time.max" : 500,
+              "metrics.service.time.min" : 1,
+              "metrics.service.test.with.dots" : "value",
+              "metrics.object.inner.field" : "value"
+            }
+            """));
+        assertNoSubobjects(doc);
+    }
+
+    public void testSubobjectsFalseMixedPaths() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
+        );
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "metrics": {
+                "service.time": 10,
+                "service": {
+                  "time.max" : 500,
+                  "time.min" : 1
+                },
+                "object.inner.field" : "value"
+              },
+              "metrics.service.test.with.dots" : "value"
+            }
+            """));
+        assertNoSubobjects(doc);
+    }
+
+    public void testSubobjectsFalseArrayOfObjects() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
+        );
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "metrics": {
+                "service": [
+                  {
+                    "time" : 10,
+                    "time.max" : 500,
+                    "time.min" : 1,
+                    "test.with.dots" : "value1"
+                  },
+                  {
+                    "time" : 5,
+                    "time.max" : 600,
+                    "time.min" : 3,
+                    "test.with.dots" : "value2"
+                  }
+                ],
+                "object.inner.field": "value"
+              }
+            }
+            """));
+        assertNoSubobjects(doc);
+    }
+
+    private static void assertNoSubobjects(ParsedDocument doc) {
+        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+        assertNotNull(mappingsUpdate);
+        Mapper metrics = mappingsUpdate.getRoot().mappers.get("metrics");
+        assertThat(metrics, instanceOf(ObjectMapper.class));
+        ObjectMapper metricsObject = (ObjectMapper) metrics;
+        Mapper service = metricsObject.getMapper("service");
+        assertThat(service, instanceOf(ObjectMapper.class));
+        ObjectMapper serviceObject = (ObjectMapper) service;
+        assertNotNull(serviceObject.getMapper("time"));
+        assertNotNull(serviceObject.getMapper("time.max"));
+        assertNotNull(serviceObject.getMapper("time.min"));
+        assertNotNull(serviceObject.getMapper("test.with.dots"));
+        Mapper object = metricsObject.getMapper("object");
+        assertThat(object, instanceOf(ObjectMapper.class));
+        ObjectMapper objectObject = (ObjectMapper) object;
+        Mapper inner = objectObject.getMapper("inner");
+        assertThat(inner, instanceOf(ObjectMapper.class));
+        ObjectMapper innerObject = (ObjectMapper) inner;
+        assertNotNull(innerObject.getMapper("field"));
+
+        assertNotNull(doc.rootDoc().getFields("metrics.service.time"));
+        assertNotNull(doc.rootDoc().getFields("metrics.service.time.max"));
+        assertNotNull(doc.rootDoc().getFields("metrics.service.time.min"));
+        assertNotNull(doc.rootDoc().getFields("metrics.service.test.with.dots"));
+    }
+
     public void testWriteToFieldAlias() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("alias-field");
@@ -2020,6 +2220,45 @@ public class DocumentParserTests extends MapperServiceTestCase {
         );
     }
 
+    public void testDocumentDescriptionInTsdb() throws IOException {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder()
+                .put(getIndexSettings())
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "uid")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+                .build(),
+            mapping(b -> {
+                b.startObject("foo").field("type", "long").endObject();
+                b.startObject("uid").field("type", "keyword").field("time_series_dimension", true).endObject();
+            })
+        ).documentMapper();
+        {
+            MapperException exception = expectThrows(
+                MapperException.class,
+                () -> mapper.parse(source(null, b -> b.field("foo", true), null))
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo("failed to parse field [foo] of type [long] in a time series document. Preview of field's value: 'true'")
+            );
+        }
+        {
+            MapperException exception = expectThrows(
+                MapperException.class,
+                () -> mapper.parse(source(null, b -> b.field("@timestamp", "2021-04-28T00:01:00Z").field("foo", true), null))
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo(
+                    "failed to parse field [foo] of type [long] in a time series document at "
+                        + "[2021-04-28T00:01:00.000Z]. Preview of field's value: 'true'"
+                )
+            );
+        }
+    }
+
     /**
      * Mapper plugin providing a mock metadata field mapper implementation that supports setting its value
      */
@@ -2064,7 +2303,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 protected RuntimeField createRuntimeField(MappingParserContext parserContext) {
                     return new TestRuntimeField(
                         n,
-                        List.of(new KeywordFieldMapper.KeywordFieldType(n + ".foo"), new KeywordFieldMapper.KeywordFieldType(n + ".bar"))
+                        List.of(
+                            new TestRuntimeField.TestRuntimeFieldType(n + ".foo", KeywordFieldMapper.CONTENT_TYPE),
+                            new TestRuntimeField.TestRuntimeFieldType(n + ".bar", KeywordFieldMapper.CONTENT_TYPE)
+                        )
                     );
                 }
 

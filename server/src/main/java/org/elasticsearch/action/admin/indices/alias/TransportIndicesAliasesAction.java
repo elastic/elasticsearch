@@ -47,7 +47,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableList;
@@ -128,7 +127,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 List<Index> nonBackingIndices = Arrays.stream(unprocessedConcreteIndices).filter(index -> {
                     var ia = state.metadata().getIndicesLookup().get(index.getName());
                     return ia.getParentDataStream() == null;
-                }).collect(Collectors.toList());
+                }).toList();
                 concreteIndices = nonBackingIndices.toArray(Index[]::new);
                 switch (action.actionType()) {
                     case ADD -> {

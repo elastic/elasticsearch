@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;

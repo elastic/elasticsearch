@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -28,7 +26,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
@@ -497,12 +494,12 @@ public class JobDataDeleter {
     private IndicesAliasesRequest buildRemoveAliasesRequest(GetAliasesResponse getAliasesResponse) {
         Set<String> aliases = new HashSet<>();
         List<String> indices = new ArrayList<>();
-        for (ObjectObjectCursor<String, List<AliasMetadata>> entry : getAliasesResponse.getAliases()) {
+        for (var entry : getAliasesResponse.getAliases().entrySet()) {
             // The response includes _all_ indices, but only those associated with
             // the aliases we asked about will have associated AliasMetadata
-            if (entry.value.isEmpty() == false) {
-                indices.add(entry.key);
-                entry.value.forEach(metadata -> aliases.add(metadata.getAlias()));
+            if (entry.getValue().isEmpty() == false) {
+                indices.add(entry.getKey());
+                entry.getValue().forEach(metadata -> aliases.add(metadata.getAlias()));
             }
         }
         return aliases.isEmpty()

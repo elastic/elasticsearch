@@ -275,7 +275,7 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
 
     public static ClusterBlocks readFrom(StreamInput in) throws IOException {
         final Set<ClusterBlock> global = readBlockSet(in);
-        ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks = in.readImmutableMap(
+        ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks = in.readImmutableOpenMap(
             i -> i.readString().intern(),
             ClusterBlocks::readBlockSet
         );
@@ -298,6 +298,13 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    /**
+     * Convenience method, equivalent to: {@code builder().blocks(blocks)}
+     */
+    public static Builder builder(ClusterBlocks blocks) {
+        return builder().blocks(blocks);
     }
 
     public static class Builder {

@@ -95,9 +95,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                     createIndex(indexName);
                     indexRandom(
                         randomBoolean(),
-                        IntStream.range(0, nbDocs)
-                            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                            .collect(Collectors.toList())
+                        IntStream.range(0, nbDocs).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).toList()
                     );
                 }
                 default -> {

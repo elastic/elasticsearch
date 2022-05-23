@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import joptsimple.internal.Strings;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -27,9 +25,9 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.rest.RestStatus;
@@ -99,6 +97,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -189,12 +188,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     public void killProcess(JobTask jobTask, boolean awaitCompletion, String reason) {
         logger.trace(
-            () -> new ParameterizedMessage(
-                "[{}] Killing process: awaitCompletion = [{}]; reason = [{}]",
-                jobTask.getJobId(),
-                awaitCompletion,
-                reason
-            )
+            () -> format("[%s] Killing process: awaitCompletion = [%s]; reason = [%s]", jobTask.getJobId(), awaitCompletion, reason)
         );
         ProcessContext processContext = processByAllocation.remove(jobTask.getAllocationId());
         if (processContext != null) {
@@ -214,7 +208,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             // as it is cleaned up already. The third is that the kill has been
             // received before the process has even started. In all cases, we still
             // need to remove the task from the TaskManager (which is what the kill would do)
-            logger.trace(() -> new ParameterizedMessage("[{}] Marking job task as completed", jobTask.getJobId()));
+            logger.trace(() -> "[" + jobTask.getJobId() + "] Marking job task as completed");
             jobTask.markAsCompleted();
         }
     }
@@ -438,7 +432,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         if (filterIds.isEmpty()) {
             filtersListener.onResponse(null);
         } else {
-            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request(Strings.join(filterIds, ","));
+            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request(String.join(",", filterIds));
             getFilterRequest.setPageParams(new PageParams(0, filterIds.size()));
             executeAsyncWithOrigin(
                 client,
@@ -480,6 +474,13 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     );
                     return;
                 }
+                if (resetInProgress) {
+                    logger.trace(
+                        () -> format("Aborted upgrading snapshot [%s] for job [%s] as ML feature is being reset", snapshotId, jobId)
+                    );
+                    closeHandler.accept(null);
+                    return;
+                }
                 // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                     @Override
@@ -490,12 +491,13 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     @Override
                     protected void doRun() {
                         if (nodeDying) {
-                            logger.info(
-                                () -> new ParameterizedMessage(
-                                    "Aborted upgrading snapshot [{}] for job [{}] as node is dying",
-                                    snapshotId,
-                                    jobId
-                                )
+                            logger.info(() -> format("Aborted upgrading snapshot [%s] for job [%s] as node is dying", snapshotId, jobId));
+                            closeHandler.accept(null);
+                            return;
+                        }
+                        if (resetInProgress) {
+                            logger.trace(
+                                () -> format("Aborted upgrading snapshot [%s] for job [%s] as ML feature is being reset", snapshotId, jobId)
                             );
                             closeHandler.accept(null);
                             return;
@@ -567,7 +569,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 stateAliasHandler
             ),
             e -> {
-                logger.error(new ParameterizedMessage("[{}] ML state index alias could not be updated", jobId), e);
+                logger.error(() -> "[" + jobId + "] ML state index alias could not be updated", e);
                 closeHandler.accept(e, true);
             }
         );
@@ -585,7 +587,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
                 // and it would cause more harm than good to block jobs from opening in subsequent releases
-                logger.warn(new ParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
+                logger.warn(() -> "[" + jobId + "] ML annotations index could not be updated with latest mappings", e);
                 ElasticsearchMappings.addDocMappingIfMissing(
                     AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
                     AnomalyDetectorsIndex::wrappedResultsMapping,
@@ -860,7 +862,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             try {
                 nativeStorageProvider.cleanupLocalTmpStorage(jobTask.getDescription());
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Failed to delete temporary files", jobTask.getJobId()), e);
+                logger.error(() -> "[" + jobTask.getJobId() + "] Failed to delete temporary files", e);
             }
         };
     }
@@ -942,7 +944,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         try {
             nativeStorageProvider.cleanupLocalTmpStorage(jobTask.getDescription());
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] Failed to delete temporary files", jobId), e);
+            logger.error(() -> "[" + jobId + "] Failed to delete temporary files", e);
         }
     }
 

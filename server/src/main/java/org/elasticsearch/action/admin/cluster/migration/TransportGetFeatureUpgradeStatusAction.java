@@ -32,7 +32,6 @@ import org.elasticsearch.upgrades.SystemIndexMigrationTaskState;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR;
@@ -90,11 +89,10 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     ) throws Exception {
 
         List<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> features = systemIndices.getFeatures()
-            .values()
             .stream()
             .sorted(Comparator.comparing(SystemIndices.Feature::getName))
             .map(feature -> getFeatureUpgradeStatus(state, feature))
-            .collect(Collectors.toList());
+            .toList();
 
         boolean migrationTaskExists = PersistentTasksCustomMetadata.getTaskWithId(state, SYSTEM_INDEX_UPGRADE_TASK_NAME) != null;
         GetFeatureUpgradeStatusResponse.UpgradeStatus initalStatus = migrationTaskExists ? IN_PROGRESS : NO_MIGRATION_NEEDED;
@@ -166,7 +164,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
                     indexMetadata.getIndex().getName().equals(failedFeatureName) ? exception : null
                 )
             )
-            .collect(Collectors.toList());
+            .toList();
     }
 
     @Override

@@ -32,9 +32,9 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -554,7 +554,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         final boolean flushEngine = deleted.get() == false && closed.get();
                         indexShard.close(reason, flushEngine);
                     } catch (Exception e) {
-                        logger.debug(() -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
+                        logger.debug(() -> "[" + shardId + "] failed to close index shard", e);
                         // ignore
                     }
                 }
@@ -588,10 +588,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             } catch (IOException e) {
                 shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);
-                logger.debug(
-                    () -> new ParameterizedMessage("[{}] failed to delete shard content - scheduled a retry", lock.getShardId().id()),
-                    e
-                );
+                logger.debug(() -> "[" + lock.getShardId().id() + "] failed to delete shard content - scheduled a retry", e);
             }
         }
     }
@@ -784,9 +781,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             final long currentSettingsVersion = currentIndexMetadata.getSettingsVersion();
             final long newSettingsVersion = newIndexMetadata.getSettingsVersion();
             if (currentSettingsVersion == newSettingsVersion) {
-                assert updateIndexSettings == false;
+                assert updateIndexSettings == false : "No index updates are expected as index settings version has not changed";
             } else {
-                assert updateIndexSettings;
+                assert updateIndexSettings : "Index updates are expected as index settings version has changed";
                 assert currentSettingsVersion < newSettingsVersion
                     : "expected current settings version ["
                         + currentSettingsVersion
@@ -802,10 +799,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 try {
                     shard.onSettingsChanged();
                 } catch (Exception e) {
-                    logger.warn(
-                        () -> new ParameterizedMessage("[{}] failed to notify shard about setting change", shard.shardId().id()),
-                        e
-                    );
+                    logger.warn(() -> "[" + shard.shardId().id() + "] failed to notify shard about setting change", e);
                 }
             }
             if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
@@ -862,11 +856,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    public Function<String, String> dateMathExpressionResolverAt() {
+    public static Function<String, String> dateMathExpressionResolverAt() {
         return expression -> IndexNameExpressionResolver.resolveDateMathExpression(expression, System.currentTimeMillis());
     }
 
-    public Function<String, String> dateMathExpressionResolverAt(long instant) {
+    public static Function<String, String> dateMathExpressionResolverAt(long instant) {
         return expression -> IndexNameExpressionResolver.resolveDateMathExpression(expression, instant);
     }
 

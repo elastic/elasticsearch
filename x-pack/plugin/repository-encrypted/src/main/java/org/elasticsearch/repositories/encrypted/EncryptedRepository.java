@@ -628,7 +628,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 )
             ) {
                 try (InputStream encryptedInputStream = encryptedInput(bytes.streamInput(), singleUseNonceAndDEK, dekIdBytes)) {
-                    org.elasticsearch.core.internal.io.Streams.copy(encryptedInputStream, tmp, false);
+                    org.elasticsearch.core.Streams.copy(encryptedInputStream, tmp, false);
                 }
                 delegatedBlobContainer.writeBlob(blobName, tmp.bytes(), failIfAlreadyExists);
             }

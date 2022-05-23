@@ -547,7 +547,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
     }
 
-    static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
+    // public for tests
+    public static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
         SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
             searchHits,

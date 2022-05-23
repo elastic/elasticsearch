@@ -48,7 +48,9 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             visitedRequests.add(context.getCurrent());
             context.setRequestToExecute(context.getCurrent());
             // using failures prevents caring about types
-            context.markOperationAsExecuted(new Engine.IndexResult(new ElasticsearchException("bla"), 1));
+            context.markOperationAsExecuted(
+                new Engine.IndexResult(new ElasticsearchException("bla"), 1, context.getRequestToExecute().id())
+            );
             context.markAsCompleted(context.getExecutionResult());
         }
 
@@ -97,25 +99,25 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
                 case INDEX, CREATE -> {
                     context.setRequestToExecute(current);
                     if (failure) {
-                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1);
+                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, current.id());
                     } else {
-                        result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
+                        result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location, "id");
                     }
                 }
                 case UPDATE -> {
                     context.setRequestToExecute(new IndexRequest(current.index()).id(current.id()));
                     if (failure) {
-                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1, 1);
+                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1, 1, current.id());
                     } else {
-                        result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
+                        result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location, "id");
                     }
                 }
                 case DELETE -> {
                     context.setRequestToExecute(current);
                     if (failure) {
-                        result = new Engine.DeleteResult(new ElasticsearchException("bla"), 1, 1);
+                        result = new Engine.DeleteResult(new ElasticsearchException("bla"), 1, 1, current.id());
                     } else {
-                        result = new FakeDeleteResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
+                        result = new FakeDeleteResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location, current.id());
                     }
                 }
                 default -> throw new AssertionError("unknown type:" + current.opType());

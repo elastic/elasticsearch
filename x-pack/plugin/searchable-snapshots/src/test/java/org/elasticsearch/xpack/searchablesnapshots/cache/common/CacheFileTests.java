@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.filesystem.FileSystemNatives;

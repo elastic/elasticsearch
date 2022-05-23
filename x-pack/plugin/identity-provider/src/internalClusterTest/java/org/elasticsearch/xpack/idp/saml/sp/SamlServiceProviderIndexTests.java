@@ -101,7 +101,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         assertThat(indexMetadata, notNullValue());
         assertThat(indexMetadata.getSettings().get("index.format"), equalTo("1"));
         assertThat(indexMetadata.getAliases().size(), equalTo(1));
-        assertThat(indexMetadata.getAliases().keys().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
+        assertThat(indexMetadata.getAliases().keySet().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
 
         refresh();
 
@@ -139,7 +139,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         assertThat(indexMetadata, notNullValue());
         assertThat(indexMetadata.getSettings().get("index.format"), equalTo("1"));
         assertThat(indexMetadata.getAliases().size(), equalTo(1));
-        assertThat(indexMetadata.getAliases().keys().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
+        assertThat(indexMetadata.getAliases().keySet().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
 
         SamlServiceProviderDocument document = randomDocument(1);
         writeDocument(document);

@@ -48,7 +48,6 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 
@@ -142,10 +141,7 @@ public class DiscoveryModule {
             throw new IllegalArgumentException("Unknown seed providers " + missingProviderNames);
         }
 
-        List<SeedHostsProvider> filteredSeedProviders = seedProviderNames.stream()
-            .map(hostProviders::get)
-            .map(Supplier::get)
-            .collect(Collectors.toList());
+        List<SeedHostsProvider> filteredSeedProviders = seedProviderNames.stream().map(hostProviders::get).map(Supplier::get).toList();
 
         String discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
 

@@ -10,6 +10,7 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +32,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
     protected FieldCapabilitiesNodeRequest createTestInstance() {
         List<ShardId> randomShards = randomShardIds(randomIntBetween(1, 5));
         String[] randomFields = randomFields(randomIntBetween(1, 20));
+        String[] randomFilter = randomBoolean() ? Strings.EMPTY_ARRAY : new String[] { "-nested" };
+        String[] randomTypeFilter = randomBoolean() ? Strings.EMPTY_ARRAY : new String[] { "keyword" };
         OriginalIndices originalIndices = randomOriginalIndices(randomIntBetween(0, 20));
 
         QueryBuilder indexFilter = randomBoolean() ? QueryBuilders.termQuery("field", randomAlphaOfLength(5)) : null;
@@ -40,7 +43,16 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             ? Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5))
             : null;
 
-        return new FieldCapabilitiesNodeRequest(randomShards, randomFields, originalIndices, indexFilter, nowInMillis, runtimeFields);
+        return new FieldCapabilitiesNodeRequest(
+            randomShards,
+            randomFields,
+            randomFilter,
+            randomTypeFilter,
+            originalIndices,
+            indexFilter,
+            nowInMillis,
+            runtimeFields
+        );
     }
 
     private List<ShardId> randomShardIds(int numShards) {
@@ -81,12 +93,14 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
 
     @Override
     protected FieldCapabilitiesNodeRequest mutateInstance(FieldCapabilitiesNodeRequest instance) throws IOException {
-        switch (random().nextInt(5)) {
+        switch (random().nextInt(7)) {
             case 0 -> {
                 List<ShardId> shardIds = randomShardIds(instance.shardIds().size() + 1);
                 return new FieldCapabilitiesNodeRequest(
                     shardIds,
                     instance.fields(),
+                    instance.filters(),
+                    instance.allowedTypes(),
                     instance.originalIndices(),
                     instance.indexFilter(),
                     instance.nowInMillis(),
@@ -98,6 +112,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                 return new FieldCapabilitiesNodeRequest(
                     instance.shardIds(),
                     fields,
+                    instance.filters(),
+                    instance.allowedTypes(),
                     instance.originalIndices(),
                     instance.indexFilter(),
                     instance.nowInMillis(),
@@ -109,6 +125,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                 return new FieldCapabilitiesNodeRequest(
                     instance.shardIds(),
                     instance.fields(),
+                    instance.filters(),
+                    instance.allowedTypes(),
                     originalIndices,
                     instance.indexFilter(),
                     instance.nowInMillis(),
@@ -120,6 +138,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                 return new FieldCapabilitiesNodeRequest(
                     instance.shardIds(),
                     instance.fields(),
+                    instance.filters(),
+                    instance.allowedTypes(),
                     instance.originalIndices(),
                     indexFilter,
                     instance.nowInMillis(),
@@ -131,6 +151,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                 return new FieldCapabilitiesNodeRequest(
                     instance.shardIds(),
                     instance.fields(),
+                    instance.filters(),
+                    instance.allowedTypes(),
                     instance.originalIndices(),
                     instance.indexFilter(),
                     nowInMillis,
@@ -144,13 +166,41 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                 return new FieldCapabilitiesNodeRequest(
                     instance.shardIds(),
                     instance.fields(),
+                    instance.filters(),
+                    instance.allowedTypes(),
                     instance.originalIndices(),
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     runtimeFields
                 );
             }
-            default -> throw new IllegalStateException("The test should only allow 5 parameters mutated");
+            case 6 -> {
+                String[] randomFilter = instance.filters().length > 0 ? Strings.EMPTY_ARRAY : new String[] { "-nested" };
+                return new FieldCapabilitiesNodeRequest(
+                    instance.shardIds(),
+                    instance.fields(),
+                    randomFilter,
+                    instance.allowedTypes(),
+                    instance.originalIndices(),
+                    instance.indexFilter(),
+                    instance.nowInMillis(),
+                    instance.runtimeFields()
+                );
+            }
+            case 7 -> {
+                String[] randomType = instance.allowedTypes().length > 0 ? Strings.EMPTY_ARRAY : new String[] { "text" };
+                return new FieldCapabilitiesNodeRequest(
+                    instance.shardIds(),
+                    instance.fields(),
+                    instance.filters(),
+                    randomType,
+                    instance.originalIndices(),
+                    instance.indexFilter(),
+                    instance.nowInMillis(),
+                    instance.runtimeFields()
+                );
+            }
+            default -> throw new IllegalStateException("The test should only allow 7 parameters mutated");
         }
     }
 }

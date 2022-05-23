@@ -245,7 +245,7 @@ You should not directly access or modify system indices
 as they contain data essential to the operation of the system.
 
 IMPORTANT: Direct access to system indices is deprecated and
-will no longer be allowed in the next major version.
+will no longer be allowed in a future major version.
 
 [discrete]
 [[api-conventions-parameters]]

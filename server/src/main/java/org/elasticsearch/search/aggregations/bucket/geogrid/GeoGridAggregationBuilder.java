@@ -97,6 +97,11 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected ValuesSourceType defaultValueSourceType() {
         return CoreValuesSourceType.GEOPOINT;
     }

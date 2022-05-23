@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.ArrayList;
@@ -39,6 +40,16 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         assertEquals(counts, reduced.getCount());
         assertEquals(sum, reduced.getSum(), 0.0000001);
         assertEquals(sum / counts, reduced.value(), 0.0000001);
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalAvg sampled, InternalAvg reduced, SamplingContext samplingContext) {
+        assertEquals(sampled.value(), reduced.value(), 1e-12);
     }
 
     public void testSummationAccuracy() {

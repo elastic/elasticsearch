@@ -10,7 +10,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Assert;

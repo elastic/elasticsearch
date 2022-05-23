@@ -91,7 +91,7 @@ Repository type.
 
 Other repository types are available through official plugins:
 
-`hfds`:: {plugins}/repository-hdfs.html[Hadoop Distributed File System (HDFS) repository]
+`hdfs`:: {plugins}/repository-hdfs.html[Hadoop Distributed File System (HDFS) repository]
 ====
 
 [[put-snapshot-repo-api-settings-param]]

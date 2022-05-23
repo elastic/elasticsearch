@@ -22,7 +22,6 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -306,7 +305,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(2));
-        List<String> backingIndexNames = ds.getIndices().stream().map(Index::getName).collect(Collectors.toList());
+        List<String> backingIndexNames = ds.getIndices().stream().map(Index::getName).toList();
         assertThat(backingIndexNames, containsInAnyOrder("foo1", "foo2"));
         assertThat(ds.getWriteIndex().getName(), equalTo("foo1"));
         for (Index index : ds.getIndices()) {
@@ -367,7 +366,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(2));
-        List<String> backingIndexNames = ds.getIndices().stream().map(Index::getName).collect(Collectors.toList());
+        List<String> backingIndexNames = ds.getIndices().stream().map(Index::getName).toList();
         assertThat(backingIndexNames, containsInAnyOrder("foo1", "foo2"));
         assertThat(ds.getWriteIndex().getName(), equalTo("foo1"));
         for (Index index : ds.getIndices()) {

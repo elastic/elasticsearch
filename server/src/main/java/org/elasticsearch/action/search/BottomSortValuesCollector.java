@@ -35,7 +35,7 @@ class BottomSortValuesCollector {
         this.reverseMuls = new int[sortFields.length];
         this.sortFields = sortFields;
         for (int i = 0; i < sortFields.length; i++) {
-            comparators[i] = sortFields[i].getComparator(1, i);
+            comparators[i] = sortFields[i].getComparator(1, false);
             reverseMuls[i] = sortFields[i].getReverse() ? -1 : 1;
         }
     }

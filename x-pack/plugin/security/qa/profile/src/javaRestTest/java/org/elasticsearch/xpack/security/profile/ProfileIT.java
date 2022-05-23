@@ -14,16 +14,21 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ProfileIT extends ESRestTestCase {
 
@@ -33,7 +38,7 @@ public class ProfileIT extends ESRestTestCase {
             "uid": "%s",
             "enabled": true,
             "user": {
-              "username": "foo",
+              "username": "Foo",
               "roles": [
                 "role1",
                 "role2"
@@ -51,12 +56,10 @@ public class ProfileIT extends ESRestTestCase {
                 "node_name": "node1"
               },
               "email": "foo@example.com",
-              "full_name": "User Foo",
-              "display_name": "Curious Foo",
-              "active": true
+              "full_name": "User Foo"
             },
             "last_synchronized": %s,
-            "access": {
+            "labels": {
             },
             "application_data": {
               "app1": { "name": "app1" },
@@ -84,6 +87,34 @@ public class ProfileIT extends ESRestTestCase {
         assertThat(profile1, equalTo(activateProfileMap));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testProfileHasPrivileges() throws IOException {
+        final Map<String, Object> activateProfileMap = doActivateProfile();
+        final String profileUid = (String) activateProfileMap.get("uid");
+        final Request profileHasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
+        profileHasPrivilegesRequest.setJsonEntity("""
+            {
+              "uids": ["some_missing_profile", "%s"],
+              "privileges": {
+                "index": [
+                  {
+                    "names": [ "rac_index_1" ],
+                    "privileges": [ "read" ]
+                  }
+                ],
+                "cluster": [
+                  "cluster:monitor/health"
+                ]
+              }
+            }""".formatted(profileUid));
+
+        final Response profileHasPrivilegesResponse = adminClient().performRequest(profileHasPrivilegesRequest);
+        assertOK(profileHasPrivilegesResponse);
+        Map<String, Object> profileHasPrivilegesResponseMap = responseAsMap(profileHasPrivilegesResponse);
+        assertThat(profileHasPrivilegesResponseMap.keySet(), contains("has_privilege_uids"));
+        assertThat(((List<String>) profileHasPrivilegesResponseMap.get("has_privilege_uids")), contains(profileUid));
+    }
+
     public void testGetProfile() throws IOException {
         final String uid = randomAlphaOfLength(20);
         final String source = SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, Instant.now().toEpochMilli());
@@ -99,6 +130,8 @@ public class ProfileIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(indexRequest));
 
         final Map<String, Object> profileMap1 = doGetProfile(uid);
+        assertThat(castToMap(profileMap1.get("user")).get("realm_name"), equalTo("realm_name_1"));
+        assertThat(castToMap(profileMap1.get("user")).get("realm_domain"), equalTo("domainA"));
         assertThat(castToMap(profileMap1.get("data")), anEmptyMap());
 
         // Retrieve application data along the profile
@@ -118,10 +151,10 @@ public class ProfileIT extends ESRestTestCase {
     public void testUpdateProfileData() throws IOException {
         final Map<String, Object> activateProfileMap = doActivateProfile();
         final String uid = (String) activateProfileMap.get("uid");
-        final Request updateProfileRequest1 = new Request("POST", "_security/profile/_data/" + uid);
+        final Request updateProfileRequest1 = new Request(randomFrom("PUT", "POST"), "_security/profile/" + uid + "/_data");
         updateProfileRequest1.setJsonEntity("""
             {
-              "access": {
+              "labels": {
                 "app1": { "tags": [ "prod", "east" ] }
               },
               "data": {
@@ -131,8 +164,132 @@ public class ProfileIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(updateProfileRequest1));
 
         final Map<String, Object> profileMap1 = doGetProfile(uid, "app1");
-        assertThat(castToMap(profileMap1.get("access")), equalTo(Map.of("app1", Map.of("tags", List.of("prod", "east")))));
+        assertThat(castToMap(profileMap1.get("labels")), equalTo(Map.of("app1", Map.of("tags", List.of("prod", "east")))));
         assertThat(castToMap(profileMap1.get("data")), equalTo(Map.of("app1", Map.of("theme", "default"))));
+    }
+
+    public void testSuggestProfile() throws IOException {
+        final Map<String, Object> activateProfileMap = doActivateProfile();
+        final String uid = (String) activateProfileMap.get("uid");
+        final Request suggestProfilesRequest1 = new Request(randomFrom("GET", "POST"), "_security/profile/_suggest");
+        suggestProfilesRequest1.setJsonEntity("""
+            {
+              "name": "rac",
+              "size": 10
+            }""");
+        final Response suggestProfilesResponse1 = adminClient().performRequest(suggestProfilesRequest1);
+        assertOK(suggestProfilesResponse1);
+        final Map<String, Object> suggestProfileResponseMap1 = responseAsMap(suggestProfilesResponse1);
+        assertThat(suggestProfileResponseMap1, hasKey("took"));
+        assertThat(suggestProfileResponseMap1.get("total"), equalTo(Map.of("value", 1, "relation", "eq")));
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> users = (List<Map<String, Object>>) suggestProfileResponseMap1.get("profiles");
+        assertThat(users, hasSize(1));
+        assertThat(users.get(0).get("uid"), equalTo(uid));
+    }
+
+    // Purpose of this test is to ensure the hint field works in the REST layer, e.g. parsing correctly etc.
+    // It does not attempt to test whether the query works correctly once it reaches the transport and service layer
+    // (other than the behaviour that hint does not decide whether a record should be returned).
+    // More comprehensive tests for hint behaviours are performed in internal cluster test.
+    public void testSuggestProfileWithHint() throws IOException {
+        final Map<String, Object> activateProfileMap = doActivateProfile();
+        final String uid = (String) activateProfileMap.get("uid");
+        final Request suggestProfilesRequest1 = new Request(randomFrom("GET", "POST"), "_security/profile/_suggest");
+        final String payload;
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> {
+                payload = """
+                    {
+                      "name": "rac",
+                      "hint": {
+                        "uids": ["%s"]
+                      }
+                    }
+                    """.formatted("not-" + uid);
+            }
+            case 1 -> {
+                payload = """
+                    {
+                      "name": "rac",
+                      "hint": {
+                        "labels": {
+                          "kibana.spaces": %s
+                        }
+                      }
+                    }
+                    """.formatted(randomBoolean() ? "\"demo\"" : "[\"demo\"]");
+            }
+            default -> {
+                payload = """
+                    {
+                      "name": "rac",
+                      "hint": {
+                        "uids": ["%s"],
+                        "labels": {
+                          "kibana.spaces": %s
+                        }
+                      }
+                    }""".formatted("not-" + uid, randomBoolean() ? "\"demo\"" : "[\"demo\"]");
+            }
+        }
+        suggestProfilesRequest1.setJsonEntity(payload);
+        final Response suggestProfilesResponse1 = adminClient().performRequest(suggestProfilesRequest1);
+        final Map<String, Object> suggestProfileResponseMap1 = responseAsMap(suggestProfilesResponse1);
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> users = (List<Map<String, Object>>) suggestProfileResponseMap1.get("profiles");
+        assertThat(users, hasSize(1));
+        assertThat(users.get(0).get("uid"), equalTo(uid));
+    }
+
+    public void testSetEnabled() throws IOException {
+        final Map<String, Object> profileMap = doActivateProfile();
+        final String uid = (String) profileMap.get("uid");
+        doSetEnabled(uid, randomBoolean());
+
+        // 404 for non-existing uid
+        final ResponseException e1 = expectThrows(ResponseException.class, () -> doSetEnabled("not-" + uid, randomBoolean()));
+        assertThat(e1.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+    }
+
+    public void testSettingsOutputIncludeDomain() throws IOException {
+        final Request getSettingsRequest = new Request("GET", "_cluster/settings");
+        getSettingsRequest.addParameter("include_defaults", "true");
+        getSettingsRequest.addParameter("filter_path", "**.security.authc.domains");
+        final Response getSettingsResponse = adminClient().performRequest(getSettingsRequest);
+        assertOK(getSettingsResponse);
+        final XContentTestUtils.JsonMapView settingsView = XContentTestUtils.createJsonMapView(
+            getSettingsResponse.getEntity().getContent()
+        );
+
+        final Map<String, Object> domainSettings1 = castToMap(settingsView.get("defaults.xpack.security.authc.domains.my_domain"));
+        @SuppressWarnings("unchecked")
+        final List<String> myDomainRealms = (List<String>) domainSettings1.get("realms");
+        assertThat(myDomainRealms, containsInAnyOrder("default_file", "ldap1"));
+
+        final Map<String, Object> domainSettings2 = castToMap(settingsView.get("defaults.xpack.security.authc.domains.other_domain"));
+        @SuppressWarnings("unchecked")
+        final List<String> otherDomainRealms = (List<String>) domainSettings2.get("realms");
+        assertThat(otherDomainRealms, containsInAnyOrder("saml1", "ad1"));
+    }
+
+    public void testXpackUsageOutput() throws IOException {
+        final Request xpackUsageRequest = new Request("GET", "_xpack/usage");
+        xpackUsageRequest.addParameter("filter_path", "security");
+        final Response xpackUsageResponse = adminClient().performRequest(xpackUsageRequest);
+        assertOK(xpackUsageResponse);
+        final XContentTestUtils.JsonMapView xpackUsageView = XContentTestUtils.createJsonMapView(
+            xpackUsageResponse.getEntity().getContent()
+        );
+        final Map<String, Object> domainsUsage = castToMap(xpackUsageView.get("security.domains"));
+        assertThat(domainsUsage.keySet(), equalTo(Set.of("my_domain", "other_domain")));
+
+        @SuppressWarnings("unchecked")
+        final List<String> myDomainRealms = (List<String>) castToMap(domainsUsage.get("my_domain")).get("realms");
+        assertThat(myDomainRealms, containsInAnyOrder("default_file", "ldap1"));
+        @SuppressWarnings("unchecked")
+        final List<String> otherDomainRealms = (List<String>) castToMap(domainsUsage.get("other_domain")).get("realms");
+        assertThat(otherDomainRealms, containsInAnyOrder("saml1", "ad1"));
     }
 
     private Map<String, Object> doActivateProfile() throws IOException {
@@ -163,6 +320,14 @@ public class ProfileIT extends ESRestTestCase {
         final Map<String, Object> getProfileMap1 = responseAsMap(getProfileResponse1);
         assertThat(getProfileMap1.keySet(), contains(uid));
         return castToMap(getProfileMap1.get(uid));
+    }
+
+    private void doSetEnabled(String uid, boolean enabled) throws IOException {
+        final Request setEnabledRequest = new Request(
+            randomFrom("PUT", "POST"),
+            "_security/profile/" + uid + "/_" + (enabled ? "enable" : "disable")
+        );
+        adminClient().performRequest(setEnabledRequest);
     }
 
     @SuppressWarnings("unchecked")

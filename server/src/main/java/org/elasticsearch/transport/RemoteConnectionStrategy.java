@@ -392,7 +392,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         return result;
     }
 
-    private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
+    private static boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
         return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
             || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false
             || Objects.equals(oldProfile.getCompressionScheme(), newProfile.getCompressionScheme()) == false;

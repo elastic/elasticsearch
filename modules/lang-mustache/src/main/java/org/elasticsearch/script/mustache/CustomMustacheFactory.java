@@ -8,7 +8,6 @@
 
 package org.elasticsearch.script.mustache;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import com.github.mustachejava.Code;
 import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.DefaultMustacheVisitor;
@@ -23,6 +22,7 @@ import com.github.mustachejava.codes.WriteCode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
 import java.io.StringWriter;

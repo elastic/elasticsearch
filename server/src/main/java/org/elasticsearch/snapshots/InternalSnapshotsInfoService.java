@@ -292,11 +292,11 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
             assert failedSnapshotShards.contains(shard) == false : "cannot be known and failed at same time: " + shard;
         }
         for (SnapshotShard shard : unknownSnapshotShards) {
-            assert knownSnapshotShards.keys().contains(shard) == false : "cannot be unknown and known at same time: " + shard;
+            assert knownSnapshotShards.keySet().contains(shard) == false : "cannot be unknown and known at same time: " + shard;
             assert failedSnapshotShards.contains(shard) == false : "cannot be unknown and failed at same time: " + shard;
         }
         for (SnapshotShard shard : failedSnapshotShards) {
-            assert knownSnapshotShards.keys().contains(shard) == false : "cannot be failed and known at same time: " + shard;
+            assert knownSnapshotShards.keySet().contains(shard) == false : "cannot be failed and known at same time: " + shard;
             assert unknownSnapshotShards.contains(shard) == false : "cannot be failed and unknown at same time: " + shard;
         }
         return true;

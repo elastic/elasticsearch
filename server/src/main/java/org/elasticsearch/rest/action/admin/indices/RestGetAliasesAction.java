@@ -143,13 +143,13 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 builder.field("status", status.getStatus());
             }
 
-            for (final var entry : responseAliasMap) {
-                if (aliasesExplicitlyRequested == false || indicesToDisplay.contains(entry.key)) {
-                    builder.startObject(entry.key);
+            for (final var entry : responseAliasMap.entrySet()) {
+                if (aliasesExplicitlyRequested == false || indicesToDisplay.contains(entry.getKey())) {
+                    builder.startObject(entry.getKey());
                     {
                         builder.startObject("aliases");
                         {
-                            for (final AliasMetadata alias : entry.value) {
+                            for (final AliasMetadata alias : entry.getValue()) {
                                 AliasMetadata.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
                             }
                         }

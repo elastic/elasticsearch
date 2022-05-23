@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -18,6 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static java.util.Collections.emptyMap;
 
@@ -67,6 +70,9 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     /** get the number of documents */
     @Override
     public long getDocCount() {
+        if (results != null) {
+            return results.getDocCount();
+        }
         if (stats == null) {
             return 0;
         }
@@ -231,6 +237,16 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
 
         RunningStats runningStats = new RunningStats();
         for (InternalAggregation agg : aggs) {
+            final Set<String> missingFields = runningStats.missingFieldNames(((InternalMatrixStats) agg).stats);
+            if (missingFields.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "Aggregation ["
+                        + agg.getName()
+                        + "] all fields must exist in all indices, but some indices are missing these fields ["
+                        + String.join(", ", new TreeSet<>(missingFields))
+                        + "]"
+                );
+            }
             runningStats.merge(((InternalMatrixStats) agg).stats);
         }
 
@@ -239,6 +255,17 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
             return new InternalMatrixStats(name, matrixStatsResults.getDocCount(), runningStats, matrixStatsResults, getMetadata());
         }
         return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalMatrixStats(
+            name,
+            samplingContext.scaleUp(getDocCount()),
+            stats,
+            new MatrixStatsResults(stats, samplingContext),
+            getMetadata()
+        );
     }
 
     @Override

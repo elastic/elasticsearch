@@ -1,0 +1,5 @@
+pr: 85310
+summary: Reallocate model deployments on node shutdown events
+area: Machine Learning
+type: bug
+issues: []

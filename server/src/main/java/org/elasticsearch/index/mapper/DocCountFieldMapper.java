@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.query.QueryShardException;
@@ -95,7 +96,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
                 "Field [" + fieldType().name() + "] must be a positive integer. Value [" + value + "] is not allowed."
             );
         }
-        context.doc().addWithKey(NAME, new CustomTermFreqField(NAME, NAME, value));
+        context.doc().addWithKey(NAME, field(value));
     }
 
     @Override
@@ -108,4 +109,10 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
+    /**
+     * The field made by this mapper to track the doc count.
+     */
+    public static IndexableField field(int count) {
+        return new CustomTermFreqField(NAME, NAME, count);
+    }
 }

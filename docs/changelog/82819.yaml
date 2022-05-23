@@ -1,6 +1,0 @@
-pr: 82819
-summary: "Adjust `indices.recovery.max_bytes_per_sec` according to external\
-  \ settings"
-area: Recovery
-type: enhancement
-issues: []

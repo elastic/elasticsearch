@@ -40,7 +40,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
     public static final String TYPE = "set_security_user";
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(SetSecurityUserProcessor.class);
 
     private final SecurityContext securityContext;
     private final Settings settings;
@@ -140,7 +140,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     }
                     break;
                 case API_KEY:
-                    if (authentication.isAuthenticatedWithApiKey()) {
+                    if (authentication.isApiKey()) {
                         final String apiKey = "api_key";
                         final Object existingApiKeyField = userObject.get(apiKey);
                         @SuppressWarnings("unchecked")

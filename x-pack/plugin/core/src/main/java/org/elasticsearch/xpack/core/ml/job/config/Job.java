@@ -573,7 +573,7 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
         out.writeOptionalLong(modelSnapshotRetentionDays);
         out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
         out.writeOptionalLong(resultsRetentionDays);
-        out.writeMap(customSettings);
+        out.writeGenericMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
         if (modelSnapshotMinVersion != null) {
             out.writeBoolean(true);
@@ -1070,7 +1070,7 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
             out.writeOptionalLong(modelSnapshotRetentionDays);
             out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
             out.writeOptionalLong(resultsRetentionDays);
-            out.writeMap(customSettings);
+            out.writeGenericMap(customSettings);
             out.writeOptionalString(modelSnapshotId);
             if (modelSnapshotMinVersion != null) {
                 out.writeBoolean(true);

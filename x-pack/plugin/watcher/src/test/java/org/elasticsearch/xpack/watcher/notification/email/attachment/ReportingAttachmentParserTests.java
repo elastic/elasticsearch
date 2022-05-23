@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
-import com.fasterxml.jackson.core.io.JsonEOFException;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -235,8 +233,8 @@ public class ReportingAttachmentParserTests extends ESTestCase {
             // closing json bracket is missing
             .thenReturn(new HttpResponse(200, "{\"path\":\"anything\""));
         ReportingAttachment attachment = new ReportingAttachment("foo", dashboardUrl, randomBoolean(), null, null, null, null);
-        JsonEOFException e = expectThrows(
-            JsonEOFException.class,
+        XContentParseException e = expectThrows(
+            XContentParseException.class,
             () -> reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, attachment)
         );
         assertThat(e.getMessage(), containsString("Unexpected end-of-input"));

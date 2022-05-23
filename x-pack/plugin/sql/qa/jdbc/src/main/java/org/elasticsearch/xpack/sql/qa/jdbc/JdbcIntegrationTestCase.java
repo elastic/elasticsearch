@@ -31,7 +31,7 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
 
     @After
     public void checkSearchContent() throws IOException {
-        // Some context might linger due to fire and forget nature of scroll cleanup
+        // Some context might linger due to fire and forget nature of PIT cleanup
         assertNoSearchContexts();
     }
 

@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -317,8 +316,41 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         List<String> eagerFieldNames = StreamSupport.stream(mapperService.getEagerGlobalOrdinalsFields().spliterator(), false)
             .map(MappedFieldType::name)
-            .collect(Collectors.toList());
+            .toList();
         assertThat(eagerFieldNames, containsInAnyOrder("eager1", "eager2"));
+    }
+
+    public void testMultiFieldChecks() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                 "field1" : {
+                   "type" : "keyword",
+                   "fields" : {
+                     "subfield1" : {
+                       "type" : "long"
+                     },
+                     "subfield2" : {
+                       "type" : "text"
+                     }
+                   }
+                 },
+                 "object.field2" : { "type" : "keyword" }
+              },
+              "runtime" : {
+                  "object.subfield1" : { "type" : "keyword" },
+                  "field1.subfield2" : { "type" : "keyword" }
+              }
+            } }
+            """);
+
+        assertFalse(mapperService.isMultiField("non_existent_field"));
+        assertFalse(mapperService.isMultiField("field1"));
+        assertTrue(mapperService.isMultiField("field1.subfield1"));
+        // not a multifield, because it's shadowed by a runtime field
+        assertFalse(mapperService.isMultiField("field1.subfield2"));
+        assertFalse(mapperService.isMultiField("object.field2"));
+        assertFalse(mapperService.isMultiField("object.subfield1"));
     }
 
 }

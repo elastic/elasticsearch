@@ -1,17 +1,19 @@
 [[setup-upgrade]]
 = Upgrade {es}
 
-{es} clusters can usually be upgraded one node at a time so
-upgrading does not interrupt service. To upgrade to 8.0 or later, 
-**you must first upgrade to {prev-major-last}**, even if you opt to
-do a full-cluster restart instead of a rolling upgrade. 
+{es} clusters can usually be upgraded one node at a time so upgrading does not
+interrupt service. For upgrade instructions, refer to
+{stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
 
-This enables you to use the **Upgrade Assistant** to identify and resolve issues,
-reindex indices created before 7.0, and then perform a rolling upgrade.
-
-You must resolve all critical issues before proceeding with the upgrade.
-
-For upgrade instructions, see {stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
+.Upgrade from 7.x
+IMPORTANT: To upgrade to {version} from 7.16 or an earlier version, **you must
+first upgrade to {prev-major-last}**, even if you opt to do a full-cluster
+restart instead of a rolling upgrade. This enables you to use the **Upgrade
+Assistant** to identify and resolve issues, reindex indices created before 7.0,
+and then perform a rolling upgrade. You must resolve all critical issues before
+proceeding with the upgrade. For instructions, refer to
+{stack-ref}/upgrading-elastic-stack.html#prepare-to-upgrade[Prepare to upgrade
+from 7.x].
 
 [discrete]
 [[upgrade-index-compatibility]]
@@ -29,9 +31,9 @@ that need to be reindexed or removed.
 [[upgrade-rest-api-compatibility]]
 === REST API compatibility
 
-REST API compatibility in a per-request opt-in feature that can help REST clients
-mitigate non compatible (breaking) changes to the REST API.
-See <<rest-api-compatibility>> for additional information.
+<<rest-api-compatibility,REST API compatibility>> is a per-request opt-in
+feature that can help REST clients mitigate non-compatible (breaking) changes to
+the REST API.
 
 [discrete]
 [[upgrade-fips-java17]]

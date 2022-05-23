@@ -8,13 +8,13 @@
 
 package org.elasticsearch.index.mapper.extras;
 
-import org.apache.lucene.analysis.CannedTokenStream;
-import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.tests.analysis.CannedTokenStream;
+import org.apache.lucene.tests.analysis.Token;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -28,6 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matchers;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -161,5 +162,15 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         assumeFalse("We don't have a way to assert things here", true);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

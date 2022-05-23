@@ -19,7 +19,7 @@ import java.util.List;
 
 public class ListCursorTests extends AbstractSqlWireSerializingTestCase<ListCursor> {
     public static ListCursor randomPagingListCursor() {
-        int size = between(1, 20);
+        int size = between(1, 100);
         int depth = between(1, 20);
 
         List<List<?>> values = new ArrayList<>(size);

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.rollup.v2;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -196,7 +196,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
         );
         bulkIndex(sourceSupplier);
-        client().execute(RollupAction.INSTANCE, new RollupAction.Request(index, rollupIndex, config), ActionListener.wrap(() -> {}));
+        client().execute(RollupAction.INSTANCE, new RollupAction.Request(index, rollupIndex, config), ActionListener.noop());
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
             () -> rollup(index, rollupIndex, config)

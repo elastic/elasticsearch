@@ -27,6 +27,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -48,7 +49,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 /**
@@ -134,7 +134,7 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
                 // Set the auth headers (preferring the secondary headers) to the caller's.
                 // Regardless if the config was previously stored or not.
                 DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder(request.getConfig()).setHeaders(
-                    filterSecurityHeaders(threadPool.getThreadContext().getHeaders())
+                    ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), clusterService.state())
                 ).build();
                 extractedFieldsDetectorFactory.createFromSource(
                     config,

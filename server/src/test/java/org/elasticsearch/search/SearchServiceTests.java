@@ -7,12 +7,9 @@
  */
 package org.elasticsearch.search;
 
-import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
@@ -42,7 +39,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -360,7 +356,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                             result
                         );
                         SearchPhaseResult searchPhaseResult = result.get();
-                        IntArrayList intCursors = new IntArrayList(1);
+                        List<Integer> intCursors = new ArrayList<>(1);
                         intCursors.add(0);
                         ShardFetchRequest req = new ShardFetchRequest(searchPhaseResult.getContextId(), intCursors, null/* not a scroll */);
                         PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
@@ -1138,10 +1134,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         mapping.endObject().endObject();
 
         createIndex("test", Settings.EMPTY, mapping);
-        withAggregationContext(
-            "test",
-            context -> assertThat(context.query(), equalTo(new ConstantScoreQuery(Queries.newNonNestedFilter())))
-        );
+        withAggregationContext("test", context -> assertThat(context.query(), equalTo(new MatchAllDocsQuery())));
     }
 
     /**

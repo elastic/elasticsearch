@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.net.ssl.KeyManager;
@@ -281,10 +280,7 @@ public final class KeyStoreUtil {
                 if (certificates == null || certificates.length == 0) {
                     return List.of();
                 }
-                return Stream.of(certificates)
-                    .filter(c -> c instanceof X509Certificate)
-                    .map(X509Certificate.class::cast)
-                    .collect(Collectors.toUnmodifiableList());
+                return Stream.of(certificates).filter(c -> c instanceof X509Certificate).map(X509Certificate.class::cast).toList();
             } catch (KeyStoreException e) {
                 throw exceptionHandler.apply(e);
             }

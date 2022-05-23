@@ -25,20 +25,20 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.unmodifiableList;
-
 public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
+
+    public static final AddIndexBlockResponse EMPTY = new AddIndexBlockResponse(true, false, List.of());
 
     private final List<AddBlockResult> indices;
 
     AddIndexBlockResponse(StreamInput in) throws IOException {
         super(in, true);
-        indices = unmodifiableList(in.readList(AddBlockResult::new));
+        indices = List.copyOf(in.readList(AddBlockResult::new));
     }
 
     public AddIndexBlockResponse(final boolean acknowledged, final boolean shardsAcknowledged, final List<AddBlockResult> indices) {
         super(acknowledged, shardsAcknowledged);
-        this.indices = unmodifiableList(Objects.requireNonNull(indices));
+        this.indices = List.copyOf(indices);
     }
 
     public List<AddBlockResult> getIndices() {

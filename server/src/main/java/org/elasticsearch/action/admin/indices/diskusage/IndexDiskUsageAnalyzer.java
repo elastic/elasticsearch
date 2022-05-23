@@ -48,7 +48,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 
@@ -275,7 +275,7 @@ final class IndexDiskUsageAnalyzer {
         }
     }
 
-    private void readProximity(Terms terms, PostingsEnum postings) throws IOException {
+    private static void readProximity(Terms terms, PostingsEnum postings) throws IOException {
         if (terms.hasPositions()) {
             for (int pos = 0; pos < postings.freq(); pos++) {
                 postings.nextPosition();
@@ -286,7 +286,7 @@ final class IndexDiskUsageAnalyzer {
         }
     }
 
-    private BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
+    private static BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
         if (term != null && termsEnum.seekExact(term)) {
             final TermState termState = termsEnum.termState();
             if (termState instanceof final Lucene90PostingsFormat.IntBlockTermState blockTermState) {
@@ -386,8 +386,12 @@ final class IndexDiskUsageAnalyzer {
             directory.resetBytesRead();
             if (field.getPointDimensionCount() > 0) {
                 final PointValues values = pointsReader.getValues(field.name);
-                values.intersect(new PointsVisitor(values.getMinPackedValue(), values.getNumDimensions(), values.getBytesPerDimension()));
-                values.intersect(new PointsVisitor(values.getMaxPackedValue(), values.getNumDimensions(), values.getBytesPerDimension()));
+                values.intersect(
+                    new PointsVisitor(values.getMinPackedValue(), values.getNumIndexDimensions(), values.getBytesPerDimension())
+                );
+                values.intersect(
+                    new PointsVisitor(values.getMaxPackedValue(), values.getNumIndexDimensions(), values.getBytesPerDimension())
+                );
                 stats.addPoints(field.name, directory.getBytesRead());
             }
         }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.profile.query;
 
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;

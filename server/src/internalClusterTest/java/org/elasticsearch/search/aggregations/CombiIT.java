@@ -8,9 +8,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import com.carrotsearch.hppc.IntIntHashMap;
-import com.carrotsearch.hppc.IntIntMap;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -20,7 +17,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.missing;
@@ -44,7 +43,7 @@ public class CombiIT extends ESIntegTestCase {
 
         createIndex("idx");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[randomInt(30)];
-        IntIntMap values = new IntIntHashMap();
+        Map<Integer, Integer> values = new HashMap<>();
         long missingValues = 0;
         for (int i = 0; i < builders.length; i++) {
             String name = "name_" + randomIntBetween(1, 10);

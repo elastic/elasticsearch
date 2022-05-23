@@ -8,15 +8,11 @@
 
 package org.elasticsearch.search.dfs;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -25,6 +21,8 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class DfsSearchResult extends SearchPhaseResult {
 
@@ -32,7 +30,7 @@ public class DfsSearchResult extends SearchPhaseResult {
     private static final TermStatistics[] EMPTY_TERM_STATS = new TermStatistics[0];
     private Term[] terms;
     private TermStatistics[] termStatistics;
-    private ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
+    private Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
     private int maxDoc;
 
     public DfsSearchResult(StreamInput in) throws IOException {
@@ -77,7 +75,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         return this;
     }
 
-    public DfsSearchResult fieldStatistics(ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) {
+    public DfsSearchResult fieldStatistics(Map<String, CollectionStatistics> fieldStatistics) {
         this.fieldStatistics = fieldStatistics;
         return this;
     }
@@ -90,7 +88,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         return termStatistics;
     }
 
-    public ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics() {
+    public Map<String, CollectionStatistics> fieldStatistics() {
         return fieldStatistics;
     }
 
@@ -110,13 +108,12 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics)
-        throws IOException {
+    public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {
         out.writeVInt(fieldStatistics.size());
 
-        for (ObjectObjectCursor<String, CollectionStatistics> c : fieldStatistics) {
-            out.writeString(c.key);
-            CollectionStatistics statistics = c.value;
+        for (var entry : fieldStatistics.entrySet()) {
+            out.writeString(entry.getKey());
+            CollectionStatistics statistics = entry.getValue();
             assert statistics.maxDoc() >= 0;
             out.writeVLong(statistics.maxDoc());
             // stats are always positive numbers
@@ -144,9 +141,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
+    static Map<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
         final int numFieldStatistics = in.readVInt();
-        ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);
+        Map<String, CollectionStatistics> fieldStatistics = new HashMap<>(numFieldStatistics);
         for (int i = 0; i < numFieldStatistics; i++) {
             final String field = in.readString();
             assert field != null;

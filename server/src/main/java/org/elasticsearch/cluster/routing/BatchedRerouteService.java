@@ -15,12 +15,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -97,7 +98,7 @@ public class BatchedRerouteService implements RerouteService {
         }
         try {
             final String source = CLUSTER_UPDATE_TASK_SOURCE + "(" + reason + ")";
-            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(priority) {
+            submitUnbatchedTask(source, new ClusterStateUpdateTask(priority) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -120,17 +121,6 @@ public class BatchedRerouteService implements RerouteService {
                 }
 
                 @Override
-                public void onNoLongerMaster() {
-                    synchronized (mutex) {
-                        if (pendingRerouteListeners == currentListeners) {
-                            pendingRerouteListeners = null;
-                        }
-                    }
-                    ActionListener.onFailure(currentListeners, new NotMasterException("delayed reroute [" + reason + "] cancelled"));
-                    // no big deal, the new master will reroute again
-                }
-
-                @Override
                 public void onFailure(Exception e) {
                     synchronized (mutex) {
                         if (pendingRerouteListeners == currentListeners) {
@@ -138,7 +128,13 @@ public class BatchedRerouteService implements RerouteService {
                         }
                     }
                     final ClusterState state = clusterService.state();
-                    if (logger.isTraceEnabled()) {
+                    if (MasterService.isPublishFailureException(e)) {
+                        logger.debug(
+                            () -> new ParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state),
+                            e
+                        );
+                        // no big deal, the new master will reroute again
+                    } else if (logger.isTraceEnabled()) {
                         logger.error(
                             () -> new ParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state),
                             e
@@ -160,7 +156,7 @@ public class BatchedRerouteService implements RerouteService {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     ActionListener.onResponse(currentListeners, newState);
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            });
         } catch (Exception e) {
             synchronized (mutex) {
                 assert currentListeners.isEmpty() == (pendingRerouteListeners != currentListeners);
@@ -169,11 +165,16 @@ public class BatchedRerouteService implements RerouteService {
                 }
             }
             ClusterState state = clusterService.state();
-            logger.warn(() -> new ParameterizedMessage("failed to reroute routing table, current state:\n{}", state), e);
+            logger.warn(() -> "failed to reroute routing table, current state:\n" + state, e);
             ActionListener.onFailure(
                 currentListeners,
                 new ElasticsearchException("delayed reroute [" + reason + "] could not be submitted", e)
             );
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

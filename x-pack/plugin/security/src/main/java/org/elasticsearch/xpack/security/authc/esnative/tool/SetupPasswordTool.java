@@ -12,16 +12,18 @@ import joptsimple.OptionSpec;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.MultiCommand;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.KeyStoreAwareCommand;
-import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
@@ -50,7 +52,6 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -72,7 +73,7 @@ import static java.util.Arrays.asList;
  * elastic user and the ChangePassword API for setting the password of the rest of the built-in users when needed.
  */
 @Deprecated
-public class SetupPasswordTool extends LoggingAwareMultiCommand {
+class SetupPasswordTool extends MultiCommand {
 
     private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789").toCharArray();
     public static final List<String> USERS = asList(
@@ -124,10 +125,6 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         return new InteractiveSetup();
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new SetupPasswordTool().main(args, Terminal.DEFAULT));
-    }
-
     // Visible for testing
     OptionParser getParser() {
         return this.parser;
@@ -144,7 +141,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
             setupOptions(terminal, options, env);
             checkElasticKeystorePasswordValid(terminal, env);
@@ -200,7 +197,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
             setupOptions(terminal, options, env);
             checkElasticKeystorePasswordValid(terminal, env);
@@ -535,7 +532,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             terminal.println(Verbosity.VERBOSE, "");
             terminal.println(Verbosity.VERBOSE, "Trying user password change call " + route.toString());
             try {
-                // supplier should own his resources
+                // supplier should own its resources
                 SecureString supplierPassword = password.clone();
                 final HttpResponse httpResponse = client.execute("PUT", route, elasticUser, elasticUserPassword, () -> {
                     try {
@@ -586,7 +583,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             CheckedBiConsumer<String, SecureString, Exception> successCallback,
             Terminal terminal
         ) throws Exception {
-            Map<String, SecureString> passwordsMap = new LinkedHashMap<>(USERS.size());
+            Map<String, SecureString> passwordsMap = Maps.newLinkedHashMapWithExpectedSize(USERS.size());
             try {
                 for (String user : USERS) {
                     if (USERS_WITH_SHARED_PASSWORDS.containsValue(user)) {

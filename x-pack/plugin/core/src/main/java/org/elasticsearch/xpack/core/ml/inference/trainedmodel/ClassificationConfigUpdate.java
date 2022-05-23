@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -121,6 +122,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate, NamedX
         return topClassesResultsField;
     }
 
+    @Override
     public String getResultsField() {
         return resultsField;
     }
@@ -244,6 +246,11 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate, NamedX
             && (topClassesResultsField == null || topClassesResultsField.equals(originalConfig.getTopClassesResultsField()))
             && (numTopClasses == null || originalConfig.getNumTopClasses() == numTopClasses)
             && (predictionFieldType == null || predictionFieldType.equals(originalConfig.getPredictionFieldType()));
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_8_0;
     }
 
     public static class Builder implements InferenceConfigUpdate.Builder<Builder, ClassificationConfigUpdate> {

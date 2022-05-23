@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * An event received by the local node, signaling that the cluster state has changed.
@@ -291,7 +290,7 @@ public class ClusterChangedEvent {
         // an issue because there are safeguards in place in the delete store operation in case the index
         // folder doesn't exist on the file system.
         List<IndexGraveyard.Tombstone> tombstones = state.metadata().indexGraveyard().getTombstones();
-        return tombstones.stream().map(IndexGraveyard.Tombstone::getIndex).collect(Collectors.toList());
+        return tombstones.stream().map(IndexGraveyard.Tombstone::getIndex).toList();
     }
 
 }

@@ -33,7 +33,7 @@ import java.util.Set;
  */
 public class SamlIdentityProvider {
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(SamlIdentityProvider.class);
 
     private final String entityId;
     private final Map<String, URL> ssoEndpoints;

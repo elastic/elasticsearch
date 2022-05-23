@@ -15,7 +15,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
@@ -36,8 +35,9 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
@@ -69,6 +69,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
+import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -124,7 +125,10 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.V_7_9_0);
         wildcardFieldType79 = builder79.build(MapperBuilderContext.ROOT);
 
-        org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(KEYWORD_FIELD_NAME);
+        org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(
+            KEYWORD_FIELD_NAME,
+            Version.CURRENT
+        );
         keywordFieldType = kwBuilder.build(MapperBuilderContext.ROOT);
 
         rewriteDir = newDirectory();
@@ -599,7 +603,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         String suboptimalTests[][] = {
             // TODO short wildcards like a* OR b* aren't great so we just drop them.
             // Ideally we would attach to successors to create (acd OR bcd)
-            { "[ab]cd", "+(+cc_ +c__) +*:*" } };
+            { "[ab]cd", "+cc_ +c__" } };
         for (String[] test : suboptimalTests) {
             String regex = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", "" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
@@ -1200,5 +1204,15 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean dedupAfterFetch() {
         return true;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.analytics.normalize;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -16,6 +17,12 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.Mean;
+import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.Percent;
+import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.RescaleZeroToOne;
+import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.RescaleZeroToOneHundred;
+import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.Softmax;
+import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.ZScore;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,12 +34,6 @@ import java.util.function.Function;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.Mean;
-import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.Percent;
-import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.RescaleZeroToOne;
-import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.RescaleZeroToOneHundred;
-import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.Softmax;
-import static org.elasticsearch.xpack.analytics.normalize.NormalizePipelineMethods.ZScore;
 
 public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<NormalizePipelineAggregationBuilder> {
     public static final String NAME = "normalize";
@@ -151,5 +152,10 @@ public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggrega
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_9_0;
     }
 }

@@ -1,6 +1,0 @@
-pr: 82896
-summary: Batch Index Settings Update Requests
-area: Cluster Coordination
-type: enhancement
-issues:
- - 79866

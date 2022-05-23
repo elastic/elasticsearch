@@ -49,8 +49,14 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     private final ImmutableOpenMap<String, DiscoveryNode> masterNodes;
     private final ImmutableOpenMap<String, DiscoveryNode> ingestNodes;
 
+    @Nullable
     private final String masterNodeId;
+    @Nullable
+    private final DiscoveryNode masterNode;
+    @Nullable
     private final String localNodeId;
+    @Nullable
+    private final DiscoveryNode localNode;
     private final Version minNonClientNodeVersion;
     private final Version maxNodeVersion;
     private final Version minNodeVersion;
@@ -60,8 +66,8 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         ImmutableOpenMap<String, DiscoveryNode> dataNodes,
         ImmutableOpenMap<String, DiscoveryNode> masterNodes,
         ImmutableOpenMap<String, DiscoveryNode> ingestNodes,
-        String masterNodeId,
-        String localNodeId,
+        @Nullable String masterNodeId,
+        @Nullable String localNodeId,
         Version minNonClientNodeVersion,
         Version maxNodeVersion,
         Version minNodeVersion
@@ -71,15 +77,19 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         this.masterNodes = masterNodes;
         this.ingestNodes = ingestNodes;
         this.masterNodeId = masterNodeId;
+        this.masterNode = masterNodeId == null ? null : nodes.get(masterNodeId);
+        assert (masterNodeId == null) == (masterNode == null);
         this.localNodeId = localNodeId;
+        this.localNode = localNodeId == null ? null : nodes.get(localNodeId);
         this.minNonClientNodeVersion = minNonClientNodeVersion;
         this.minNodeVersion = minNodeVersion;
         this.maxNodeVersion = maxNodeVersion;
+        assert (localNodeId == null) == (localNode == null);
     }
 
     @Override
     public Iterator<DiscoveryNode> iterator() {
-        return nodes.valuesIt();
+        return nodes.values().iterator();
     }
 
     @Override
@@ -148,7 +158,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      */
     public ImmutableOpenMap<String, DiscoveryNode> getMasterAndDataNodes() {
         ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(dataNodes);
-        nodes.putAll(masterNodes);
+        nodes.putAllFromMap(masterNodes);
         return nodes.build();
     }
 
@@ -159,9 +169,9 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      */
     public ImmutableOpenMap<String, DiscoveryNode> getCoordinatingOnlyNodes() {
         ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(this.nodes);
-        nodes.removeAll(masterNodes.keys());
-        nodes.removeAll(dataNodes.keys());
-        nodes.removeAll(ingestNodes.keys());
+        nodes.removeAllFromCollection(masterNodes.keySet());
+        nodes.removeAllFromCollection(dataNodes.keySet());
+        nodes.removeAllFromCollection(ingestNodes.keySet());
         return nodes.build();
     }
 
@@ -169,7 +179,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      * Returns a stream of all nodes, with master nodes at the front
      */
     public Stream<DiscoveryNode> mastersFirstStream() {
-        return Stream.concat(masterNodes.stream().map(Map.Entry::getValue), stream().filter(n -> n.isMasterNode() == false));
+        return Stream.concat(masterNodes.values().stream(), stream().filter(n -> n.isMasterNode() == false));
     }
 
     /**
@@ -236,7 +246,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      * @return local node
      */
     public DiscoveryNode getLocalNode() {
-        return nodes.get(localNodeId);
+        return localNode;
     }
 
     /**
@@ -244,10 +254,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      */
     @Nullable
     public DiscoveryNode getMasterNode() {
-        if (masterNodeId != null) {
-            return nodes.get(masterNodeId);
-        }
-        return null;
+        return masterNode;
     }
 
     /**
@@ -566,12 +573,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (masterNodeId == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(masterNodeId);
-        }
+        out.writeOptionalString(masterNodeId);
         out.writeVInt(nodes.size());
         for (DiscoveryNode node : this) {
             node.writeTo(out);
@@ -626,7 +628,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         public Builder(DiscoveryNodes nodes) {
             this.masterNodeId = nodes.getMasterNodeId();
             this.localNodeId = nodes.getLocalNodeId();
-            this.nodes = new HashMap<>(nodes.getNodes().toMap());
+            this.nodes = new HashMap<>(nodes.getNodes());
         }
 
         /**
@@ -738,7 +740,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
             }
 
             return new DiscoveryNodes(
-                ImmutableOpenMap.<String, DiscoveryNode>builder(nodes.size()).putAll(nodes).build(),
+                ImmutableOpenMap.<String, DiscoveryNode>builder(nodes.size()).putAllFromMap(nodes).build(),
                 dataNodesBuilder.build(),
                 masterNodesBuilder.build(),
                 ingestNodesBuilder.build(),
@@ -746,7 +748,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
                 localNodeId,
                 minNonClientNodeVersion == null ? Version.CURRENT : minNonClientNodeVersion,
                 maxNodeVersion == null ? Version.CURRENT : maxNodeVersion,
-                minNodeVersion == null ? Version.CURRENT : minNodeVersion
+                minNodeVersion == null ? Version.CURRENT.minimumCompatibilityVersion() : minNodeVersion
             );
         }
 

@@ -7,9 +7,6 @@
  */
 package org.elasticsearch.transport;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -79,11 +76,11 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.elasticsearch.core.Strings.format;
 
 public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {
     private static final Logger logger = LogManager.getLogger(TcpTransport.class);
@@ -336,7 +333,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     // This allows transport implementations to potentially override specific connection profiles. This
     // primarily exists for the test implementations.
-    protected ConnectionProfile maybeOverrideConnectionProfile(ConnectionProfile connectionProfile) {
+    protected static ConnectionProfile maybeOverrideConnectionProfile(ConnectionProfile connectionProfile) {
         return connectionProfile;
     }
 
@@ -424,7 +421,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
         return local.stream()
             .flatMap(address -> Arrays.stream(defaultPortRange()).limit(LIMIT_LOCAL_PORTS_COUNT).mapToObj(port -> address + ":" + port))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     protected void bindServer(ProfileSettings profileSettings) {
@@ -546,12 +543,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         // if no matching boundAddress found, check if there is a unique port for all bound addresses
         if (publishPort < 0) {
-            final IntSet ports = new IntHashSet();
+            final Set<Integer> ports = new HashSet<>();
             for (InetSocketAddress boundAddress : boundAddresses) {
                 ports.add(boundAddress.getPort());
             }
             if (ports.size() == 1) {
-                publishPort = ports.iterator().next().value;
+                publishPort = ports.iterator().next();
             }
         }
 
@@ -657,7 +654,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 List<TcpServerChannel> channels = entry.getValue();
                 ActionListener<Void> closeFailLogger = ActionListener.wrap(
                     c -> {},
-                    e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e)
+                    e -> logger.warn(() -> "Error closing serverChannel for profile [" + profile + "]", e)
                 );
                 channels.forEach(c -> c.addCloseListener(closeFailLogger));
                 CloseableChannel.closeChannels(channels, true);
@@ -711,9 +708,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     );
                 }
             } else if (isConnectException(e)) {
-                logger.debug(() -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
+                logger.debug(() -> "connect exception caught on transport layer [" + channel + "]", e);
             } else if (e instanceof BindException) {
-                logger.debug(() -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
+                logger.debug(() -> "bind exception caught on transport layer [" + channel + "]", e);
             } else if (e instanceof CancelledKeyException) {
                 logger.debug(
                     () -> new ParameterizedMessage(
@@ -733,11 +730,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     closeChannel = false;
                 }
             } else if (e instanceof StreamCorruptedException) {
-                logger.warn(() -> new ParameterizedMessage("{}, [{}], closing connection", e.getMessage(), channel));
+                logger.warn(() -> format("%s, [%s], closing connection", e.getMessage(), channel));
             } else if (e instanceof TransportNotReadyException) {
-                logger.debug(() -> new ParameterizedMessage("{} on [{}], closing connection", e.getMessage(), channel));
+                logger.debug(() -> format("%s on [%s], closing connection", e.getMessage(), channel));
             } else {
-                logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
+                logger.warn(() -> "exception caught on transport layer [" + channel + "], closing connection", e);
             }
         } finally {
             if (closeChannel) {
@@ -746,11 +743,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    protected void onServerException(TcpServerChannel channel, Exception e) {
+    protected static void onServerException(TcpServerChannel channel, Exception e) {
         if (e instanceof BindException) {
-            logger.debug(() -> new ParameterizedMessage("bind exception from server channel caught on transport layer [{}]", channel), e);
+            logger.debug(() -> "bind exception from server channel caught on transport layer [" + channel + "]", e);
         } else {
-            logger.error(new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
+            logger.error(() -> "exception from server channel caught on transport layer [" + channel + "]", e);
         }
     }
 
@@ -760,7 +757,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         // Mark the channel init time
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
-        logger.trace(() -> new ParameterizedMessage("Tcp transport channel accepted: {}", channel));
+        logger.trace(() -> format("Tcp transport channel accepted: %s", channel));
     }
 
     /**

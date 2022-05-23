@@ -11,27 +11,49 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.vectors.action.KnnSearchRequestBuilder.KnnSearch;
 import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
+import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;
 import static org.hamcrest.Matchers.containsString;
 
 public class KnnSearchRequestBuilderTests extends ESTestCase {
+    private NamedXContentRegistry namedXContentRegistry;
+
+    @Before
+    public void registerNamedXContents() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
+        List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
+        namedXContentRegistry = new NamedXContentRegistry(namedXContents);
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return namedXContentRegistry;
+    }
 
     public void testBuildSearchRequest() throws IOException {
         // Choose random REST parameters
@@ -47,6 +69,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
 
         // Create random request body
         KnnSearch knnSearch = randomKnnSearch();
+        List<QueryBuilder> filterQueries = randomFilterQueries();
         SearchSourceBuilder searchSource = randomSearchSourceBuilder(
             () -> null,
             () -> null,
@@ -55,7 +78,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
             () -> null,
             () -> null
         );
-        XContentBuilder builder = createRequestBody(knnSearch, searchSource);
+        XContentBuilder builder = createRequestBody(knnSearch, filterQueries, searchSource);
 
         // Convert the REST request to a search request and check the components
         SearchRequestBuilder searchRequestBuilder = buildSearchRequest(builder, params);
@@ -64,7 +87,10 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
         assertArrayEquals(indices, searchRequest.indices());
         assertEquals(routing, searchRequest.routing());
 
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(knnSearch.field, knnSearch.queryVector, knnSearch.numCands);
+        KnnVectorQueryBuilder query = knnSearch.buildQuery();
+        if (filterQueries.isEmpty() == false) {
+            query.addFilterQueries(filterQueries);
+        }
         assertEquals(query, searchRequest.source().query());
         assertEquals(knnSearch.k, searchRequest.source().size());
 
@@ -215,7 +241,18 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
         return new KnnSearch(field, vector, k, numCands);
     }
 
-    private XContentBuilder createRequestBody(KnnSearch knnSearch, SearchSourceBuilder searchSource) throws IOException {
+    private List<QueryBuilder> randomFilterQueries() {
+        List<QueryBuilder> filters = new ArrayList<>();
+        int numFilters = randomIntBetween(0, 3);
+        for (int i = 0; i < numFilters; i++) {
+            QueryBuilder filter = QueryBuilders.termQuery(randomAlphaOfLength(5), randomAlphaOfLength(10));
+            filters.add(filter);
+        }
+        return filters;
+    }
+
+    private XContentBuilder createRequestBody(KnnSearch knnSearch, List<QueryBuilder> filters, SearchSourceBuilder searchSource)
+        throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
         builder.startObject();
@@ -226,6 +263,19 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
             .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), knnSearch.numCands)
             .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), knnSearch.queryVector)
             .endObject();
+
+        if (filters.isEmpty() == false) {
+            builder.field(KnnSearchRequestBuilder.FILTER_FIELD.getPreferredName());
+            if (filters.size() > 1) {
+                builder.startArray();
+            }
+            for (QueryBuilder filter : filters) {
+                filter.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            }
+            if (filters.size() > 1) {
+                builder.endArray();
+            }
+        }
 
         if (searchSource.fetchSource() != null) {
             builder.field(SearchSourceBuilder._SOURCE_FIELD.getPreferredName());

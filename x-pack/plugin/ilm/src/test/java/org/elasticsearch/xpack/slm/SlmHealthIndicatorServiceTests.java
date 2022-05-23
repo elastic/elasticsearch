@@ -11,13 +11,17 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -38,14 +42,17 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
                     SNAPSHOT,
                     GREEN,
                     "SLM is running",
-                    new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1))
+                    null,
+                    new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1)),
+                    Collections.emptyList(),
+                    Collections.emptyList()
                 )
             )
         );
@@ -57,14 +64,24 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
                     SNAPSHOT,
                     YELLOW,
                     "SLM is not running",
-                    new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1))
+                    SlmHealthIndicatorService.HELP_URL,
+                    new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1)),
+                    Collections.singletonList(
+                        new HealthIndicatorImpact(
+                            3,
+                            "Scheduled snapshots are not running. There might not be backups of the data that could be used to restore if"
+                                + " data is lost in the future.",
+                            List.of(ImpactArea.BACKUP)
+                        )
+                    ),
+                    Collections.emptyList()
                 )
             )
         );
@@ -76,14 +93,17 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
                     SNAPSHOT,
                     GREEN,
                     "No policies configured",
-                    new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 0))
+                    null,
+                    new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 0)),
+                    Collections.emptyList(),
+                    Collections.emptyList()
                 )
             )
         );
@@ -94,14 +114,17 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
                     SNAPSHOT,
                     GREEN,
                     "No policies configured",
-                    new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 0))
+                    null,
+                    new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 0)),
+                    Collections.emptyList(),
+                    Collections.emptyList()
                 )
             )
         );

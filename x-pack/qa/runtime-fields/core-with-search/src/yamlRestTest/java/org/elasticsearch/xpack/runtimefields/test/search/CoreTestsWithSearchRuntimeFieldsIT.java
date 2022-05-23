@@ -98,14 +98,23 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                     if (search.getBodies().isEmpty()) {
                         search.addBody(new HashMap<>());
                     }
+                    boolean changed = false;
                     for (Map<String, Object> body : search.getBodies()) {
                         Map<?, ?> runtimeMapping = runtimeMappings(search.getParams().get("index"));
-                        if (runtimeMapping == null) {
-                            return false;
+                        if (runtimeMapping != null) {
+                            changed = true;
+                            body.compute("runtime_mappings", (k, curr) -> {
+                                if (curr == null) {
+                                    return runtimeMapping;
+                                } else {
+                                    Map<Object, Object> mergedMappings = new HashMap<>((Map<?, ?>) curr);
+                                    mergedMappings.putAll(runtimeMapping);
+                                    return mergedMappings;
+                                }
+                            });
                         }
-                        body.put("runtime_mappings", runtimeMapping);
                     }
-                    return true;
+                    return changed;
                 }
 
                 private Map<?, ?> runtimeMappings(String index) {

@@ -12,12 +12,13 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -313,7 +314,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             List<CompositeAggregation.Bucket> foos = new ArrayList<>();
 
             CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
-            LinkedHashMap<String, Object> keys = new LinkedHashMap<>(3);
+            LinkedHashMap<String, Object> keys = Maps.newLinkedHashMapWithExpectedSize(3);
             keys.put("foo.date_histogram", 123L);
             keys.put("bar.terms", "baz");
             keys.put("abc.histogram", 1.9);
@@ -361,7 +362,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             List<CompositeAggregation.Bucket> foos = new ArrayList<>();
 
             CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
-            LinkedHashMap<String, Object> keys = new LinkedHashMap<>(3);
+            LinkedHashMap<String, Object> keys = Maps.newLinkedHashMapWithExpectedSize(3);
             keys.put("foo.date_histogram", 123L);
 
             char[] charArray = new char[IndexWriter.MAX_TERM_LENGTH];
@@ -409,7 +410,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             List<CompositeAggregation.Bucket> foos = new ArrayList<>();
 
             CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
-            LinkedHashMap<String, Object> keys = new LinkedHashMap<>(3);
+            Map<String, Object> keys = Maps.newLinkedHashMapWithExpectedSize(3);
             keys.put("bar.terms", null);
             keys.put("abc.histogram", null);
             when(bucket.getKey()).thenReturn(keys);

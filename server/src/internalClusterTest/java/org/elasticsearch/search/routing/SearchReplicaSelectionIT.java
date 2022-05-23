@@ -79,7 +79,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         ImmutableOpenMap<String, DiscoveryNode> coordinatingNodes = clusterStateResponse.getState().nodes().getCoordinatingOnlyNodes();
         assertEquals(1, coordinatingNodes.size());
 
-        String coordinatingNodeId = coordinatingNodes.valuesIt().next().getId();
+        String coordinatingNodeId = coordinatingNodes.values().iterator().next().getId();
         NodesStatsResponse statsResponse = client.admin().cluster().prepareNodesStats().setAdaptiveSelection(true).get();
         NodeStats nodeStats = statsResponse.getNodesMap().get(coordinatingNodeId);
         assertNotNull(nodeStats);

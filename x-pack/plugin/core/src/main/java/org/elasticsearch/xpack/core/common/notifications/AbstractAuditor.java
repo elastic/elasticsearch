@@ -18,10 +18,9 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
@@ -70,11 +69,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
             try {
                 return new PutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
                     ComposableIndexTemplate.parse(
-                        JsonXContent.jsonXContent.createParser(
-                            NamedXContentRegistry.EMPTY,
-                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                            templateConfig.loadBytes()
-                        )
+                        JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())
                     )
                 ).masterNodeTimeout(MASTER_TIMEOUT);
             } catch (IOException e) {
@@ -116,11 +111,11 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         indexDoc(messageFactory.newMessage(resourceId, message, Level.ERROR, new Date(), nodeName));
     }
 
-    private void onIndexResponse(IndexResponse response) {
+    private static void onIndexResponse(IndexResponse response) {
         logger.trace("Successfully wrote audit message");
     }
 
-    private void onIndexFailure(Exception exception) {
+    private static void onIndexFailure(Exception exception) {
         logger.debug("Failed to write audit message", exception);
     }
 
@@ -183,7 +178,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     }
 
     private void writeDoc(ToXContent toXContent) {
-        client.index(indexRequest(toXContent), ActionListener.wrap(this::onIndexResponse, this::onIndexFailure));
+        client.index(indexRequest(toXContent), ActionListener.wrap(AbstractAuditor::onIndexResponse, AbstractAuditor::onIndexFailure));
     }
 
     private IndexRequest indexRequest(ToXContent toXContent) {
@@ -193,7 +188,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         return indexRequest;
     }
 
-    private XContentBuilder toXContentBuilder(ToXContent toXContent) {
+    private static XContentBuilder toXContentBuilder(ToXContent toXContent) {
         try (XContentBuilder jsonBuilder = jsonBuilder()) {
             return toXContent.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         } catch (IOException e) {
@@ -226,7 +221,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 logger.trace("Successfully wrote audit message backlog after upgrading template");
             }
             backlog = null;
-        }, this::onIndexFailure));
+        }, AbstractAuditor::onIndexFailure));
     }
 
     // for testing

@@ -191,6 +191,16 @@ are marked as `Secure`.
     can be specified explicitly. For example, it can be used to switch between projects when the
     same credentials are usable for both the production and the development projects.
 
+`proxy.host`::
+    Host name of a proxy to connect to the Google Cloud Storage through.
+
+`proxy.port`::
+    Port of a proxy to connect to the Google Cloud Storage through.
+
+`proxy.type`::
+    Proxy type for the client. Supported values are `direct` (no proxy),
+    `http`, and `socks`. Defaults to `direct`.
+
 [[repository-gcs-repository]]
 ==== Repository settings
 

@@ -74,7 +74,7 @@ public class CollectionMatchers {
             if (map.size() == 0) {
                 mismatchDescription.appendText("was empty");
             } else {
-                mismatchDescription.appendText("was ").appendValue(map.keys());
+                mismatchDescription.appendText("was ").appendValue(map.keySet());
             }
         }
 

@@ -47,7 +47,7 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
         SqlClearCursorRequest request,
         ActionListener<SqlClearCursorResponse> listener
     ) {
-        Cursor cursor = Cursors.decodeFromStringWithZone(request.getCursor()).v1();
+        Cursor cursor = Cursors.decodeFromStringWithZone(request.getCursor(), planExecutor.writeableRegistry()).v1();
         planExecutor.cleanCursor(
             cursor,
             ActionListener.<Boolean>wrap(success -> listener.onResponse(new SqlClearCursorResponse(success)), listener::onFailure)

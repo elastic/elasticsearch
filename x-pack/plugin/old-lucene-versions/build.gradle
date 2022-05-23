@@ -1,3 +1,4 @@
+apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
@@ -11,6 +12,7 @@ archivesBaseName = 'x-pack-old-lucene-versions'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 addQaCheckDependencies()

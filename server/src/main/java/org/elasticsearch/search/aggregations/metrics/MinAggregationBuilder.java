@@ -80,6 +80,11 @@ public class MinAggregationBuilder extends ValuesSourceAggregationBuilder.Single
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected MinAggregatorFactory innerBuild(
         AggregationContext context,
         ValuesSourceConfig config,

@@ -21,7 +21,9 @@ import org.mockito.Mockito;
 public class IdFieldTypeTests extends ESTestCase {
 
     public void testRangeQuery() {
-        MappedFieldType ft = new IdFieldMapper.IdFieldType(() -> false);
+        MappedFieldType ft = randomBoolean()
+            ? new ProvidedIdFieldMapper.IdFieldType(() -> false)
+            : new TsidExtractingIdFieldMapper.IdFieldType();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null)
@@ -31,26 +33,33 @@ public class IdFieldTypeTests extends ESTestCase {
 
     public void testTermsQuery() {
         SearchExecutionContext context = Mockito.mock(SearchExecutionContext.class);
-        Settings indexSettings = Settings.builder()
+
+        Settings.Builder indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .build();
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+        if (randomBoolean()) {
+            indexSettings.put(IndexSettings.MODE.getKey(), "time_series");
+            indexSettings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+        }
         IndexMetadata indexMetadata = IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
         IndexSettings mockSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
-        Mockito.when(context.indexVersionCreated()).thenReturn(indexSettings.getAsVersion(IndexMetadata.SETTING_VERSION_CREATED, null));
-        MappedFieldType ft = new IdFieldMapper.IdFieldType(() -> false);
+        Mockito.when(context.indexVersionCreated()).thenReturn(Version.CURRENT);
+        MappedFieldType ft = new ProvidedIdFieldMapper.IdFieldType(() -> false);
         Query query = ft.termQuery("id", context);
         assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
     }
 
     public void testIsAggregatable() {
-        MappedFieldType ft = new IdFieldMapper.IdFieldType(() -> false);
+        MappedFieldType ft = new ProvidedIdFieldMapper.IdFieldType(() -> false);
         assertFalse(ft.isAggregatable());
 
-        ft = new IdFieldMapper.IdFieldType(() -> true);
+        ft = new ProvidedIdFieldMapper.IdFieldType(() -> true);
         assertTrue(ft.isAggregatable());
+
+        ft = new TsidExtractingIdFieldMapper.IdFieldType();
+        assertFalse(ft.isAggregatable());
     }
 }

@@ -46,6 +46,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class AnalyticsProcessManager {
@@ -191,9 +192,9 @@ public class AnalyticsProcessManager {
             writeHeaderRecord(dataExtractor, process, task);
             writeDataRows(dataExtractor, process, task);
             process.writeEndOfDataMessage();
-            LOGGER.debug(() -> new ParameterizedMessage("[{}] Flushing input stream", processContext.config.getId()));
+            LOGGER.debug(() -> "[" + processContext.config.getId() + "] Flushing input stream");
             process.flushStream();
-            LOGGER.debug(() -> new ParameterizedMessage("[{}] Flushing input stream completed", processContext.config.getId()));
+            LOGGER.debug(() -> "[" + processContext.config.getId() + "] Flushing input stream completed");
 
             restoreState(config, process, hasState);
 
@@ -281,7 +282,7 @@ public class AnalyticsProcessManager {
         DataFrameAnalyticsTask task
     ) throws IOException {
         List<String> fieldNames = dataExtractor.getFieldNames();
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] header row fields {}", task.getParams().getId(), fieldNames));
+        LOGGER.debug(() -> format("[%s] header row fields %s", task.getParams().getId(), fieldNames));
 
         // We add 2 extra fields, both named dot:
         // - the document hash
@@ -313,7 +314,7 @@ public class AnalyticsProcessManager {
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             process.restoreState(client, config.getAnalysis().getStateDocIdPrefix(config.getId()));
         } catch (Exception e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Failed to restore state", process.getConfig().jobId()), e);
+            LOGGER.error(() -> "[" + process.getConfig().jobId() + "] Failed to restore state", e);
             throw ExceptionsHelper.serverError("Failed to restore state: " + e.getMessage());
         }
     }
@@ -428,7 +429,7 @@ public class AnalyticsProcessManager {
                 try {
                     process.get().kill(true);
                 } catch (IOException e) {
-                    LOGGER.error(new ParameterizedMessage("[{}] Failed to kill process", config.getId()), e);
+                    LOGGER.error(() -> "[" + config.getId() + "] Failed to kill process", e);
                 }
             }
         }

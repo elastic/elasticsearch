@@ -1,0 +1,6 @@
+pr: 85413
+summary: Correctly validate permissions when retention policy is configured
+area: Transform
+type: bug
+issues:
+ - 85409

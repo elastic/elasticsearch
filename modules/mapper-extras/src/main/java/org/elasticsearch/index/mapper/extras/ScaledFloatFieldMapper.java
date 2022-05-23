@@ -33,14 +33,15 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ScaledFloatDocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -159,8 +160,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue, metric);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue, metric };
         }
 
         @Override
@@ -349,6 +350,20 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public TimeSeriesParams.MetricType getMetricType() {
             return metricType;
         }
+
+        @Override
+        public String toString() {
+            StringBuilder b = new StringBuilder();
+            b.append("ScaledFloatFieldType[").append(scalingFactor);
+            if (nullValue != null) {
+                b.append(", nullValue=").append(nullValue);
+                ;
+            }
+            if (metricType != null) {
+                b.append(", metricType=").append(metricType);
+            }
+            return b.append("]").toString();
+        }
     }
 
     private final Explicit<Boolean> ignoreMalformed;
@@ -488,16 +503,16 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final IndexNumericFieldData scaledFieldData;
         private final double scalingFactor;
-        private final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        private final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
         ScaledFloatIndexFieldData(
             IndexNumericFieldData scaledFieldData,
             double scalingFactor,
-            ToScriptField<SortedNumericDoubleValues> toScriptField
+            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
         ) {
             this.scaledFieldData = scaledFieldData;
             this.scalingFactor = scalingFactor;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
@@ -512,12 +527,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public LeafNumericFieldData load(LeafReaderContext context) {
-            return new ScaledFloatLeafFieldData(scaledFieldData.load(context), scalingFactor, toScriptField);
+            return new ScaledFloatLeafFieldData(scaledFieldData.load(context), scalingFactor, toScriptFieldFactory);
         }
 
         @Override
         public LeafNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
-            return new ScaledFloatLeafFieldData(scaledFieldData.loadDirect(context), scalingFactor, toScriptField);
+            return new ScaledFloatLeafFieldData(scaledFieldData.loadDirect(context), scalingFactor, toScriptFieldFactory);
         }
 
         @Override
@@ -546,21 +561,21 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final LeafNumericFieldData scaledFieldData;
         private final double scalingFactorInverse;
-        private final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        private final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
         ScaledFloatLeafFieldData(
             LeafNumericFieldData scaledFieldData,
             double scalingFactor,
-            ToScriptField<SortedNumericDoubleValues> toScriptField
+            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
         ) {
             this.scaledFieldData = scaledFieldData;
             this.scalingFactorInverse = 1d / scalingFactor;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getDoubleValues(), name);
+        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+            return toScriptFieldFactory.getScriptFieldFactory(getDoubleValues(), name);
         }
 
         @Override
@@ -640,5 +655,30 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
             };
         }
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
+        }
+        if (ignoreMalformed.value()) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed numbers"
+            );
+        }
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        return new NumberFieldMapper.NumericSyntheticFieldLoader(name(), simpleName()) {
+            @Override
+            protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                b.value(value / scalingFactor);
+            }
+        };
     }
 }

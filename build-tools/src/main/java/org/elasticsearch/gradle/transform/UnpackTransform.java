@@ -14,6 +14,7 @@ import org.gradle.api.artifacts.transform.TransformOutputs;
 import org.gradle.api.artifacts.transform.TransformParameters;
 import org.gradle.api.file.FileSystemLocation;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
@@ -57,6 +58,10 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
         void setTargetDirectory(File targetDirectory);
 
         void setKeepStructureFor(List<String> pattern);
+
+        @Input
+        @Optional
+        Property<Boolean> getIncludeArtifactName();
     }
 
     @PathSensitive(PathSensitivity.NAME_ONLY)
@@ -67,6 +72,11 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
     default void transform(TransformOutputs outputs) {
         File archiveFile = getArchiveFile().get().getAsFile();
         File extractedDir = outputs.dir(archiveFile.getName());
+
+        if (getParameters().getIncludeArtifactName().getOrElse(false)) {
+            extractedDir = new File(extractedDir, archiveFile.getName());
+        }
+
         try {
             Logging.getLogger(UnpackTransform.class)
                 .info("Unpacking " + archiveFile.getName() + " using " + getClass().getSimpleName() + ".");

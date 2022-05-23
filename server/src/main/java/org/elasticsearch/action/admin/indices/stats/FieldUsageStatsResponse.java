@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class FieldUsageStatsResponse extends BroadcastResponse {
     private final Map<String, List<FieldUsageShardResponse>> stats;
@@ -53,7 +52,7 @@ public class FieldUsageStatsResponse extends BroadcastResponse {
         final List<Map.Entry<String, List<FieldUsageShardResponse>>> sortedEntries = stats.entrySet()
             .stream()
             .sorted(Map.Entry.comparingByKey())
-            .collect(Collectors.toList());
+            .toList();
         for (Map.Entry<String, List<FieldUsageShardResponse>> entry : sortedEntries) {
             builder.startObject(entry.getKey());
             builder.startArray("shards");

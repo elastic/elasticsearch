@@ -349,7 +349,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
         SearchResponse response = client().prepareSearch("idx")
             .addAggregation(
                 terms(termsName).field("tag")
-                    .includeExclude(new IncludeExclude(null, "tag.*"))
+                    .includeExclude(new IncludeExclude(null, "tag.*", null, null))
                     .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
             )
             .addAggregation(BucketMetricsPipelineAgg("pipeline_agg", termsName + ">sum"))

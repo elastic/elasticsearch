@@ -13,7 +13,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 
 public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCase<UpdateByQueryRequest> {
     public void testUpdateByQueryRequestImplementsIndicesRequestReplaceable() {

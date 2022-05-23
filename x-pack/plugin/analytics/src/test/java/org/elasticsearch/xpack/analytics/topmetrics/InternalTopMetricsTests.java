@@ -19,6 +19,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -69,6 +70,16 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     @Override
     protected SearchPlugin registerPlugin() {
         return new AnalyticsPlugin();
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalTopMetrics sampled, InternalTopMetrics reduced, SamplingContext samplingContext) {
+        assertThat(sampled.getTopMetrics(), equalTo(reduced.getTopMetrics()));
     }
 
     public void testEmptyIsNotMapped() {

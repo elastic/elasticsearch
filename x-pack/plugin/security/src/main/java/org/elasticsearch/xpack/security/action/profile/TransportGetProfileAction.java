@@ -30,6 +30,6 @@ public class TransportGetProfileAction extends HandledTransportAction<GetProfile
 
     @Override
     protected void doExecute(Task task, GetProfileRequest request, ActionListener<GetProfilesResponse> listener) {
-        profileService.getProfile(request.getUid(), request.getDatKeys(), listener.map(GetProfilesResponse::new));
+        profileService.getProfile(request.getUid(), request.getDataKeys(), listener.map(GetProfilesResponse::new));
     }
 }

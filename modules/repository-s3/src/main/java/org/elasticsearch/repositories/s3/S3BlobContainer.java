@@ -354,7 +354,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 throw aex.get();
             }
         } catch (Exception e) {
-            throw new IOException("Failed to delete blobs " + partition.stream().limit(10).collect(Collectors.toList()), e);
+            throw new IOException("Failed to delete blobs " + partition.stream().limit(10).toList(), e);
         }
     }
 
@@ -367,10 +367,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             logger.warn(
                 () -> new ParameterizedMessage(
                     "Failed to delete some blobs {}",
-                    e.getErrors()
-                        .stream()
-                        .map(err -> "[" + err.getKey() + "][" + err.getCode() + "][" + err.getMessage() + "]")
-                        .collect(Collectors.toList())
+                    e.getErrors().stream().map(err -> "[" + err.getKey() + "][" + err.getCode() + "][" + err.getMessage() + "]").toList()
                 ),
                 e
             );

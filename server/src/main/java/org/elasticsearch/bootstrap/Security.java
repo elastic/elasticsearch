@@ -9,17 +9,17 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.PluginsUtils;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
 
+import java.io.FilePermission;
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -39,6 +39,7 @@ import java.security.Policy;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -111,7 +112,7 @@ final class Security {
     static void configure(Environment environment, boolean filterBadDefaults) throws IOException, NoSuchAlgorithmException {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
-        Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
+        Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());
         Policy.setPolicy(
             new ESPolicy(
                 codebases,
@@ -126,7 +127,7 @@ final class Security {
         final String[] classesThatCanExit = new String[] {
             // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
             ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
-            Command.class.getName() };
+            Elasticsearch.class.getName() };
         setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests
@@ -154,10 +155,10 @@ final class Security {
             }
         };
 
-        for (Path plugin : PluginsService.findPluginDirs(environment.pluginsFile())) {
+        for (Path plugin : PluginsUtils.findPluginDirs(environment.pluginsFile())) {
             addPolicy.accept(PolicyUtil.getPluginPolicyInfo(plugin, environment.tmpFile()));
         }
-        for (Path plugin : PluginsService.findPluginDirs(environment.modulesFile())) {
+        for (Path plugin : PluginsUtils.findPluginDirs(environment.modulesFile())) {
             addPolicy.accept(PolicyUtil.getModulePolicyInfo(plugin, environment.tmpFile()));
         }
 
@@ -173,12 +174,12 @@ final class Security {
         return policy;
     }
 
-    private static Permissions createRecursiveDataPathPermission(Environment environment) throws IOException {
+    private static List<FilePermission> createRecursiveDataPathPermission(Environment environment) throws IOException {
         Permissions policy = new Permissions();
         for (Path path : environment.dataFiles()) {
             addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", true);
         }
-        return policy;
+        return toFilePermissions(policy);
     }
 
     /** Adds access to classpath jars/classes for jar hell scan, etc */
@@ -243,10 +244,6 @@ final class Security {
         }
         for (Path path : environment.repoFiles()) {
             addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete", false);
-        }
-        if (environment.pidFile() != null) {
-            // we just need permission to remove the file if its elsewhere.
-            addSingleFilePath(policy, environment.pidFile(), "delete");
         }
     }
 
@@ -385,5 +382,21 @@ final class Security {
     @SuppressForbidden(reason = "access violation required")
     private static Field getDeclaredField(Class<?> c, String name) throws NoSuchFieldException {
         return c.getDeclaredField(name);
+    }
+
+    /**
+     * Assumes the given {@link Permissions} only contains {@link FilePermission} elements and returns them as
+     * a list.
+     *
+     * @param permissions permissions to unwrap
+     * @return list of file permissions found
+     */
+    static List<FilePermission> toFilePermissions(Permissions permissions) {
+        return permissions.elementsAsStream().map(p -> {
+            if (p instanceof FilePermission == false) {
+                throw new AssertionError("[" + p + "] was not a file permission");
+            }
+            return (FilePermission) p;
+        }).toList();
     }
 }

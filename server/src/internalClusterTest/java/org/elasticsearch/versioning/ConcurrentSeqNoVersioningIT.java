@@ -50,7 +50,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -138,14 +137,14 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         List<Partition> partitions = IntStream.range(0, numberOfKeys)
             .mapToObj(i -> client().prepareIndex("test").setId("ID:" + i).setSource("value", -1).get())
             .map(response -> new Partition(response.getId(), new Version(response.getPrimaryTerm(), response.getSeqNo())))
-            .collect(Collectors.toList());
+            .toList();
 
         int threadCount = randomIntBetween(3, 20);
         CyclicBarrier roundBarrier = new CyclicBarrier(threadCount + 1); // +1 for main thread.
 
         List<CASUpdateThread> threads = IntStream.range(0, threadCount)
             .mapToObj(i -> new CASUpdateThread(i, roundBarrier, partitions, disruptTimeSeconds + 1))
-            .collect(Collectors.toList());
+            .toList();
 
         logger.info("--> Starting {} threads", threadCount);
         threads.forEach(Thread::start);

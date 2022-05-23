@@ -78,7 +78,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     private static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("xpack.idp.enabled", false, Setting.Property.NodeScope);
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(IdentityProviderPlugin.class);
     private boolean enabled;
     private Settings settings;
 

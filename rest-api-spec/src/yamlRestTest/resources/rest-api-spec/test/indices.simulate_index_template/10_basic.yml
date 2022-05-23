@@ -1,8 +1,8 @@
 ---
 "Simulate index template without new template in the body":
   - skip:
-      version: " - 7.99.99"
-      reason: "simulate index template API has not been backported"
+      version: " - 7.7.99"
+      reason: "simulate index template API is only in 7.8.0+"
       features: ["default_shards"]
 
   - do:
@@ -31,8 +31,8 @@
 ---
 "Simulate index template specifying a new template":
   - skip:
-      version: " - 7.99.99"
-      reason: "simulate index template API has not been backported"
+      version: " - 7.7.99"
+      reason: "simulate index template API is only in 7.8.0+"
       features: ["default_shards"]
 
   - do:
@@ -86,8 +86,8 @@
 ---
 "Simulate index template with index not matching any template":
   - skip:
-      version: " - 7.99.99"
-      reason: "simulate index template API has not been backported"
+      version: " - 7.7.99"
+      reason: "simulate index template API is only in 7.8.0+"
       features: allowed_warnings
 
   - do:
@@ -116,8 +116,8 @@
 ---
 "Simulate index matches overlapping legacy and composable templates":
   - skip:
-      version: " - 7.99.99"
-      reason: "simulate index template API has not been backported"
+      version: " - 7.7.99"
+      reason: "simulate index template API is only in 7.8.0+"
       features: ["allowed_warnings", "default_shards"]
 
   - do:
@@ -175,3 +175,51 @@
   - match: {overlapping.0.index_patterns: ["t*", "t1*"]}
   - match: {overlapping.1.name: v2_template}
   - match: {overlapping.1.index_patterns: ["te*"]}
+
+---
+"Simulate an index for and index or alias that already exists":
+  - skip:
+      version: " - 8.1.99"
+      reason: "simulating index template API for an existing index has not yet been backported"
+      features: ["default_shards"]
+
+  - do:
+      indices.put_index_template:
+        name: test
+        body:
+          index_patterns: [te*]
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: keyword
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index.number_of_shards: 2
+          aliases:
+            test_alias: {}
+
+  - do:
+      indices.simulate_index_template:
+        name: test_index
+
+  - match: {template.settings.index.number_of_shards: "1"}
+  - match: {template.settings.index.number_of_replicas: "0"}
+  - match: {template.mappings.properties.field.type: "keyword"}
+  - match: {overlapping: []}
+
+  - do:
+      indices.simulate_index_template:
+        name: test_alias
+
+  - match: {template.settings.index.number_of_shards: "1"}
+  - match: {template.settings.index.number_of_replicas: "0"}
+  - match: {template.mappings.properties.field.type: "keyword"}
+  - match: {overlapping: []}

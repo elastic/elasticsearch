@@ -13,43 +13,39 @@ import java.util.stream.Collectors;
 
 public class DelimitedToken {
 
-    /**
-     * Merges the list of tokens.
-     *
-     * Assumes that the tokens are in order.
-     *
-     * @param tokens
-     * @return The merged token
-     */
-    public static DelimitedToken mergeTokens(List<DelimitedToken> tokens) {
+    static DelimitedToken mergeTokens(List<DelimitedToken> tokens) {
         if (tokens.size() == 1) {
             return tokens.get(0);
         }
-
-        String merged = tokens.stream().map(DelimitedToken::getToken).collect(Collectors.joining());
-        return new DelimitedToken(tokens.get(0).getStartPos(), tokens.get(tokens.size() - 1).getEndPos(), merged);
+        int startOffSet = tokens.get(0).startOffset;
+        int endOffset = tokens.get(tokens.size() - 1).endOffset;
+        return new DelimitedToken(
+            tokens.stream().map(DelimitedToken::charSequence).map(CharSequence::toString).collect(Collectors.joining()),
+            startOffSet,
+            endOffset
+        );
     }
 
-    private final int startPos;
-    private final int endPos;
-    private final String token;
+    private final CharSequence charSequence;
+    private final int startOffset;
+    private final int endOffset;
 
-    DelimitedToken(int startPos, int endPos, String token) {
-        this.startPos = startPos;
-        this.endPos = endPos;
-        this.token = token;
+    public DelimitedToken(CharSequence charSequence, int startOffset, int endOffset) {
+        this.charSequence = charSequence;
+        this.startOffset = startOffset;
+        this.endOffset = endOffset;
     }
 
-    public int getStartPos() {
-        return startPos;
+    public CharSequence charSequence() {
+        return charSequence;
     }
 
-    public int getEndPos() {
-        return endPos;
+    public int startOffset() {
+        return startOffset;
     }
 
-    public String getToken() {
-        return token;
+    public int endOffset() {
+        return endOffset;
     }
 
     @Override
@@ -57,16 +53,43 @@ public class DelimitedToken {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DelimitedToken that = (DelimitedToken) o;
-        return startPos == that.startPos && endPos == that.endPos && Objects.equals(token, that.token);
+        return startOffset == that.startOffset && endOffset == that.endOffset && Objects.equals(charSequence, that.charSequence);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(startPos, endPos, token);
+        return Objects.hash(charSequence, startOffset, endOffset);
     }
 
     @Override
     public String toString() {
-        return "{" + "startPos=" + startPos + ", endPos=" + endPos + ", token=" + token + '}';
+        return this.charSequence.toString();
+    }
+
+    public static class Encoded extends DelimitedToken {
+        private final int encoding;
+
+        public Encoded(CharSequence charSequence, int encoding, int startOffset, int endOffset) {
+            super(charSequence, startOffset, endOffset);
+            this.encoding = encoding;
+        }
+
+        public int getEncoding() {
+            return encoding;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (super.equals(o) == false) return false;
+            Encoded encoded = (Encoded) o;
+            return encoding == encoded.encoding;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), encoding);
+        }
     }
 }

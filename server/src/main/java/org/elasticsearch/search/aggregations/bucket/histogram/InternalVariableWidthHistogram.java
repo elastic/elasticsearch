@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -189,6 +190,16 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         public DocValueFormat getFormatter() {
             return format;
         }
+
+        Bucket finalizeSampling(SamplingContext samplingContext) {
+            return new Bucket(
+                centroid,
+                bounds,
+                samplingContext.scaleUp(docCount),
+                format,
+                InternalAggregations.finalizeSampling(aggregations, samplingContext)
+            );
+        }
     }
 
     static class EmptyBucketInfo {
@@ -312,7 +323,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
      * This method should not be called for this specific subclass of InternalHistogram, since there should not be
      * empty buckets when clustering.
     =    */
-    private double nextKey(double key) {
+    private static double nextKey(double key) {
         return key + 1;
     }
 
@@ -390,7 +401,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         return reducedBuckets;
     }
 
-    class BucketRange {
+    static class BucketRange {
         int startIdx;
         int endIdx;
 
@@ -527,7 +538,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
      *
      * After this adjustment, A will contain more values than indicated and B will have less.
      */
-    private void adjustBoundsForOverlappingBuckets(List<Bucket> buckets, AggregationReduceContext reduceContext) {
+    private static void adjustBoundsForOverlappingBuckets(List<Bucket> buckets, AggregationReduceContext reduceContext) {
         for (int i = 1; i < buckets.size(); i++) {
             Bucket curBucket = buckets.get(i);
             Bucket prevBucket = buckets.get(i - 1);
@@ -550,6 +561,18 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             adjustBoundsForOverlappingBuckets(reducedBuckets, reduceContext);
         }
         return new InternalVariableWidthHistogram(getName(), reducedBuckets, emptyBucketInfo, targetNumBuckets, format, metadata);
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalVariableWidthHistogram(
+            getName(),
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
+            emptyBucketInfo,
+            targetNumBuckets,
+            format,
+            getMetadata()
+        );
     }
 
     @Override

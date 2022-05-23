@@ -63,16 +63,17 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -142,6 +143,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -237,7 +239,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile boolean idFieldDataEnabled;
     private volatile boolean allowExpensiveQueries;
 
-    private final IdFieldMapper idFieldMapper = new IdFieldMapper(() -> idFieldDataEnabled);
+    private final Function<IndexMode, IdFieldMapper> idFieldMappers;
 
     @Nullable
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
@@ -359,6 +361,12 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         });
 
+        Map<IndexMode, IdFieldMapper> idFieldMappers = new EnumMap<>(IndexMode.class);
+        for (IndexMode mode : IndexMode.values()) {
+            idFieldMappers.put(mode, mode.buildIdFieldMapper(() -> idFieldDataEnabled));
+        }
+        this.idFieldMappers = idFieldMappers::get;
+
         final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
         nodeWriteDanglingIndicesInfo = WRITE_DANGLING_INDICES_INFO_SETTING.get(settings);
         danglingIndicesThreadPoolExecutor = nodeWriteDanglingIndicesInfo
@@ -454,7 +462,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return new NodeIndicesStats(commonStats, statsByShard(this, flags));
     }
 
-    Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
+    static Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
         final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
 
         for (final IndexService indexService : indicesService) {
@@ -698,7 +706,7 @@ public class IndicesService extends AbstractLifecycleComponent
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
-        pluginsService.onIndexModule(indexModule);
+        pluginsService.forEach(p -> p.onIndexModule(indexModule));
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
@@ -717,7 +725,7 @@ public class IndicesService extends AbstractLifecycleComponent
             mapperRegistry,
             indicesFieldDataCache,
             namedWriteableRegistry,
-            idFieldMapper,
+            idFieldMappers.apply(idxSettings.getMode()),
             valuesSourceRegistry,
             indexFoldersDeletionListeners,
             snapshotCommitSuppliers
@@ -734,7 +742,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final List<Optional<EngineFactory>> engineFactories = engineFactoryProviders.stream()
             .map(engineFactoryProvider -> engineFactoryProvider.apply(idxSettings))
             .filter(maybe -> Objects.requireNonNull(maybe).isPresent())
-            .collect(Collectors.toList());
+            .toList();
         if (engineFactories.isEmpty()) {
             return new InternalEngineFactory();
         } else if (engineFactories.size() == 1) {
@@ -760,7 +768,7 @@ public class IndicesService extends AbstractLifecycleComponent
      *
      * Note: the returned {@link MapperService} should be closed when unneeded.
      */
-    public synchronized MapperService createIndexMapperService(IndexMetadata indexMetadata) throws IOException {
+    public synchronized MapperService createIndexMapperServiceForValidation(IndexMetadata indexMetadata) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetadata, this.settings, indexScopedSettings);
         final IndexModule indexModule = new IndexModule(
             idxSettings,
@@ -771,7 +779,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexNameExpressionResolver,
             recoveryStateFactories
         );
-        pluginsService.onIndexModule(indexModule);
+        pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(parserConfig, mapperRegistry, scriptService);
     }
 
@@ -1139,7 +1147,7 @@ public class IndicesService extends AbstractLifecycleComponent
             } catch (Exception e) {
                 // we just warn about the exception here because if deleteIndexStoreIfDeletionAllowed
                 // throws an exception, it gets added to the list of pending deletes to be tried again
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to delete index on disk", metadata.getIndex()), e);
+                logger.warn(() -> "[" + metadata.getIndex() + "] failed to delete index on disk", e);
             }
             return metadata;
         }
@@ -1441,7 +1449,7 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Can the shard request be cached at all?
      */
-    public boolean canCache(ShardSearchRequest request, SearchContext context) {
+    public static boolean canCache(ShardSearchRequest request, SearchContext context) {
         // Queries that create a scroll context cannot use the cache.
         // They modify the search context during their execution so using the cache
         // may invalidate the scroll for the next query.
@@ -1493,7 +1501,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * to have a single load operation that will cause other requests with the same key to wait till its loaded an reuse
      * the same cache.
      */
-    public void loadIntoContext(ShardSearchRequest request, SearchContext context, QueryPhase queryPhase) throws Exception {
+    public void loadIntoContext(ShardSearchRequest request, SearchContext context) throws Exception {
         assert canCache(request, context);
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
@@ -1505,7 +1513,7 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryReader,
             cacheKey,
             out -> {
-                queryPhase.execute(context);
+                QueryPhase.execute(context);
                 context.queryResult().writeToNoId(out);
                 loadedFromCache[0] = false;
             }
@@ -1646,7 +1654,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            }).collect(Collectors.toList());
+            }).toList();
             if (filters.isEmpty()) {
                 return new AliasFilter(null, aliases);
             } else {
@@ -1714,13 +1722,6 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public Set<String> getMetadataFields(Version version) {
         return mapperRegistry.getMetadataMapperParsers(version).keySet();
-    }
-
-    /**
-     * Returns the registered metadata field names for all compatible versions.
-     */
-    public Set<String> getAllMetadataFields() {
-        return mapperRegistry.getAllMetadataMapperParsers().keySet();
     }
 
     private void setIdFieldDataEnabled(boolean value) {

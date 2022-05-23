@@ -141,7 +141,14 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
-        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
+        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
+            context.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            searchRequestBuilder::get
+        );
+        checkForSkippedClusters(searchResponse);
+        return searchResponse;
     }
 
     private Result getNextStream() throws IOException {
@@ -227,9 +234,9 @@ public class ChunkedDataExtractor implements DataExtractor {
             if (totalHits > 0) {
                 Aggregations aggregations = searchResponse.getAggregations();
                 Min min = aggregations.get(EARLIEST_TIME);
-                earliestTime = (long) min.getValue();
+                earliestTime = (long) min.value();
                 Max max = aggregations.get(LATEST_TIME);
-                latestTime = (long) max.getValue();
+                latestTime = (long) max.value();
             }
             return new ScrolledDataSummary(earliestTime, latestTime, totalHits);
         }
@@ -252,7 +259,7 @@ public class ChunkedDataExtractor implements DataExtractor {
             }
             Min min = aggregations.get(EARLIEST_TIME);
             Max max = aggregations.get(LATEST_TIME);
-            return new AggregatedDataSummary(min.getValue(), max.getValue(), context.histogramInterval);
+            return new AggregatedDataSummary(min.value(), max.value(), context.histogramInterval);
         }
 
         private SearchSourceBuilder rangeSearchBuilder() {
@@ -303,7 +310,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
 
         /**
-         *  The heuristic here is that we want a time interval where we expect roughly scrollSize documents
+         * The heuristic here is that we want a time interval where we expect roughly scrollSize documents
          * (assuming data are uniformly spread over time).
          * We have totalHits documents over dataTimeSpread (latestTime - earliestTime), we want scrollSize documents over chunk.
          * Thus, the interval would be (scrollSize * dataTimeSpread) / totalHits.

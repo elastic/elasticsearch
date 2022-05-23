@@ -25,7 +25,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class UpdateProfileDataRequest extends ActionRequest {
 
     private final String uid;
-    private final Map<String, Object> access;
+    private final Map<String, Object> labels;
     private final Map<String, Object> data;
     private final long ifPrimaryTerm;
     private final long ifSeqNo;
@@ -33,14 +33,14 @@ public class UpdateProfileDataRequest extends ActionRequest {
 
     public UpdateProfileDataRequest(
         String uid,
-        Map<String, Object> access,
+        Map<String, Object> labels,
         Map<String, Object> data,
         long ifPrimaryTerm,
         long ifSeqNo,
         RefreshPolicy refreshPolicy
     ) {
         this.uid = Objects.requireNonNull(uid, "profile uid must not be null");
-        this.access = access != null ? access : Map.of();
+        this.labels = labels != null ? labels : Map.of();
         this.data = data != null ? data : Map.of();
         this.ifPrimaryTerm = ifPrimaryTerm;
         this.ifSeqNo = ifSeqNo;
@@ -50,7 +50,7 @@ public class UpdateProfileDataRequest extends ActionRequest {
     public UpdateProfileDataRequest(StreamInput in) throws IOException {
         super(in);
         this.uid = in.readString();
-        this.access = in.readMap();
+        this.labels = in.readMap();
         this.data = in.readMap();
         this.ifPrimaryTerm = in.readLong();
         this.ifSeqNo = in.readLong();
@@ -61,8 +61,8 @@ public class UpdateProfileDataRequest extends ActionRequest {
         return uid;
     }
 
-    public Map<String, Object> getAccess() {
-        return access;
+    public Map<String, Object> getLabels() {
+        return labels;
     }
 
     public Map<String, Object> getData() {
@@ -81,8 +81,8 @@ public class UpdateProfileDataRequest extends ActionRequest {
         return refreshPolicy;
     }
 
-    public Set<String> applicationNames() {
-        final Set<String> names = new HashSet<>(access.keySet());
+    public Set<String> getApplicationNames() {
+        final Set<String> names = new HashSet<>(labels.keySet());
         names.addAll(data.keySet());
         return Set.copyOf(names);
     }
@@ -90,7 +90,7 @@ public class UpdateProfileDataRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        final Set<String> applicationNames = applicationNames();
+        final Set<String> applicationNames = getApplicationNames();
         if (applicationNames.isEmpty()) {
             validationException = addValidationError("update request is empty", validationException);
         }

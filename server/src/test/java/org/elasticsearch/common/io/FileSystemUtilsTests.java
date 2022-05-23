@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.io;
 
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressFileSystems;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;

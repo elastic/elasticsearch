@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.versionfield;
 
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.AbstractScriptFieldFactory;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.Field;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -19,7 +22,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public class VersionStringDocValuesField implements DocValuesField<Version>, ScriptDocValues.Supplier<String> {
+public class VersionStringDocValuesField extends AbstractScriptFieldFactory<Version>
+    implements
+        Field<Version>,
+        DocValuesScriptFieldFactory,
+        ScriptDocValues.Supplier<String> {
 
     protected final SortedSetDocValues input;
     protected final String name;
@@ -49,8 +56,12 @@ public class VersionStringDocValuesField implements DocValuesField<Version>, Scr
 
     @Override
     public String getInternal(int index) {
+        return VersionEncoder.decodeVersion(getBytesRefInternal(index));
+    }
+
+    private BytesRef getBytesRefInternal(int index) {
         try {
-            return VersionEncoder.decodeVersion(input.lookupOrd(ords[index]));
+            return input.lookupOrd(ords[index]);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -62,7 +73,7 @@ public class VersionStringDocValuesField implements DocValuesField<Version>, Scr
     }
 
     @Override
-    public ScriptDocValues<?> getScriptDocValues() {
+    public ScriptDocValues<?> toScriptDocValues() {
         if (versionScriptDocValues == null) {
             versionScriptDocValues = new VersionScriptDocValues(this);
         }
@@ -113,8 +124,7 @@ public class VersionStringDocValuesField implements DocValuesField<Version>, Scr
         if (isEmpty() || index < 0 || index >= size()) {
             return defaultValue;
         }
-
-        return new Version(getInternal(index));
+        return new Version(getBytesRefInternal(index));
     }
 
     /**
@@ -137,7 +147,7 @@ public class VersionStringDocValuesField implements DocValuesField<Version>, Scr
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
-                return new Version(getInternal(index++));
+                return new Version(getBytesRefInternal(index++));
             }
         };
     }

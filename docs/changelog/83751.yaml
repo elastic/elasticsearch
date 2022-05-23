@@ -1,0 +1,7 @@
+pr: 83751
+summary: Improve performance of `date_histogram` when date histogram is in a BoostingQuery
+area: Aggregations
+type: enhancement
+issues:
+ - 82384
+ - 75542

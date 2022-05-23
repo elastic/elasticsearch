@@ -1,6 +1,0 @@
-pr: 80906
-summary: Allow for customised content-type validation
-area: Infra/REST API
-type: enhancement
-issues:
- - 80482

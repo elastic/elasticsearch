@@ -11,12 +11,12 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -74,9 +74,10 @@ public abstract class InternalOrder extends BucketOrder {
         @Override
         public Comparator<Bucket> comparator() {
             return (lhs, rhs) -> {
-                double l = path.resolveValue(((InternalAggregations) lhs.getAggregations()));
-                double r = path.resolveValue(((InternalAggregations) rhs.getAggregations()));
-                return Comparators.compareDiscardNaN(l, r, order == SortOrder.ASC);
+                final SortValue l = path.resolveValue(((InternalAggregations) lhs.getAggregations()));
+                final SortValue r = path.resolveValue(((InternalAggregations) rhs.getAggregations()));
+                int compareResult = l.compareTo(r);
+                return order == SortOrder.ASC ? compareResult : -compareResult;
             };
         }
 

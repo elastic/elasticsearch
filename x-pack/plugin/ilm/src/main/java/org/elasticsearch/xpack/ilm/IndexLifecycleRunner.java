@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -54,21 +55,20 @@ class IndexLifecycleRunner {
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
 
-    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (currentState, tasks) -> {
-        ClusterStateTaskExecutor.ClusterTasksResult.Builder<IndexLifecycleClusterStateUpdateTask> builder =
-            ClusterStateTaskExecutor.ClusterTasksResult.builder();
+    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (
+        currentState,
+        taskContexts) -> {
         ClusterState state = currentState;
-        for (IndexLifecycleClusterStateUpdateTask task : tasks) {
+        for (final var taskContext : taskContexts) {
             try {
+                final var task = taskContext.getTask();
                 state = task.execute(state);
-                builder.success(task);
+                taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
             } catch (Exception e) {
-                builder.failure(task, e);
+                taskContext.onFailure(e);
             }
         }
-        // Trigger indices lookup creation and related validation
-        state.metadata().getIndicesLookup();
-        return builder.build(state);
+        return state;
     };
 
     IndexLifecycleRunner(
@@ -279,7 +279,7 @@ class IndexLifecycleRunner {
             // we can afford to drop these requests if they timeout as on the next {@link
             // IndexLifecycleRunner#runPeriodicStep} run the policy will still be in the ERROR step, as we haven't been able
             // to move it back into the failed step, so we'll try again
-            clusterService.submitStateUpdateTask(
+            submitUnbatchedTask(
                 String.format(
                     Locale.ROOT,
                     "ilm-retry-failed-step {policy [%s], index [%s], failedStep [%s]}",
@@ -330,8 +330,7 @@ class IndexLifecycleRunner {
                             }
                         }
                     }
-                },
-                ClusterStateTaskExecutor.unbatched()
+                }
             );
         } else {
             logger.debug("policy [{}] for index [{}] on an error step after a terminal error, skipping execution", policy, index);
@@ -524,7 +523,7 @@ class IndexLifecycleRunner {
             ),
             e
         );
-        clusterService.submitStateUpdateTask(
+        submitUnlessAlreadyQueued(
             String.format(
                 Locale.ROOT,
                 "ilm-move-to-error-step {policy [%s], index [%s], currentStep [%s]}",
@@ -535,8 +534,7 @@ class IndexLifecycleRunner {
             new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 registerFailedOperation(indexMetadata, e);
-            }),
-            ClusterStateTaskExecutor.unbatched()
+            })
         );
     }
 
@@ -669,8 +667,7 @@ class IndexLifecycleRunner {
      * TODO: refactor ILM logic so that this is not required any longer. It is unreasonably expensive to only filter out duplicate tasks at
      *       this point given how these tasks are mostly set up on the cluster state applier thread.
      *
-     * @param source source string as used in {@link ClusterService#submitStateUpdateTask(String, ClusterStateTaskConfig,
-     *               ClusterStateTaskExecutor)}
+     * @param source source string as used in {@link ClusterService#submitUnbatchedStateUpdateTask}
      * @param task   task to submit unless already tracked in {@link #executingTasks}.
      */
     private void submitUnlessAlreadyQueued(String source, IndexLifecycleClusterStateUpdateTask task) {
@@ -687,5 +684,10 @@ class IndexLifecycleRunner {
         } else {
             logger.trace("skipped redundant execution of [{}]", source);
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

@@ -6,11 +6,15 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
@@ -21,6 +25,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.ClockHolder;
@@ -31,6 +39,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -75,6 +84,13 @@ public class TransportPutWatchActionTests extends ESTestCase {
             return null;
         }).when(client).execute(any(), any(), any());
 
+        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterState clusterState = mock(ClusterState.class);
+        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
+
         action = new TransportPutWatchAction(
             transportService,
             threadPool,
@@ -82,7 +98,8 @@ public class TransportPutWatchActionTests extends ESTestCase {
             new ClockHolder(new ClockMock()),
             TestUtils.newTestLicenseState(),
             parser,
-            client
+            client,
+            clusterService
         );
     }
 
@@ -90,7 +107,14 @@ public class TransportPutWatchActionTests extends ESTestCase {
     public void testHeadersAreFilteredWhenPuttingWatches() throws Exception {
         // set up threadcontext with some arbitrary info
         String headerName = randomFrom(ClientHelper.SECURITY_HEADER_FILTERS);
-        threadContext.putHeader(headerName, randomAlphaOfLength(10));
+        if (Set.of(AuthenticationField.AUTHENTICATION_KEY, SecondaryAuthentication.THREAD_CTX_KEY).contains(headerName)) {
+            threadContext.putHeader(
+                headerName,
+                Authentication.newRealmAuthentication(new User("dummy"), new Authentication.RealmRef("name", "type", "node")).encode()
+            );
+        } else {
+            threadContext.putHeader(headerName, randomAlphaOfLength(10));
+        }
         threadContext.putHeader(randomAlphaOfLength(10), "doesntmatter");
 
         PutWatchRequest putWatchRequest = new PutWatchRequest();

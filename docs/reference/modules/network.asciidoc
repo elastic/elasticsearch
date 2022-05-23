@@ -252,3 +252,5 @@ include::http.asciidoc[]
 include::transport.asciidoc[]
 
 include::network/tracers.asciidoc[]
+
+include::network/threading.asciidoc[]

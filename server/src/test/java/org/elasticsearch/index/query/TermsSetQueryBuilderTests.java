@@ -39,7 +39,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

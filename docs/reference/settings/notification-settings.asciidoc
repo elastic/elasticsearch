@@ -116,6 +116,13 @@ or specify the email account to use in the <<actions-email,`email`>> action. See
 Specifies account information for sending notifications via email. You
 can specify the following email account attributes:
 +
+
+`xpack.notification.email.account.domain_allowlist`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Specifies domains to which emails are allowed to be sent. Emails with recipients (`To:`, `Cc:`, or
+`Bcc:`) outside of these domains will be rejected and an error thrown. This setting defaults to
+`["*"]` which means all domains are allowed. Simple globbing is supported, such as `*.company.com`
+in the list of allowed domains.
 --
 [[email-account-attributes]]
 

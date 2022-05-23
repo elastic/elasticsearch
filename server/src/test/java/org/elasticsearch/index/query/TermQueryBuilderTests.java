@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -19,6 +17,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
 

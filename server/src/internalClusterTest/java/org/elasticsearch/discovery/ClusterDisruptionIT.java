@@ -59,7 +59,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
@@ -138,7 +137,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         final List<Exception> exceptedExceptions = new CopyOnWriteArrayList<>();
 
         final ConflictMode conflictMode = ConflictMode.randomMode();
-        final List<String> fieldNames = IntStream.rangeClosed(0, randomInt(10)).mapToObj(n -> "f" + n).collect(Collectors.toList());
+        final List<String> fieldNames = IntStream.rangeClosed(0, randomInt(10)).mapToObj(n -> "f" + n).toList();
 
         logger.info("starting indexers using conflict mode " + conflictMode);
         try {
@@ -186,7 +185,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                         } catch (InterruptedException e) {
                             // fine - semaphore interrupt
                         } catch (AssertionError | Exception e) {
-                            logger.info(() -> new ParameterizedMessage("unexpected exception in background thread of [{}]", node), e);
+                            logger.info(() -> "unexpected exception in background thread of [" + node + "]", e);
                         }
                     }
                 });
@@ -328,7 +327,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     public void testSendingShardFailure() throws Exception {
         List<String> nodes = startCluster(3);
         String masterNode = internalCluster().getMasterName();
-        List<String> nonMasterNodes = nodes.stream().filter(node -> node.equals(masterNode) == false).collect(Collectors.toList());
+        List<String> nonMasterNodes = nodes.stream().filter(node -> node.equals(masterNode) == false).toList();
         String nonMasterNode = randomFrom(nonMasterNodes);
         assertAcked(
             prepareCreate("test").setSettings(

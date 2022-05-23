@@ -221,14 +221,14 @@ MinIO-backed repositories as well as repositories stored on AWS S3. Other
 S3-compatible storage systems may also work with {es}, but these are not
 covered by the {es} test suite.
 
-Note that some storage systems claim to be S3-compatible without correctly
-supporting the full S3 API. The `repository-s3` type requires full
+Note that some storage systems claim to be S3-compatible but do not faithfully
+emulate S3's behaviour in full. The `repository-s3` type requires full
 compatibility with S3. In particular it must support the same set of API
-endpoints, return the same errors in case of failures, and offer a consistency
-model no weaker than S3's when accessed concurrently by multiple nodes.
-Incompatible error codes and consistency models may be particularly hard to
-track down since errors and consistency failures are usually rare and hard to
-reproduce.
+endpoints, return the same errors in case of failures, and offer consistency
+and performance at least as good as S3 even when accessed concurrently by
+multiple nodes. Incompatible error codes, consistency or performance may be
+particularly hard to track down since errors, consistency failures, and
+performance issues are usually rare and hard to reproduce.
 
 You can perform some basic checks of the suitability of your storage system
 using the {ref}/repo-analysis-api.html[repository analysis API]. If this API

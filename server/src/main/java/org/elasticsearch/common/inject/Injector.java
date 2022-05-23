@@ -33,52 +33,11 @@ import java.util.List;
  * </ul>
  * <p>
  * Injectors are created using the facade class {@link Guice}.
- * <p>
- * An injector can also {@link #injectMembers(Object) inject the dependencies} of
- * already-constructed instances. This can be used to interoperate with objects created by other
- * frameworks or services.
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
  */
 public interface Injector {
-
-    /**
-     * Injects dependencies into the fields and methods of {@code instance}. Ignores the presence or
-     * absence of an injectable constructor.
-     * <p>
-     * Whenever Guice creates an instance, it performs this injection automatically (after first
-     * performing constructor injection), so if you're able to let Guice create all your objects for
-     * you, you'll never need to use this method.
-     *
-     * @param instance to inject members on
-     * @see Binder#getMembersInjector(Class) for a preferred alternative that supports checks before
-     *      run time
-     */
-    void injectMembers(Object instance);
-
-    /**
-     * Returns the members injector used to inject dependencies into methods and fields on instances
-     * of the given type {@code T}.
-     *
-     * @param typeLiteral type to get members injector for
-     * @see Binder#getMembersInjector(TypeLiteral) for an alternative that offers up front error
-     *      detection
-     * @since 2.0
-     */
-    <T> MembersInjector<T> getMembersInjector(TypeLiteral<T> typeLiteral);
-
-    /**
-     * Returns the members injector used to inject dependencies into methods and fields on instances
-     * of the given type {@code T}. When feasible, use {@link Binder#getMembersInjector(TypeLiteral)}
-     * instead to get increased up front error detection.
-     *
-     * @param type type to get members injector for
-     * @see Binder#getMembersInjector(Class) for an alternative that offers up front error
-     *      detection
-     * @since 2.0
-     */
-    <T> MembersInjector<T> getMembersInjector(Class<T> type);
 
     /**
      * Returns all explicit bindings for {@code type}.
@@ -101,7 +60,6 @@ public interface Injector {
      * using this method, in favor of having Guice inject your dependencies ahead of time.
      *
      * @throws ConfigurationException if this injector cannot find or create the provider.
-     * @see Binder#getProvider(Class) for an alternative that offers up front error detection
      */
     <T> Provider<T> getProvider(Class<T> type);
 

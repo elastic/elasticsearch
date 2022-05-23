@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
@@ -98,11 +99,7 @@ public final class AggregationTestUtils {
     }
 
     static Max createMax(String name, double value) {
-        Max max = mock(Max.class);
-        when(max.getName()).thenReturn(name);
-        when(max.value()).thenReturn(value);
-        when(max.getValue()).thenReturn(value);
-        return max;
+        return new Max(name, value, DocValueFormat.RAW, null);
     }
 
     static Avg createAvg(String name, double value) {

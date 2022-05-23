@@ -60,6 +60,11 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected ValuesSourceType defaultValueSourceType() {
         // Copied over from the old targetValueType setting. Not sure what cases this is still relevant for. --Tozzi 2020-01-13
         return rangeFactory.getValueSourceType();

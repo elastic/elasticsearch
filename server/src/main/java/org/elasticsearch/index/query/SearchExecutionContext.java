@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RuntimeField;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -374,12 +375,23 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mapperService.isMetadataField(field);
     }
 
+    public boolean isMultiField(String field) {
+        if (runtimeMappings.containsKey(field)) {
+            return false;
+        }
+        return mapperService.isMultiField(field);
+    }
+
     public Set<String> sourcePath(String fullName) {
         return mappingLookup.sourcePaths(fullName);
     }
 
     public boolean isSourceEnabled() {
         return mappingLookup.isSourceEnabled();
+    }
+
+    public SourceLoader newSourceLoader() {
+        return mappingLookup.newSourceLoader();
     }
 
     /**
@@ -604,7 +616,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return client;
     }
 
-    public QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
+    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
         return AbstractQueryBuilder.parseInnerQueryBuilder(parser);
     }
 

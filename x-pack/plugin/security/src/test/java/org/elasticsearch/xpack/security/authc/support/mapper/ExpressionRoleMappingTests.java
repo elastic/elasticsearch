@@ -22,11 +22,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -447,7 +447,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     private ExpressionRoleMapping parse(String json, String name, boolean fromIndex) throws IOException {
         final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
         final XContentParser parser = XContentType.JSON.xContent()
-            .createParser(registry, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(registry), json);
         final ExpressionRoleMapping mapping = ExpressionRoleMapping.parse(name, parser);
         assertThat(mapping, notNullValue());
         assertThat(mapping.getName(), equalTo(name));

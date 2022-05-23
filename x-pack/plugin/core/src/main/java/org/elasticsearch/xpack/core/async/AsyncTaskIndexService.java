@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.async;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -25,6 +24,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -57,10 +58,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 
-import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -78,7 +76,6 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
 /**
  * A service that exposes the CRUD operations for the async task-specific index.
@@ -203,8 +200,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     /**
      * Returns the authentication information, or null if the current context has no authentication info.
      **/
-    public Authentication getAuthentication() {
-        return securityContext.getAuthentication();
+    public SecurityContext getSecurityContext() {
+        return securityContext;
     }
 
     /**
@@ -213,8 +210,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Currently for EQL we don't set limit for a stored async response
      * TODO: add limit for stored async response in EQL, and instead of this method use createResponse
      */
-    public void createResponseForEQL(String docId, Map<String, String> headers, R response, ActionListener<IndexResponse> listener)
-        throws IOException {
+    public void createResponseForEQL(String docId, Map<String, String> headers, R response, ActionListener<IndexResponse> listener) {
         try {
             final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
             final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
@@ -310,7 +306,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             } else {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof DocumentMissingException == false && cause instanceof VersionConflictEngineException == false) {
-                    logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", docId), e);
+                    logger.error(() -> "failed to store async-search [" + docId + "]", e);
                     ActionListener<UpdateResponse> newListener = listener;
                     updateStoredResponseWithFailure(
                         docId,
@@ -367,7 +363,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
      * is registered in the task manager, <code>null</code> otherwise.
      */
-    public <T extends AsyncTask> T getTask(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass) throws IOException {
+    public static <T extends AsyncTask> T getTask(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass)
+        throws IOException {
         Task task = taskManager.getTask(asyncExecutionId.getTaskId().getId());
         if (tClass.isInstance(task) == false) {
             return null;
@@ -397,8 +394,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             return null;
         }
         // Check authentication for the user
-        final Authentication auth = securityContext.getAuthentication();
-        if (ensureAuthenticatedUserIsSame(asyncTask.getOriginHeaders(), auth) == false) {
+        if (false == securityContext.canIAccessResourcesCreatedWithHeaders(asyncTask.getOriginHeaders())) {
             throw new ResourceNotFoundException(asyncExecutionId.getEncoded() + " not found");
         }
         return asyncTask;
@@ -471,7 +467,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                         @SuppressWarnings("unchecked")
                         final Map<String, String> headers = (Map<String, String>) XContentParserUtils.parseFieldsValue(parser);
                         // check the authentication of the current user against the user that initiated the async task
-                        if (checkAuthentication && ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication()) == false) {
+                        if (checkAuthentication && false == securityContext.canIAccessResourcesCreatedWithHeaders(headers)) {
                             throw new ResourceNotFoundException(asyncExecutionId.getEncoded());
                         }
                     }
@@ -539,14 +535,19 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         }
     }
 
+    private static final FetchSourceContext FETCH_HEADERS_FIELD_CONTEXT = FetchSourceContext.of(
+        true,
+        new String[] { HEADERS_FIELD },
+        Strings.EMPTY_ARRAY
+    );
+
     /**
-     * Checks if the current user's authentication matches the original authentication stored
-     * in the async search index.
+     * Checks if the current user can access the async search result of the original user.
      **/
     void ensureAuthenticatedUserCanDeleteFromIndex(AsyncExecutionId executionId, ActionListener<Void> listener) {
         GetRequest internalGet = new GetRequest(index).preference(executionId.getEncoded())
             .id(executionId.getDocId())
-            .fetchSourceContext(new FetchSourceContext(true, new String[] { HEADERS_FIELD }, new String[] {}));
+            .fetchSourceContext(FETCH_HEADERS_FIELD_CONTEXT);
 
         clientWithOrigin.get(internalGet, ActionListener.wrap(get -> {
             if (get.isExists() == false) {
@@ -556,7 +557,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             // Check authentication for the user
             @SuppressWarnings("unchecked")
             Map<String, String> headers = (Map<String, String>) get.getSource().get(HEADERS_FIELD);
-            if (ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication())) {
+            if (securityContext.canIAccessResourcesCreatedWithHeaders(headers)) {
                 listener.onResponse(null);
             } else {
                 listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()));
@@ -564,31 +565,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         }, exc -> listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()))));
     }
 
-    /**
-     * Extracts the authentication from the original headers and checks that it matches
-     * the current user. This function returns always <code>true</code> if the provided
-     * <code>headers</code> do not contain any authentication.
-     */
-    boolean ensureAuthenticatedUserIsSame(Map<String, String> originHeaders, Authentication current) throws IOException {
-        if (originHeaders == null || originHeaders.containsKey(AUTHENTICATION_KEY) == false) {
-            // no authorization attached to the original request
-            return true;
-        }
-        if (current == null) {
-            // origin is an authenticated user but current is not
-            return false;
-        }
-        Authentication origin = AuthenticationContextSerializer.decode(originHeaders.get(AUTHENTICATION_KEY));
-        return origin.canAccessResourcesOf(current);
-    }
-
     private void writeResponse(R response, OutputStream os) throws IOException {
-        os = new FilterOutputStream(os) {
-            @Override
-            public void close() {
-                // do not close the output
-            }
-        };
+        // do not close the output
+        os = Streams.noCloseStream(os);
         final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
         Version.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
         if (minNodeVersion.onOrAfter(Version.V_7_15_0)) {

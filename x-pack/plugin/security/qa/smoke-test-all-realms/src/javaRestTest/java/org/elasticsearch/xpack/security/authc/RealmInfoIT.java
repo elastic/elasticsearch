@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -48,10 +46,10 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
     static Map<String, RollableIndexCaps> getCaps(String indexPattern, ImmutableOpenMap<String, IndexMetadata> indices) {
         Map<String, List<RollupJobCaps>> allCaps = new TreeMap<>();
-        for (ObjectObjectCursor<String, IndexMetadata> entry : indices) {
+        for (var entry : indices.entrySet()) {
 
             // Does this index have rollup metadata?
-            TransportGetRollupCapsAction.findRollupIndexCaps(entry.key, entry.value).ifPresent(cap -> {
+            TransportGetRollupCapsAction.findRollupIndexCaps(entry.getKey(), entry.getValue()).ifPresent(cap -> {
 
                 List<RollupJobCaps> jobCaps;
                 if (indexPattern.equals(Metadata.ALL)) {

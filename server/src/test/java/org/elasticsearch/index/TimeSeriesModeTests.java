@@ -144,8 +144,22 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }
 
-    public void testRoutingPathMatchesObject() {
-        Settings s = getSettings(randomBoolean() ? "dim.o" : "dim.*");
+    public void testRoutingPathMatchesObject() throws IOException {
+        Settings s = getSettings("dim.o*");
+        createMapperService(s, mapping(b -> {
+            b.startObject("dim").startObject("properties");
+            {
+                b.startObject("o").startObject("properties");
+                b.startObject("inner_dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+                b.endObject().endObject();
+            }
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.endObject().endObject();
+        }));
+    }
+
+    public void testRoutingPathEqualsObjectNameError() {
+        Settings s = getSettings("dim.o");
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");
             {

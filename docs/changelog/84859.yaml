@@ -1,0 +1,5 @@
+pr: 84859
+summary: Ensure API key can only see itself with `QueryApiKey` API
+area: Authorization
+type: bug
+issues: []

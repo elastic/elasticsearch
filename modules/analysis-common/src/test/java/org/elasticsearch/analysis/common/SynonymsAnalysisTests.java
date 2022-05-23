@@ -9,10 +9,10 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -240,7 +240,11 @@ public class SynonymsAnalysisTests extends ESTestCase {
             TokenFilterFactory tff = plugin.getTokenFilters().get(factory).get(idxSettings, null, factory, settings);
             TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, null, "keyword", settings);
             SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, null, "synonym", settings);
-            Analyzer analyzer = stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null);
+            Analyzer analyzer = SynonymTokenFilterFactory.buildSynonymAnalyzer(
+                tok,
+                Collections.emptyList(),
+                Collections.singletonList(tff)
+            );
 
             try (TokenStream ts = analyzer.tokenStream("field", "text")) {
                 assertThat(ts, instanceOf(KeywordTokenizer.class));
@@ -308,7 +312,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 "Expected IllegalArgumentException for factory " + factory,
-                () -> stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null)
+                () -> SynonymTokenFilterFactory.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff))
             );
 
             assertEquals(factory, "Token filter [" + factory + "] cannot be used to parse synonyms", e.getMessage());

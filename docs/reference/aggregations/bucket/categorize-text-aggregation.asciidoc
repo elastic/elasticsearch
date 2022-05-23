@@ -13,8 +13,9 @@ tokens are used to categorize the text.
 
 NOTE: If you have considerable memory allocated to your JVM but are receiving circuit breaker exceptions from this
       aggregation, you may be attempting to categorize text that is poorly formatted for categorization. Consider
-      adding `categorization_filters` or running under <<search-aggregations-bucket-sampler-aggregation,sampler>> or
-      <<search-aggregations-bucket-diversified-sampler-aggregation,diversified sampler>> to explore the created categories.
+      adding `categorization_filters` or running under <<search-aggregations-bucket-sampler-aggregation,sampler>>,
+      <<search-aggregations-bucket-diversified-sampler-aggregation,diversified sampler>>, or
+      <<search-aggregations-random-sampler-aggregation,random sampler>> to explore the created categories.
 
 [[bucket-categorize-text-agg-syntax]]
 ==== Parameters

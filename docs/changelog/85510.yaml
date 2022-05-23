@@ -1,0 +1,5 @@
+pr: 85510
+summary: Fix skip caching factor with `indices.queries.cache.all_segments`
+area: Search
+type: bug
+issues: []

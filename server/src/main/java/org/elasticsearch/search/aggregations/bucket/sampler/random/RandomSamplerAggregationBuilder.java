@@ -16,10 +16,6 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -53,15 +49,18 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
     }
 
     private int seed = Randomness.get().nextInt();
-    private double p = 0.1;
+    private double p;
 
-    RandomSamplerAggregationBuilder(String name) {
+    public RandomSamplerAggregationBuilder(String name) {
         super(name);
     }
 
     public RandomSamplerAggregationBuilder setProbability(double probability) {
-        if (probability <= 0 || probability >= 1) {
-            throw new IllegalArgumentException("[probability] must be between 0 and 1, exclusive, was [" + probability + "]");
+        if (probability <= 0) {
+            throw new IllegalArgumentException("[probability] must be greater than 0.0, was [" + probability + "]");
+        }
+        if (probability > 0.5 && probability != 1.0) {
+            throw new IllegalArgumentException("[probability] must be between 0.0 and 0.5 or exactly 1.0, was [" + probability + "]");
         }
         this.p = probability;
         return this;
@@ -76,6 +75,10 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         super(in);
         this.p = in.readDouble();
         this.seed = in.readInt();
+    }
+
+    public double getProbability() {
+        return p;
     }
 
     protected RandomSamplerAggregationBuilder(
@@ -94,7 +97,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         out.writeInt(seed);
     }
 
-    void recursivelyCheckSubAggs(Collection<AggregationBuilder> builders, Consumer<AggregationBuilder> aggregationCheck) {
+    static void recursivelyCheckSubAggs(Collection<AggregationBuilder> builders, Consumer<AggregationBuilder> aggregationCheck) {
         if (builders == null || builders.isEmpty()) {
             return;
         }
@@ -116,12 +119,12 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         if (subfactoriesBuilder.getAggregatorFactories().isEmpty()) {
             throw new IllegalArgumentException("[random_sampler] aggregation [" + getName() + "] must have sub-aggregations");
         }
+        if (p == 0.0) {
+            throw new IllegalArgumentException("[random_sampler] aggregation [" + getName() + "] must have [probability] set");
+        }
         recursivelyCheckSubAggs(subfactoriesBuilder.getAggregatorFactories(), builder -> {
             // TODO add a method or interface to aggregation builder that defaults to false
-            if (builder instanceof CardinalityAggregationBuilder
-                || builder instanceof NestedAggregationBuilder
-                || builder instanceof SamplerAggregationBuilder
-                || builder instanceof DiversifiedAggregationBuilder) {
+            if (builder.supportsSampling() == false) {
                 throw new IllegalArgumentException(
                     "[random_sampler] aggregation ["
                         + getName()
@@ -134,6 +137,10 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
             }
         });
         return new RandomSamplerAggregatorFactory(name, seed, p, context, parent, subfactoriesBuilder, metadata);
+    }
+
+    public int getSeed() {
+        return seed;
     }
 
     @Override
@@ -162,7 +169,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_1_0;
+        return Version.V_8_2_0;
     }
 
     @Override

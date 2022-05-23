@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * An "associated index" is an index that is related to or derived from a system
@@ -106,7 +105,7 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
      */
     @Override
     public List<String> getMatchingIndices(Metadata metadata) {
-        return metadata.indices().keySet().stream().filter(this::matchesIndexPattern).collect(Collectors.toUnmodifiableList());
+        return metadata.indices().keySet().stream().filter(this::matchesIndexPattern).toList();
     }
 
     /**

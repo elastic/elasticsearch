@@ -8,14 +8,14 @@
 
 package org.elasticsearch.cluster;
 
-import org.apache.lucene.mockfile.FilterFileStore;
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.apache.lucene.mockfile.FilterPath;
+import org.apache.lucene.tests.mockfile.FilterFileStore;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.plugins.Plugin;

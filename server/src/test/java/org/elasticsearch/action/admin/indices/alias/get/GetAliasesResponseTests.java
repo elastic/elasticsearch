@@ -49,7 +49,7 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
         if (randomBoolean()) {
             ImmutableOpenMap.Builder<String, List<AliasMetadata>> builder = ImmutableOpenMap.builder(aliases);
             ImmutableOpenMap<String, List<AliasMetadata>> list = createIndicesAliasesMap(1, 2).build();
-            list.forEach(e -> builder.put(e.key, e.value));
+            list.entrySet().forEach(e -> builder.put(e.getKey(), e.getValue()));
             return builder.build();
         }
 

@@ -565,7 +565,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         Map<String, DiskUsage> diskUsages = state.nodes()
             .stream()
             .collect(Collectors.toMap(DiscoveryNode::getId, node -> new DiskUsage(node.getId(), null, "the_path", 1000, 1000)));
-        ImmutableOpenMap<String, DiskUsage> immutableDiskUsages = ImmutableOpenMap.<String, DiskUsage>builder().putAll(diskUsages).build();
+        ImmutableOpenMap<String, DiskUsage> immutableDiskUsages = ImmutableOpenMap.<String, DiskUsage>builder()
+            .putAllFromMap(diskUsages)
+            .build();
 
         return new ClusterInfo() {
             @Override

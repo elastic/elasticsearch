@@ -8,7 +8,7 @@
   - do:
       index:
           index:  test_1
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
   - do:
@@ -18,9 +18,9 @@
       mget:
         body:
           docs:
-            - { _index: test_2, _id: 1}
-            - { _index: test_1, _id: 2}
-            - { _index: test_1, _id: 1}
+            - { _index: test_2, _id: "1"}
+            - { _index: test_1, _id: "2"}
+            - { _index: test_1, _id: "1"}
 
   - is_false: docs.0.found
   - match:  { docs.0._index:     test_2      }

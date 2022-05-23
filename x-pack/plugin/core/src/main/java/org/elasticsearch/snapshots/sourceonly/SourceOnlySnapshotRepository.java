@@ -27,7 +27,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -140,7 +140,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
             context.onFailure(
                 new IllegalStateException(
-                    "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " + "or filters the source"
+                    "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source"
                 )
             );
             return;
@@ -148,7 +148,15 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         final Store store = context.store();
         Directory unwrap = FilterDirectory.unwrap(store.directory());
         if (unwrap instanceof FSDirectory == false) {
-            throw new AssertionError("expected FSDirectory but got " + unwrap.toString());
+            context.onFailure(
+                new IllegalStateException(
+                    context.indexCommit()
+                        + " is not a regular index, but ["
+                        + unwrap.toString()
+                        + "]  and cannot be snapshotted into a source-only repository"
+                )
+            );
+            return;
         }
         Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
         // TODO should we have a snapshot tmp directory per shard that is maintained by the system?

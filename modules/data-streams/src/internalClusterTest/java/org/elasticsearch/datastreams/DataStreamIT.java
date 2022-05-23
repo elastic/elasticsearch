@@ -8,7 +8,6 @@
 package org.elasticsearch.datastreams;
 
 import org.apache.logging.log4j.core.util.Throwables;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -29,6 +28,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
@@ -80,6 +80,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -663,6 +664,30 @@ public class DataStreamIT extends ESIntegTestCase {
                 )
         );
         assertTrue(maybeE.isPresent());
+
+        // Now replace it with a higher-priority template and delete the old one
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id2");
+        request.indexTemplate(
+            new ComposableIndexTemplate(
+                Collections.singletonList("metrics-foobar*"), // Match the other data stream with a slightly different pattern
+                new Template(null, null, null),
+                null,
+                2L, // Higher priority than the other composable template
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
+            )
+        );
+        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+
+        DeleteComposableIndexTemplateAction.Request deleteRequest = new DeleteComposableIndexTemplateAction.Request("id");
+        client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteRequest).get();
+
+        GetComposableIndexTemplateAction.Request getReq = new GetComposableIndexTemplateAction.Request("id");
+        Exception e3 = expectThrows(Exception.class, () -> client().execute(GetComposableIndexTemplateAction.INSTANCE, getReq).get());
+        maybeE = ExceptionsHelper.unwrapCausesAndSuppressed(e3, err -> err.getMessage().contains("index template matching [id] not found"));
+        assertTrue(maybeE.isPresent());
     }
 
     public void testAliasActionsOnDataStreams() throws Exception {
@@ -1043,6 +1068,7 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testUpdateIndexSettingsViaDataStream() throws Exception {
         putComposableIndexTemplate("id1", List.of("logs-*"));
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
+
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet();
 
         String backingIndex1 = DataStream.getDefaultBackingIndexName("logs-foobar", 1);
@@ -1127,7 +1153,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true, null)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
         );
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
@@ -1439,7 +1465,7 @@ public class DataStreamIT extends ESIntegTestCase {
                     }
                 }
             } catch (Exception e) {
-                logger.error(new ParameterizedMessage("thread [{}] encountered unexpected exception", i), e);
+                logger.error(() -> "thread [" + i + "] encountered unexpected exception", e);
                 fail("we should not encounter unexpected exceptions");
             }
         }, "rollover-thread-" + i)).collect(Collectors.toSet());
@@ -1777,7 +1803,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true, null)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
         );
         ComposableIndexTemplate finalTemplate = template;
         client().execute(
@@ -1803,7 +1829,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true, null)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
         );
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
@@ -1829,7 +1855,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false, null)
+            new ComposableIndexTemplate.DataStreamTemplate(false, false)
         );
         ComposableIndexTemplate finalTemplate1 = template;
         Exception e = expectThrows(
@@ -1871,7 +1897,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true, null)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true)
         );
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,

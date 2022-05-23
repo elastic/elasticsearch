@@ -29,7 +29,7 @@ Pipelines**.
 [role="screenshot"]
 image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Pipelines list view,align="center"]
 
-. Click **Create pipeline**.
+. Click **Create pipeline > New pipeline**.
 . Provide a name and description for the pipeline.
 . Add a <<grok-processor,grok processor>> to parse the log message:
 

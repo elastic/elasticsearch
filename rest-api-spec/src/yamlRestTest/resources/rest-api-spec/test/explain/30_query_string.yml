@@ -14,7 +14,7 @@
   - do:
       index:
           index:  test
-          id:     1
+          id:     "1"
           body:   { field: foo bar}
 
   - do:
@@ -24,7 +24,7 @@
   - do:
       explain:
         index:  test
-        id:     1
+        id:     "1"
         q: bar
         df: field
 
@@ -33,7 +33,7 @@
   - do:
       explain:
         index:  test
-        id:     1
+        id:     "1"
         q: field:foo field:xyz
 
   - is_true: matched
@@ -41,7 +41,7 @@
   - do:
       explain:
         index:  test
-        id:     1
+        id:     "1"
         q: field:foo field:xyz
         default_operator: AND
 
@@ -50,7 +50,7 @@
   - do:
       explain:
         index:  test
-        id:     1
+        id:     "1"
         q: field:BA*
 
   - is_true: matched
@@ -58,7 +58,7 @@
   - do:
       explain:
         index:  test
-        id:     1
+        id:     "1"
         q: number:foo
         lenient: true
 

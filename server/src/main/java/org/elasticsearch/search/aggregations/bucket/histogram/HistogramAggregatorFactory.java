@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -15,6 +17,7 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -82,6 +85,18 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     @Override
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
+        // If min_doc_count is provided, we do not support them being larger than 1
+        // This is because we cannot be sure about their relative scale when sampled
+        if (getSamplingContext().map(SamplingContext::isSampled).orElse(false)) {
+            if (minDocCount > 1) {
+                throw new ElasticsearchStatusException(
+                    "aggregation [{}] is within a sampling context; " + "min_doc_count, provided [{}], cannot be greater than 1",
+                    RestStatus.BAD_REQUEST,
+                    name(),
+                    minDocCount
+                );
+            }
+        }
         return aggregatorSupplier.build(
             name,
             factories,

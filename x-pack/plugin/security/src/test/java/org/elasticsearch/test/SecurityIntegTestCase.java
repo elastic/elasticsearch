@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.test;
 
-import io.netty.util.ThreadDeathWatcher;
-import io.netty.util.concurrent.GlobalEventExecutor;
-
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -17,6 +14,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -37,7 +35,6 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 
@@ -53,7 +50,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.hasItem;
 
 /**
@@ -75,6 +72,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
      * to how {@link ESIntegTestCase#nodeSettings(int, Settings)} works.
      */
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
+    private TestSecurityClient securityClient;
 
     @BeforeClass
     public static void generateBootstrapPassword() {
@@ -174,35 +172,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                         currentClusterScope
                     );
                     break;
-            }
-        }
-    };
-
-    /**
-     * A JUnit class level rule that runs after the AfterClass method in {@link ESIntegTestCase},
-     * which stops the cluster. After the cluster is stopped, there are a few netty threads that
-     * can linger, so we wait for them to finish otherwise these lingering threads can intermittently
-     * trigger the thread leak detector
-     */
-    @ClassRule
-    public static final ExternalResource STOP_NETTY_RESOURCE = new ExternalResource() {
-        @Override
-        protected void after() {
-            try {
-                GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (IllegalStateException e) {
-                if (e.getMessage().equals("thread was not started") == false) {
-                    throw e;
-                }
-                // ignore since the thread was never started
-            }
-
-            try {
-                ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
             }
         }
     };
@@ -468,5 +437,16 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         public TestRestHighLevelClient() {
             super(getRestClient(), client -> {}, List.of());
         }
+    }
+
+    protected TestSecurityClient getSecurityClient(RequestOptions requestOptions) {
+        return new TestSecurityClient(getRestClient(), requestOptions);
+    }
+
+    protected TestSecurityClient getSecurityClient() {
+        if (securityClient == null) {
+            securityClient = getSecurityClient(SecuritySettingsSource.SECURITY_REQUEST_OPTIONS);
+        }
+        return securityClient;
     }
 }

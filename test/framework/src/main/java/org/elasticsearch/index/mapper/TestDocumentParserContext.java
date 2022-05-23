@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -31,7 +33,7 @@ public class TestDocumentParserContext extends DocumentParserContext {
      * Use with caution as it can cause {@link NullPointerException}s down the line.
      */
     public TestDocumentParserContext() {
-        super(MappingLookup.EMPTY, null, null, null, null);
+        super(MappingLookup.EMPTY, MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY), null, null, null);
     }
 
     /**

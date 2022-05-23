@@ -175,14 +175,12 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 assertThat(indexExists(excludedIndex), is(false));
             });
 
-            assertBusy(() -> {
-                verifyCcrMonitoring("metrics-20210101", "metrics-20210101");
-                verifyAutoFollowMonitoring();
-            }, 30, TimeUnit.SECONDS);
+            assertLongBusy(() -> verifyCcrMonitoring("metrics-20210101", "metrics-20210101"));
+            assertLongBusy(ESCCRRestTestCase::verifyAutoFollowMonitoring);
 
         } finally {
-            cleanUpLeader(List.of("metrics-20210101", excludedIndex), List.of(), List.of());
             cleanUpFollower(List.of("metrics-20210101"), List.of(), List.of(autoFollowPatternName));
+            cleanUpLeader(List.of("metrics-20210101", excludedIndex), List.of(), List.of());
         }
     }
 
@@ -957,7 +955,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 if (isNotFoundResponseException(e)) {
                     continue;
                 }
-                logger.warn(() -> new ParameterizedMessage("failed to delete auto-follow pattern [{}] after test", autoFollowPattern), e);
+                logger.warn(() -> "failed to delete auto-follow pattern [" + autoFollowPattern + "] after test", e);
             }
         }
         for (String dataStream : dataStreams) {
@@ -967,7 +965,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 if (isNotFoundResponseException(e)) {
                     continue;
                 }
-                logger.warn(() -> new ParameterizedMessage("failed to delete data stream [{}] after test", dataStream), e);
+                logger.warn(() -> "failed to delete data stream [" + dataStream + "] after test", e);
             }
         }
         for (String index : indices) {
@@ -977,7 +975,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 if (isNotFoundResponseException(e)) {
                     continue;
                 }
-                logger.warn(() -> new ParameterizedMessage("failed to delete index [{}] after test", index), e);
+                logger.warn(() -> "failed to delete index [" + index + "] after test", e);
             }
         }
     }

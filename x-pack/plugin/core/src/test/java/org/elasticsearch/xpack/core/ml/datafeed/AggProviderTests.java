@@ -14,10 +14,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
@@ -81,8 +81,7 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
     }
 
     public void testEmptyAggMap() throws IOException {
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, "{}");
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, "{}");
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> AggProvider.fromXContent(parser, false));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("Datafeed aggregations are not parsable"));

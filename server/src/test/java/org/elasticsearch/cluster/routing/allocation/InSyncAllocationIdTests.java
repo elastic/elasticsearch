@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.junit.Before;
@@ -162,8 +163,9 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         ShardStateAction.ShardFailedClusterStateTaskExecutor failedClusterStateTaskExecutor =
             new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null);
         long primaryTerm = clusterState.metadata().index("test").primaryTerm(0);
-        clusterState = failedClusterStateTaskExecutor.execute(
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterState,
+            failedClusterStateTaskExecutor,
             List.of(
                 new FailedShardUpdateTask(
                     new FailedShardEntry(
@@ -177,7 +179,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
                     createTestListener()
                 )
             )
-        ).resultingState();
+        );
 
         assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(1));
     }
@@ -214,7 +216,11 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         Collections.shuffle(failureEntries, random());
         logger.info("Failing {}", failureEntries);
 
-        clusterState = failedClusterStateTaskExecutor.execute(clusterState, failureEntries).resultingState();
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            failedClusterStateTaskExecutor,
+            failureEntries
+        );
 
         assertThat(
             clusterState.metadata().index("test").inSyncAllocationIds(0),
@@ -222,7 +228,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         );
 
         // resend shard failures to check if they are ignored
-        clusterState = failedClusterStateTaskExecutor.execute(clusterState, failureEntries).resultingState();
+        clusterState = ClusterStateTaskExecutorUtils.executeIgnoringFailures(clusterState, failedClusterStateTaskExecutor, failureEntries);
 
         assertThat(
             clusterState.metadata().index("test").inSyncAllocationIds(0),
@@ -354,15 +360,16 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         assertEquals(inSyncSet, clusterState.metadata().index("test").inSyncAllocationIds(0));
 
         logger.info("fail primary shard");
-        clusterState = failedClusterStateTaskExecutor.execute(
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterState,
+            failedClusterStateTaskExecutor,
             List.of(
                 new FailedShardUpdateTask(
                     new FailedShardEntry(shardRoutingTable.shardId(), primaryShard.allocationId().getId(), 0L, "dummy", null, true),
                     createTestListener()
                 )
             )
-        ).resultingState();
+        );
 
         assertThat(clusterState.routingTable().index("test").shard(0).assignedShards().size(), equalTo(0));
         // in-sync allocation ids should not be updated

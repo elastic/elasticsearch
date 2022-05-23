@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
@@ -218,8 +219,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
             .state()
             .nodes()
             .getDataNodes()
+            .values()
             .stream()
-            .map(e -> e.getValue().getName())
+            .map(DiscoveryNode::getName)
             .collect(Collectors.toList());
         final String assignedNode = randomFrom(dataNodes);
         final String indexName = "test";

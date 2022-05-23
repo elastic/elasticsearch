@@ -53,6 +53,11 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final int precision = randomPrecision();
         final int size = randomNumberOfBuckets();

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -28,7 +27,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
@@ -37,8 +35,10 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -48,8 +48,8 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -80,7 +80,10 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongUnaryOperator;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -93,6 +96,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class StoreTests extends ESTestCase {
 
@@ -351,7 +355,7 @@ public class StoreTests extends ESTestCase {
         writer.commit();
         writer.close();
         metadata = store.getMetadata(null);
-        assertThat(metadata.asMap().isEmpty(), is(false));
+        assertThat(metadata.fileMetadataMap().isEmpty(), is(false));
         for (StoreFileMetadata meta : metadata) {
             try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
                 String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
@@ -482,13 +486,13 @@ public class StoreTests extends ESTestCase {
         for (String file : store.directory().listAll()) {
             if (IndexWriter.WRITE_LOCK_NAME.equals(file) == false && file.startsWith("extra") == false) {
                 assertTrue(
-                    file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length,
-                    metadata.asMap().containsKey(file)
+                    file + " is not in the map: " + metadata.fileMetadataMap().size() + " vs. " + store.directory().listAll().length,
+                    metadata.fileMetadataMap().containsKey(file)
                 );
             } else {
                 assertFalse(
-                    file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length,
-                    metadata.asMap().containsKey(file)
+                    file + " is not in the map: " + metadata.fileMetadataMap().size() + " vs. " + store.directory().listAll().length,
+                    metadata.fileMetadataMap().containsKey(file)
                 );
             }
         }
@@ -674,8 +678,8 @@ public class StoreTests extends ESTestCase {
             }
             dvUpdateSnapshot = store.getMetadata(null);
         }
-        logger.info("--> source: {}", dvUpdateSnapshot.asMap());
-        logger.info("--> target: {}", newCommitMetadata.asMap());
+        logger.info("--> source: {}", dvUpdateSnapshot.fileMetadataMap());
+        logger.info("--> target: {}", newCommitMetadata.fileMetadataMap());
         Store.RecoveryDiff dvUpdateDiff = dvUpdateSnapshot.recoveryDiff(newCommitMetadata);
         final int delFileCount;
         if (delFile == null || dvUpdateDiff.different.isEmpty()) {
@@ -918,14 +922,29 @@ public class StoreTests extends ESTestCase {
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
-        Store.MetadataSnapshot inMetadataSnapshot = new Store.MetadataSnapshot(in);
+        Store.MetadataSnapshot inMetadataSnapshot = Store.MetadataSnapshot.readFrom(in);
         Map<String, StoreFileMetadata> origEntries = new HashMap<>();
-        origEntries.putAll(outMetadataSnapshot.asMap());
-        for (Map.Entry<String, StoreFileMetadata> entry : inMetadataSnapshot.asMap().entrySet()) {
+        origEntries.putAll(outMetadataSnapshot.fileMetadataMap());
+        for (Map.Entry<String, StoreFileMetadata> entry : inMetadataSnapshot.fileMetadataMap().entrySet()) {
             assertThat(entry.getValue().name(), equalTo(origEntries.remove(entry.getKey()).name()));
         }
         assertThat(origEntries.size(), equalTo(0));
-        assertThat(inMetadataSnapshot.getCommitUserData(), equalTo(outMetadataSnapshot.getCommitUserData()));
+        assertThat(inMetadataSnapshot.commitUserData(), equalTo(outMetadataSnapshot.commitUserData()));
+    }
+
+    public void testEmptyMetadataSnapshotStreaming() throws Exception {
+        var outMetadataSnapshot = randomBoolean() ? Store.MetadataSnapshot.EMPTY : new Store.MetadataSnapshot(emptyMap(), emptyMap(), 0L);
+        var targetNodeVersion = randomCompatibleVersion(random(), org.elasticsearch.Version.CURRENT);
+
+        var outBuffer = new ByteArrayOutputStream();
+        var out = new OutputStreamStreamOutput(outBuffer);
+        out.setVersion(targetNodeVersion);
+        outMetadataSnapshot.writeTo(out);
+
+        var inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+        var in = new InputStreamStreamInput(inBuffer);
+        in.setVersion(targetNodeVersion);
+        assertThat(Store.MetadataSnapshot.readFrom(in), sameInstance(Store.MetadataSnapshot.EMPTY));
     }
 
     protected Store.MetadataSnapshot createMetadataSnapshot() {
@@ -955,9 +974,9 @@ public class StoreTests extends ESTestCase {
         writer.close();
         Store.MetadataSnapshot metadata;
         metadata = store.getMetadata(randomBoolean() ? null : deletionPolicy.snapshot());
-        assertFalse(metadata.asMap().isEmpty());
+        assertFalse(metadata.fileMetadataMap().isEmpty());
         // do not check for correct files, we have enough tests for that above
-        assertThat(metadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
+        assertThat(metadata.commitUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
         TestUtil.checkIndex(store.directory());
         assertDeleteContent(store, store.directory());
         IOUtils.close(store);
@@ -978,27 +997,41 @@ public class StoreTests extends ESTestCase {
             );
         }
         TransportNodesListShardStoreMetadata.StoreFilesMetadata outStoreFileMetadata =
-            new TransportNodesListShardStoreMetadata.StoreFilesMetadata(
-                new ShardId("test", "_na_", 0),
-                metadataSnapshot,
-                peerRecoveryRetentionLeases
-            );
+            new TransportNodesListShardStoreMetadata.StoreFilesMetadata(metadataSnapshot, peerRecoveryRetentionLeases);
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        org.elasticsearch.Version targetNodeVersion = randomVersion(random());
+        org.elasticsearch.Version targetNodeVersion = randomCompatibleVersion(random(), org.elasticsearch.Version.CURRENT);
         out.setVersion(targetNodeVersion);
         outStoreFileMetadata.writeTo(out);
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata inStoreFileMetadata =
-            new TransportNodesListShardStoreMetadata.StoreFilesMetadata(in);
+        var inStoreFileMetadata = TransportNodesListShardStoreMetadata.StoreFilesMetadata.readFrom(in);
         Iterator<StoreFileMetadata> outFiles = outStoreFileMetadata.iterator();
         for (StoreFileMetadata inFile : inStoreFileMetadata) {
             assertThat(inFile.name(), equalTo(outFiles.next().name()));
         }
         assertThat(outStoreFileMetadata.syncId(), equalTo(inStoreFileMetadata.syncId()));
         assertThat(outStoreFileMetadata.peerRecoveryRetentionLeases(), equalTo(peerRecoveryRetentionLeases));
+    }
+
+    public void testStreamEmptyStoreFilesMetadata() throws Exception {
+        var outStoreFileMetadata = randomBoolean()
+            ? TransportNodesListShardStoreMetadata.StoreFilesMetadata.EMPTY
+            : new TransportNodesListShardStoreMetadata.StoreFilesMetadata(Store.MetadataSnapshot.EMPTY, emptyList());
+        var outBuffer = new ByteArrayOutputStream();
+        var out = new OutputStreamStreamOutput(outBuffer);
+        var targetNodeVersion = randomCompatibleVersion(random(), org.elasticsearch.Version.CURRENT);
+        out.setVersion(targetNodeVersion);
+        outStoreFileMetadata.writeTo(out);
+
+        var inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+        var in = new InputStreamStreamInput(inBuffer);
+        in.setVersion(targetNodeVersion);
+        assertThat(
+            TransportNodesListShardStoreMetadata.StoreFilesMetadata.readFrom(in),
+            sameInstance(TransportNodesListShardStoreMetadata.StoreFilesMetadata.EMPTY)
+        );
     }
 
     public void testMarkCorruptedOnTruncatedSegmentsFile() throws IOException {

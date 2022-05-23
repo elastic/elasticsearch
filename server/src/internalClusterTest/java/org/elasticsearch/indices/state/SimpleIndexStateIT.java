@@ -42,7 +42,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
-        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(numShards.numPrimaries));
+        assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(numShards.numPrimaries));
         assertEquals(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
             numShards.totalNumShards
@@ -76,7 +76,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         stateResponse = client().admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
 
-        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(numShards.numPrimaries));
+        assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(numShards.numPrimaries));
         assertEquals(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
             numShards.totalNumShards
@@ -117,7 +117,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
-        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(numShards.numPrimaries));
+        assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(numShards.numPrimaries));
         assertEquals(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
             numShards.totalNumShards

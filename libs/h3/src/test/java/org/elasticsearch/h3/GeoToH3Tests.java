@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.h3;
 
-import org.apache.lucene.geo.GeoTestUtil;
 import org.apache.lucene.spatial3d.geom.GeoPoint;
 import org.apache.lucene.spatial3d.geom.GeoPolygon;
 import org.apache.lucene.spatial3d.geom.GeoPolygonFactory;
 import org.apache.lucene.spatial3d.geom.PlanetModel;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -38,8 +38,9 @@ public class GeoToH3Tests extends ESTestCase {
 
     private void testPoint(double lat, double lon) {
         GeoPoint point = new GeoPoint(PlanetModel.SPHERE, Math.toRadians(lat), Math.toRadians(lon));
-        for (int i = 0; i < Constants.MAX_H3_RES; i++) {
-            String h3Address = H3.geoToH3Address(lat, lon, i);
+        for (int res = 0; res < Constants.MAX_H3_RES; res++) {
+            String h3Address = H3.geoToH3Address(lat, lon, res);
+            assertEquals(res, H3.getResolution(h3Address));
             GeoPolygon polygon = getGeoPolygon(h3Address);
             assertTrue(polygon.isWithin(point));
         }

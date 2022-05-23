@@ -46,10 +46,10 @@ public class GeoHexAggregationBuilderTests extends AbstractSerializingTestCase<G
             geoHexGridAggregationBuilder.precision(randomIntBetween(0, H3.MAX_H3_RES));
         }
         if (randomBoolean()) {
-            geoHexGridAggregationBuilder.size(randomIntBetween(0, 256 * 256));
+            geoHexGridAggregationBuilder.size(randomIntBetween(1, 256 * 256));
         }
         if (randomBoolean()) {
-            geoHexGridAggregationBuilder.shardSize(randomIntBetween(0, 256 * 256));
+            geoHexGridAggregationBuilder.shardSize(randomIntBetween(1, 256 * 256));
         }
         if (randomBoolean()) {
             geoHexGridAggregationBuilder.setGeoBoundingBox(GeoTestUtils.randomBBox());

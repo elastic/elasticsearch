@@ -90,6 +90,7 @@ public class RoleDescriptorTests extends ESTestCase {
             ApplicationResourcePrivileges.builder().application("my_app").privileges("read", "write").resources("*").build() };
 
         final ConfigurableClusterPrivilege[] configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
+            new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList("app*"))),
             new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))) };
 
         RoleDescriptor descriptor = new RoleDescriptor(
@@ -107,7 +108,7 @@ public class RoleDescriptorTests extends ESTestCase {
             descriptor.toString(),
             is(
                 "Role[name=test, cluster=[all,none]"
-                    + ", global=[{APPLICATION:manage:applications=app01,app02}]"
+                    + ", global=[{APPLICATION:manage:applications=app01,app02},{PROFILE:write:applications=app*}]"
                     + ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], allowRestrictedIndices=[false], privileges=[read]"
                     + ", field_security=[grant=[body,title], except=null], query={\"match_all\": {}}],]"
                     + ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]"
@@ -189,7 +190,11 @@ public class RoleDescriptorTests extends ESTestCase {
                   "privileges": [ "p1", "p2" ],
                   "allow_restricted_indices": true
                 }
-              ]
+              ],
+              "global": {
+                "profile": {
+                }
+              }
             }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertEquals("test", rd.getName());
@@ -239,6 +244,8 @@ public class RoleDescriptorTests extends ESTestCase {
                   "manage": {
                     "applications": [ "kibana", "logstash" ]
                   }
+                },
+                "profile": {
                 }
               }
             }""";
@@ -259,12 +266,51 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(rd.getApplicationPrivileges()[1].getApplication(), equalTo("app2"));
         assertThat(rd.getConditionalClusterPrivileges(), Matchers.arrayWithSize(1));
 
-        final ConfigurableClusterPrivilege conditionalPrivilege = rd.getConditionalClusterPrivileges()[0];
+        ConfigurableClusterPrivilege conditionalPrivilege = rd.getConditionalClusterPrivileges()[0];
         assertThat(conditionalPrivilege.getCategory(), equalTo(ConfigurableClusterPrivilege.Category.APPLICATION));
         assertThat(conditionalPrivilege, instanceOf(ConfigurableClusterPrivileges.ManageApplicationPrivileges.class));
         assertThat(
             ((ConfigurableClusterPrivileges.ManageApplicationPrivileges) conditionalPrivilege).getApplicationNames(),
             containsInAnyOrder("kibana", "logstash")
+        );
+
+        q = """
+            {
+              "cluster": [ "manage" ],
+              "global": {
+                "profile": {
+                  "write": {
+                    "applications": [ "", "kibana-*" ]
+                  }
+                },
+                "application": {
+                  "manage": {
+                    "applications": [ "apm*", "kibana-1" ]
+                  }
+                }
+              }
+            }""";
+        rd = RoleDescriptor.parse("testUpdateProfile", new BytesArray(q), false, XContentType.JSON);
+        assertThat(rd.getName(), is("testUpdateProfile"));
+        assertThat(rd.getClusterPrivileges(), arrayContaining("manage"));
+        assertThat(rd.getIndicesPrivileges(), Matchers.emptyArray());
+        assertThat(rd.getRunAs(), Matchers.emptyArray());
+        assertThat(rd.getApplicationPrivileges(), Matchers.emptyArray());
+        assertThat(rd.getConditionalClusterPrivileges(), Matchers.arrayWithSize(2));
+
+        conditionalPrivilege = rd.getConditionalClusterPrivileges()[0];
+        assertThat(conditionalPrivilege.getCategory(), equalTo(ConfigurableClusterPrivilege.Category.APPLICATION));
+        assertThat(conditionalPrivilege, instanceOf(ConfigurableClusterPrivileges.ManageApplicationPrivileges.class));
+        assertThat(
+            ((ConfigurableClusterPrivileges.ManageApplicationPrivileges) conditionalPrivilege).getApplicationNames(),
+            containsInAnyOrder("apm*", "kibana-1")
+        );
+        conditionalPrivilege = rd.getConditionalClusterPrivileges()[1];
+        assertThat(conditionalPrivilege.getCategory(), equalTo(ConfigurableClusterPrivilege.Category.PROFILE));
+        assertThat(conditionalPrivilege, instanceOf(ConfigurableClusterPrivileges.WriteProfileDataPrivileges.class));
+        assertThat(
+            ((ConfigurableClusterPrivileges.WriteProfileDataPrivileges) conditionalPrivilege).getApplicationNames(),
+            containsInAnyOrder("", "kibana-*")
         );
 
         q = """
@@ -444,6 +490,88 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(epe, TestMatchers.throwableWithMessage(containsString("f3")));
     }
 
+    public void testGlobalPrivilegesOrdering() throws IOException {
+        final String roleName = randomAlphaOfLengthBetween(3, 30);
+        final String[] applicationNames = generateRandomStringArray(3, randomIntBetween(0, 3), false, true);
+        final String[] profileNames = generateRandomStringArray(3, randomIntBetween(0, 3), false, true);
+        ConfigurableClusterPrivilege[] configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
+            new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(Sets.newHashSet(profileNames)),
+            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet(applicationNames)) };
+        RoleDescriptor role1 = new RoleDescriptor(
+            roleName,
+            new String[0],
+            new RoleDescriptor.IndicesPrivileges[0],
+            new RoleDescriptor.ApplicationResourcePrivileges[0],
+            configurableClusterPrivileges,
+            new String[0],
+            Map.of(),
+            Map.of()
+        );
+        // swap
+        var temp = configurableClusterPrivileges[0];
+        configurableClusterPrivileges[0] = configurableClusterPrivileges[1];
+        configurableClusterPrivileges[1] = temp;
+        RoleDescriptor role2 = new RoleDescriptor(
+            roleName,
+            new String[0],
+            new RoleDescriptor.IndicesPrivileges[0],
+            new RoleDescriptor.ApplicationResourcePrivileges[0],
+            configurableClusterPrivileges,
+            new String[0],
+            Map.of(),
+            Map.of()
+        );
+        assertThat(role2, is(role1));
+        StringBuilder applicationNamesString = new StringBuilder();
+        for (int i = 0; i < applicationNames.length; i++) {
+            if (i > 0) {
+                applicationNamesString.append(", ");
+            }
+            applicationNamesString.append("\"" + applicationNames[i] + "\"");
+        }
+        StringBuilder profileNamesString = new StringBuilder();
+        for (int i = 0; i < profileNames.length; i++) {
+            if (i > 0) {
+                profileNamesString.append(", ");
+            }
+            profileNamesString.append("\"" + profileNames[i] + "\"");
+        }
+        String json = """
+            {
+              "global": {
+                "profile": {
+                  "write": {
+                    "applications": [ %s ]
+                  }
+                },
+                "application": {
+                  "manage": {
+                    "applications": [ %s ]
+                  }
+                }
+              }
+            }""".formatted(profileNamesString, applicationNamesString);
+        RoleDescriptor role3 = RoleDescriptor.parse(roleName, new BytesArray(json), false, XContentType.JSON);
+        assertThat(role3, is(role1));
+        json = """
+            {
+              "global": {
+                "application": {
+                  "manage": {
+                    "applications": [ %s ]
+                  }
+                },
+                "profile": {
+                  "write": {
+                    "applications": [ %s ]
+                  }
+                }
+              }
+            }""".formatted(applicationNamesString, profileNamesString);
+        RoleDescriptor role4 = RoleDescriptor.parse(roleName, new BytesArray(json), false, XContentType.JSON);
+        assertThat(role4, is(role1));
+    }
+
     public void testIsEmpty() {
         assertTrue(new RoleDescriptor(randomAlphaOfLengthBetween(1, 10), null, null, null, null, null, null, null).isEmpty());
 
@@ -483,7 +611,9 @@ public class RoleDescriptorTests extends ESTestCase {
             booleans.get(3)
                 ? new ConfigurableClusterPrivilege[0]
                 : new ConfigurableClusterPrivilege[] {
-                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Collections.singleton("foo")) },
+                    randomBoolean()
+                        ? new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Collections.singleton("foo"))
+                        : new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(Collections.singleton("bar")) },
             booleans.get(4) ? new String[0] : new String[] { "foo" },
             booleans.get(5) ? new HashMap<>() : Collections.singletonMap("foo", "bar"),
             Collections.singletonMap("foo", "bar")
@@ -536,15 +666,32 @@ public class RoleDescriptorTests extends ESTestCase {
             }
             applicationPrivileges[i] = builder.build();
         }
-        final ConfigurableClusterPrivilege[] configurableClusterPrivileges;
-        if (randomBoolean()) {
-            configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
+        final ConfigurableClusterPrivilege[] configurableClusterPrivileges = switch (randomIntBetween(0, 4)) {
+            case 0 -> new ConfigurableClusterPrivilege[0];
+            case 1 -> new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
                     Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
                 ) };
-        } else {
-            configurableClusterPrivileges = new ConfigurableClusterPrivilege[0];
-        }
+            case 2 -> new ConfigurableClusterPrivilege[] {
+                new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
+                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
+                ) };
+            case 3 -> new ConfigurableClusterPrivilege[] {
+                new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
+                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
+                ),
+                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
+                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
+                ) };
+            case 4 -> new ConfigurableClusterPrivilege[] {
+                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
+                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
+                ),
+                new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
+                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
+                ) };
+            default -> throw new IllegalStateException("Unexpected value");
+        };
         final Map<String, Object> metadata = new HashMap<>();
         while (randomBoolean()) {
             String key = randomAlphaOfLengthBetween(4, 12);

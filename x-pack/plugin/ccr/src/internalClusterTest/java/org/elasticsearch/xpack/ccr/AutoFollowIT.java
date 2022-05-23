@@ -50,7 +50,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -204,7 +203,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 assertThat(autoFollowStats[0].getNumberOfSuccessfulFollowIndices(), equalTo(expectedVal1));
             });
         } catch (AssertionError ae) {
-            logger.warn("indices={}", Arrays.toString(metadata[0].indices().keys().toArray(String.class)));
+            logger.warn("indices={}", Arrays.toString(metadata[0].indices().keySet().toArray(new String[0])));
             logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
             throw ae;
         }
@@ -223,7 +222,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 assertThat(autoFollowStats[0].getAutoFollowedClusters().size(), equalTo(0));
             });
         } catch (AssertionError ae) {
-            logger.warn("indices={}", Arrays.toString(metadata[0].indices().keys().toArray(String.class)));
+            logger.warn("indices={}", Arrays.toString(metadata[0].indices().keySet().toArray(new String[0])));
             logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
             throw ae;
         }
@@ -504,7 +503,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             final String pattern = prefix + "pattern";
             putAutoFollowPatterns(pattern, new String[] { prefix + "*" });
             return pattern;
-        }).collect(toUnmodifiableList());
+        }).toList();
 
         // pick up some random pattern to pause
         final List<String> pausedAutoFollowerPatterns = randomSubsetOf(randomIntBetween(1, 3), autoFollowPatterns);

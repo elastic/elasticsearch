@@ -59,7 +59,7 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
                 .addIndices(".monitoring-*")
                 .setIndicesOptions(IndicesOptions.fromOptions(true, true, true, true, true))
                 .get();
-            Iterator<String> indices = getSettingsResponse.getIndexToSettings().keysIt();
+            Iterator<String> indices = getSettingsResponse.getIndexToSettings().keySet().iterator();
             List<String> collectedIndices = new ArrayList<>();
             while (indices.hasNext()) {
                 String next = indices.next();

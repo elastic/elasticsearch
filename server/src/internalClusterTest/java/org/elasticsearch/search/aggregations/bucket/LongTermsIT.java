@@ -641,7 +641,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         assertThat(filter2.getDocCount(), equalTo(asc ? 3L : 2L));
         Max max = filter2.getAggregations().get("max");
         assertThat(max, notNullValue());
-        assertThat(max.getValue(), equalTo(asc ? 2.0 : 4.0));
+        assertThat(max.value(), equalTo(asc ? 2.0 : 4.0));
 
         tag = iters.next();
         assertThat(tag, notNullValue());
@@ -655,7 +655,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         assertThat(filter2.getDocCount(), equalTo(asc ? 2L : 3L));
         max = filter2.getAggregations().get("max");
         assertThat(max, notNullValue());
-        assertThat(max.getValue(), equalTo(asc ? 4.0 : 2.0));
+        assertThat(max.value(), equalTo(asc ? 4.0 : 2.0));
     }
 
     public void testSingleValuedFieldOrderedByMissingSubAggregation() throws Exception {

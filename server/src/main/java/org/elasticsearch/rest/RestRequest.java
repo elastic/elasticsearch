@@ -42,7 +42,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
@@ -127,6 +126,9 @@ public class RestRequest implements ToXContent.Params {
         assert other.parserConfig.restApiVersion().equals(other.restApiVersion);
         this.parsedAccept = other.parsedAccept;
         this.parsedContentType = other.parsedContentType;
+        if (other.xContentType.get() != null) {
+            this.xContentType.set(other.xContentType.get());
+        }
         this.restApiVersion = other.restApiVersion;
         this.parserConfig = other.parserConfig;
         this.httpRequest = other.httpRequest;
@@ -387,7 +389,7 @@ public class RestRequest implements ToXContent.Params {
      * @return the list of currently unconsumed parameters.
      */
     List<String> unconsumedParams() {
-        return params.keySet().stream().filter(p -> consumedParams.contains(p) == false).collect(Collectors.toList());
+        return params.keySet().stream().filter(p -> consumedParams.contains(p) == false).toList();
     }
 
     public float paramAsFloat(String key, float defaultValue) {

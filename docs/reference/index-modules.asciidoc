@@ -163,6 +163,9 @@ specific index module:
 
     The number of replicas each primary shard has. Defaults to 1.
 
+    WARNING: Configuring it to 0 may lead to temporary availability loss
+    during node restarts or permanent data loss in case of data corruption.
+
 [[dynamic-index-auto-expand-replicas]]
 `index.auto_expand_replicas`::
 Auto-expand the number of replicas based on the number of data nodes in the

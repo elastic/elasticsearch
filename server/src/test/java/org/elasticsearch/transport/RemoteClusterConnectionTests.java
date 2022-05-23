@@ -33,9 +33,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.search.SearchHit;
@@ -240,7 +240,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
     }
 
     private static List<String> addresses(final DiscoveryNode... seedNodes) {
-        return Arrays.stream(seedNodes).map(s -> s.getAddress().toString()).collect(Collectors.toList());
+        return Arrays.stream(seedNodes).map(s -> s.getAddress().toString()).collect(Collectors.toCollection(ArrayList::new));
     }
 
     public void testCloseWhileConcurrentlyConnecting() throws IOException, InterruptedException, BrokenBarrierException {
@@ -555,7 +555,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             List<String> seedNodes = new CopyOnWriteArrayList<>(
                 randomSubsetOf(
                     randomIntBetween(1, discoverableNodes.size()),
-                    discoverableNodes.stream().map(d -> d.getAddress().toString()).collect(Collectors.toList())
+                    discoverableNodes.stream().map(d -> d.getAddress().toString()).toList()
                 )
             );
             Collections.shuffle(seedNodes, random());

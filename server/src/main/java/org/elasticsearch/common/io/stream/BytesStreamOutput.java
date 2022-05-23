@@ -148,19 +148,28 @@ public class BytesStreamOutput extends BytesStream {
      * @return copy of the bytes in this instances
      */
     public BytesReference copyBytes() {
-        final byte[] keyBytes = new byte[count];
+        final BytesReference bytesReference = bytes();
+        final byte[] arr = new byte[count];
+        if (bytesReference.hasArray()) {
+            System.arraycopy(bytesReference.array(), bytesReference.arrayOffset(), arr, 0, bytesReference.length());
+        } else {
+            copyToArray(bytesReference, arr);
+        }
+        return new BytesArray(arr);
+    }
+
+    private static void copyToArray(BytesReference bytesReference, byte[] arr) {
         int offset = 0;
-        final BytesRefIterator iterator = bytes().iterator();
+        final BytesRefIterator iterator = bytesReference.iterator();
         try {
             BytesRef slice;
             while ((slice = iterator.next()) != null) {
-                System.arraycopy(slice.bytes, slice.offset, keyBytes, offset, slice.length);
+                System.arraycopy(slice.bytes, slice.offset, arr, offset, slice.length);
                 offset += slice.length;
             }
         } catch (IOException e) {
             throw new AssertionError(e);
         }
-        return new BytesArray(keyBytes);
     }
 
     /**

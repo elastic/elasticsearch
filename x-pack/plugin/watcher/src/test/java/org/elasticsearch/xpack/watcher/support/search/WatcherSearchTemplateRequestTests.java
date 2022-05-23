@@ -6,15 +6,18 @@
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -30,6 +33,49 @@ public class WatcherSearchTemplateRequestTests extends ESTestCase {
         String source = """
             {"template":{"source":"custom-script", "lang":"painful","params":{"bar":"baz"}}}""";
         assertTemplate(source, "custom-script", "painful", singletonMap("bar", "baz"));
+    }
+
+    public void testFromXContentWithEmptyTypes() throws IOException {
+        String source = """
+                {
+                    "search_type" : "query_then_fetch",
+                    "indices" : [ ".ml-anomalies-*" ],
+                    "types" : [ ],
+                    "body" : {
+                        "query" : {
+                            "bool" : {
+                                "filter" : [ { "term" : { "job_id" : "my-job" } }, { "range" : { "timestamp" : { "gte" : "now-30m" } } } ]
+                            }
+                        }
+                    }
+                }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            parser.nextToken();
+            WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, randomFrom(SearchType.values()));
+            assertThat(result.getIndices(), arrayContaining(".ml-anomalies-*"));
+        }
+    }
+
+    public void testFromXContentWithNonEmptyTypes() throws IOException {
+        String source = """
+                {
+                    "search_type" : "query_then_fetch",
+                    "indices" : [ "my-index" ],
+                    "types" : [ "my-type" ],
+                    "body" : {
+                        "query" : { "match_all" : {} }
+                    }
+                }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            parser.nextToken();
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> WatcherSearchTemplateRequest.fromXContent(parser, randomFrom(SearchType.values()))
+            );
+            assertThat(e.getMessage(), is("could not read search request. unsupported non-empty array field [types]"));
+        }
     }
 
     public void testDefaultHitCountsDefaults() throws IOException {
@@ -60,5 +106,9 @@ public class WatcherSearchTemplateRequestTests extends ESTestCase {
             assertThat(result.getTemplate().getLang(), equalTo(expectedLang));
             assertThat(result.getTemplate().getParams(), equalTo(expectedParams));
         }
+    }
+
+    protected List<String> filteredWarnings() {
+        return List.of(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
     }
 }

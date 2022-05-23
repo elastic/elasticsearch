@@ -5,7 +5,8 @@
       "description":"Update application specific data for the user profile of the given unique ID."
     },
     "stability":"experimental",
-    "visibility":"public",
+    "visibility":"feature_flag",
+    "feature_flag": "es.user_profile_feature_flag_enabled",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]
@@ -13,8 +14,9 @@
     "url":{
       "paths":[
         {
-          "path":"/_security/profile/_data/{uid}",
+          "path":"/_security/profile/{uid}/_data",
           "methods":[
+            "PUT",
             "POST"
           ],
           "parts":{

@@ -100,7 +100,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeMap(this.metadata);
+            out.writeGenericMap(this.metadata);
         }
     }
 

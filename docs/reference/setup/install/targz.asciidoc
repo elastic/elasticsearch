@@ -80,7 +80,7 @@ endif::include-xpack[]
 [[targz-running]]
 include::targz-start.asciidoc[]
 
-:os-dir:       $ES_HOME
+:es-conf:      $ES_HOME/config
 :slash:        /
 
 include::check-running.asciidoc[]

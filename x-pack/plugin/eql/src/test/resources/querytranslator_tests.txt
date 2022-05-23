@@ -832,7 +832,7 @@ conjunctionOfMultiFieldsFunctions
 process where concat(file_name, ".", process_name) == "foo" and add(pid, ppid) > 100
 ;
 {"bool":{"must":[{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalEqlScriptUtils.multiValueDocValues(doc,params.v1,X1->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalEqlScriptUtils.concat([X0,params.v2,X1]),params.v3))))"
-"params":{"v0":"file_name","v1":"process_name","v2":".","v3":"foo"}}
+"params":{"v0":"file_name.keyword","v1":"process_name","v2":".","v3":"foo"}}
 {"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalEqlScriptUtils.multiValueDocValues(doc,params.v1,X1->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalQlScriptUtils.add(X0,X1),params.v2))))"
 "params":{"v0":"pid","v1":"ppid","v2":100}}
 ;
@@ -841,7 +841,7 @@ disjunctionOfMultiFieldsFunctions
 process where concat(file_name, ".", process_name) == "foo" or add(pid, ppid) > 100
 ;
 {"bool":{"should":[{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalEqlScriptUtils.multiValueDocValues(doc,params.v1,X1->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalEqlScriptUtils.concat([X0,params.v2,X1]),params.v3))))"
-"params":{"v0":"file_name","v1":"process_name","v2":".","v3":"foo"}}
+"params":{"v0":"file_name.keyword","v1":"process_name","v2":".","v3":"foo"}}
 {"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalEqlScriptUtils.multiValueDocValues(doc,params.v1,X1->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalQlScriptUtils.add(X0,X1),params.v2))))"
 "params":{"v0":"pid","v1":"ppid","v2":100}}
 ;

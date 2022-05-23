@@ -95,7 +95,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 
-    public int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
+    public static int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
         if (settings.getAsBoolean(key, defaultValue)) {
             return flag;
         }
@@ -103,7 +103,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     }
 
     // source => type
-    private static Pattern typePattern = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");
+    private static final Pattern typePattern = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");
 
     /**
      * parses a list of MappingCharFilter style rules into a custom byte[] type table

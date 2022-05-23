@@ -52,7 +52,7 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
     }
 
     /**
-     * Check that if the the SystemIndexManager finds a managed index with out-of-date mappings, then
+     * Check that if the SystemIndexManager finds a managed index with out-of-date mappings, then
      * the manager updates those mappings.
      */
     public void testSystemIndexManagerUpgradesMappings() throws Exception {

@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContextTests;
@@ -79,7 +79,7 @@ public class DatafeedTimingStatsTests extends AbstractSerializingTestCase<Datafe
         String json = "{\"job_id\": \"my-job-id\"}";
         try (
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json)
         ) {
             DatafeedTimingStats stats = DatafeedTimingStats.PARSER.apply(parser, null);
             assertThat(stats.getJobId(), equalTo(JOB_ID));

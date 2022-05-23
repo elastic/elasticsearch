@@ -18,10 +18,10 @@ public class ScoreScriptUtils {
     public static class DenseVectorFunction {
         final ScoreScript scoreScript;
         final float[] queryVector;
-        final DenseVectorScriptDocValues docValues;
+        final DenseVectorDocValuesField field;
 
-        public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector, String field) {
-            this(scoreScript, queryVector, field, false);
+        public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
+            this(scoreScript, queryVector, fieldName, false);
         }
 
         /**
@@ -31,19 +31,10 @@ public class ScoreScriptUtils {
          * @param queryVector The query vector.
          * @param normalizeQuery Whether the provided query should be normalized to unit length.
          */
-        public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector, String field, boolean normalizeQuery) {
+        public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector, String fieldName, boolean normalizeQuery) {
             this.scoreScript = scoreScript;
-            this.docValues = (DenseVectorScriptDocValues) scoreScript.getDoc().get(field);
-
-            if (docValues.dims() != queryVector.size()) {
-                throw new IllegalArgumentException(
-                    "The query vector has a different number of dimensions ["
-                        + queryVector.size()
-                        + "] than the document vectors ["
-                        + docValues.dims()
-                        + "]."
-                );
-            }
+            this.field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
+            DenseVector.checkDimensions(field.get().getDims(), queryVector.size());
 
             this.queryVector = new float[queryVector.size()];
             double queryMagnitude = 0.0;
@@ -63,11 +54,11 @@ public class ScoreScriptUtils {
 
         void setNextVector() {
             try {
-                docValues.getSupplier().setNextDocId(scoreScript._getDocId());
+                field.setNextDocId(scoreScript._getDocId());
             } catch (IOException e) {
                 throw ExceptionsHelper.convertToElastic(e);
             }
-            if (docValues.size() == 0) {
+            if (field.isEmpty()) {
                 throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
             }
         }
@@ -82,7 +73,7 @@ public class ScoreScriptUtils {
 
         public double l1norm() {
             setNextVector();
-            return docValues.l1Norm(queryVector);
+            return field.get().l1Norm(queryVector);
         }
     }
 
@@ -95,7 +86,7 @@ public class ScoreScriptUtils {
 
         public double l2norm() {
             setNextVector();
-            return docValues.l2Norm(queryVector);
+            return field.get().l2Norm(queryVector);
         }
     }
 
@@ -108,7 +99,7 @@ public class ScoreScriptUtils {
 
         public double dotProduct() {
             setNextVector();
-            return docValues.dotProduct(queryVector);
+            return field.get().dotProduct(queryVector);
         }
     }
 
@@ -121,7 +112,8 @@ public class ScoreScriptUtils {
 
         public double cosineSimilarity() {
             setNextVector();
-            return docValues.dotProduct(queryVector) / docValues.getMagnitude();
+            // query vector normalized in constructor
+            return field.get().cosineSimilarity(queryVector, false);
         }
     }
 }

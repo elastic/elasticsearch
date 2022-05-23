@@ -12,8 +12,7 @@ import org.apache.lucene.document.Field;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.xcontent.DotExpandingXContentParser;
-import org.elasticsearch.xcontent.FilterXContentParser;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -89,6 +88,8 @@ public abstract class DocumentParserContext {
     private final Set<String> newFieldsSeen;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final List<RuntimeField> dynamicRuntimeFields;
+    private final DocumentDimensions dimensions;
+    private String id;
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
 
@@ -103,8 +104,10 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = in.newFieldsSeen;
         this.dynamicObjectMappers = in.dynamicObjectMappers;
         this.dynamicRuntimeFields = in.dynamicRuntimeFields;
+        this.id = in.id;
         this.version = in.version;
         this.seqID = in.seqID;
+        this.dimensions = in.dimensions;
     }
 
     protected DocumentParserContext(
@@ -124,6 +127,7 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = new HashSet<>();
         this.dynamicObjectMappers = new HashMap<>();
         this.dynamicRuntimeFields = new ArrayList<>();
+        this.dimensions = indexSettings.getMode().buildDocumentDimensions();
     }
 
     public final IndexSettings indexSettings() {
@@ -189,12 +193,33 @@ public abstract class DocumentParserContext {
         this.version = version;
     }
 
+    public final String id() {
+        if (id == null) {
+            assert false : "id field mapper has not set the id";
+            throw new IllegalStateException("id field mapper has not set the id");
+        }
+        return id;
+    }
+
+    public final void id(String id) {
+        this.id = id;
+    }
+
     public final SeqNoFieldMapper.SequenceIDFields seqID() {
         return this.seqID;
     }
 
     public final void seqID(SeqNoFieldMapper.SequenceIDFields seqID) {
         this.seqID = seqID;
+    }
+
+    /**
+     * Description on the document being parsed used in error messages. Not
+     * called unless there is an error.
+     */
+    public final String documentDescription() {
+        IdFieldMapper idMapper = (IdFieldMapper) getMetadataMapper(IdFieldMapper.NAME);
+        return idMapper.documentDescription(this);
     }
 
     /**
@@ -220,10 +245,6 @@ public abstract class DocumentParserContext {
      */
     public final List<Mapper> getDynamicMappers() {
         return dynamicMappers;
-    }
-
-    public final boolean isShadowed(String field) {
-        return mappingLookup.isShadowed(field);
     }
 
     public final ObjectMapper getDynamicObjectMapper(String name) {
@@ -293,7 +314,7 @@ public abstract class DocumentParserContext {
      */
     public final DocumentParserContext createCopyToContext(String copyToField, LuceneDocument doc) throws IOException {
         ContentPath path = new ContentPath(0);
-        XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()));
+        XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()), path::isWithinLeafObject);
         return new Wrapper(this) {
             @Override
             public ContentPath path() {
@@ -334,7 +355,22 @@ public abstract class DocumentParserContext {
         };
     }
 
+    /**
+     * The collection of dimensions for this document.
+     */
+    public DocumentDimensions getDimensions() {
+        return dimensions;
+    }
+
     public abstract ContentPath path();
+
+    public final MapperBuilderContext createMapperBuilderContext() {
+        String p = path().pathAsText("");
+        if (p.endsWith(".")) {
+            p = p.substring(0, p.length() - 1);
+        }
+        return new MapperBuilderContext(p);
+    }
 
     public abstract XContentParser parser();
 
@@ -370,7 +406,7 @@ public abstract class DocumentParserContext {
 
     // XContentParser that wraps an existing parser positioned on a value,
     // and a field name, and returns a stream that looks like { 'field' : 'value' }
-    private static class CopyToParser extends FilterXContentParser {
+    private static class CopyToParser extends FilterXContentParserWrapper {
 
         enum State {
             FIELD,
@@ -390,7 +426,7 @@ public abstract class DocumentParserContext {
         public Token nextToken() throws IOException {
             if (state == State.FIELD) {
                 state = State.VALUE;
-                return in.currentToken();
+                return delegate().currentToken();
             }
             return Token.END_OBJECT;
         }
@@ -400,7 +436,7 @@ public abstract class DocumentParserContext {
             if (state == State.FIELD) {
                 return Token.FIELD_NAME;
             }
-            return in.currentToken();
+            return delegate().currentToken();
         }
 
         @Override

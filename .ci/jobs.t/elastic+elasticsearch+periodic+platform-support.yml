@@ -13,10 +13,6 @@
       - multijob:
           name: Packaging tests
           projects:
-            - name: elastic+elasticsearch+%BRANCH%+multijob+platform-support-darwin
-              kill-phase-on: NEVER
-              current-parameters: true
-              git-revision: true
             - name: elastic+elasticsearch+%BRANCH%+multijob+platform-support-unix
               kill-phase-on: NEVER
               current-parameters: true

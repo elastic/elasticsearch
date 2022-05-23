@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * An abstract class for representing various types of allocation decisions.
@@ -118,15 +117,15 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
     /**
      * Sorts a list of node level decisions by the decision type, then by weight ranking, and finally by node id.
      */
-    public List<NodeAllocationResult> sortNodeDecisions(List<NodeAllocationResult> nodeDecisions) {
-        return Collections.unmodifiableList(nodeDecisions.stream().sorted().collect(Collectors.toList()));
+    public static List<NodeAllocationResult> sortNodeDecisions(List<NodeAllocationResult> nodeDecisions) {
+        return nodeDecisions.stream().sorted().toList();
     }
 
     /**
      * Generates X-Content for the node-level decisions, creating the outer "node_decisions" object
      * in which they are serialized.
      */
-    public XContentBuilder nodeDecisionsToXContent(List<NodeAllocationResult> nodeDecisions, XContentBuilder builder, Params params)
+    public static XContentBuilder nodeDecisionsToXContent(List<NodeAllocationResult> nodeDecisions, XContentBuilder builder, Params params)
         throws IOException {
 
         if (nodeDecisions != null && nodeDecisions.isEmpty() == false) {

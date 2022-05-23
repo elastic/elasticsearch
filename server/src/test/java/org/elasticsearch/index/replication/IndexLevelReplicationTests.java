@@ -148,7 +148,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
             final IndexRequest originalRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
-            originalRequest.process();
+            originalRequest.autoGenerateId();
             final IndexRequest retryRequest = copyIndexRequest(originalRequest);
             retryRequest.onRetry();
             shards.index(retryRequest);

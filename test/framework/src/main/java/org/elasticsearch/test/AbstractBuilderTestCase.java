@@ -28,11 +28,10 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
@@ -41,7 +40,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -53,6 +51,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -363,7 +362,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 () -> { throw new AssertionError("node.name must be set"); }
             );
             PluginsService pluginsService;
-            pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
+            pluginsService = new MockPluginsService(nodeSettings, env, plugins);
 
             client = (Client) Proxy.newProxyInstance(
                 Client.class.getClassLoader(),
@@ -371,11 +370,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 clientInvocationHandler
             );
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
-            List<Setting<?>> additionalSettings = pluginsService.getPluginSettings();
             SettingsModule settingsModule = new SettingsModule(
                 nodeSettings,
-                additionalSettings,
-                pluginsService.getPluginSettingsFilter(),
+                pluginsService.flatMap(Plugin::getSettings).toList(),
+                pluginsService.flatMap(Plugin::getSettingsFilter).toList(),
                 Collections.emptySet()
             );
             searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class));
@@ -403,7 +401,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 similarityService,
                 mapperRegistry,
                 () -> createShardContext(null),
-                IdFieldMapper.NO_FIELD_DATA,
+                idxSettings.getMode().buildNoFieldDataIdFieldMapper(),
                 ScriptCompiler.NONE
             );
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {

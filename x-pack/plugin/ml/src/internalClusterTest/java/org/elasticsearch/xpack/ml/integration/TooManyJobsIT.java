@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
+import java.util.List;
+
 public class TooManyJobsIT extends BaseMlIntegTestCase {
 
     public void testCloseFailedJob() throws Exception {
@@ -62,10 +64,11 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         ).actionGet();
         assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.CLOSED);
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        assertEquals(1, tasks.taskMap().size());
+        List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, MlTasks.JOB_TASK_NAME);
+        assertEquals(1, tasks.size());
         // now just double check that the first job is still opened:
-        PersistentTasksCustomMetadata.PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId("close-failed-job-1"));
+        PersistentTasksCustomMetadata.PersistentTask<?> task = tasks.get(0);
+        assertEquals(task.getId(), MlTasks.jobTaskId("close-failed-job-1"));
         assertEquals(JobState.OPENED, ((JobTaskState) task.getState()).getState());
     }
 

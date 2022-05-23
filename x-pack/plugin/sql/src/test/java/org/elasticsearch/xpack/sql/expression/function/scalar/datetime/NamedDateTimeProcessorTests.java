@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.junit.Assume;
@@ -47,7 +46,7 @@ public class NamedDateTimeProcessorTests extends AbstractSqlWireSerializingTestC
     }
 
     public void testValidDayNamesInUTC() {
-        assumeJava9PlusAndCompatLocaleProviderSetting();
+        assumeCompatLocaleProviderSetting();
         NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.DAY_NAME, UTC);
         assertEquals("Thursday", proc.process(dateTime(0L)));
         assertEquals("Saturday", proc.process(dateTime(-64164233612338L)));
@@ -60,7 +59,7 @@ public class NamedDateTimeProcessorTests extends AbstractSqlWireSerializingTestC
     }
 
     public void testValidDayNamesWithNonUTCTimeZone() {
-        assumeJava9PlusAndCompatLocaleProviderSetting();
+        assumeCompatLocaleProviderSetting();
         NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.DAY_NAME, ZoneId.of("GMT-10:00"));
         assertEquals("Wednesday", proc.process(dateTime(0)));
         assertEquals("Friday", proc.process(dateTime(-64164233612338L)));
@@ -74,7 +73,7 @@ public class NamedDateTimeProcessorTests extends AbstractSqlWireSerializingTestC
     }
 
     public void testValidMonthNamesInUTC() {
-        assumeJava9PlusAndCompatLocaleProviderSetting();
+        assumeCompatLocaleProviderSetting();
         NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.MONTH_NAME, UTC);
         assertEquals("January", proc.process(dateTime(0)));
         assertEquals("September", proc.process(dateTime(-64165813612338L)));
@@ -87,7 +86,7 @@ public class NamedDateTimeProcessorTests extends AbstractSqlWireSerializingTestC
     }
 
     public void testValidMonthNamesWithNonUTCTimeZone() {
-        assumeJava9PlusAndCompatLocaleProviderSetting();
+        assumeCompatLocaleProviderSetting();
         NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.MONTH_NAME, ZoneId.of("GMT-03:00"));
         assertEquals("December", proc.process(dateTime(0)));
         assertEquals("August", proc.process(dateTime(-64165813612338L))); // GMT: Tuesday, September 1, -0064 2:53:07.662 AM
@@ -107,11 +106,7 @@ public class NamedDateTimeProcessorTests extends AbstractSqlWireSerializingTestC
      *
      * Related infra issue: https://github.com/elastic/elasticsearch/issues/33796
      */
-    private void assumeJava9PlusAndCompatLocaleProviderSetting() {
-        // at least Java 9
-        if (JavaVersion.current().compareTo(JavaVersion.parse("9")) < 0) {
-            return;
-        }
+    private void assumeCompatLocaleProviderSetting() {
         String beforeJava9CompatibleLocale = System.getProperty("java.locale.providers");
         // and COMPAT setting needs to be first on the list
         boolean isBeforeJava9Compatible = beforeJava9CompatibleLocale != null

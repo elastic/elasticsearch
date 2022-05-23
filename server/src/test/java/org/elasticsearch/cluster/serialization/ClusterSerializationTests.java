@@ -211,7 +211,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             outStream.bytes().streamInput(),
             new NamedWriteableRegistry(ClusterModule.getNamedWriteables())
         );
-        ClusterState serializedClusterState1 = ClusterState.readFrom(inStream, newNode("node4"));
+        ClusterState serializedClusterState1 = ClusterState.readFrom(inStream, null);
 
         // Create a new, albeit equal, IndexMetadata object
         ClusterState clusterState2 = ClusterState.builder(clusterState1)

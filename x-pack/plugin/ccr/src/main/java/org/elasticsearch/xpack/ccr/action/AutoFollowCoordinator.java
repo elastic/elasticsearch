@@ -19,7 +19,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -288,7 +288,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     request.waitForMetadataVersion(metadataVersion);
                     request.waitForTimeout(waitForMetadataTimeOut);
                     // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
-                    ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
+                    CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                         client,
                         remoteCluster,
                         request,
@@ -304,7 +304,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     Runnable successHandler,
                     Consumer<Exception> failureHandler
                 ) {
-                    Client followerClient = CcrLicenseChecker.wrapClient(client, headers);
+                    Client followerClient = CcrLicenseChecker.wrapClient(client, headers, clusterService.state());
                     followerClient.execute(
                         PutFollowAction.INSTANCE,
                         request,
@@ -314,7 +314,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
                 @Override
                 void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
-                    clusterService.submitStateUpdateTask("update_auto_follow_metadata", new ClusterStateUpdateTask() {
+                    submitUnbatchedTask("update_auto_follow_metadata", new ClusterStateUpdateTask() {
 
                         @Override
                         public ClusterState execute(ClusterState currentState) throws Exception {
@@ -330,7 +330,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             handler.accept(null);
                         }
-                    }, ClusterStateTaskExecutor.unbatched());
+                    });
                 }
 
             };
@@ -368,6 +368,11 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         updatedFollowers.putAll(newAutoFollowers);
         removedRemoteClusters.forEach(updatedFollowers.keySet()::remove);
         this.autoFollowers = Collections.unmodifiableMap(updatedFollowers);
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private boolean assertNoOtherActiveAutoFollower(Map<String, AutoFollower> newAutoFollowers) {

@@ -19,7 +19,11 @@ import java.time.ZonedDateTime;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class DateMillisDocValuesField implements DocValuesField<ZonedDateTime>, ScriptDocValues.Supplier<ZonedDateTime> {
+public class DateMillisDocValuesField extends AbstractScriptFieldFactory<ZonedDateTime>
+    implements
+        Field<ZonedDateTime>,
+        DocValuesScriptFieldFactory,
+        ScriptDocValues.Supplier<ZonedDateTime> {
 
     protected final SortedNumericDocValues input;
     protected final String name;
@@ -54,7 +58,7 @@ public class DateMillisDocValuesField implements DocValuesField<ZonedDateTime>, 
     }
 
     @Override
-    public ScriptDocValues<ZonedDateTime> getScriptDocValues() {
+    public ScriptDocValues<ZonedDateTime> toScriptDocValues() {
         if (dates == null) {
             dates = new ScriptDocValues.Dates(this);
         }

@@ -252,13 +252,13 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                             dnode.decision
                         );
                     })
-                    .collect(Collectors.toList())
+                    .toList()
             );
             ineligibleShards = fetchedShardData.getData()
                 .values()
                 .stream()
                 .filter(shardData -> discoNodes.contains(shardData.getNode()) == false)
-                .collect(Collectors.toList());
+                .toList();
         } else {
             // there were no shard copies that were eligible for being assigned the allocation,
             // so all fetched shard data are ineligible shards
@@ -268,7 +268,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         nodeResults.addAll(
             ineligibleShards.stream()
                 .map(shardData -> new NodeAllocationResult(shardData.getNode(), shardStoreInfo(shardData, inSyncAllocationIds), null))
-                .collect(Collectors.toList())
+                .toList()
         );
 
         return nodeResults;

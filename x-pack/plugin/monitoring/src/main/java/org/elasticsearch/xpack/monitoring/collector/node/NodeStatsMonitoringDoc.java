@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.monitoring.collector.node;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -75,7 +74,7 @@ public class NodeStatsMonitoringDoc extends FilteredMonitoringDoc {
         builder.endObject();
     }
 
-    public static final Set<String> XCONTENT_FILTERS = Sets.newHashSet(
+    public static final Set<String> XCONTENT_FILTERS = Set.of(
         "node_stats.node_id",
         "node_stats.node_master",
         "node_stats.mlockall",

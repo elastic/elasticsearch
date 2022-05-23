@@ -302,7 +302,7 @@ public class StoredScriptSource implements SimpleDiffable<StoredScriptSource>, W
         out.writeString(source);
         @SuppressWarnings("unchecked")
         Map<String, Object> options = (Map<String, Object>) (Map) this.options;
-        out.writeMap(options);
+        out.writeGenericMap(options);
     }
 
     /**

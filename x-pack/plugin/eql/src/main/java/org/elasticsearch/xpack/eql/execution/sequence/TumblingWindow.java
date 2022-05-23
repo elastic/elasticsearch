@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.action.ActionListener.runAfter;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
@@ -122,7 +123,11 @@ public class TumblingWindow implements Executable {
     public void execute(ActionListener<Payload> listener) {
         log.trace("Starting sequence window w/ fetch size [{}]", windowSize);
         startTime = System.currentTimeMillis();
-        tumbleWindow(0, listener);
+        // clear the memory at the end of the algorithm
+        tumbleWindow(0, runAfter(listener, () -> {
+            matcher.clear();
+            client.close(listener.delegateFailure((l, r) -> {}));
+        }));
     }
 
     /**
@@ -541,7 +546,6 @@ public class TumblingWindow implements Executable {
 
         if (completed.isEmpty()) {
             listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook()));
-            close(listener);
             return;
         }
 
@@ -551,14 +555,8 @@ public class TumblingWindow implements Executable {
                 Collections.reverse(completed);
             }
             SequencePayload payload = new SequencePayload(completed, listOfHits, false, timeTook());
-            close(listener);
             return payload;
         }));
-    }
-
-    private void close(ActionListener<Payload> listener) {
-        matcher.clear();
-        client.close(listener.delegateFailure((l, r) -> {}));
     }
 
     private TimeValue timeTook() {

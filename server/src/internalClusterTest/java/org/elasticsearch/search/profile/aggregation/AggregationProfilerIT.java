@@ -697,9 +697,9 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                                     .entry(
                                         "filters",
                                         matchesList().item(
-                                            matchesMap().entry("query", "DocValuesFieldExistsQuery [field=date]")
-                                                .entry("specialized_for", "docvalues_field_exists")
+                                            matchesMap().entry("query", "*:*")
                                                 .entry("results_from_metadata", 0)
+                                                .entry("specialized_for", "match_all")
                                         )
                                     )
                             )

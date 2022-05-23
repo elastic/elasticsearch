@@ -48,7 +48,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.unmodifiableMap;
 import static java.util.Map.entry;
 
 public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
@@ -58,6 +57,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public static class Names {
         public static final String SAME = "same";
         public static final String GENERIC = "generic";
+        public static final String CLUSTER_COORDINATION = "cluster_coordination";
         public static final String GET = "get";
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
@@ -219,6 +219,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5), false)
         );
         builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1, false));
+        builders.put(Names.CLUSTER_COORDINATION, new FixedExecutorBuilder(settings, Names.CLUSTER_COORDINATION, 1, -1, false));
         builders.put(
             Names.FETCH_SHARD_STORE,
             new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5), false)
@@ -256,13 +257,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
 
         executors.put(Names.SAME, new ExecutorHolder(EsExecutors.DIRECT_EXECUTOR_SERVICE, new Info(Names.SAME, ThreadPoolType.DIRECT)));
-        this.executors = unmodifiableMap(executors);
+        this.executors = Map.copyOf(executors);
 
         final List<Info> infos = executors.values()
             .stream()
             .filter(holder -> holder.info.getName().equals("same") == false)
             .map(holder -> holder.info)
-            .collect(Collectors.toList());
+            .toList();
         this.threadPoolInfo = new ThreadPoolInfo(infos);
         this.scheduler = Scheduler.initScheduler(settings, "scheduler");
         this.slowSchedulerWarnThresholdNanos = SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING.get(settings).nanos();
@@ -272,6 +273,17 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING.get(settings).millis()
         );
         this.cachedTimeThread.start();
+    }
+
+    // for subclassing by tests that don't actually use any of the machinery that the regular constructor sets up
+    protected ThreadPool() {
+        this.builders = Map.of();
+        this.executors = Map.of();
+        this.cachedTimeThread = null;
+        this.threadPoolInfo = new ThreadPoolInfo(List.of());
+        this.slowSchedulerWarnThresholdNanos = 0L;
+        this.threadContext = new ThreadContext(Settings.EMPTY);
+        this.scheduler = null;
     }
 
     /**

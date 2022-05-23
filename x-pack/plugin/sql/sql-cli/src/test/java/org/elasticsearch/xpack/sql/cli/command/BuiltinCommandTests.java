@@ -44,20 +44,20 @@ public class BuiltinCommandTests extends SqlCliTestCase {
         CliSession cliSession = new CliSession(httpClient);
         FetchSeparatorCliCommand cliCommand = new FetchSeparatorCliCommand();
         assertFalse(cliCommand.handle(testTerminal, cliSession, "fetch"));
-        assertEquals("", cliSession.getFetchSeparator());
+        assertEquals("", cliSession.cfg().getFetchSeparator());
 
         assertTrue(cliCommand.handle(testTerminal, cliSession, "fetch_separator = \"foo\""));
-        assertEquals("foo", cliSession.getFetchSeparator());
+        assertEquals("foo", cliSession.cfg().getFetchSeparator());
         assertEquals("fetch separator set to \"<em>foo</em>\"<flush/>", testTerminal.toString());
         testTerminal.clear();
 
         assertTrue(cliCommand.handle(testTerminal, cliSession, "fetch_separator=\"bar\""));
-        assertEquals("bar", cliSession.getFetchSeparator());
+        assertEquals("bar", cliSession.cfg().getFetchSeparator());
         assertEquals("fetch separator set to \"<em>bar</em>\"<flush/>", testTerminal.toString());
         testTerminal.clear();
 
         assertTrue(cliCommand.handle(testTerminal, cliSession, "fetch separator=\"baz\""));
-        assertEquals("baz", cliSession.getFetchSeparator());
+        assertEquals("baz", cliSession.cfg().getFetchSeparator());
         assertEquals("fetch separator set to \"<em>baz</em>\"<flush/>", testTerminal.toString());
         verifyNoMoreInteractions(httpClient);
     }
@@ -68,21 +68,21 @@ public class BuiltinCommandTests extends SqlCliTestCase {
         CliSession cliSession = new CliSession(httpClient);
         FetchSizeCliCommand cliCommand = new FetchSizeCliCommand();
         assertFalse(cliCommand.handle(testTerminal, cliSession, "fetch"));
-        assertEquals(1000L, cliSession.getFetchSize());
+        assertEquals(1000L, cliSession.cfg().getFetchSize());
 
         assertTrue(cliCommand.handle(testTerminal, cliSession, "fetch_size = \"foo\""));
-        assertEquals(1000L, cliSession.getFetchSize());
+        assertEquals(1000L, cliSession.cfg().getFetchSize());
         assertEquals("<b>Invalid fetch size [</b><i>\"foo\"</i><b>]</b><flush/>", testTerminal.toString());
         testTerminal.clear();
 
         assertTrue(cliCommand.handle(testTerminal, cliSession, "fetch_size = 10"));
-        assertEquals(10L, cliSession.getFetchSize());
+        assertEquals(10L, cliSession.cfg().getFetchSize());
         assertEquals("fetch size set to <em>10</em><flush/>", testTerminal.toString());
 
         testTerminal.clear();
 
         assertTrue(cliCommand.handle(testTerminal, cliSession, "fetch_size = -10"));
-        assertEquals(10L, cliSession.getFetchSize());
+        assertEquals(10L, cliSession.cfg().getFetchSize());
         assertEquals("<b>Invalid fetch size [</b><i>-10</i><b>]. Must be > 0.</b><flush/>", testTerminal.toString());
         verifyNoMoreInteractions(httpClient);
     }
@@ -96,6 +96,23 @@ public class BuiltinCommandTests extends SqlCliTestCase {
         assertThat(testTerminal.toString(), containsString("SQL"));
         assertThat(testTerminal.toString(), containsString(ClientVersion.CURRENT.version));
         verifyNoMoreInteractions(httpClient);
+    }
+
+    public void testLenient() {
+        TestTerminal testTerminal = new TestTerminal();
+        HttpClient httpClient = mock(HttpClient.class);
+        CliSession cliSession = new CliSession(httpClient);
+        LenientCliCommand cliCommand = new LenientCliCommand();
+        assertFalse(cliCommand.handle(testTerminal, cliSession, "lenient"));
+        assertEquals(false, cliSession.cfg().isLenient());
+        assertTrue(cliCommand.handle(testTerminal, cliSession, "lenient = true"));
+        assertEquals(true, cliSession.cfg().isLenient());
+        assertEquals("lenient set to <em>true</em><flush/>", testTerminal.toString());
+        testTerminal.clear();
+        assertTrue(cliCommand.handle(testTerminal, cliSession, "lenient = false"));
+        assertEquals(false, cliSession.cfg().isLenient());
+        assertEquals("lenient set to <em>false</em><flush/>", testTerminal.toString());
+        testTerminal.clear();
     }
 
 }

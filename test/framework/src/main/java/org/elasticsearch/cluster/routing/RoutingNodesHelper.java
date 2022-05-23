@@ -10,6 +10,8 @@ package org.elasticsearch.cluster.routing;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public final class RoutingNodesHelper {
 
@@ -47,4 +49,14 @@ public final class RoutingNodesHelper {
         return shards;
     }
 
+    /**
+     * Returns a stream over all {@link ShardRouting} in a {@link IndexShardRoutingTable}. This is not part of production code on purpose
+     * as its too costly to iterate the table like this in many production use cases.
+     *
+     * @param indexShardRoutingTable index shard routing table to iterate over
+     * @return stream over {@link ShardRouting}
+     */
+    public static Stream<ShardRouting> asStream(IndexShardRoutingTable indexShardRoutingTable) {
+        return IntStream.range(0, indexShardRoutingTable.size()).mapToObj(indexShardRoutingTable::shard);
+    }
 }

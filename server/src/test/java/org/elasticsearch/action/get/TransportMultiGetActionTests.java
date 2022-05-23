@@ -226,7 +226,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             }
         };
 
-        ActionTestUtils.execute(transportAction, task, request.request(), new ActionListenerAdapter());
+        ActionTestUtils.execute(transportAction, task, request.request(), ActionListener.noop());
         assertTrue(shardActionInvoked.get());
     }
 
@@ -259,7 +259,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             }
         };
 
-        ActionTestUtils.execute(transportAction, task, request.request(), new ActionListenerAdapter());
+        ActionTestUtils.execute(transportAction, task, request.request(), ActionListener.noop());
         assertTrue(shardActionInvoked.get());
 
     }
@@ -287,12 +287,4 @@ public class TransportMultiGetActionTests extends ESTestCase {
         }
     }
 
-    static class ActionListenerAdapter implements ActionListener<MultiGetResponse> {
-
-        @Override
-        public void onResponse(MultiGetResponse response) {}
-
-        @Override
-        public void onFailure(Exception e) {}
-    }
 }

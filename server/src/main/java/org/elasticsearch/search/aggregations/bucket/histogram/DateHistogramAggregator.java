@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
@@ -54,6 +56,8 @@ import java.util.function.BiConsumer;
  * all of the {@link Rounding.Prepared#fixedRoundingPoints() fixed rounding points}.
  */
 class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAggregator {
+    private static final Logger logger = LogManager.getLogger(DateHistogramAggregator.class);
+
     /**
      * Build an {@link Aggregator} for a {@code date_histogram} aggregation.
      * If we can determine the bucket boundaries from
@@ -139,20 +143,29 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     ) throws IOException {
         long[] fixedRoundingPoints = preparedRounding.fixedRoundingPoints();
         if (fixedRoundingPoints == null) {
+            logger.trace("couldn't adapt [{}], no fixed rounding points in [{}]", name, preparedRounding);
             return null;
         }
         // Range aggs use a double to aggregate and we don't want to lose precision.
         long min = fixedRoundingPoints[0];
         long max = fixedRoundingPoints[fixedRoundingPoints.length - 1];
         if (min < -RangeAggregator.MAX_ACCURATE_BOUND || min > RangeAggregator.MAX_ACCURATE_BOUND) {
+            logger.trace("couldn't adapt [{}], min outside accurate bounds", name);
             return null;
         }
         if (max < -RangeAggregator.MAX_ACCURATE_BOUND || max > RangeAggregator.MAX_ACCURATE_BOUND) {
+            logger.trace("couldn't adapt [{}], max outside accurate bounds", name);
             return null;
         }
         RangeAggregatorSupplier rangeSupplier = context.getValuesSourceRegistry()
             .getAggregator(RangeAggregationBuilder.REGISTRY_KEY, valuesSourceConfig);
         if (rangeSupplier == null) {
+            logger.trace(
+                "couldn't adapt [{}], no range for [{}/{}]",
+                name,
+                valuesSourceConfig.fieldContext().field(),
+                valuesSourceConfig.fieldType()
+            );
             return null;
         }
         RangeAggregator.Range[] ranges = ranges(hardBounds, fixedRoundingPoints);
@@ -415,7 +428,10 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         protected InternalAggregation adapt(InternalAggregation delegateResult) {
             InternalDateRange range = (InternalDateRange) delegateResult;
             List<InternalDateHistogram.Bucket> buckets = new ArrayList<>(range.getBuckets().size());
-            for (InternalDateRange.Bucket rangeBucket : range.getBuckets()) {
+            // This code below was converted from a regular for loop to a stream forEach to avoid
+            // JDK-8285835. It needs to stay in this form until we upgrade our JDK distribution to
+            // pick up a fix for the compiler crash.
+            range.getBuckets().stream().forEach(rangeBucket -> {
                 if (rangeBucket.getDocCount() > 0) {
                     buckets.add(
                         new InternalDateHistogram.Bucket(
@@ -427,7 +443,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                         )
                     );
                 }
-            }
+            });
+
             CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
             InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0

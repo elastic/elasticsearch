@@ -43,7 +43,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "nebula.ospackage-base" version "8.6.1"
+  id "nebula.ospackage-base" version "9.1.1"
 }
 
 ['deb', 'rpm'].each { type ->
@@ -273,7 +273,7 @@ ospackage {
     signingKeyPassphrase = project.property('signing.password')
     signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?
       project.file(project.property('signing.secretKeyRingFile')) :
-      new File(new File(project.providers.systemProperty('user.home').orElse('.gnupg').forUseAtConfigurationTime().get()), 'secring.gpg')
+      new File(new File(project.providers.systemProperty('user.home').orElse('.gnupg').get()), 'secring.gpg')
   }
 
   // version found on oldest supported distro, centos-6

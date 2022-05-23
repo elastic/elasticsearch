@@ -8,49 +8,26 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
 
 /**
  * Bounded geotile aggregation. It accepts hashes that intersects the provided bounds.
  */
 public class BoundedGeoHashGridTiler extends AbstractGeoHashGridTiler {
-    private final GeoBoundingBox bbox;
-    private final boolean crossesDateline;
-    private final long maxHashes;
+    private final GeoHashBoundedPredicate predicate;
 
     public BoundedGeoHashGridTiler(int precision, GeoBoundingBox bbox) {
         super(precision);
-        this.bbox = bbox;
-        this.crossesDateline = bbox.right() < bbox.left();
-        final long hashesY = (long) Math.ceil(((bbox.top() - bbox.bottom()) / Geohash.latHeightInDegrees(precision)) + 1);
-        final long hashesX;
-        if (crossesDateline) {
-            final long hashesLeft = (long) Math.ceil(((180 - bbox.left()) / Geohash.lonWidthInDegrees(precision)) + 1);
-            final long hashesRight = (long) Math.ceil(((bbox.right() + 180) / Geohash.lonWidthInDegrees(precision)) + 1);
-            hashesX = hashesLeft + hashesRight;
-        } else {
-            hashesX = (long) Math.ceil(((bbox.right() - bbox.left()) / Geohash.lonWidthInDegrees(precision)) + 1);
-        }
-        this.maxHashes = hashesX * hashesY;
+        this.predicate = new GeoHashBoundedPredicate(precision, bbox);
     }
 
     @Override
     protected long getMaxCells() {
-        return maxHashes;
+        return predicate.getMaxHashes();
     }
 
     @Override
     protected boolean validHash(String hash) {
-        final Rectangle rectangle = Geohash.toBoundingBox(hash);
-        // touching hashes are excluded
-        if (bbox.top() > rectangle.getMinY() && bbox.bottom() < rectangle.getMaxY()) {
-            if (crossesDateline) {
-                return bbox.left() < rectangle.getMaxX() || bbox.right() > rectangle.getMinX();
-            } else {
-                return bbox.left() < rectangle.getMaxX() && bbox.right() > rectangle.getMinX();
-            }
-        }
-        return false;
+        return predicate.validHash(hash);
     }
 }

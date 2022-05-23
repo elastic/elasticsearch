@@ -1,0 +1,14 @@
+{
+  "keys": [
+    {
+      "kty": "oct",
+      "kid": "test-hmac-384",
+      "k": "W3mR8v_MP0_YdDo1OB0uwOgPX6-7PzkICVxMDVCZlPGw3vyPr8SRb5akrRSNU-zV"
+    },
+    {
+      "kty": "oct",
+      "kid": "test-hmac-512",
+      "k": "U4kMAa7tBwKOD4ggab4ZRGeHlFTILgNbescS1b5nambKJPmrB7QjeTryvfrE8zjYSvLxW2-tzFJUpk38a6FjPA"
+    }
+  ]
+}

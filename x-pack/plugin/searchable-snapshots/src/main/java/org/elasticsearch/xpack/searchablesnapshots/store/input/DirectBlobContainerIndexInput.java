@@ -13,8 +13,8 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
@@ -258,19 +258,10 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     @Override
     public DirectBlobContainerIndexInput clone() {
-        final DirectBlobContainerIndexInput clone = new DirectBlobContainerIndexInput(
-            "clone(" + this + ")",
-            directory,
-            fileInfo,
-            context,
-            stats,
-            position,
-            offset,
-            length,
-            // Clones might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
-            // solution: do not optimize sequential reads on clones.
-            NO_SEQUENTIAL_READ_OPTIMIZATION
-        );
+        final DirectBlobContainerIndexInput clone = (DirectBlobContainerIndexInput) super.clone();
+        // Clones might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
+        // solution: do not optimize sequential reads on clones.
+        clone.sequentialReadSize = NO_SEQUENTIAL_READ_OPTIMIZATION;
         clone.isClone = true;
         return clone;
     }

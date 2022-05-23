@@ -11,6 +11,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -35,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -55,7 +57,8 @@ public final class IngestDocument {
     private final Set<String> executedPipelines = new LinkedHashSet<>();
 
     public IngestDocument(String index, String id, String routing, Long version, VersionType versionType, Map<String, Object> source) {
-        this.sourceAndMetadata = new HashMap<>();
+        // source + at max 5 extra fields
+        this.sourceAndMetadata = Maps.newMapWithExpectedSize(source.size() + 5);
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
         this.sourceAndMetadata.put(Metadata.ID.getFieldName(), id);
@@ -93,17 +96,12 @@ public final class IngestDocument {
      * Returns the value contained in the document for the provided path
      * @param path The path within the document in dot-notation
      * @param clazz The expected class of the field value
-     * @return the value for the provided path if existing, null otherwise
+     * @return the value for the provided path if existing
      * @throws IllegalArgumentException if the path is null, empty, invalid, if the field doesn't exist
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz) {
-        FieldPath fieldPath = new FieldPath(path);
-        Object context = fieldPath.initialContext;
-        for (String pathElement : fieldPath.pathElements) {
-            context = resolve(pathElement, path, context);
-        }
-        return cast(path, context, clazz);
+        return getFieldValue(path, clazz, false);
     }
 
     /**
@@ -117,15 +115,19 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
-        try {
-            return getFieldValue(path, clazz);
-        } catch (IllegalArgumentException e) {
-            if (ignoreMissing && hasField(path) != true) {
+        FieldPath fieldPath = new FieldPath(path);
+        Object context = fieldPath.initialContext;
+        for (String pathElement : fieldPath.pathElements) {
+            ResolveResult result = resolve(pathElement, path, context);
+            if (result.wasSuccessful) {
+                context = result.resolvedObject;
+            } else if (ignoreMissing && hasField(path) == false) {
                 return null;
             } else {
-                throw e;
+                throw new IllegalArgumentException(result.errorMessage);
             }
         }
+        return cast(path, context, clazz);
     }
 
     /**
@@ -286,7 +288,12 @@ public final class IngestDocument {
         FieldPath fieldPath = new FieldPath(path);
         Object context = fieldPath.initialContext;
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
-            context = resolve(fieldPath.pathElements[i], path, context);
+            ResolveResult result = resolve(fieldPath.pathElements[i], path, context);
+            if (result.wasSuccessful) {
+                context = result.resolvedObject;
+            } else {
+                throw new IllegalArgumentException(result.errorMessage);
+            }
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
@@ -324,34 +331,33 @@ public final class IngestDocument {
         );
     }
 
-    private static Object resolve(String pathElement, String fullPath, Object context) {
+    private static ResolveResult resolve(String pathElement, String fullPath, Object context) {
         if (context == null) {
-            throw new IllegalArgumentException("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");
+            return ResolveResult.error("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");
         }
         if (context instanceof Map<?, ?> map) {
             if (map.containsKey(pathElement)) {
-                return map.get(pathElement);
+                return ResolveResult.success(map.get(pathElement));
             }
-            throw new IllegalArgumentException("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
+            return ResolveResult.error("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
         }
         if (context instanceof List<?> list) {
             int index;
             try {
                 index = Integer.parseInt(pathElement);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(
-                    "[" + pathElement + "] is not an integer, cannot be used as an index as part of path [" + fullPath + "]",
-                    e
+                return ResolveResult.error(
+                    "[" + pathElement + "] is not an integer, cannot be used as an index as part of path [" + fullPath + "]"
                 );
             }
             if (index < 0 || index >= list.size()) {
-                throw new IllegalArgumentException(
+                return ResolveResult.error(
                     "[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + fullPath + "]"
                 );
             }
-            return list.get(index);
+            return ResolveResult.success(list.get(index));
         }
-        throw new IllegalArgumentException(
+        return ResolveResult.error(
             "cannot resolve ["
                 + pathElement
                 + "] from object of type ["
@@ -785,6 +791,25 @@ public final class IngestDocument {
             }
     }
 
+    public static Set<String> getAllFields(Map<String, Object> input) {
+        return getAllFields(input, "");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Set<String> getAllFields(Map<String, Object> input, String prefix) {
+        Set<String> allFields = Sets.newHashSet();
+
+        input.forEach((k, v) -> {
+            allFields.add(prefix + k);
+
+            if (v instanceof Map<?, ?> mapValue) {
+                allFields.addAll(getAllFields((Map<String, Object>) mapValue, prefix + k + "."));
+            }
+        });
+
+        return allFields;
+    }
+
     /**
      * Executes the given pipeline with for this document unless the pipeline has already been executed
      * for this document.
@@ -852,10 +877,18 @@ public final class IngestDocument {
         IF_PRIMARY_TERM("_if_primary_term"),
         DYNAMIC_TEMPLATES("_dynamic_templates");
 
+        private static final Set<String> METADATA_NAMES = Arrays.stream(Metadata.values())
+            .map(metadata -> metadata.fieldName)
+            .collect(Collectors.toSet());
+
         private final String fieldName;
 
         Metadata(String fieldName) {
             this.fieldName = fieldName;
+        }
+
+        public static boolean isMetadata(String field) {
+            return METADATA_NAMES.contains(field);
         }
 
         public String getFieldName() {
@@ -890,5 +923,26 @@ public final class IngestDocument {
             }
         }
 
+    }
+
+    private static class ResolveResult {
+        boolean wasSuccessful;
+        String errorMessage;
+        Object resolvedObject;
+
+        static ResolveResult success(Object resolvedObject) {
+            ResolveResult result = new ResolveResult();
+            result.wasSuccessful = true;
+            result.resolvedObject = resolvedObject;
+            return result;
+        }
+
+        static ResolveResult error(String errorMessage) {
+            ResolveResult result = new ResolveResult();
+            result.wasSuccessful = false;
+            result.errorMessage = errorMessage;
+            return result;
+
+        }
     }
 }

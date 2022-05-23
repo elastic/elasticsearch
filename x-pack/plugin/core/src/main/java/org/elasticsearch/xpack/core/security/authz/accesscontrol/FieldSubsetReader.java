@@ -283,8 +283,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
-        return hasField(field) ? super.searchNearestVectors(field, target, k, acceptDocs) : null;
+    public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+        return hasField(field) ? super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit) : null;
     }
 
     // we share core cache keys (for e.g. fielddata)

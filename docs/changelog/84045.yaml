@@ -1,0 +1,5 @@
+pr: 84045
+summary: Update `readMap` to avoid resizing map during reading
+area: Infra/Core
+type: enhancement
+issues: []

@@ -17,37 +17,37 @@
   - do:
       index:
           index:  goodbad
-          id:     1
+          id:     "1"
           body:   { text: "good", class: "good" }
   - do:
       index:
           index:  goodbad
-          id:     2
+          id:     "2"
           body:   { text: "good", class: "good" }
   - do:
       index:
           index:  goodbad
-          id:     3
+          id:     "3"
           body:   { text: "bad", class: "bad" }
   - do:
       index:
           index:  goodbad
-          id:     4
+          id:     "4"
           body:   { text: "bad", class: "bad" }
   - do:
       index:
           index:  goodbad
-          id:     5
+          id:     "5"
           body:   { text: "good bad", class: "good" }
   - do:
       index:
           index:  goodbad
-          id:     6
+          id:     "6"
           body:   { text: "good bad", class: "bad" }
   - do:
       index:
           index:  goodbad
-          id:     7
+          id:     "7"
           body:   { text: "bad", class: "bad" }
 
 
@@ -108,33 +108,33 @@
   - do:
       index:
         index: goodbad-2
-        id: 1
+        id: "1"
         body: { class: "bad" }
   - do:
       index:
         index: goodbad-2
-        id: 2
+        id: "2"
         body: { class: "bad" }
 
   - do:
       index:
         index:  goodbad
-        id:     1
+        id:     "1"
         body:   { text: "good", class: "good" }
   - do:
       index:
         index:  goodbad
-        id:     2
+        id:     "2"
         body:   { text: "good", class: "good" }
   - do:
       index:
         index:  goodbad
-        id:     3
+        id:     "3"
         body:   { text: "bad", class: "bad" }
   - do:
       index:
         index:  goodbad
-        id:     4
+        id:     "4"
         body:   { text: "bad", class: "bad" }
 
   - do:
@@ -167,12 +167,12 @@
   - do:
       index:
           index:  ip_index
-          id:     1
+          id:     "1"
           body:   { ip: "::1" }
   - do:
       index:
           index:  ip_index
-          id:     2
+          id:     "2"
           body:   { }
 
   - do:

@@ -8,8 +8,10 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -36,6 +38,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     NodeStats> {
 
     private final NodeService nodeService;
+    private final StatsRequestLimiter statsRequestLimiter;
 
     @Inject
     public TransportNodesStatsAction(
@@ -43,7 +46,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         ClusterService clusterService,
         TransportService transportService,
         NodeService nodeService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        StatsRequestLimiter statsRequestLimiter
     ) {
         super(
             NodesStatsAction.NAME,
@@ -57,6 +61,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             NodeStats.class
         );
         this.nodeService = nodeService;
+        this.statsRequestLimiter = statsRequestLimiter;
     }
 
     @Override
@@ -95,8 +100,14 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             NodesStatsRequest.Metric.INGEST.containedIn(metrics),
             NodesStatsRequest.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
             NodesStatsRequest.Metric.SCRIPT_CACHE.containedIn(metrics),
-            NodesStatsRequest.Metric.INDEXING_PRESSURE.containedIn(metrics)
+            NodesStatsRequest.Metric.INDEXING_PRESSURE.containedIn(metrics),
+            NodesStatsRequest.Metric.STATS_REQUESTS.containedIn(metrics)
         );
+    }
+
+    @Override
+    protected void doExecute(Task task, NodesStatsRequest request, ActionListener<NodesStatsResponse> listener) {
+        statsRequestLimiter.tryToExecute(task, request, listener, super::doExecute);
     }
 
     public static class NodeStatsRequest extends TransportRequest {

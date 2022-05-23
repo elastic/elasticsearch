@@ -14,6 +14,7 @@ import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
@@ -101,5 +102,9 @@ public class SnapshotUpgradeTaskParams implements PersistentTaskParams, MlTaskPa
     @Override
     public String getMlId() {
         return jobId;
+    }
+
+    public static SnapshotUpgradeTaskParams fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

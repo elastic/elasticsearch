@@ -10,9 +10,9 @@ package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene90.Lucene90Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;
+import org.apache.lucene.codecs.lucene92.Lucene92Codec;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
@@ -21,6 +21,8 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -35,6 +37,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReader;
@@ -43,9 +46,10 @@ import org.apache.lucene.search.suggest.document.CompletionPostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
@@ -56,7 +60,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -170,7 +173,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
-    public void testPoints() throws Exception {
+    public void testBinaryPoints() throws Exception {
         try (Directory dir = newDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), doc -> {
@@ -207,10 +210,63 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
+    public void testTriangle() throws Exception {
+        try (Directory dir = newDirectory()) {
+            final CodecMode codec = randomFrom(CodecMode.values());
+            indexRandomly(dir, codec, between(100, 1000), doc -> {
+                final double ratio = randomDouble();
+                if (ratio <= 0.25) {
+                    addFieldsToDoc(
+                        doc,
+                        LatLonShape.createIndexableFields("triangle_1", GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude())
+                    );
+                }
+                if (ratio <= 0.50) {
+                    addFieldsToDoc(
+                        doc,
+                        LatLonShape.createIndexableFields("triangle_2", GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude())
+                    );
+                }
+                addFieldsToDoc(
+                    doc,
+                    LatLonShape.createIndexableFields("triangle_3", GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude())
+                );
+            });
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            final IndexDiskUsageStats perField = collectPerFieldStats(dir);
+            logger.info("--> stats {} per field {}", stats, perField);
+            assertFieldStats("total", "points", stats.total().getPointsBytes(), perField.total().getPointsBytes(), 0.01, 2048);
+            assertFieldStats(
+                "triangle_1",
+                "points",
+                stats.getFields().get("triangle_1").getPointsBytes(),
+                stats.total().getPointsBytes() / 7,
+                0.01,
+                2048
+            );
+            assertFieldStats(
+                "triangle_2",
+                "triangle",
+                stats.getFields().get("triangle_2").getPointsBytes(),
+                stats.total().getPointsBytes() * 2 / 7,
+                0.01,
+                2048
+            );
+            assertFieldStats(
+                "triangle_3",
+                "triangle",
+                stats.getFields().get("triangle_3").getPointsBytes(),
+                stats.total().getPointsBytes() * 4 / 7,
+                0.01,
+                2048
+            );
+        }
+    }
+
     public void testCompletionField() throws Exception {
         IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true)
             .setUseCompoundFile(false)
-            .setCodec(new Lucene90Codec(Lucene90Codec.Mode.BEST_SPEED) {
+            .setCodec(new Lucene92Codec(Lucene92Codec.Mode.BEST_SPEED) {
                 @Override
                 public PostingsFormat getPostingsFormatForField(String field) {
                     if (field.startsWith("suggest_")) {
@@ -288,28 +344,34 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
+    private static void addFieldsToDoc(Document doc, IndexableField[] fields) {
+        for (IndexableField field : fields) {
+            doc.add(field);
+        }
+    }
+
     enum CodecMode {
         BEST_SPEED {
             @Override
-            Lucene90Codec.Mode mode() {
-                return Lucene90Codec.Mode.BEST_SPEED;
+            Lucene92Codec.Mode mode() {
+                return Lucene92Codec.Mode.BEST_SPEED;
             }
         },
 
         BEST_COMPRESSION {
             @Override
-            Lucene90Codec.Mode mode() {
-                return Lucene90Codec.Mode.BEST_COMPRESSION;
+            Lucene92Codec.Mode mode() {
+                return Lucene92Codec.Mode.BEST_COMPRESSION;
             }
         };
 
-        abstract Lucene90Codec.Mode mode();
+        abstract Lucene92Codec.Mode mode();
     }
 
     static void indexRandomly(Directory directory, CodecMode codecMode, int numDocs, Consumer<Document> addFields) throws IOException {
         IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true)
             .setUseCompoundFile(randomBoolean())
-            .setCodec(new Lucene90Codec(codecMode.mode()));
+            .setCodec(new Lucene92Codec(codecMode.mode()));
         try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int i = 0; i < numDocs; i++) {
                 final Document doc = new Document();
@@ -366,10 +428,15 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
-    static void addRandomPoints(Document doc) {
+    static void addRandomIntLongPoints(Document doc) {
         final int numValues = random().nextInt(5);
         for (int i = 0; i < numValues; i++) {
-            doc.add(new IntPoint("pt-" + randomIntBetween(1, 2), random().nextInt()));
+            if (randomBoolean()) {
+                doc.add(new IntPoint("int_point_" + randomIntBetween(1, 2), random().nextInt()));
+            }
+            if (randomBoolean()) {
+                doc.add(new LongPoint("long_point_" + randomIntBetween(1, 2), random().nextLong()));
+            }
         }
     }
 
@@ -398,7 +465,20 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             addRandomPostings(doc);
         }
         if (randomBoolean()) {
-            addRandomPoints(doc);
+            addRandomIntLongPoints(doc);
+        }
+        if (randomBoolean()) {
+            final int numValues = random().nextInt(5);
+            for (int i = 0; i < numValues; i++) {
+                addFieldsToDoc(
+                    doc,
+                    LatLonShape.createIndexableFields(
+                        "triangle_" + randomIntBetween(1, 2),
+                        GeoTestUtil.nextLatitude(),
+                        GeoTestUtil.nextLongitude()
+                    )
+                );
+            }
         }
         if (randomBoolean()) {
             addRandomStoredFields(doc, between(1, 3));
@@ -469,7 +549,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         try (DirectoryReader reader = DirectoryReader.open(source)) {
             IndexWriterConfig config = new IndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setUseCompoundFile(randomBoolean())
-                .setCodec(new Lucene90Codec(mode.mode()) {
+                .setCodec(new Lucene92Codec(mode.mode()) {
                     @Override
                     public PostingsFormat getPostingsFormatForField(String field) {
                         return new Lucene90PostingsFormat();
@@ -544,7 +624,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     }
 
     private static void assertStats(IndexDiskUsageStats actualStats, IndexDiskUsageStats perFieldStats) {
-        final List<String> fields = actualStats.getFields().keySet().stream().sorted().collect(Collectors.toList());
+        final List<String> fields = actualStats.getFields().keySet().stream().sorted().toList();
         for (String field : fields) {
             IndexDiskUsageStats.PerFieldDiskUsage actualField = actualStats.getFields().get(field);
             IndexDiskUsageStats.PerFieldDiskUsage expectedField = perFieldStats.getFields().get(field);

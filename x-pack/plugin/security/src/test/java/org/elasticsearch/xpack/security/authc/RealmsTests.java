@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
@@ -30,11 +31,13 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.DomainConfig;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
@@ -205,7 +208,7 @@ public class RealmsTests extends ESTestCase {
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
         verify(licenseState, times(1)).addListener(Mockito.any(LicenseStateListener.class));
         verify(licenseState, times(1)).copyCurrentLicenseState();
-        verify(licenseState, times(1)).getOperationMode();
+        verify(licenseState, times(0)).getOperationMode();
 
         // Verify that we recorded licensed-feature use for each realm (this is trigger on license load during node startup)
         verify(licenseState, Mockito.atLeast(randomRealmTypesCount)).isAllowed(Security.CUSTOM_REALMS_FEATURE);
@@ -266,6 +269,7 @@ public class RealmsTests extends ESTestCase {
         final String nativeRealmDomain = randomFrom(domains);
 
         Map<String, Set<RealmConfig.RealmIdentifier>> realmsForDomain = new HashMap<>();
+        final Map<String, DomainConfig> domainNameToConfig = new HashMap<>();
         for (String domain : domains) {
             if (domain != null) {
                 realmsForDomain.computeIfAbsent(domain, k -> new HashSet<>());
@@ -286,6 +290,38 @@ public class RealmsTests extends ESTestCase {
                         "xpack.security.authc.domains." + domain + ".realms",
                         realmsForDomain.get(domain).stream().map(RealmConfig.RealmIdentifier::getName).collect(Collectors.joining(", "))
                     );
+                    if (randomBoolean()) {
+                        domainNameToConfig.put(
+                            domain,
+                            new DomainConfig(
+                                domain,
+                                realmsForDomain.get(domain)
+                                    .stream()
+                                    .map(RealmConfig.RealmIdentifier::getName)
+                                    .collect(Collectors.toUnmodifiableSet()),
+                                false,
+                                null
+                            )
+                        );
+                        if (randomBoolean()) {
+                            builder.put("xpack.security.authc.domains." + domain + ".uid_generation.literal_username", false);
+                        }
+                    } else {
+                        domainNameToConfig.put(
+                            domain,
+                            new DomainConfig(
+                                domain,
+                                realmsForDomain.get(domain)
+                                    .stream()
+                                    .map(RealmConfig.RealmIdentifier::getName)
+                                    .collect(Collectors.toUnmodifiableSet()),
+                                true,
+                                domain + "suffix"
+                            )
+                        );
+                        builder.put("xpack.security.authc.domains." + domain + ".uid_generation.literal_username", true);
+                        builder.put("xpack.security.authc.domains." + domain + ".uid_generation.suffix", domain + "suffix");
+                    }
                 }
             }
         }
@@ -326,6 +362,12 @@ public class RealmsTests extends ESTestCase {
             assertThat(realm.name(), is("realm_" + index));
             assertDomainForRealm(realm, nodeName, realmsForDomain);
         }
+
+        domainNameToConfig.forEach((name, config) -> {
+            if (false == config.memberRealmNames().isEmpty()) {
+                assertThat(realms.getDomainConfig(name), equalTo(config));
+            }
+        });
     }
 
     private void assertDomainForRealm(Realm realm, String nodeName, Map<String, Set<RealmConfig.RealmIdentifier>> realmsByDomainName) {
@@ -755,7 +797,8 @@ public class RealmsTests extends ESTestCase {
         verify(licenseState, times(1)).addListener(Mockito.any(LicenseStateListener.class));
         // each time the license state changes
         verify(licenseState, times(1)).copyCurrentLicenseState();
-        verify(licenseState, times(1)).getOperationMode();
+        // During init we do not log license state, hence operation mode should not be called.
+        verify(licenseState, times(0)).getOperationMode();
 
         // Verify that we recorded licensed-feature use for each licensed realm (this is trigger on license load/change)
         verify(licenseState, times(1)).isAllowed(Security.LDAP_REALM_FEATURE);
@@ -765,7 +808,7 @@ public class RealmsTests extends ESTestCase {
         allowOnlyNativeRealms();
         // because the license state changed ...
         verify(licenseState, times(2)).copyCurrentLicenseState();
-        verify(licenseState, times(2)).getOperationMode();
+        verify(licenseState, times(1)).getOperationMode();
 
         iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
@@ -795,7 +838,13 @@ public class RealmsTests extends ESTestCase {
     }
 
     public void testUnlicensedWithNonStandardRealms() throws Exception {
-        final String selectedRealmType = randomFrom(SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE, OpenIdConnectRealmSettings.TYPE);
+        final List<String> platinumRealms = CollectionUtils.arrayAsArrayList(
+            SamlRealmSettings.TYPE,
+            KerberosRealmSettings.TYPE,
+            OpenIdConnectRealmSettings.TYPE,
+            JwtRealmSettings.TYPE
+        );
+        final String selectedRealmType = randomFrom(platinumRealms);
         factories.put(selectedRealmType, config -> new DummyRealm(config));
         final LicensedFeature.Persistent feature = InternalRealms.getLicensedFeature(selectedRealmType);
         String realmName = randomAlphaOfLengthBetween(3, 8);

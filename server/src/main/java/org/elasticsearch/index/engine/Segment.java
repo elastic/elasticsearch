@@ -172,7 +172,7 @@ public class Segment implements Writeable {
         }
     }
 
-    private Sort readSegmentSort(StreamInput in) throws IOException {
+    private static Sort readSegmentSort(StreamInput in) throws IOException {
         int size = in.readVInt();
         if (size == 0) {
             return null;
@@ -214,7 +214,7 @@ public class Segment implements Writeable {
         return new Sort(fields);
     }
 
-    private void writeSegmentSort(StreamOutput out, Sort sort) throws IOException {
+    private static void writeSegmentSort(StreamOutput out, Sort sort) throws IOException {
         if (sort == null) {
             out.writeVInt(0);
             return;

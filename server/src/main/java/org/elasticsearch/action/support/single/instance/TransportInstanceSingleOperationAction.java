@@ -85,7 +85,7 @@ public abstract class TransportInstanceSingleOperationAction<
 
     protected abstract Response newResponse(StreamInput in) throws IOException;
 
-    protected ClusterBlockException checkGlobalBlock(ClusterState state) {
+    protected static ClusterBlockException checkGlobalBlock(ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
     }
 
@@ -102,7 +102,7 @@ public abstract class TransportInstanceSingleOperationAction<
         return false;
     }
 
-    protected TransportRequestOptions transportOptions() {
+    protected static TransportRequestOptions transportOptions() {
         return TransportRequestOptions.EMPTY;
     }
 

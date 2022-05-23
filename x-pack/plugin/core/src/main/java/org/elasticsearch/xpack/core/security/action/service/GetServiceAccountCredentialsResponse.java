@@ -18,8 +18,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 public class GetServiceAccountCredentialsResponse extends ActionResponse implements ToXContentObject {
 
     private final String principal;
@@ -32,7 +30,7 @@ public class GetServiceAccountCredentialsResponse extends ActionResponse impleme
         GetServiceAccountCredentialsNodesResponse nodesResponse
     ) {
         this.principal = principal;
-        this.indexTokenInfos = indexTokenInfos == null ? List.of() : indexTokenInfos.stream().sorted().collect(toUnmodifiableList());
+        this.indexTokenInfos = indexTokenInfos == null ? List.of() : indexTokenInfos.stream().sorted().toList();
         this.nodesResponse = nodesResponse;
     }
 

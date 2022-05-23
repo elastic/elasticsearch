@@ -1,5 +1,0 @@
-pr: 83404
-summary: Implement all queries on doc-values only keyword fields
-area: Mapping
-type: enhancement
-issues: []

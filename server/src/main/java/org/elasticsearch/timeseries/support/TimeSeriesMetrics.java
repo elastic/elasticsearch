@@ -52,7 +52,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
@@ -63,7 +62,7 @@ import static org.elasticsearch.index.IndexSettings.MAX_INNER_RESULT_WINDOW_SETT
  * Reads data in a time series style way.
  */
 public class TimeSeriesMetrics {
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(TimeSeriesMetrics.class);
 
     private final int bucketBatchSize;
     private final int docBatchSize;
@@ -445,7 +444,7 @@ public class TimeSeriesMetrics {
         for (TimeSeriesMetricSelector selector : selectors) {
             metrics = metrics.filter(selector.asPredicate());
         }
-        return metrics.collect(Collectors.toUnmodifiableList());
+        return metrics.toList();
     }
 
     private SearchRequest searchInRange(List<String> metrics, List<TimeSeriesDimensionSelector> dimensions, long from, long to, int size) {

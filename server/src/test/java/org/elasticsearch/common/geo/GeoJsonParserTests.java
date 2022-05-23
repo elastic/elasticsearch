@@ -33,6 +33,8 @@ import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
+
 /**
  * Tests for {@code GeoJSONShapeParser}
  */
@@ -1127,6 +1129,42 @@ public class GeoJsonParserTests extends ESTestCase {
         try (XContentParser parser = createParser(emptyPointGeoJson)) {
             parser.nextToken();
             expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.instance(false), false, true, parser));
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testParseInvalidPointMissingFields() throws IOException {
+        // missing type
+        XContentBuilder tooLittlePointGeoJson = XContentFactory.jsonBuilder()
+            .startObject()
+            .startArray("coordinates")
+            .value(10.0)
+            .value(10.0)
+            .endArray()
+            .endObject();
+
+        try (XContentParser parser = createParser(tooLittlePointGeoJson)) {
+            parser.nextToken();
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> GeoJson.fromXContent(GeographyValidator.instance(false), false, true, parser)
+            );
+            // Since this a required for all GeoJSON formats, it produces an earlier, simpler error
+            assertThat(e.getMessage(), containsString("Required [type]"));
+            assertNull(parser.nextToken());
+        }
+
+        // missing coordinates
+        XContentBuilder emptyPointGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Point").endObject();
+
+        try (XContentParser parser = createParser(emptyPointGeoJson)) {
+            parser.nextToken();
+            XContentParseException e = expectThrows(
+                XContentParseException.class,
+                () -> GeoJson.fromXContent(GeographyValidator.instance(false), false, true, parser)
+            );
+            // Since this only required for some GeoJSON formats, it produces a nested, more complex error
+            assertThat(e.getCause().getMessage(), containsString("coordinates not included"));
             assertNull(parser.nextToken());
         }
     }

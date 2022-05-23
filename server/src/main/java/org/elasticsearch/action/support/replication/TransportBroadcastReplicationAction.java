@@ -22,7 +22,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -33,7 +33,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -133,12 +132,9 @@ public abstract class TransportBroadcastReplicationAction<
         for (String index : concreteIndices) {
             IndexMetadata indexMetadata = clusterState.metadata().getIndices().get(index);
             if (indexMetadata != null) {
-                for (Map.Entry<Integer, IndexShardRoutingTable> shardRouting : clusterState.getRoutingTable()
-                    .indicesRouting()
-                    .get(index)
-                    .getShards()
-                    .entrySet()) {
-                    shardIds.add(shardRouting.getValue().shardId());
+                final IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().indicesRouting().get(index);
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    shardIds.add(indexRoutingTable.shard(i).shardId());
                 }
             }
         }

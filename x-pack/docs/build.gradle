@@ -1,3 +1,6 @@
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
@@ -17,8 +20,8 @@ tasks.named("buildRestTests").configure {
 }
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(testArtifact(project(xpackProject('plugin').path)))
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  yamlRestTestImplementation(testArtifact(project(xpackProject('plugin').path)))
 }
 
 restResources {
@@ -27,7 +30,7 @@ restResources {
   }
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   extraConfigFile 'op-jwks.json', xpackProject('test:idp-fixture').file("oidc/op-jwks.json")
   extraConfigFile 'idp-docs-metadata.xml', xpackProject('test:idp-fixture').file("idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
   extraConfigFile 'testClient.crt', xpackProject('plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")
@@ -60,6 +63,9 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.security.authc.realms.saml.saml1.sp.acs', 'https://kibana.org/api/security/saml/callback'
   setting 'xpack.security.authc.realms.saml.saml1.attributes.principal', 'uid'
   setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
+
+  requiresFeature 'es.user_profile_feature_flag_enabled', Version.fromString("8.1.0")
+
   user username: 'test_admin'
 }
 

@@ -1,0 +1,5 @@
+pr: 83704
+summary: Speed up merging field-caps response
+area: Search
+type: enhancement
+issues: []

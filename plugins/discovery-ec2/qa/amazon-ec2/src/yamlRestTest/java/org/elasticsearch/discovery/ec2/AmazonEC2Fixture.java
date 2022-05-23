@@ -21,6 +21,7 @@ import org.elasticsearch.test.fixture.AbstractHttpFixture;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -41,6 +42,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * {@link AmazonEC2Fixture} is a fixture that emulates an AWS EC2 service.
  */
 public class AmazonEC2Fixture extends AbstractHttpFixture {
+
+    private static final String IMDSV_2_TOKEN = "imdsv2-token";
+    private static final String X_AWS_EC_2_METADATA_TOKEN = "X-aws-ec2-metadata-token";
 
     private final Path nodes;
     private final boolean instanceProfile;
@@ -87,28 +91,30 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
                 return new Response(RestStatus.OK.getStatus(), contentType("text/xml; charset=UTF-8"), responseBody);
             }
         }
-        if ("/latest/meta-data/local-ipv4".equals(request.getPath()) && (HttpGet.METHOD_NAME.equals(request.getMethod()))) {
+        if ("/latest/meta-data/local-ipv4".equals(request.getPath())
+            && (HttpGet.METHOD_NAME.equals(request.getMethod()))
+            && request.getHeaders().getOrDefault(X_AWS_EC_2_METADATA_TOKEN, "").equals(IMDSV_2_TOKEN)) {
             return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, "127.0.0.1".getBytes(UTF_8));
         }
 
         if (instanceProfile
             && "/latest/meta-data/iam/security-credentials/".equals(request.getPath())
-            && HttpGet.METHOD_NAME.equals(request.getMethod())) {
+            && HttpGet.METHOD_NAME.equals(request.getMethod())
+            && request.getHeaders().getOrDefault(X_AWS_EC_2_METADATA_TOKEN, "").equals(IMDSV_2_TOKEN)) {
             final Map<String, String> headers = new HashMap<>(contentType("text/plain"));
             return new Response(RestStatus.OK.getStatus(), headers, "my_iam_profile".getBytes(UTF_8));
         }
 
-        if (instanceProfile && "/latest/api/token".equals(request.getPath()) && HttpPut.METHOD_NAME.equals(request.getMethod())) {
-            // TODO: Implement IMDSv2 behavior here. For now this just returns a 403 which makes the SDK fall back to IMDSv1
-            // which is implemented in this fixture
-            return new Response(RestStatus.FORBIDDEN.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
+        if ("/latest/api/token".equals(request.getPath()) && HttpPut.METHOD_NAME.equals(request.getMethod())) {
+            return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, IMDSV_2_TOKEN.getBytes(StandardCharsets.UTF_8));
         }
 
         if ((containerCredentials
             && "/ecs_credentials_endpoint".equals(request.getPath())
             && HttpGet.METHOD_NAME.equals(request.getMethod()))
             || ("/latest/meta-data/iam/security-credentials/my_iam_profile".equals(request.getPath())
-                && HttpGet.METHOD_NAME.equals(request.getMethod()))) {
+                && HttpGet.METHOD_NAME.equals(request.getMethod())
+                && request.getHeaders().getOrDefault(X_AWS_EC_2_METADATA_TOKEN, "").equals(IMDSV_2_TOKEN))) {
             final Date expiration = new Date(new Date().getTime() + TimeUnit.DAYS.toMillis(1));
             final String response = """
                 {

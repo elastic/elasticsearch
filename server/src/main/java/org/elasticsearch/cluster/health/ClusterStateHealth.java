@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -119,12 +118,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         numberOfNodes = in.readVInt();
         numberOfDataNodes = in.readVInt();
         status = ClusterHealthStatus.readFrom(in);
-        int size = in.readVInt();
-        indices = Maps.newMapWithExpectedSize(size);
-        for (int i = 0; i < size; i++) {
-            ClusterIndexHealth indexHealth = new ClusterIndexHealth(in);
-            indices.put(indexHealth.getIndex(), indexHealth);
-        }
+        indices = in.readMapValues(ClusterIndexHealth::new, ClusterIndexHealth::getIndex);
         activeShardsPercent = in.readDouble();
     }
 
@@ -210,10 +204,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         out.writeVInt(numberOfNodes);
         out.writeVInt(numberOfDataNodes);
         out.writeByte(status.value());
-        out.writeVInt(indices.size());
-        for (ClusterIndexHealth indexHealth : this) {
-            indexHealth.writeTo(out);
-        }
+        out.writeMapValues(indices);
         out.writeDouble(activeShardsPercent);
     }
 

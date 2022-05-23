@@ -205,7 +205,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
 
     abstract boolean supportsInference();
 
-    private List<PhaseProgress> getProgress(String id) {
+    protected List<PhaseProgress> getProgress(String id) {
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
         assertThat(stats.getId(), equalTo(id));
         List<PhaseProgress> progress = stats.getProgress();

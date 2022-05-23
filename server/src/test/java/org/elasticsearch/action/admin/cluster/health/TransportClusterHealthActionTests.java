@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -89,7 +88,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
             shardRoutingStates.set(0, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING));
         }
 
-        final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
+        final ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
         final IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(indexMetadata.getIndex());
 
         // Primary

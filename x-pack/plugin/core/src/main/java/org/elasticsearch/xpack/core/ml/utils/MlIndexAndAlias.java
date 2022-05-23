@@ -32,8 +32,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
@@ -333,11 +332,7 @@ public final class MlIndexAndAlias {
         try {
             request = new PutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
                 ComposableIndexTemplate.parse(
-                    JsonXContent.jsonXContent.createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        templateConfig.loadBytes()
-                    )
+                    JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())
                 )
             ).masterNodeTimeout(masterTimeout);
         } catch (IOException e) {

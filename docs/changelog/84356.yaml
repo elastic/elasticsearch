@@ -1,0 +1,6 @@
+pr: 84356
+summary: Avoid empty last pages for GROUP BY queries when possible
+area: SQL
+type: bug
+issues:
+ - 75528

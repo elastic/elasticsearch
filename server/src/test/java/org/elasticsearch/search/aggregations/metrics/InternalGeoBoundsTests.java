@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;
@@ -81,6 +82,21 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
         } else {
             assertTrue(Double.isInfinite(actual));
         }
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalGeoBounds sampled, InternalGeoBounds reduced, SamplingContext samplingContext) {
+        assertValueClose(sampled.top, reduced.top);
+        assertValueClose(sampled.bottom, reduced.bottom);
+        assertValueClose(sampled.posLeft, reduced.posLeft);
+        assertValueClose(sampled.posRight, reduced.posRight);
+        assertValueClose(sampled.negLeft, reduced.negLeft);
+        assertValueClose(sampled.negRight, reduced.negRight);
     }
 
     @Override

@@ -838,11 +838,11 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         throw new IndexNotFoundException(index);
     }
 
-    public ImmutableOpenMap<String, IndexMetadata> indices() {
+    public Map<String, IndexMetadata> indices() {
         return this.indices;
     }
 
-    public ImmutableOpenMap<String, IndexMetadata> getIndices() {
+    public Map<String, IndexMetadata> getIndices() {
         return indices();
     }
 
@@ -2093,7 +2093,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
         }
 
-        static boolean assertDataStreams(ImmutableOpenMap<String, IndexMetadata> indices, DataStreamMetadata dsMetadata) {
+        static boolean assertDataStreams(Map<String, IndexMetadata> indices, DataStreamMetadata dsMetadata) {
             // Sanity check, because elsewhere a more user friendly error should have occurred:
             List<String> conflictingAliases = null;
 

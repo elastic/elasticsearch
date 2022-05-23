@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -90,7 +89,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         final Metadata metadata = event.state().metadata();
-        final ImmutableOpenMap<String, IndexMetadata> indices = metadata.indices();
+        final Map<String, IndexMetadata> indices = metadata.indices();
         if (indices == event.previousState().metadata().indices()) {
             return;
         }

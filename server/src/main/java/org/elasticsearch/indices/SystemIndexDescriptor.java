@@ -264,7 +264,9 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             assert Objects.isNull(mappings) : "Unmanaged index descriptors should not have mappings";
             assert Objects.isNull(primaryIndex) : "Unmanaged index descriptors should not have a primary index";
             assert Objects.isNull(versionMetaKey) : "Unmanaged index descriptors should not have a version meta key";
-            assert Objects.isNull(origin) : "Unmanaged index descriptions should not supply origins";
+            assert Objects.isNull(origin) : "Unmanaged index descriptors should not supply origins";
+            assert Objects.isNull(indexFormat) : "Unmanaged index descriptors should not have index formats";
+            assert Objects.isNull(minimumNodeVersion) : "Unmanaged index descriptors should not have minimum node versions";
             this.mappingVersion = null;
         }
 

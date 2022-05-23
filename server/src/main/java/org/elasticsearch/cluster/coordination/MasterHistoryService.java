@@ -51,7 +51,7 @@ public class MasterHistoryService {
      * This is the amount of time that can pass after a RemoteHistoryOrException is returned from the remote master until it is
      * considered stale and not usable.
      */
-    public static final Setting<TimeValue> REMOTE_HISTORY_TIME_TO_LIVE_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> REMOTE_HISTORY_TIME_TO_LIVE_SETTING = Setting.positiveTimeSetting(
         "master_history.remote_history_time_to_live",
         DEFAULT_REMOTE_HISTORY_TIME_TO_LIVE,
         Setting.Property.NodeScope

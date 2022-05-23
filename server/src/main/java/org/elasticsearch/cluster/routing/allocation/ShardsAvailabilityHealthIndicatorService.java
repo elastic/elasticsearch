@@ -397,18 +397,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         AllocateUnassignedDecision allocateDecision = shardAllocationDecision.getAllocateDecision();
         if (LOGGER.isTraceEnabled()) {
             if (allocateDecision.isDecisionTaken()) {
-                LOGGER.trace(
-                    "[{}]: Decision taken [{}], Allocation decision [{}]",
-                    shardRouting.shardId(),
-                    allocateDecision.isDecisionTaken(),
-                    allocateDecision.getAllocationDecision()
-                );
+                LOGGER.trace("[{}]: Allocation decision [{}]", shardRouting.shardId(), allocateDecision.getAllocationDecision());
             } else {
-                LOGGER.trace(
-                    "[{}]: Decision taken [{}], Allocation decision [NA]",
-                    shardRouting.shardId(),
-                    allocateDecision.isDecisionTaken()
-                );
+                LOGGER.trace("[{}]: Decision taken [false]", shardRouting.shardId());
             }
         }
         if (allocateDecision.isDecisionTaken() && AllocationDecision.NO == allocateDecision.getAllocationDecision()) {

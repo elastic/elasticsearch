@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -28,7 +27,6 @@ import java.util.List;
 public class JwtRealms {
 
     private final List<String> principalClaimNames;
-    private final List<JwtRealm> jwtRealms = new ArrayList<>();
 
     /**
      * Parse all xpack settings passed in from {@link InternalRealms#getFactories}
@@ -77,44 +75,6 @@ public class JwtRealms {
         final SSLService sslService,
         final NativeRoleMappingStore nativeRoleMappingStore
     ) {
-        return this.addRegisteredJwtRealm(new JwtRealm(config, this, sslService, nativeRoleMappingStore));
-    }
-
-    /**
-     * Register a JWT realm.
-     * @param jwtRealm JWT realm to be registered.
-     * @return The added JwtRealm.
-     */
-    public JwtRealm addRegisteredJwtRealm(final JwtRealm jwtRealm) {
-        this.jwtRealms.add(jwtRealm);
-        return jwtRealm;
-    }
-
-    /**
-     * Unregister a JWT realm.
-     * @param jwtRealm JWT realm to be unregistered.
-     * @return The removed JwtRealm.
-     */
-    public JwtRealm removeRegisteredJwtRealm(final JwtRealm jwtRealm) {
-        this.jwtRealms.remove(jwtRealm);
-        return jwtRealm;
-    }
-
-    /**
-     * Unregister all JWT realms.
-     * @return List of removed JwtRealm.
-     */
-    public List<JwtRealm> clearRegisteredJwtRealms() {
-        final List<JwtRealm> jwtRealmList = this.listRegisteredJwtRealms();
-        this.jwtRealms.clear();
-        return jwtRealmList;
-    }
-
-    /**
-     * List all register JWT realms.
-     * @return List of JwtRealm.
-     */
-    public List<JwtRealm> listRegisteredJwtRealms() {
-        return Collections.unmodifiableList(this.jwtRealms);
+        return new JwtRealm(config, this, sslService, nativeRoleMappingStore);
     }
 }

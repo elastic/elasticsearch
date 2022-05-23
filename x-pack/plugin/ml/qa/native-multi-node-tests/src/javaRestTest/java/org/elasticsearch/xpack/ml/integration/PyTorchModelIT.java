@@ -750,7 +750,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                 + modelId
                 + "/deployment/_start?timeout=40s&wait_for="
                 + waitForState
-                + "&inference_threads=1&model_threads=1"
+                + "&threads_per_allocation=1&number_of_allocations=1"
         );
         return client().performRequest(request);
     }

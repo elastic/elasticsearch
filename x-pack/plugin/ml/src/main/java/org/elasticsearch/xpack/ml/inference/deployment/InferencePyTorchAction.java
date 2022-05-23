@@ -85,7 +85,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
                 );
             getProcessContext().getProcess().get().writeInferenceRequest(request.processInput());
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] error writing to inference process", getModelId()), e);
+            logger.error(() -> "[" + getModelId() + "] error writing to inference process", e);
             onFailure(ExceptionsHelper.serverError("Error writing to inference process", e));
         } catch (Exception e) {
             onFailure(e);

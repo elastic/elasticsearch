@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.extras;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -121,8 +122,13 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         CopyTo copyTo,
         boolean positiveScoreImpact
     ) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         this.positiveScoreImpact = positiveScoreImpact;
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

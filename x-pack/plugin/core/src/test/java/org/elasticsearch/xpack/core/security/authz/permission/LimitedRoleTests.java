@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -183,7 +184,7 @@ public class LimitedRoleTests extends ESTestCase {
         Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role")
             .cluster(Collections.singleton("manage_security"), Collections.emptyList())
             .build();
-        Authentication authentication = mock(Authentication.class);
+        Authentication authentication = AuthenticationTestHelper.builder().build();
         assertThat(fromRole.checkClusterAction("cluster:admin/xpack/security/x", mock(TransportRequest.class), authentication), is(true));
         {
             Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role")

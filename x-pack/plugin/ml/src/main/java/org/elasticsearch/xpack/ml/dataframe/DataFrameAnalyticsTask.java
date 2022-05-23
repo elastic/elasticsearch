@@ -172,14 +172,11 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
 
     public void setFailed(Exception error) {
         if (analyticsManager.isNodeShuttingDown()) {
-            LOGGER.warn(
-                new ParameterizedMessage("[{}] *Not* setting task to failed because the node is being shutdown", taskParams.getId()),
-                error
-            );
+            LOGGER.warn(() -> "[" + taskParams.getId() + "] *Not* setting task to failed because the node is being shutdown", error);
             return;
         }
         persistProgress(client, taskParams.getId(), () -> {
-            LOGGER.error(new ParameterizedMessage("[{}] Setting task to failed", taskParams.getId()), error);
+            LOGGER.error(() -> "[" + taskParams.getId() + "] Setting task to failed", error);
             String reason = ExceptionsHelper.unwrapCause(error).getMessage();
             DataFrameAnalyticsTaskState newTaskState = new DataFrameAnalyticsTaskState(
                 DataFrameAnalyticsState.FAILED,
@@ -225,7 +222,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             LOGGER.debug("[{}] Successfully indexed progress document: {}", jobId, storedProgress.get().get());
             runnable.run();
         }, indexError -> {
-            LOGGER.error(new ParameterizedMessage("[{}] cannot persist progress as an error occurred while indexing", jobId), indexError);
+            LOGGER.error(() -> "[" + jobId + "] cannot persist progress as an error occurred while indexing", indexError);
             runnable.run();
         });
 
@@ -240,7 +237,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
                 try {
                     previous = MlParserUtils.parse(searchResponse.getHits().getHits()[0], StoredProgress.PARSER);
                 } catch (Exception ex) {
-                    LOGGER.warn(new ParameterizedMessage("[{}] failed to parse previously stored progress", jobId), ex);
+                    LOGGER.warn(() -> "[" + jobId + "] failed to parse previously stored progress", ex);
                 }
             }
 

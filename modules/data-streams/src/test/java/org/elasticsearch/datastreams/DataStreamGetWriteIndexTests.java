@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.datastreams.MetadataDataStreamRolloverServiceTests.createSettingsProvider;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -257,7 +258,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 null,
                 EmptySystemIndices.INSTANCE,
                 false,
-                new IndexSettingProviders(Set.of(new DataStreamIndexSettingsProvider()))
+                new IndexSettingProviders(Set.of(createSettingsProvider(xContentRegistry())))
             );
         }
         {
@@ -285,7 +286,9 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
 
     private ClusterState createInitialState() {
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*"))
-            .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
+            .template(
+                new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
+            )
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();

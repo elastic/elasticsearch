@@ -804,7 +804,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return settings;
     }
 
-    public ImmutableOpenMap<String, AliasMetadata> getAliases() {
+    public Map<String, AliasMetadata> getAliases() {
         return this.aliases;
     }
 
@@ -881,7 +881,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     // LifecycleSettings.LIFECYCLE_NAME_SETTING for the 'real' version
     public static final String LIFECYCLE_NAME = "index.lifecycle.name";
 
-    ImmutableOpenMap<String, DiffableStringMap> getCustomData() {
+    Map<String, DiffableStringMap> getCustomData() {
         return this.customData;
     }
 
@@ -893,7 +893,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return inSyncAllocationIds;
     }
 
-    public ImmutableOpenMap<String, RolloverInfo> getRolloverInfos() {
+    public Map<String, RolloverInfo> getRolloverInfos() {
         return rolloverInfos;
     }
 

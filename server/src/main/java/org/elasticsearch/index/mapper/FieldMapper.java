@@ -8,6 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -48,6 +51,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
+    private static final Logger logger = LogManager.getLogger(FieldMapper.class);
+
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting(
         "index.mapping.ignore_malformed",
         false,
@@ -58,25 +63,22 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
 
     protected final MappedFieldType mappedFieldType;
-    protected final Map<String, NamedAnalyzer> indexAnalyzers;
     protected final MultiFields multiFields;
     protected final CopyTo copyTo;
     protected final boolean hasScript;
     protected final String onScriptError;
 
     /**
-     * Create a FieldMapper with no index analyzers
      * @param simpleName        the leaf name of the mapper
      * @param mappedFieldType   the MappedFieldType associated with this mapper
      * @param multiFields       sub fields of this mapper
      * @param copyTo            copyTo fields of this mapper
      */
     protected FieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
-        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, false, null);
+        this(simpleName, mappedFieldType, multiFields, copyTo, false, null);
     }
 
     /**
-     * Create a FieldMapper with no index analyzers
      * @param simpleName        the leaf name of the mapper
      * @param mappedFieldType   the MappedFieldType associated with this mapper
      * @param multiFields       sub fields of this mapper
@@ -87,85 +89,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected FieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        boolean hasScript,
-        String onScriptError
-    ) {
-        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, hasScript, onScriptError);
-    }
-
-    /**
-     * Create a FieldMapper with a single associated index analyzer
-     * @param simpleName        the leaf name of the mapper
-     * @param mappedFieldType   the MappedFieldType associated with this mapper
-     * @param indexAnalyzer     the index-time analyzer to use for this field
-     * @param multiFields       sub fields of this mapper
-     * @param copyTo            copyTo fields of this mapper
-     */
-    protected FieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        NamedAnalyzer indexAnalyzer,
-        MultiFields multiFields,
-        CopyTo copyTo
-    ) {
-        this(
-            simpleName,
-            mappedFieldType,
-            Collections.singletonMap(mappedFieldType.name(), indexAnalyzer),
-            multiFields,
-            copyTo,
-            false,
-            null
-        );
-    }
-
-    /**
-     * Create a FieldMapper with a single associated index analyzer
-     * @param simpleName        the leaf name of the mapper
-     * @param mappedFieldType   the MappedFieldType associated with this mapper
-     * @param indexAnalyzer     the index-time analyzer to use for this field
-     * @param multiFields       sub fields of this mapper
-     * @param copyTo            copyTo fields of this mapper
-     * @param hasScript         whether a script is defined for the field
-     * @param onScriptError     the behaviour for when the defined script fails at runtime
-     */
-    protected FieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        NamedAnalyzer indexAnalyzer,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        boolean hasScript,
-        String onScriptError
-    ) {
-        this(
-            simpleName,
-            mappedFieldType,
-            Collections.singletonMap(mappedFieldType.name(), indexAnalyzer),
-            multiFields,
-            copyTo,
-            hasScript,
-            onScriptError
-        );
-    }
-
-    /**
-     * Create a FieldMapper that indexes into multiple analyzed fields
-     * @param simpleName        the leaf name of the mapper
-     * @param mappedFieldType   the MappedFieldType associated with this mapper
-     * @param indexAnalyzers    a map of field names to analyzers, one for each analyzed field
-     *                          the mapper will add
-     * @param multiFields       sub fields of this mapper
-     * @param copyTo            copyTo fields of this mapper
-     * @param hasScript         whether a script is defined for the field
-     * @param onScriptError     the behaviour for when the defined script fails at runtime
-     */
-    protected FieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        Map<String, NamedAnalyzer> indexAnalyzers,
         MultiFields multiFields,
         CopyTo copyTo,
         boolean hasScript,
@@ -176,7 +99,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             throw new IllegalArgumentException("name cannot be empty string");
         }
         this.mappedFieldType = mappedFieldType;
-        this.indexAnalyzers = indexAnalyzers;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
         this.hasScript = hasScript;
@@ -399,7 +321,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public abstract Builder getMergeBuilder();
 
     @Override
-    public final FieldMapper merge(Mapper mergeWith) {
+    public final FieldMapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
         if (mergeWith == this) {
             return this;
         }
@@ -421,9 +343,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return (FieldMapper) mergeWith;
         }
         Conflicts conflicts = new Conflicts(name());
-        builder.merge((FieldMapper) mergeWith, conflicts);
+        builder.merge((FieldMapper) mergeWith, conflicts, mapperBuilderContext);
         conflicts.check();
-        return builder.build(MapperBuilderContext.forPath(Builder.parentPath(name())));
+        return builder.build(mapperBuilderContext);
     }
 
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
@@ -455,8 +377,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     protected abstract String contentType();
 
-    public final Map<String, NamedAnalyzer> indexAnalyzers() {
-        return indexAnalyzers;
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of();
     }
 
     public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {
@@ -486,7 +408,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     add(toMerge);
                 } else {
                     FieldMapper existing = mapperBuilders.get(toMerge.simpleName()).apply(context);
-                    add(existing.merge(toMerge));
+                    add(existing.merge(toMerge, context));
                 }
                 return this;
             }
@@ -1042,6 +964,38 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param updateable        whether the parameter can be changed by a mapping update
          * @param initializer       a function that reads the parameter value from an existing mapper
          * @param defaultAnalyzer   the default value, to be used if the parameter is undefined in a mapping
+         * @param indexCreatedVersion the version on which this index was created
+         */
+        public static Parameter<NamedAnalyzer> analyzerParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, NamedAnalyzer> initializer,
+            Supplier<NamedAnalyzer> defaultAnalyzer,
+            Version indexCreatedVersion
+        ) {
+            return new Parameter<>(name, updateable, defaultAnalyzer, (n, c, o) -> {
+                String analyzerName = o.toString();
+                NamedAnalyzer a = c.getIndexAnalyzers().get(analyzerName);
+                if (a == null) {
+                    if (indexCreatedVersion.isLegacyIndexVersion()) {
+                        logger.warn(
+                            new ParameterizedMessage("Could not find analyzer [{}] of legacy index, falling back to default", analyzerName)
+                        );
+                        a = defaultAnalyzer.get();
+                    } else {
+                        throw new IllegalArgumentException("analyzer [" + analyzerName + "] has not been configured in mappings");
+                    }
+                }
+                return a;
+            }, initializer, (b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
+        }
+
+        /**
+         * Defines a parameter that takes an analyzer name
+         * @param name              the parameter name
+         * @param updateable        whether the parameter can be changed by a mapping update
+         * @param initializer       a function that reads the parameter value from an existing mapper
+         * @param defaultAnalyzer   the default value, to be used if the parameter is undefined in a mapping
          */
         public static Parameter<NamedAnalyzer> analyzerParam(
             String name,
@@ -1049,14 +1003,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, NamedAnalyzer> initializer,
             Supplier<NamedAnalyzer> defaultAnalyzer
         ) {
-            return new Parameter<>(name, updateable, defaultAnalyzer, (n, c, o) -> {
-                String analyzerName = o.toString();
-                NamedAnalyzer a = c.getIndexAnalyzers().get(analyzerName);
-                if (a == null) {
-                    throw new IllegalArgumentException("analyzer [" + analyzerName + "] has not been configured in mappings");
-                }
-                return a;
-            }, initializer, (b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
+            return analyzerParam(name, updateable, initializer, defaultAnalyzer, Version.CURRENT);
         }
 
         /**
@@ -1191,12 +1138,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        protected void merge(FieldMapper in, Conflicts conflicts) {
+        protected void merge(FieldMapper in, Conflicts conflicts, MapperBuilderContext mapperBuilderContext) {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
+            MapperBuilderContext childContext = mapperBuilderContext.createChildContext(in.simpleName());
             for (FieldMapper newSubField : in.multiFields.mappers) {
-                multiFieldsBuilder.update(newSubField, MapperBuilderContext.forPath(parentPath(newSubField.name())));
+                multiFieldsBuilder.update(newSubField, childContext);
             }
             this.copyTo.reset(in.copyTo);
             validate();

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -39,8 +38,8 @@ public class AggregationPathTests extends ESTestCase {
         assertValidPath("foo.bar>baz[qux]", tokens().add("foo.bar").addKey("baz", "qux"));
     }
 
-    private AggregationExecutionException assertInvalidPath(String path, String _unused) {
-        return expectThrows(AggregationExecutionException.class, () -> AggregationPath.parse(path));
+    private IllegalArgumentException assertInvalidPath(String path, String _unused) {
+        return expectThrows(IllegalArgumentException.class, () -> AggregationPath.parse(path));
     }
 
     private void assertValidPath(String path, Tokens tokenz) {

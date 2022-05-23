@@ -65,10 +65,10 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected void merge(FieldMapper in, Conflicts conflicts) {
+        protected void merge(FieldMapper in, Conflicts conflicts, MapperBuilderContext mapperBuilderContext) {
             assert in instanceof PlaceHolderFieldMapper;
             unknownParams.putAll(((PlaceHolderFieldMapper) in).unknownParams);
-            super.merge(in, conflicts);
+            super.merge(in, conflicts, mapperBuilderContext);
         }
 
         @Override

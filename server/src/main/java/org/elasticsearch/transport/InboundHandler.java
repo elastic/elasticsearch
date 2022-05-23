@@ -324,7 +324,7 @@ public class InboundHandler {
             transportChannel.sendResponse(e);
         } catch (Exception inner) {
             inner.addSuppressed(e);
-            logger.warn(() -> new ParameterizedMessage("Failed to send error message back to client for action [{}]", actionName), inner);
+            logger.warn(() -> "Failed to send error message back to client for action [" + actionName + "]", inner);
         }
     }
 
@@ -342,7 +342,7 @@ public class InboundHandler {
                 "Failed to deserialize response from handler [" + handler + "]",
                 e
             );
-            logger.warn(new ParameterizedMessage("Failed to deserialize response from [{}]", remoteAddress), serializationException);
+            logger.warn(() -> "Failed to deserialize response from [" + remoteAddress + "]", serializationException);
             assert ignoreDeserializationErrors : e;
             handleException(handler, serializationException);
             return;
@@ -406,7 +406,7 @@ public class InboundHandler {
             handler.handleException(transportException);
         } catch (Exception e) {
             transportException.addSuppressed(e);
-            logger.error(() -> new ParameterizedMessage("failed to handle exception response [{}]", handler), transportException);
+            logger.error(() -> "failed to handle exception response [" + handler + "]", transportException);
         }
     }
 

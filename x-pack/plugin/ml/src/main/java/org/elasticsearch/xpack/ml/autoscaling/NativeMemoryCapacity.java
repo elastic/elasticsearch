@@ -119,9 +119,28 @@ public class NativeMemoryCapacity {
     ) {
         // We cannot assert this in the constructor, as sometimes objects containing capacities are constructed to be merged
         // with current capacity. But by the time this method is called the merging should have created an object that obeys
-        // this condition.
+        // these conditions.
+        assert nodeMlNativeMemoryRequirementExcludingOverhead >= 0
+            : "Node required should not be negative - was: " + nodeMlNativeMemoryRequirementExcludingOverhead;
         assert tierMlNativeMemoryRequirementExcludingOverhead >= nodeMlNativeMemoryRequirementExcludingOverhead
-            : "Total tier required should never be smaller than largest node size required";
+            : "Total tier required should never be smaller than largest node size required: "
+                + tierMlNativeMemoryRequirementExcludingOverhead
+                + " < "
+                + nodeMlNativeMemoryRequirementExcludingOverhead;
+
+        if (tierMlNativeMemoryRequirementExcludingOverhead <= 0 || nodeMlNativeMemoryRequirementExcludingOverhead <= 0) {
+            if (tierMlNativeMemoryRequirementExcludingOverhead != 0 || nodeMlNativeMemoryRequirementExcludingOverhead != 0) {
+                logger.error(
+                    "Request to calculate autoscaling capacity with tier requirement [{}] and node requirement [{}]",
+                    tierMlNativeMemoryRequirementExcludingOverhead,
+                    nodeMlNativeMemoryRequirementExcludingOverhead
+                );
+            }
+            return new AutoscalingCapacity(
+                new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ZERO),
+                new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ZERO)
+            );
+        }
 
         if (mlNativeMemoryForLargestMlNode <= NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes()) {
             // This should never happen in Elastic Cloud, as the nodes are sized appropriately.
@@ -162,6 +181,11 @@ public class NativeMemoryCapacity {
             : tierMlNativeMemoryRequirementExcludingOverhead;
         int numNodesPerZone = (int) ((tierMlNativeMemoryRequirementPerZoneExcludingOverhead
             + mlNativeMemoryForLargestMlNodeExcludingOverhead - 1) / mlNativeMemoryForLargestMlNodeExcludingOverhead);
+        assert numNodesPerZone > 0
+            : "calculated "
+                + numNodesPerZone
+                + " nodes per zone when tier memory requirement per zone was "
+                + tierMlNativeMemoryRequirementPerZoneExcludingOverhead;
         long tierBasedMlNativeMemoryPerNodeExcludingOverhead = (tierMlNativeMemoryRequirementPerZoneExcludingOverhead + numNodesPerZone - 1)
             / numNodesPerZone;
 

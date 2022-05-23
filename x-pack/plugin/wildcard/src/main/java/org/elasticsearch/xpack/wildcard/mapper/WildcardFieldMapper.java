@@ -111,6 +111,7 @@ public class WildcardFieldMapper extends FieldMapper {
             return new TokenStreamComponents(tokenizer::setReader, tok);
         }
     });
+    private boolean indexed;
 
     public static class PunctuationFoldingFilter extends TokenFilter {
         private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
@@ -202,6 +203,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 }
             });
         final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
+        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -214,7 +216,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(ignoreAbove, nullValue, meta);
+            return Arrays.asList(ignoreAbove, nullValue, meta, indexed);
         }
 
         Builder ignoreAbove(int ignoreAbove) {
@@ -230,6 +232,7 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public WildcardFieldMapper build(MapperBuilderContext context) {
             return new WildcardFieldMapper(
+                indexed.get(),
                 name,
                 new WildcardFieldType(context.buildFullName(name), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
                 ignoreAbove.get(),
@@ -868,6 +871,7 @@ public class WildcardFieldMapper extends FieldMapper {
     private final Version indexVersionCreated;
 
     private WildcardFieldMapper(
+        boolean indexed,
         String simpleName,
         WildcardFieldType mappedFieldType,
         int ignoreAbove,
@@ -877,6 +881,7 @@ public class WildcardFieldMapper extends FieldMapper {
         Version indexVersionCreated
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
+        this.indexed = indexed;
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
         this.indexVersionCreated = indexVersionCreated;
@@ -926,9 +931,11 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     void createFields(String value, LuceneDocument parseDoc, List<IndexableField> fields) {
-        String ngramValue = addLineEndChars(value);
-        Field ngramField = new Field(fieldType().name(), ngramValue, ngramFieldType);
-        fields.add(ngramField);
+        if (indexed) {
+            String ngramValue = addLineEndChars(value);
+            Field ngramField = new Field(fieldType().name(), ngramValue, ngramFieldType);
+            fields.add(ngramField);
+        }
 
         CustomBinaryDocValuesField dvField = (CustomBinaryDocValuesField) parseDoc.getByKey(fieldType().name());
         if (dvField == null) {

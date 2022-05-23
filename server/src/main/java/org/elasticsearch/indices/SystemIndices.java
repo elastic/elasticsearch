@@ -884,18 +884,5 @@ public class SystemIndices {
                 ActionListener<Boolean> listener
             );
         }
-
-        public static Feature pluginToFeature(SystemIndexPlugin plugin, Settings settings) {
-            return new Feature(
-                plugin.getFeatureName(),
-                plugin.getFeatureDescription(),
-                plugin.getSystemIndexDescriptors(settings),
-                plugin.getSystemDataStreamDescriptors(),
-                plugin.getAssociatedIndexDescriptors(),
-                plugin::cleanUpFeature,
-                plugin::prepareForIndicesMigration,
-                plugin::indicesMigrationComplete
-            );
-        }
     }
 }

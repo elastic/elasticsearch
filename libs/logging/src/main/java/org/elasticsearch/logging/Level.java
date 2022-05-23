@@ -21,14 +21,37 @@ import java.util.concurrent.ConcurrentMap;
  * Previously created instances can be obtained by name.
  */
 public final class Level {
-
+    /**
+     * No events will be logged.
+     */
     public static final Level OFF = new Level("OFF", StandardLevels.OFF);
+    /**
+     * A fatal error that will prevent the application from continuing.
+     */
     public static final Level FATAL = new Level("FATAL", StandardLevels.FATAL);
+    /**
+     * An error in the application, possibly recoverable.
+     */
     public static final Level ERROR = new Level("ERROR", StandardLevels.ERROR);
+    /**
+     * An event that might possible lead to an error.
+     */
     public static final Level WARN = new Level("WARN", StandardLevels.WARN);
+    /**
+     * An event for informational purposes.
+     */
     public static final Level INFO = new Level("INFO", StandardLevels.INFO);
+    /**
+     * A general debugging event.
+     */
     public static final Level DEBUG = new Level("DEBUG", StandardLevels.DEBUG);
+    /**
+     * A fine-grained debug message, typically capturing the flow through the application.
+     */
     public static final Level TRACE = new Level("TRACE", StandardLevels.TRACE);
+    /**
+     * All events should be logged.
+     */
     public static final Level ALL = new Level("ALL", StandardLevels.ALL);
 
     private static final ConcurrentMap<String, Level> LEVELS = new ConcurrentHashMap<>();

@@ -375,7 +375,7 @@ public class Reindexer {
         }
 
         static class ReindexScriptApplier extends ScriptApplier {
-            private ReindexScript reindex;
+            private ReindexScript.Factory reindex;
 
             ReindexScriptApplier(
                 WorkerBulkByScrollTaskState taskWorker,
@@ -389,7 +389,7 @@ public class Reindexer {
             @Override
             protected BulkMetadata execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
                 if (reindex == null) {
-                    reindex = scriptService.compile(script, ReindexScript.CONTEXT).newInstance(params);
+                    reindex = scriptService.compile(script, ReindexScript.CONTEXT);
                 }
                 ReindexScript.Metadata md = new ReindexScript.Metadata(
                     doc.getIndex(),
@@ -399,8 +399,7 @@ public class Reindexer {
                     INITIAL_OPERATION,
                     source
                 );
-                reindex.setMetadata(md);
-                reindex.execute();
+                reindex.newInstance(params, md).execute();
                 return md;
             }
 

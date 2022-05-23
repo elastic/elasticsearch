@@ -60,7 +60,9 @@ public class MapBackedMetadata {
             }
             return version;
         }
-        throw new IllegalArgumentException("unexpected type [" + obj.getClass().getName() + "] for [" + obj + "], expected a Number");
+        throw new IllegalArgumentException(
+            "version may only be set to an int or a long but was [" + obj + "] with type [" + obj.getClass().getName() + "]"
+        );
     }
 
     protected Object getRawVersion() {

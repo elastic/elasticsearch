@@ -70,7 +70,7 @@ public abstract class ReindexScript {
 
         public void setIndex(String index) {
             if (index == null) {
-                throw new IllegalArgumentException("destination index must be non-null");
+                throw new NullPointerException("destination index must be non-null");
             }
             store.setIndex(index);
         }
@@ -78,7 +78,7 @@ public abstract class ReindexScript {
         public String getIndex() {
             String index = store.getIndex();
             if (index == null) {
-                throw new IllegalArgumentException("destination index must be non-null");
+                throw new NullPointerException("destination index must be non-null");
             }
             return index;
         }

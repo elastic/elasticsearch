@@ -49,8 +49,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -88,30 +90,30 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     static {
         whitelists = new HashMap<>();
 
+        Set<Whitelist> metaWhitelists = new HashSet<>();
         for (ScriptContext<?> context : ScriptModule.CORE_CONTEXTS.values()) {
             List<Whitelist> contextWhitelists = new ArrayList<>();
-            if (PainlessPlugin.class.getResourceAsStream("org.elasticsearch.script." + context.name.replace('-', '_') + ".txt") != null) {
-                contextWhitelists.add(
-                    WhitelistLoader.loadFromResourceFiles(
-                        PainlessPlugin.class,
-                        "org.elasticsearch.script." + context.name.replace('-', '_') + ".txt"
-                    )
-                );
+            String contextWhitelistName = "org.elasticsearch.script." + context.name.replace('-', '_');
+            if (PainlessPlugin.class.getResourceAsStream(contextWhitelistName + ".txt") != null) {
+                contextWhitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, contextWhitelistName + ".txt"));
+                if (PainlessPlugin.class.getResourceAsStream(contextWhitelistName + ".meta.txt") != null) {
+                    Whitelist meta = WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, contextWhitelistName + ".meta.txt");
+                    contextWhitelists.add(meta);
+                    metaWhitelists.add(meta);
+                }
             }
 
             whitelists.put(context, contextWhitelists);
         }
 
         List<Whitelist> testWhitelists = new ArrayList<>();
-        /*
-        TODO(stu): this conflicts with alias
         for (ScriptContext<?> context : ScriptModule.CORE_CONTEXTS.values()) {
             if (ScriptModule.RUNTIME_FIELDS_CONTEXTS.contains(context) == false) {
                 testWhitelists.addAll(whitelists.get(context));
             }
         }
-         */
         testWhitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.json.txt"));
+        testWhitelists.removeAll(metaWhitelists);
         whitelists.put(PainlessExecuteAction.PainlessTestScript.CONTEXT, testWhitelists);
     }
 

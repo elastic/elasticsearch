@@ -354,9 +354,9 @@ public interface AuthorizationEngine {
     }
 
     /**
-     * The result of a (has) privilege check. This is not an Elasticsearch authorization result (though clients can base their authorization
-     * decisions on this response). The {@link #allChecksSuccess} field tells if all the privileges are granted over all the resources.
-     * The {@link #details} field is only present (non-null) if the check has been run in a detailed mode
+     * The result of a (has) privilege check. This is not to be used as an Elasticsearch authorization result (though clients can base their
+     * authorization decisions on this response). The {@link #allChecksSuccess} field tells if all the privileges are granted over
+     * all the resources. The {@link #details} field is only present (non-null) if the check has been run in a detailed mode
      * {@link PrivilegesToCheck#runDetailedCheck}, and contains a run-down of which privileges are granted over which resources or not.
      */
     final class PrivilegesCheckResult {

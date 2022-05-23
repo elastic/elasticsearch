@@ -783,6 +783,7 @@ public class LimitedRoleTests extends ESTestCase {
         boolean expectedCheckResult,
         ResourcePrivilegesMap expectedAppPrivsByResource
     ) {
+        // call "check indices privileges" twice, with and without details, in random order
         ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder = randomBoolean() ? ResourcePrivilegesMap.builder() : null;
         boolean privilegesCheck = role.checkIndicesPrivileges(
             checkForIndexPatterns,

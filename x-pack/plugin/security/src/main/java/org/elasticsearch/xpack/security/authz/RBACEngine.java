@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -89,7 +90,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -587,6 +587,15 @@ public class RBACEngine implements AuthorizationEngine {
                 Sets.newHashSet(check.getPrivileges()),
                 combineIndicesResourcePrivileges
             );
+            if (Assertions.ENABLED && combineIndicesResourcePrivileges != null) {
+                assert combineIndicesResourcePrivileges.build()
+                    .getResourceToResourcePrivileges()
+                    .values()
+                    .stream()
+                    .map(ResourcePrivileges::getPrivileges)
+                    .map(Map::values)
+                    .allMatch(granted -> Boolean.TRUE.equals(granted)) == privilegesGranted;
+            }
             allMatch = allMatch && privilegesGranted;
             if (false == privilegesToCheck.runDetailedCheck() && false == allMatch) {
                 listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);

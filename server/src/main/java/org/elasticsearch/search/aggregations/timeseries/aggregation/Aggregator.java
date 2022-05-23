@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.timeseries.aggregation;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.AggregatorBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.AvgBucketFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.CountValuesBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.MaxBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.MinBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.SumBucketFunction;
@@ -18,6 +19,7 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfuncti
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.ValueCountBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AvgFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.function.CountValuesFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.MaxFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.MinFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.SumFunction;
@@ -119,6 +121,18 @@ public enum Aggregator {
                 size = (int) aggregatorParams.get("size");
             }
             return new TopkBucketFunction(size, false);
+        }
+    },
+    count_values {
+        @Override
+        public AggregatorFunction<?, ?> getAggregatorFunction(Map<String, Object> aggregatorParams) {
+            return new CountValuesFunction();
+        }
+
+        @Override
+        public AggregatorBucketFunction<?> getAggregatorBucketFunction(BigArrays bigArrays,
+            Map<String, Object> aggregatorParams) {
+            return new CountValuesBucketFunction(bigArrays);
         }
     };
 

@@ -174,7 +174,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
      */
     private void doWrite(ChannelHandlerContext ctx, Netty4HttpResponse readyResponse, ChannelPromise promise) {
         if (DO_NOT_SPLIT_HTTP_RESPONSES || readyResponse.content().readableBytes() <= SPLIT_THRESHOLD) {
-            enqueueWrite(readyResponse, promise, ctx);
+            enqueueWrite(ctx, readyResponse, promise);
         } else {
             splitAndWrite(ctx, readyResponse, promise);
         }
@@ -274,11 +274,11 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private Future<Void> enqueueWrite(HttpObject msg, ChannelHandlerContext ctx) {
         final ChannelPromise p = ctx.newPromise();
-        enqueueWrite(msg, p, ctx);
+        enqueueWrite(ctx, msg, p);
         return p;
     }
 
-    private void enqueueWrite(HttpObject msg, ChannelPromise promise, ChannelHandlerContext ctx) {
+    private void enqueueWrite(ChannelHandlerContext ctx, HttpObject msg, ChannelPromise promise) {
         if (ctx.channel().isWritable() && queuedWrites.isEmpty()) {
             ctx.write(msg, promise);
         } else {

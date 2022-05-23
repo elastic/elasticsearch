@@ -120,8 +120,14 @@ public class MetadataDataStreamsService {
         var dataStream = validateDataStream(metadata, dataStreamName);
         var index = validateIndex(metadata, indexName);
         var writeIndex = metadata.index(index.getWriteIndex());
-        builder.put(dataStream.getDataStream().removeBackingIndex(writeIndex.getIndex()));
+        if (writeIndex == null) {
+            // Removing a ghost reference to a backing index that no longer exists. The index uuid part of the reference no longer matches.
+            // This should allow the data stream definition to get in a valid state again.
+            builder.put(dataStream.getDataStream().removeBackingIndex(index.getWriteIndex()));
+            return;
+        }
 
+        builder.put(dataStream.getDataStream().removeBackingIndex(writeIndex.getIndex()));
         // un-hide index
         builder.put(
             IndexMetadata.builder(writeIndex)

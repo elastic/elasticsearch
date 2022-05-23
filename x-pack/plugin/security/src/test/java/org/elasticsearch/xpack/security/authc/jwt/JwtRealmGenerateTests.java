@@ -24,7 +24,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -68,7 +68,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final String principalClaimName = "sub";
         final Settings.Builder jwtRealmsServiceSettings = Settings.builder()
             .put(this.globalSettings)
-            .put(JwtRealmsSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimName));
+            .put(JwtRealmsServiceSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimName));
         final JwtRealmsService jwtRealmsService = new JwtRealmsService(jwtRealmsServiceSettings.build());
 
         // Create issuer
@@ -162,7 +162,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final String principalClaimName = "sub";
         final Settings.Builder jwtRealmsServiceSettings = Settings.builder()
             .put(this.globalSettings)
-            .put(JwtRealmsSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimName));
+            .put(JwtRealmsServiceSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimName));
         final JwtRealmsService jwtRealmsService = new JwtRealmsService(jwtRealmsServiceSettings.build());
 
         // Create issuer
@@ -257,7 +257,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final String principalClaimName = "email";
         final Settings.Builder jwtRealmsServiceSettings = Settings.builder()
             .put(this.globalSettings)
-            .put(JwtRealmsSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimName));
+            .put(JwtRealmsServiceSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimName));
         final JwtRealmsService jwtRealmsService = new JwtRealmsService(jwtRealmsServiceSettings.build());
 
         // Create issuer
@@ -363,7 +363,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         final String principalClaimName = "sub";
         final Settings.Builder jwtRealmsServiceSettings = Settings.builder()
             .put(this.globalSettings)
-            .put(JwtRealmsSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimName));
+            .put(JwtRealmsServiceSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimName));
         final JwtRealmsService jwtRealmsService = new JwtRealmsService(jwtRealmsServiceSettings.build());
 
         // Create issuer

@@ -15,7 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
 
 import java.text.ParseException;
 import java.util.List;
@@ -37,7 +37,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     /**
      * Store a mandatory JWT and optional Shared Secret. Parse the JWT, and extract the header, claims set, and signature.
      * Compute a token principal, for use as a realm order cache key. For OIDC ID Tokens, cache key is iss/aud/sub.
-     * For other JWTs, {@link JwtRealmsSettings#PRINCIPAL_CLAIMS_SETTING} supports alternative claims for sub.
+     * For other JWTs, {@link JwtRealmsServiceSettings#PRINCIPAL_CLAIMS_SETTING} supports alternative claims for sub.
      * Throws IllegalArgumentException if principalClaimNames is empty, JWT is missing, or if JWT parsing fails.
      * @param principalClaimNames Ordered list of string claims to use for principalClaimValue. The first one found is used (ex: sub).
      * @param endUserSignedJwt Base64Url-encoded JWT for End-user authentication. Required by all JWT realms.

@@ -13,9 +13,9 @@ import java.util.List;
 import java.util.function.Function;
 
 /**
- * Settings shared by all JWT realms.
+ * Settings used by JwtRealmsService for common handling of JWT realm instances.
  */
-public class JwtRealmsSettings {
+public class JwtRealmsServiceSettings {
 
     public static final List<String> DEFAULT_PRINCIPAL_CLAIMS = List.of("sub", "oid", "client_id", "appid", "azp", "email");
 
@@ -34,5 +34,5 @@ public class JwtRealmsSettings {
         return List.of(PRINCIPAL_CLAIMS_SETTING);
     }
 
-    private JwtRealmsSettings() {}
+    private JwtRealmsServiceSettings() {}
 }

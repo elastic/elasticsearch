@@ -151,7 +151,7 @@ import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -1057,7 +1057,7 @@ public class Security extends Plugin
         // authentication and authorization settings
         AnonymousUser.addSettings(settingsList);
         settingsList.addAll(InternalRealmsSettings.getSettings());
-        settingsList.addAll(JwtRealmsSettings.getSettings());
+        settingsList.addAll(JwtRealmsServiceSettings.getSettings());
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);

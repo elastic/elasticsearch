@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
@@ -35,7 +35,7 @@ public class JwtRealmsService {
      * @param settings All xpack settings
      */
     public JwtRealmsService(final Settings settings) {
-        this.principalClaimNames = Collections.unmodifiableList(JwtRealmsSettings.PRINCIPAL_CLAIMS_SETTING.get(settings));
+        this.principalClaimNames = Collections.unmodifiableList(JwtRealmsServiceSettings.PRINCIPAL_CLAIMS_SETTING.get(settings));
     }
 
     /**

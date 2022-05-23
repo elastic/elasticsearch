@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.ClientAuthenticationType;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -243,11 +243,11 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
     protected JwtRealmsServiceSettingsBuilder createJwtRealmsSettingsBuilder() throws Exception {
         final List<String> principalClaimNames = randomBoolean()
             ? List.of("principalClaim_" + randomAlphaOfLength(6))
-            : randomSubsetOf(randomIntBetween(1, 6), JwtRealmsSettings.DEFAULT_PRINCIPAL_CLAIMS);
+            : randomSubsetOf(randomIntBetween(1, 6), JwtRealmsServiceSettings.DEFAULT_PRINCIPAL_CLAIMS);
 
         final Settings.Builder jwtRealmsServiceSettings = Settings.builder()
             .put(this.globalSettings)
-            .put(JwtRealmsSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimNames));
+            .put(JwtRealmsServiceSettings.PRINCIPAL_CLAIMS_SETTING.getKey(), String.join(",", principalClaimNames));
 
         final MockSecureSettings secureSettings = new MockSecureSettings(); // none for now, placeholder for future
         jwtRealmsServiceSettings.setSecureSettings(secureSettings);

@@ -12,7 +12,7 @@ PUT my-index-000001?master_timeout=1s&timeout=1s
 ////
 
 // tag::cloud[]
-In order to get diagnoste the unassigned shards follow the next steps:
+In order to diagnose the unassigned shards, follow the next steps:
 
 **Use {kib}**
 

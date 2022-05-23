@@ -188,13 +188,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     private static List<PluginRuntimeInfo> getRuntimeInfos(List<PluginDescriptor> pluginDescriptors, Map<String, LoadedPlugin> plugins) {
+        var plugInspector = PluginIntrospector.getInstance();
         List<PluginRuntimeInfo> runtimeInfos = new ArrayList<>();
         for (PluginDescriptor descriptor : pluginDescriptors) {
             LoadedPlugin plugin = plugins.get(descriptor.getName());
             assert plugin != null;
             Class<?> pluginClazz = plugin.instance.getClass();
-            PluginApiInfo apiInfo = new PluginApiInfo(PluginIntrospector.interfaces(pluginClazz), null);
-            // TODO: use reflection to find all the methods implemented from the *Plugin interfaces and also the Plugin class itself
+            PluginApiInfo apiInfo = new PluginApiInfo(plugInspector.interfaces(pluginClazz), plugInspector.overriddenMethods(pluginClazz));
             runtimeInfos.add(new PluginRuntimeInfo(descriptor, apiInfo));
         }
         return runtimeInfos;

@@ -8,36 +8,140 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
+
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.toMap;
 
 final class PluginIntrospector {
 
-    /** The reverse DNS prefix of the Elasticsearch code base. */
-    static final String ES_NAME_PREFIX = "org.elasticsearch.";
+    // TODO: assert that this list is complete and correct
+    private final Set<Class<?>> pluginClasses = Set.of(
+        Plugin.class,
+        ActionPlugin.class,
+        AnalysisPlugin.class,
+        CircuitBreakerPlugin.class,
+        ClusterPlugin.class,
+        DiscoveryPlugin.class,
+        EnginePlugin.class,
+        ExtensiblePlugin.class, // TODO: not sure that we want this?
+        HealthPlugin.class,
+        IndexStorePlugin.class,
+        IngestPlugin.class,
+        RestInterceptorActionPlugin.class,
+        MapperPlugin.class,
+        // MetadataUpgrader.class, // TODO: not sure that we want this?
+        NetworkPlugin.class,
+        PersistentTaskPlugin.class,
+        RecoveryPlannerPlugin.class,
+        ReloadablePlugin.class,
+        RepositoryPlugin.class,
+        ScriptPlugin.class,
+        SearchPlugin.class,
+        ShutdownAwarePlugin.class,
+        SystemIndexPlugin.class
+    );
 
-    /**
-     * Returns the list of Elasticsearch interfaces (and superinterfaces) implemented by the given plugin.
-     */
-    static List<String> interfaces(Class<?> pluginClass) {
-        assert Plugin.class.isAssignableFrom(pluginClass);
+    private final Map<Class<?>, List<MethodType>> pluginMethodsMap;
 
-        List<String> interfaces = new ArrayList<>();
-        do {
-            Arrays.stream(pluginClass.getInterfaces()).forEach(inf -> superInterfaces(inf, interfaces));
-        } while ((pluginClass = pluginClass.getSuperclass()) != java.lang.Object.class);
-        return interfaces.stream().sorted().toList();
+    private PluginIntrospector() {
+        pluginMethodsMap = pluginClasses.stream().collect(toMap(Function.identity(), PluginIntrospector::findMethods));
     }
 
-    private static void superInterfaces(Class<?> c, List<String> interfaces) {
-        if (isESClass(c)) {
-            interfaces.add(c.getName());
+    static PluginIntrospector getInstance() {
+        return new PluginIntrospector();
+    }
+
+    /**
+     * Returns the list of Elasticsearch plugin interfaces implemented by the given plugin
+     * implementation class.
+     */
+    List<String> interfaces(Class<?> pluginClass) {
+        assert Plugin.class.isAssignableFrom(pluginClass);
+        return interfaceClasses(pluginClass).map(Class::getName).sorted().toList();
+    }
+
+    /**
+     * Returns the list of methods overridden by the given plugin implementation class.
+     */
+    List<String> overriddenMethods(Class<?> pluginClass) {
+        assert Plugin.class.isAssignableFrom(pluginClass);
+        List<Class<?>> implClasses = Stream.concat(Stream.of(Plugin.class), interfaceClasses(pluginClass)).toList();
+
+        List<String> overriddenMethods = new ArrayList<>();
+        for (var implClass : implClasses) {
+            List<MethodType> pluginMethods = pluginMethodsMap.get(implClass);
+            // assert pluginMethods != null : "no plugin methods for " + implClass;
+            // log ^^^
+            for (var mt : pluginMethods) {
+                try {
+                    Method m = pluginClass.getMethod(mt.name(), mt.parameterTypes());
+                    if (m.getDeclaringClass() == implClass) {
+                        // it's not overridden
+                    } else {
+                        assert implClass.isAssignableFrom(m.getDeclaringClass());
+                        overriddenMethods.add(methodToString(implClass, mt));
+                    }
+                } catch (NoSuchMethodException unexpected) {
+                    throw new AssertionError(unexpected);
+                }
+            }
+        }
+        return List.copyOf(overriddenMethods);
+    }
+
+    private record MethodType(String name, Class<?>[] parameterTypes) {}
+
+    // Returns the non-static methods declared in the given class.
+    private static List<MethodType> findMethods(Class<?> cls) {
+        assert cls.getName().startsWith("org.elasticsearch.plugins");
+        assert cls.isInterface() || cls == Plugin.class : cls;
+        return Arrays.stream(cls.getDeclaredMethods())
+            .filter(m -> Modifier.isStatic(m.getModifiers()) == false)
+            .map(m -> new MethodType(m.getName(), m.getParameterTypes()))
+            .toList();
+    }
+
+    // Returns a String representation for the given method type in the given class.
+    private static String methodToString(Class<?> cls, MethodType mt) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(cls.getName()).append(".");
+        sb.append(mt.name());
+        sb.append(Arrays.stream(mt.parameterTypes()).map(Type::getTypeName).collect(Collectors.joining(",", "(", ")")));
+        return sb.toString();
+    }
+
+    // Returns a stream of o.e.XXXPlugin interfaces, that the given plugin class implements.
+    private Stream<Class<?>> interfaceClasses(Class<?> pluginClass) {
+        assert Plugin.class.isAssignableFrom(pluginClass);
+
+        Set<Class<?>> pluginInterfaces = new HashSet<>();
+        do {
+            Arrays.stream(pluginClass.getInterfaces()).forEach(inf -> superInterfaces(inf, pluginInterfaces));
+        } while ((pluginClass = pluginClass.getSuperclass()) != java.lang.Object.class);
+        return pluginInterfaces.stream();
+    }
+
+    private void superInterfaces(Class<?> c, Set<Class<?>> interfaces) {
+        if (isESPlugin(c)) {
+            interfaces.add(c);
         }
         Arrays.stream(c.getInterfaces()).forEach(inf -> superInterfaces(inf, interfaces));
     }
 
-    private static boolean isESClass(Class<?> c) {
-        return c.getName().startsWith(ES_NAME_PREFIX);
+    private boolean isESPlugin(Class<?> c) {
+        return pluginClasses.contains(c);
     }
 }

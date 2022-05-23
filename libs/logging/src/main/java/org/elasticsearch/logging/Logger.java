@@ -19,9 +19,9 @@ public interface Logger {
      * Logs a message object with the given level.
      *
      * @param level   the logging level
-     * @param message the message object to log.
+     * @param message the message to log.
      */
-    void log(Level level, Object message);
+    void log(Level level, String message);
 
     /**
      * Logs a String message which is only to be constructed if the logging level is the specified level.
@@ -96,15 +96,9 @@ public interface Logger {
     boolean isEnabled(Level level);
 
     // -- fatal
-    void fatal(Object message);
-
-    void fatal(Object message, Throwable thrown);
-
     void fatal(java.util.function.Supplier<String> msgSupplier);
 
     void fatal(java.util.function.Supplier<String> msgSupplier, Throwable thrown);
-
-    void fatal(String messagePattern, java.util.function.Supplier<String> paramSupplier);
 
     void fatal(String message);
 
@@ -125,15 +119,9 @@ public interface Logger {
     void fatal(String message, Object... params);
 
     // -- error
-    void error(Object message);
-
-    void error(Object message, Throwable thrown);
-
     void error(java.util.function.Supplier<String> msgSupplier);
 
     void error(java.util.function.Supplier<String> msgSupplier, Throwable thrown);
-
-    void error(String messagePattern, java.util.function.Supplier<String> paramSupplier);
 
     void error(String message);
 
@@ -154,15 +142,9 @@ public interface Logger {
     void error(String message, Object... params);
 
     // -- warn
-    void warn(Object message);
-
-    void warn(Object message, Throwable thrown);
-
     void warn(java.util.function.Supplier<String> msgSupplier);
 
     void warn(java.util.function.Supplier<String> msgSupplier, Throwable thrown);
-
-    void warn(String messagePattern, java.util.function.Supplier<String> paramSupplier);
 
     void warn(String message);
 
@@ -183,15 +165,9 @@ public interface Logger {
     void warn(String message, Object... params);
 
     // -- info
-    void info(Object message);
-
-    void info(Object message, Throwable thrown);
-
     void info(java.util.function.Supplier<String> msgSupplier);
 
     void info(java.util.function.Supplier<String> msgSupplier, Throwable thrown);
-
-    void info(String messagePattern, java.util.function.Supplier<String> paramSupplier);
 
     void info(String message);
 
@@ -212,15 +188,9 @@ public interface Logger {
     void info(String message, Object... params);
 
     // -- debug
-    void debug(Object message);
-
-    void debug(Object message, Throwable thrown);
-
     void debug(java.util.function.Supplier<String> msgSupplier);
 
     void debug(java.util.function.Supplier<String> msgSupplier, Throwable thrown);
-
-    void debug(String messagePattern, java.util.function.Supplier<String> paramSupplier);
 
     void debug(String message);
 
@@ -241,15 +211,9 @@ public interface Logger {
     void debug(String message, Object... params);
 
     // -- trace
-    void trace(Object message);
-
-    void trace(Object message, Throwable thrown);
-
     void trace(java.util.function.Supplier<String> msgSupplier);
 
     void trace(java.util.function.Supplier<String> msgSupplier, Throwable thrown);
-
-    void trace(String messagePattern, java.util.function.Supplier<String> paramSupplier);
 
     void trace(String message);
 

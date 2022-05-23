@@ -8,11 +8,13 @@
 
 package org.elasticsearch.common.logging.api.impl;
 
+import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.Logger;
 
 import java.util.function.Supplier;
 
+@SuppressLoggerChecks(reason = "safely delegates to logger")
 public final class LoggerImpl implements Logger {
     private final org.apache.logging.log4j.Logger log4jLogger;
 
@@ -29,14 +31,18 @@ public final class LoggerImpl implements Logger {
         return Util.log4jLevel(level);
     }
 
+    private org.apache.logging.log4j.util.Supplier<?> mapSupplier(Supplier<String> msgSupplier) {
+        return (org.apache.logging.log4j.util.Supplier<Object>) () -> msgSupplier.get();
+    }
+
     @Override
-    public void log(Level level, Object message) {
+    public void log(Level level, String message) {
         log4jLogger.log(log4jLevel(level), message);
     }
 
     @Override
     public void log(Level level, Supplier<String> msgSupplier, Throwable thrown) {
-        log4jLogger.log(log4jLevel(level), msgSupplier, thrown);
+        log4jLogger.log(log4jLevel(level), mapSupplier(msgSupplier), thrown);
     }
 
     public Level getLevel() {
@@ -45,6 +51,11 @@ public final class LoggerImpl implements Logger {
 
     public String getName() {
         return log4jLogger.getName();
+    }
+
+    @Override
+    public boolean isFatalEnabled() {
+        return log4jLogger.isFatalEnabled();
     }
 
     public boolean isErrorEnabled() {
@@ -72,28 +83,13 @@ public final class LoggerImpl implements Logger {
     }
 
     @Override
-    public void fatal(Object message) {
-        log4jLogger.fatal(message);
-    }
-
-    @Override
-    public void fatal(Object message, Throwable thrown) {
-        log4jLogger.fatal(message, thrown);
-    }
-
-    @Override
     public void fatal(Supplier<String> msgSupplier) {
-        log4jLogger.fatal(msgSupplier);
+        log4jLogger.fatal(mapSupplier(msgSupplier));
     }
 
     @Override
     public void fatal(Supplier<String> msgSupplier, Throwable thrown) {
-        log4jLogger.fatal(msgSupplier, thrown);
-    }
-
-    @Override
-    public void fatal(String messagePattern, Supplier<String> paramSupplier) {
-        log4jLogger.fatal(messagePattern, paramSupplier);
+        log4jLogger.fatal(mapSupplier(msgSupplier), thrown);
     }
 
     @Override
@@ -142,28 +138,13 @@ public final class LoggerImpl implements Logger {
     }
 
     @Override
-    public void error(Object message) {
-        log4jLogger.error(message);
-    }
-
-    @Override
-    public void error(Object message, Throwable thrown) {
-        log4jLogger.error(message, thrown);
-    }
-
-    @Override
     public void error(Supplier<String> msgSupplier) {
-        log4jLogger.error(msgSupplier);
+        log4jLogger.error(mapSupplier(msgSupplier));
     }
 
     @Override
     public void error(Supplier<String> msgSupplier, Throwable thrown) {
-        log4jLogger.error(msgSupplier, thrown);
-    }
-
-    @Override
-    public void error(String messagePattern, Supplier<String> paramSupplier) {
-        log4jLogger.error(messagePattern, paramSupplier);
+        log4jLogger.error(mapSupplier(msgSupplier), thrown);
     }
 
     @Override
@@ -212,28 +193,13 @@ public final class LoggerImpl implements Logger {
     }
 
     @Override
-    public void warn(Object message) {
-        log4jLogger.warn(message);
-    }
-
-    @Override
-    public void warn(Object message, Throwable thrown) {
-        log4jLogger.warn(message, thrown);
-    }
-
-    @Override
     public void warn(Supplier<String> msgSupplier) {
-        log4jLogger.warn(msgSupplier);
+        log4jLogger.warn(mapSupplier(msgSupplier));
     }
 
     @Override
     public void warn(Supplier<String> msgSupplier, Throwable thrown) {
-        log4jLogger.warn(msgSupplier, thrown);
-    }
-
-    @Override
-    public void warn(String messagePattern, Supplier<String> paramSupplier) {
-        log4jLogger.warn(messagePattern, paramSupplier);
+        log4jLogger.warn(mapSupplier(msgSupplier), thrown);
     }
 
     @Override
@@ -282,28 +248,13 @@ public final class LoggerImpl implements Logger {
     }
 
     @Override
-    public void info(Object message) {
-        log4jLogger.info(message);
-    }
-
-    @Override
-    public void info(Object message, Throwable thrown) {
-        log4jLogger.info(message, thrown);
-    }
-
-    @Override
     public void info(Supplier<String> msgSupplier) {
-        log4jLogger.info(msgSupplier);
+        log4jLogger.info(mapSupplier(msgSupplier));
     }
 
     @Override
     public void info(Supplier<String> msgSupplier, Throwable thrown) {
-        log4jLogger.info(msgSupplier, thrown);
-    }
-
-    @Override
-    public void info(String messagePattern, Supplier<String> paramSupplier) {
-        log4jLogger.info(messagePattern, paramSupplier);
+        log4jLogger.info(mapSupplier(msgSupplier), thrown);
     }
 
     @Override
@@ -352,28 +303,13 @@ public final class LoggerImpl implements Logger {
     }
 
     @Override
-    public void debug(Object message) {
-        log4jLogger.debug(message);
-    }
-
-    @Override
-    public void debug(Object message, Throwable thrown) {
-        log4jLogger.debug(message, thrown);
-    }
-
-    @Override
     public void debug(Supplier<String> msgSupplier) {
-        log4jLogger.debug(msgSupplier);
+        log4jLogger.debug(mapSupplier(msgSupplier));
     }
 
     @Override
     public void debug(Supplier<String> msgSupplier, Throwable thrown) {
-        log4jLogger.debug(msgSupplier, thrown);
-    }
-
-    @Override
-    public void debug(String messagePattern, Supplier<String> paramSupplier) {
-        log4jLogger.debug(messagePattern, paramSupplier);
+        log4jLogger.debug(mapSupplier(msgSupplier), thrown);
     }
 
     @Override
@@ -422,28 +358,13 @@ public final class LoggerImpl implements Logger {
     }
 
     @Override
-    public void trace(Object message) {
-        log4jLogger.trace(message);
-    }
-
-    @Override
-    public void trace(Object message, Throwable thrown) {
-        log4jLogger.trace(message, thrown);
-    }
-
-    @Override
     public void trace(Supplier<String> msgSupplier) {
-        log4jLogger.trace(msgSupplier);
+        log4jLogger.trace(mapSupplier(msgSupplier));
     }
 
     @Override
     public void trace(Supplier<String> msgSupplier, Throwable thrown) {
-        log4jLogger.trace(msgSupplier, thrown);
-    }
-
-    @Override
-    public void trace(String messagePattern, Supplier<String> paramSupplier) {
-        log4jLogger.trace(messagePattern, paramSupplier);
+        log4jLogger.trace(mapSupplier(msgSupplier), thrown);
     }
 
     @Override

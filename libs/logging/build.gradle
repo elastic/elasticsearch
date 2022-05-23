@@ -17,9 +17,6 @@ apply plugin: 'elasticsearch.build'
 tasks.named("loggerUsageCheck").configure {enabled = false }
 
 dependencies {
-  // TODO PG log4j is added temporarily
-  api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"

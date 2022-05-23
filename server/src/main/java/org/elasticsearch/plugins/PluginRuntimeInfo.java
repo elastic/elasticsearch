@@ -26,7 +26,10 @@ import java.io.IOException;
  *                   For nodes before 8.3.0 this is {@code null}.
  * @param pluginApiInfo Runtime information about a custom plugin
  */
-public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable Boolean isOfficial, @Nullable PluginApiInfo pluginApiInfo) implements Writeable, ToXContentObject {
+public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable Boolean isOfficial, @Nullable PluginApiInfo pluginApiInfo)
+    implements
+        Writeable,
+        ToXContentObject {
 
     public PluginRuntimeInfo(PluginDescriptor descriptor) {
         this(descriptor, null, null);

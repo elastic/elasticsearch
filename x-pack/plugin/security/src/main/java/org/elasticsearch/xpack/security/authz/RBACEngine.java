@@ -571,7 +571,7 @@ public class RBACEngine implements AuthorizationEngine {
             allMatch = allMatch && privilegeGranted;
             if (privilegesToCheck.runDetailedCheck()) {
                 clusterPrivilegesCheckResults.put(checkAction, privilegeGranted);
-            } else if (false == privilegeGranted) {
+            } else if (false == allMatch) {
                 maybeCachingListener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
                 return;
             }
@@ -588,7 +588,7 @@ public class RBACEngine implements AuthorizationEngine {
                 combineIndicesResourcePrivileges
             );
             allMatch = allMatch && privilegesGranted;
-            if (false == privilegesToCheck.runDetailedCheck() && false == privilegesGranted) {
+            if (false == privilegesToCheck.runDetailedCheck() && false == allMatch) {
                 maybeCachingListener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
                 return;
             }
@@ -614,7 +614,7 @@ public class RBACEngine implements AuthorizationEngine {
                         resourcePrivilegesMapBuilder
                     );
                     allMatch = allMatch && privilegesGranted;
-                    if (false == privilegesToCheck.runDetailedCheck() && false == privilegesGranted) {
+                    if (false == privilegesToCheck.runDetailedCheck() && false == allMatch) {
                         maybeCachingListener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
                         return;
                     }
@@ -629,6 +629,7 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         if (privilegesToCheck.runDetailedCheck()) {
+            assert combineIndicesResourcePrivileges != null;
             maybeCachingListener.onResponse(
                 new PrivilegesCheckResult(
                     allMatch,
@@ -640,6 +641,7 @@ public class RBACEngine implements AuthorizationEngine {
                 )
             );
         } else {
+            assert allMatch;
             maybeCachingListener.onResponse(PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS);
         }
     }

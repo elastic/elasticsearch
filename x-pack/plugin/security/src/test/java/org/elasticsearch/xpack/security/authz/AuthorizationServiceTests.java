@@ -2791,10 +2791,10 @@ public class AuthorizationServiceTests extends ESTestCase {
             final Object arg1 = i.getArguments()[0];
             assertThat(arg1, instanceOf(AuthorizationInfo.class));
             AuthorizationInfo authorizationInfoArg = (AuthorizationInfo) arg1;
-            final Object arg5 = i.getArguments()[3];
-            assertThat(arg5, instanceOf(ActionListener.class));
+            final Object arg4 = i.getArguments()[3];
+            assertThat(arg4, instanceOf(ActionListener.class));
             ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener = (ActionListener<
-                AuthorizationEngine.PrivilegesCheckResult>) arg5;
+                AuthorizationEngine.PrivilegesCheckResult>) arg4;
             if (authorizationInfoArg.equals(authorizationInfo)) {
                 listener.onResponse(privilegesCheckResult);
             } else {

@@ -32,7 +32,7 @@ public record PluginRuntimeInfo(PluginDescriptor descriptor, @Nullable Boolean i
         ToXContentObject {
 
     public PluginRuntimeInfo(PluginDescriptor descriptor) {
-        this(descriptor, null, null);
+        this(descriptor, false, null);
     }
 
     public PluginRuntimeInfo(StreamInput in) throws IOException {

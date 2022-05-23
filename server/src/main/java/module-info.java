@@ -289,7 +289,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.rest.action.document;
     exports org.elasticsearch.rest.action.ingest;
     exports org.elasticsearch.rest.action.search;
-    exports org.elasticsearch.rollup;
     exports org.elasticsearch.script;
     exports org.elasticsearch.script.field;
     exports org.elasticsearch.search;

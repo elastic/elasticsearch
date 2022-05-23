@@ -33,17 +33,14 @@ public abstract class UpdateByQueryScript {
 
     private Metadata metadata;
 
-    public UpdateByQueryScript(Map<String, Object> params) {
+    public UpdateByQueryScript(Map<String, Object> params, Metadata metadata) {
         this.params = params;
+        this.metadata = metadata;
     }
 
     /** Return the parameters for this script. */
     public Map<String, Object> getParams() {
         return params;
-    }
-
-    public void setMetadata(Metadata metadata) {
-        this.metadata = metadata;
     }
 
     public Metadata meta() {
@@ -60,7 +57,7 @@ public abstract class UpdateByQueryScript {
     public abstract void execute();
 
     public interface Factory {
-        UpdateByQueryScript newInstance(Map<String, Object> params);
+        UpdateByQueryScript newInstance(Map<String, Object> params, Metadata metadata);
     }
 
     public static class Metadata extends AbstractBulkMetadata {

@@ -49,18 +49,22 @@ public class MapBackedMetadata {
     }
 
     public Long getVersion() {
-        Object obj = map.get(VERSION);
+        Object obj = getRawVersion();
         if (obj == null) {
             return null;
         } else if (obj instanceof Number number) {
             long version = number.longValue();
             if (number.doubleValue() != version) {
                 // did we round?
-                throw new IllegalArgumentException("version may only be set to an int or a long but was [" + version + "]");
+                throw new IllegalArgumentException("version may only be set to an int or a long but was [" + number + "]");
             }
             return version;
         }
         throw new IllegalArgumentException("unexpected type [" + obj.getClass().getName() + "] for [" + obj + "], expected a Number");
+    }
+
+    protected Object getRawVersion() {
+        return map.get(VERSION);
     }
 
     public MapBackedMetadata setVersion(Long version) {

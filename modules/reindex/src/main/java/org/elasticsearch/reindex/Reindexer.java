@@ -67,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
@@ -415,12 +416,13 @@ public class Reindexer {
             }
 
             @Override
-            protected void scriptChangedVersion(RequestWrapper<?> request, Long to) {
-                if (to == null) {
+            protected void scriptChangedVersion(RequestWrapper<?> request, Supplier<Long> versionSupplier) {
+                Long version = versionSupplier.get();
+                if (version == null) {
                     request.setVersion(Versions.MATCH_ANY);
                     request.setVersionType(INTERNAL);
                 } else {
-                    request.setVersion(to);
+                    request.setVersion(version);
                 }
             }
 

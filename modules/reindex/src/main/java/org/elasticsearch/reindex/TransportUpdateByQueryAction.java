@@ -37,6 +37,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkByScrollResponse> {
 
@@ -136,7 +137,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         }
 
         static class UpdateByQueryScriptApplier extends ScriptApplier {
-            private UpdateByQueryScript update = null;
+            private UpdateByQueryScript.Factory update = null;
 
             UpdateByQueryScriptApplier(
                 WorkerBulkByScrollTaskState taskWorker,
@@ -158,7 +159,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             }
 
             @Override
-            protected void scriptChangedVersion(RequestWrapper<?> request, Long to) {
+            protected void scriptChangedVersion(RequestWrapper<?> request, Supplier<Long> versionSupplier) {
                 throw new IllegalArgumentException("Modifying [_version] not allowed");
             }
 
@@ -170,7 +171,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             @Override
             protected BulkMetadata execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
                 if (update == null) {
-                    update = scriptService.compile(script, UpdateByQueryScript.CONTEXT).newInstance(params);
+                    update = scriptService.compile(script, UpdateByQueryScript.CONTEXT);
                 }
                 UpdateByQueryScript.Metadata md = new UpdateByQueryScript.Metadata(
                     doc.getIndex(),
@@ -180,8 +181,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     INITIAL_OPERATION,
                     source
                 );
-                update.setMetadata(md);
-                update.execute();
+                update.newInstance(params, md).execute();
                 return md;
             }
         }

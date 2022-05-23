@@ -30,19 +30,16 @@ public abstract class ReindexScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    private Metadata metadata;
+    private final Metadata metadata;
 
-    public ReindexScript(Map<String, Object> params) {
+    public ReindexScript(Map<String, Object> params, Metadata metadata) {
         this.params = params;
+        this.metadata = metadata;
     }
 
     /** Return the parameters for this script. */
     public Map<String, Object> getParams() {
         return params;
-    }
-
-    public void setMetadata(Metadata metadata) {
-        this.metadata = metadata;
     }
 
     public Metadata meta() {
@@ -59,7 +56,7 @@ public abstract class ReindexScript {
     public abstract void execute();
 
     public interface Factory {
-        ReindexScript newInstance(Map<String, Object> params);
+        ReindexScript newInstance(Map<String, Object> params, Metadata metadata);
     }
 
     /**

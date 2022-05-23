@@ -58,6 +58,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -855,7 +856,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             }
 
             if (metadata.versionChanged()) {
-                scriptChangedVersion(request, metadata.getVersion());
+                scriptChangedVersion(request, metadata::getVersion);
             }
             /*
              * Its important that routing comes after parent in case you want to
@@ -897,7 +898,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
         protected abstract void scriptChangedId(RequestWrapper<?> request, String to);
 
-        protected abstract void scriptChangedVersion(RequestWrapper<?> request, Long to);
+        protected abstract void scriptChangedVersion(RequestWrapper<?> request, Supplier<Long> versionSupplier);
 
         protected abstract void scriptChangedRouting(RequestWrapper<?> request, String to);
 

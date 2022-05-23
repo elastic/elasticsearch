@@ -74,7 +74,7 @@ public abstract class AbstractBulkMetadata implements BulkMetadata {
     }
 
     public boolean versionChanged() {
-        return Objects.equals(version, getVersion()) == false;
+        return Objects.equals(version, store.getRawVersion()) == false;
     }
 
     public Op getOp() {

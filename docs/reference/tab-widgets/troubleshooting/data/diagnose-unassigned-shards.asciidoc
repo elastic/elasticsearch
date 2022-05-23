@@ -160,7 +160,7 @@ For more guidance on fixing the most common causes for unassinged shards please 
 // end::cloud[]
 
 // tag::self-managed[]
-In order to get diagnoste the unassigned shards follow the next steps:
+In order to diagnose the unassigned shards follow the next steps:
 
 . View the unassigned shards using the <<cat-shards,cat shards API>>.
 +

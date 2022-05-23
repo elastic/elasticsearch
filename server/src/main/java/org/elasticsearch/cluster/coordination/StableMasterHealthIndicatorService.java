@@ -57,6 +57,7 @@ import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATI
 public class StableMasterHealthIndicatorService implements HealthIndicatorService, ClusterStateListener {
 
     public static final String NAME = "master_is_stable";
+    private static final String HELP_URL = "https://ela.st/fix-master";
 
     private final ClusterService clusterService;
     private final MasterHistoryService masterHistoryService;
@@ -139,6 +140,11 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     @Override
     public String component() {
         return CLUSTER_COORDINATION;
+    }
+
+    @Override
+    public String helpURL() {
+        return HELP_URL;
     }
 
     @Override

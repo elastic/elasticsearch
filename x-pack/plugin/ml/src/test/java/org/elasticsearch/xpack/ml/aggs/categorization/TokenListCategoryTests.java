@@ -5,12 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.categorization2;
+package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.xpack.ml.aggs.categorization2.TokenListCategory.TokenAndWeight;
+import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategory.TokenAndWeight;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +18,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class TokenListCategoryTests extends CategorizationTestCase {
@@ -34,7 +35,7 @@ public class TokenListCategoryTests extends CategorizationTestCase {
             tw("seashore", 2)
         );
 
-        List<TokenAndWeight> baseUniqueTokenIds = baseTokenIds.stream().sorted().distinct().collect(Collectors.toList());
+        List<TokenAndWeight> baseUniqueTokenIds = baseTokenIds.stream().sorted().distinct().toList();
 
         TokenListCategory category = new TokenListCategory(1, baseString.length(), baseTokenIds, baseUniqueTokenIds, 1);
 
@@ -48,7 +49,7 @@ public class TokenListCategoryTests extends CategorizationTestCase {
             tw("the", 2),
             tw("seashore", 2)
         );
-        List<TokenAndWeight> newUniqueTokenIds = newTokenIds.stream().sorted().distinct().collect(Collectors.toList());
+        List<TokenAndWeight> newUniqueTokenIds = newTokenIds.stream().sorted().distinct().toList();
 
         category.addString(newString.length(), newTokenIds, newUniqueTokenIds, 1);
 
@@ -82,7 +83,7 @@ public class TokenListCategoryTests extends CategorizationTestCase {
             tw("the", 2),
             tw("seashore", 2)
         );
-        List<TokenAndWeight> baseUniqueTokenIds = baseTokenIds.stream().sorted().distinct().collect(Collectors.toList());
+        List<TokenAndWeight> baseUniqueTokenIds = baseTokenIds.stream().sorted().distinct().toList();
 
         TokenListCategory category = new TokenListCategory(1, baseString.length(), baseTokenIds, baseUniqueTokenIds, 1);
 
@@ -96,7 +97,7 @@ public class TokenListCategoryTests extends CategorizationTestCase {
             tw("she", 2),
             tw("does", 2)
         );
-        List<TokenAndWeight> newUniqueTokenIds1 = newTokenIds1.stream().sorted().distinct().collect(Collectors.toList());
+        List<TokenAndWeight> newUniqueTokenIds1 = newTokenIds1.stream().sorted().distinct().toList();
 
         category.addString(newString1.length(), newTokenIds1, newUniqueTokenIds1, 1);
 
@@ -122,7 +123,7 @@ public class TokenListCategoryTests extends CategorizationTestCase {
             tw("the", 2),
             tw("seashore", 2)
         );
-        List<TokenAndWeight> newUniqueTokenIds2 = newTokenIds2.stream().sorted().distinct().collect(Collectors.toList());
+        List<TokenAndWeight> newUniqueTokenIds2 = newTokenIds2.stream().sorted().distinct().toList();
 
         category.addString(newString2.length(), newTokenIds2, newUniqueTokenIds2, 1);
 
@@ -146,7 +147,7 @@ public class TokenListCategoryTests extends CategorizationTestCase {
 
         String newString3 = "the rock";
         List<TokenAndWeight> newTokenIds3 = List.of(tw("the", 2), tw("rock", 2));
-        List<TokenAndWeight> newUniqueTokenIds3 = newTokenIds3.stream().sorted().distinct().collect(Collectors.toList());
+        List<TokenAndWeight> newUniqueTokenIds3 = newTokenIds3.stream().sorted().distinct().toList();
 
         category.addString(newString3.length(), newTokenIds3, newUniqueTokenIds3, 1);
 
@@ -206,6 +207,16 @@ public class TokenListCategoryTests extends CategorizationTestCase {
         assertThat(node1RoundTrippedCategory2.ramBytesUsed(), equalTo(node1RoundTrippedCategory2.ramBytesUsedSlow()));
     }
 
+    public void testMissingCommonTokenWeightZeroForSupersets() {
+        TokenListCategory category = createTestInstance(bytesRefHash, 1);
+        List<TokenAndWeight> uniqueTokenIds = new ArrayList<>(category.getCommonUniqueTokenIds());
+        for (int i = 0; i < 5; ++i) {
+            assertThat(category.missingCommonTokenWeight(uniqueTokenIds), is(0));
+            uniqueTokenIds.add(new TokenAndWeight(randomIntBetween(1, 10), randomIntBetween(1, 10)));
+            uniqueTokenIds.sort(TokenAndWeight::compareTo);
+        }
+    }
+
     public static TokenListCategory createTestInstance(CategorizationBytesRefHash bytesRefHash, int id) {
 
         int unfilteredStringLength = 0;
@@ -228,7 +239,7 @@ public class TokenListCategoryTests extends CategorizationTestCase {
             .entrySet()
             .stream()
             .map(entry -> new TokenAndWeight(entry.getKey(), entry.getValue()))
-            .collect(Collectors.toList());
+            .toList();
         return new TokenListCategory(id, unfilteredStringLength, baseWeightedTokenIds, uniqueWeightedTokenIds, randomLongBetween(1, 10));
     }
 }

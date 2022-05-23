@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -534,7 +535,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         // Cluster state with index, but its only shard is unassigned because the allocation deciders said none are allowed
         var clusterState = createClusterStateWith(
             List.of(indexMetadata),
-            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo()))),
+            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE, randomFrom(decidersNo(), nodeLeft())))),
             List.of(),
             List.of()
         );
@@ -566,22 +567,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         // Get the list of user actions that are generated for this unassigned index shard
         ShardRouting shardRouting = clusterState.routingTable().index(indexMetadata.getIndex()).shard(0).primaryShard();
-        List<UserAction.Definition> actions = service.diagnoseAllocationResults(
-            shardRouting,
-            clusterState,
-            List.of(
-                new NodeAllocationResult(
-                    new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
-                    new Decision.Multi().add(Decision.single(Decision.Type.YES, EnableAllocationDecider.NAME, null))
-                        .add(Decision.single(Decision.Type.YES, "data_tier", null))
-                        .add(Decision.single(Decision.Type.YES, ShardsLimitAllocationDecider.NAME, null))
-                        .add(Decision.single(Decision.Type.YES, FilterAllocationDecider.NAME, null))
-                        .add(Decision.single(Decision.Type.YES, SameShardAllocationDecider.NAME, null))
-                        .add(Decision.single(Decision.Type.NO, AwarenessAllocationDecider.NAME, null)), // Unhandled in indicator
-                    1
-                )
-            )
-        );
+        List<UserAction.Definition> actions = service.diagnoseUnassignedShardRouting(shardRouting, clusterState);
 
         assertThat(actions, hasSize(1));
         assertThat(actions, contains(ACTION_CHECK_ALLOCATION_EXPLAIN_API));
@@ -1311,9 +1297,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             shardId,
             primary,
             getSource(primary, allocation.state),
-            allocation.unassignedInfo == null ? new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null) : allocation.unassignedInfo
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
         );
-        if (allocation.state == UNAVAILABLE || allocation.state == INITIALIZING) {
+        if (allocation.state == INITIALIZING) {
             return routing;
         }
         routing = routing.initialize(allocation.nodeId, null, 0);
@@ -1321,22 +1307,24 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         if (allocation.state == AVAILABLE) {
             return routing;
         }
-        routing = routing.moveToUnassigned(
-            new UnassignedInfo(
-                UnassignedInfo.Reason.NODE_RESTARTING,
-                null,
-                null,
-                -1,
-                allocation.unassignedTimeNanos != null ? allocation.unassignedTimeNanos : 0,
-                0,
-                false,
-                UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION,
-                Set.of(),
-                allocation.nodeId
-            )
-        );
+        if (allocation.state == UNAVAILABLE) {
+            return routing.moveToUnassigned(Optional.ofNullable(allocation.unassignedInfo).orElse(randomFrom(nodeLeft(), decidersNo())));
+        }
         if (allocation.state == RESTARTING) {
-            return routing;
+            return routing.moveToUnassigned(
+                new UnassignedInfo(
+                    UnassignedInfo.Reason.NODE_RESTARTING,
+                    null,
+                    null,
+                    -1,
+                    allocation.unassignedTimeNanos != null ? allocation.unassignedTimeNanos : 0,
+                    0,
+                    false,
+                    UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION,
+                    Set.of(),
+                    allocation.nodeId
+                )
+            );
         }
 
         throw new AssertionError("Unexpected state [" + allocation.state + "]");
@@ -1390,6 +1378,21 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             0,
             false,
             UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY,
+            Collections.emptySet(),
+            null
+        );
+    }
+
+    private static UnassignedInfo nodeLeft() {
+        return new UnassignedInfo(
+            UnassignedInfo.Reason.NODE_LEFT,
+            null,
+            null,
+            0,
+            0,
+            0,
+            false,
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
             Collections.emptySet(),
             null
         );

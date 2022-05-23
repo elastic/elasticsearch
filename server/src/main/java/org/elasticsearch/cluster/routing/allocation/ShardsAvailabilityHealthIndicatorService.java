@@ -363,6 +363,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             case DECIDERS_NO:
                 actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
                 break;
+            case NO_ATTEMPT:
+                if (UnassignedInfo.Reason.NODE_LEFT == shardRouting.unassignedInfo().getReason()) {
+                    actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
+                    // If (shardRouting.unassignedInfo().isDelayed() == false && actions.isEmpty()) then we CAN allocate the shard,
+                    //  but we're just hoping the node comes back first before we do so.
+                }
+                break;
             default:
                 break;
         }
@@ -377,7 +384,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * @return a list of actions for the user to take
      */
     private List<UserAction.Definition> explainAllocationsAndDiagnoseDeciders(ShardRouting shardRouting, ClusterState state) {
-        LOGGER.trace("Diagnosing shard [{}]", shardRouting.shardId());
+        LOGGER.trace("Executing allocation explain on shard [{}]", shardRouting.shardId());
         RoutingAllocation allocation = new RoutingAllocation(
             allocationService.getAllocationDeciders(),
             state,
@@ -388,12 +395,22 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         allocation.setDebugMode(RoutingAllocation.DebugMode.ON);
         ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(shardRouting, allocation);
         AllocateUnassignedDecision allocateDecision = shardAllocationDecision.getAllocateDecision();
-        LOGGER.trace(
-            "[{}]: Obtained decision: [{}/{}]",
-            shardRouting.shardId(),
-            allocateDecision.isDecisionTaken(),
-            allocateDecision.getAllocationDecision()
-        );
+        if (LOGGER.isTraceEnabled()) {
+            if (allocateDecision.isDecisionTaken()) {
+                LOGGER.trace(
+                    "[{}]: Decision taken [{}], Allocation decision [{}]",
+                    shardRouting.shardId(),
+                    allocateDecision.isDecisionTaken(),
+                    allocateDecision.getAllocationDecision()
+                );
+            } else {
+                LOGGER.trace(
+                    "[{}]: Decision taken [{}], Allocation decision [NA]",
+                    shardRouting.shardId(),
+                    allocateDecision.isDecisionTaken()
+                );
+            }
+        }
         if (allocateDecision.isDecisionTaken() && AllocationDecision.NO == allocateDecision.getAllocationDecision()) {
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace(

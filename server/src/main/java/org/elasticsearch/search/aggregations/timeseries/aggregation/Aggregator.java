@@ -14,6 +14,7 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfuncti
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.CountValuesBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.MaxBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.MinBucketFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.QuantileBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.SumBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.TopkBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.ValueCountBucketFunction;
@@ -22,6 +23,7 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.function.Avg
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.CountValuesFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.MaxFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.MinFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.function.QuantileFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.SumFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.TopkFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.ValueCountFunction;
@@ -114,8 +116,7 @@ public enum Aggregator {
         }
 
         @Override
-        public AggregatorBucketFunction<?> getAggregatorBucketFunction(BigArrays bigArrays,
-            Map<String, Object> aggregatorParams) {
+        public AggregatorBucketFunction<?> getAggregatorBucketFunction(BigArrays bigArrays, Map<String, Object> aggregatorParams) {
             int size = 0;
             if (aggregatorParams != null && aggregatorParams.containsKey("size")) {
                 size = (int) aggregatorParams.get("size");
@@ -130,9 +131,27 @@ public enum Aggregator {
         }
 
         @Override
-        public AggregatorBucketFunction<?> getAggregatorBucketFunction(BigArrays bigArrays,
-            Map<String, Object> aggregatorParams) {
+        public AggregatorBucketFunction<?> getAggregatorBucketFunction(BigArrays bigArrays, Map<String, Object> aggregatorParams) {
             return new CountValuesBucketFunction(bigArrays);
+        }
+    },
+    quantile {
+        @Override
+        public AggregatorFunction<?, ?> getAggregatorFunction(Map<String, Object> aggregatorParams) {
+            double quantile = 1f;
+            if (aggregatorParams != null && aggregatorParams.containsKey("quantile")) {
+                quantile = (double) aggregatorParams.get("quantile");
+            }
+            return new QuantileFunction(quantile);
+        }
+
+        @Override
+        public AggregatorBucketFunction<?> getAggregatorBucketFunction(BigArrays bigArrays, Map<String, Object> aggregatorParams) {
+            double quantile = 1f;
+            if (aggregatorParams != null && aggregatorParams.containsKey("quantile")) {
+                quantile = (double) aggregatorParams.get("quantile");
+            }
+            return new QuantileBucketFunction(bigArrays, quantile);
         }
     };
 

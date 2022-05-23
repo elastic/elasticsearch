@@ -618,7 +618,13 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         Rounding.Prepared rounding = Rounding.builder(new TimeValue(fixedInterval.estimateMillis())).build().prepareForUnknown();
         SearchResponse response = client().prepareSearch("index")
             .setSize(0)
-            .addAggregation(timeSeriesAggregation("by_ts").field("metric_0").interval(fixedInterval).aggregator("sum").size(data.size()))
+            .addAggregation(
+                timeSeriesAggregation("by_ts").field("metric_0")
+                    .interval(fixedInterval)
+                    .aggregator("quantile")
+                    .aggregatorParams(Map.of("quantile", 0.5))
+                    .size(data.size())
+            )
             .get();
         Aggregations aggregations = response.getAggregations();
         assertNotNull(aggregations);

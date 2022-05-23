@@ -260,6 +260,11 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             }
             this.mappingVersion = extractVersionFromMappings(mappings, versionMetaKey);
         } else {
+            assert Objects.isNull(settings) : "Unmanaged index descriptors should not have settings";
+            assert Objects.isNull(mappings) : "Unmanaged index descriptors should not have mappings";
+            assert Objects.isNull(primaryIndex) : "Unmanaged index descriptors should not have a primary index";
+            assert Objects.isNull(versionMetaKey) : "Unmanaged index descriptors should not have a version meta key";
+            assert Objects.isNull(origin) : "Unmanaged index descriptions should not supply origins";
             this.mappingVersion = null;
         }
 
@@ -428,7 +433,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     public String getAliasName() {
-        assert isAutomaticallyManaged() : "Do not request aliases for unmanaged system indices";
         return aliasName;
     }
 
@@ -452,6 +456,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     public String getOrigin() {
+        assert isAutomaticallyManaged() : "Do not check origin for unmanaged system indices";
         return this.origin;
     }
 
@@ -473,7 +478,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     public boolean isNetNew() {
-        assert isAutomaticallyManaged() : "Do not check mapping properties for unmanaged system indices";
         return isNetNew;
     }
 

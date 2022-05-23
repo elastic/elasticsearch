@@ -20,8 +20,10 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Common settings shared by all JwtRealm instances.
- * Common token parsing code shared by all JwtRealm instances.
+ * Parse common settings shared by all JwtRealm instances on behalf of InternalRealms.
+ * Construct JwtRealm instances on behalf of InternalRealms.
+ * Construct AuthenticationToken instances on behalf of JwtRealm instances.
+ * @see InternalRealms
  * @see JwtRealm
  */
 public class JwtRealms {
@@ -45,9 +47,23 @@ public class JwtRealms {
     }
 
     /**
-     * Call order is request => JwtRealm.token() => JwtRealms.token()
+     * Construct JwtRealm instance using settings passed in via lambda defined in {@link InternalRealms#getFactories}
+     * @param config Realm config
+     * @param sslService SSL service settings
+     * @param nativeRoleMappingStore Native role mapping store
+     */
+    public JwtRealm createJwtRealm(
+        final RealmConfig config,
+        final SSLService sslService,
+        final NativeRoleMappingStore nativeRoleMappingStore
+    ) {
+        return new JwtRealm(config, this, sslService, nativeRoleMappingStore);
+    }
+
+    /**
+     * Construct JwtAuthenticationToken instance using request passed in via JwtRealm.token.
      * @param threadContext Request headers and parameters
-     * @return JwtAuthenticationToken containing mandatory JWT header, optional client secret, and a realm order cache key
+     * @return JwtAuthenticationToken contains mandatory JWT header, optional client secret, and a realm order cache key
      */
     AuthenticationToken token(final ThreadContext threadContext) {
         // extract value from Authorization header with Bearer scheme prefix
@@ -68,13 +84,5 @@ public class JwtRealms {
             true
         );
         return new JwtAuthenticationToken(this.principalClaimNames, authenticationParameterValue, clientAuthenticationSharedSecretValue);
-    }
-
-    public JwtRealm createJwtRealm(
-        final RealmConfig config,
-        final SSLService sslService,
-        final NativeRoleMappingStore nativeRoleMappingStore
-    ) {
-        return new JwtRealm(config, this, sslService, nativeRoleMappingStore);
     }
 }

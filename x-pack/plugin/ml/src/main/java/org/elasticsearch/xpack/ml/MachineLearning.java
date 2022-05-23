@@ -514,6 +514,7 @@ public class MachineLearning extends Plugin
     public static final String CPU_RATIO_NODE_ATTR = "ml.memory_cpu_ratio";
     public static final String INSTANCE_CONFIGURATION_NODE_ATTR = "instance_configuration";
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
+    public static final String AVAILABLE_PROCESSORS_NODE_ATTR = "ml.available_processors";
     public static final String MAX_JVM_SIZE_NODE_ATTR = "ml.max_jvm_size";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS = Setting.intSetting(
         "xpack.ml.node_concurrent_job_allocations",
@@ -709,6 +710,7 @@ public class MachineLearning extends Plugin
         String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
         String jvmSizeAttrName = "node.attr." + MAX_JVM_SIZE_NODE_ATTR;
         String cpuRatioAttrName = "node.attr." + CPU_RATIO_NODE_ATTR;
+        String processorCountAttrName = "node.attr." + AVAILABLE_PROCESSORS_NODE_ATTR;
 
         if (enabled == false) {
             disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName, cpuRatioAttrName);
@@ -723,13 +725,23 @@ public class MachineLearning extends Plugin
                 Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes())
             );
             addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(Runtime.getRuntime().maxMemory()));
-            getCpuRatioFromInstanceConfiguration(settings.get("node.attr." + INSTANCE_CONFIGURATION_NODE_ATTR)).ifPresent(
-                d -> addMlNodeAttribute(additionalSettings, cpuRatioAttrName, Double.toString(d))
-            );
+            OptionalDouble ratio = getCpuRatioFromInstanceConfiguration(settings.get("node.attr." + INSTANCE_CONFIGURATION_NODE_ATTR));
+            if (ratio.isPresent()) {
+                addMlNodeAttribute(additionalSettings, cpuRatioAttrName, Double.toString(ratio.getAsDouble()));
+            } else {
+                disallowMlNodeAttributes(cpuRatioAttrName);
+            }
+            addMlNodeAttribute(additionalSettings, processorCountAttrName, Integer.toString(Runtime.getRuntime().availableProcessors()));
             // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
             disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName);
         } else {
-            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName, cpuRatioAttrName);
+            disallowMlNodeAttributes(
+                maxOpenJobsPerNodeNodeAttrName,
+                machineMemoryAttrName,
+                jvmSizeAttrName,
+                cpuRatioAttrName,
+                processorCountAttrName
+            );
         }
         return additionalSettings.build();
     }
@@ -777,7 +789,7 @@ public class MachineLearning extends Plugin
         if (instanceConfiguration.startsWith("azure")) {
             return OptionalDouble.of(1.875);
         }
-        //TODO this should probably be debug....
+        // TODO this should probably be debug....
         logger.info("Could not automatically determine CPU ratio for configuration [{}]", instanceConfiguration);
         return OptionalDouble.empty();
     }

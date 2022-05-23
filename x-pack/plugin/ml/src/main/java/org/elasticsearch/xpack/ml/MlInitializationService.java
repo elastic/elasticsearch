@@ -23,15 +23,22 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 
@@ -47,6 +54,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ml.MachineLearning.AVAILABLE_PROCESSORS_NODE_ATTR;
 import static org.elasticsearch.xpack.ml.MachineLearning.CPU_RATIO_NODE_ATTR;
 import static org.elasticsearch.xpack.ml.MachineLearning.MACHINE_MEMORY_NODE_ATTR;
 
@@ -61,7 +69,7 @@ public class MlInitializationService implements ClusterStateListener {
     private volatile String previousException;
 
     private final MlDailyMaintenanceService mlDailyMaintenanceService;
-
+    private final ClusterService clusterService;
     private boolean isMaster = false;
 
     MlInitializationService(
@@ -112,6 +120,7 @@ public class MlInitializationService implements ClusterStateListener {
                 offMaster();
             }
         });
+        this.clusterService = clusterService;
     }
 
     public void onMaster() {
@@ -170,9 +179,39 @@ public class MlInitializationService implements ClusterStateListener {
                 DiscoveryNode biggestMLNode = mlNodes.stream()
                     .max(Comparator.comparing(n -> NodeLoadDetector.getNodeSize(n).orElse(0L)))
                     .get();
+                MlMetadata mlMetadata = MlMetadata.getMlMetadata(event.state());
                 try {
                     long memory = Long.parseLong(biggestMLNode.getAttributes().get(MACHINE_MEMORY_NODE_ATTR));
-                    long cpu = 0;
+                    long cpu = Long.parseLong(biggestMLNode.getAttributes().get(AVAILABLE_PROCESSORS_NODE_ATTR));
+                    if (memory > mlMetadata.getMaxMlNodeSeen()) {
+                        double betterRatio = ((double) memory) / cpu;
+                        clusterService.submitStateUpdateTask(
+                            "update-cpu-ratio",
+                            new UpdateCpuRatioTasks(memory, betterRatio),
+                            ClusterStateTaskConfig.build(Priority.NORMAL, TimeValue.MINUS_ONE),
+                            (currentState, taskContexts) -> {
+                                MlMetadata.Builder currentBuilder = MlMetadata.Builder.from(MlMetadata.getMlMetadata(currentState));
+                                boolean changed = false;
+                                for (var contexts : taskContexts) {
+                                    if (contexts.getTask().maxNodeSeen > currentBuilder.getMaxMlNodeSeen()) {
+                                        currentBuilder.setMaxMlNodeSeen(contexts.getTask().maxNodeSeen());
+                                        currentBuilder.setCpuRatio(contexts.getTask().cpuRatio());
+                                        changed = true;
+                                    }
+                                }
+                                if (changed) {
+                                    return ClusterState.builder(currentState)
+                                        .metadata(
+                                            Metadata.builder(currentState.getMetadata())
+                                                .putCustom(MlMetadata.TYPE, currentBuilder.build())
+                                                .build()
+                                        )
+                                        .build();
+                                }
+                                return currentState;
+                            }
+                        );
+                    }
                 } catch (NumberFormatException ex) {
                     logger.debug("Unable to parse machine memory and number cpus", ex);
                 }
@@ -283,5 +322,12 @@ public class MlInitializationService implements ClusterStateListener {
             addReplacementAliasAction.searchRouting(existingAliasMetadata.searchRouting());
         }
         return addReplacementAliasAction;
+    }
+
+    private record UpdateCpuRatioTasks(long maxNodeSeen, double cpuRatio) implements ClusterStateTaskListener {
+        @Override
+        public void onFailure(Exception e) {
+            logger.warn("unable to update cpu ratio for autoscaling", e);
+        }
     }
 }

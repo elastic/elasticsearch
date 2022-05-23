@@ -47,8 +47,8 @@ public class MlMetadata implements Metadata.Custom {
     static {
         LENIENT_PARSER.declareBoolean(Builder::isUpgradeMode, UPGRADE_MODE);
         LENIENT_PARSER.declareBoolean(Builder::isResetMode, RESET_MODE);
-        LENIENT_PARSER.declareBoolean(Builder::isResetMode, RESET_MODE);
-        LENIENT_PARSER.declareBoolean(Builder::isResetMode, RESET_MODE);
+        LENIENT_PARSER.declareLong(Builder::setMaxMlNodeSeen, MAX_ML_NODE_SEEN);
+        LENIENT_PARSER.declareDouble(Builder::setCpuRatio, CPU_RATIO);
     }
 
     private final boolean upgradeMode;
@@ -69,6 +69,14 @@ public class MlMetadata implements Metadata.Custom {
 
     public boolean isResetMode() {
         return resetMode;
+    }
+
+    public long getMaxMlNodeSeen() {
+        return maxMlNodeSeen;
+    }
+
+    public double getCpuRatio() {
+        return cpuRatio;
     }
 
     @Override
@@ -229,21 +237,24 @@ public class MlMetadata implements Metadata.Custom {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        MlMetadata that = (MlMetadata) o;
-        return upgradeMode == that.upgradeMode && resetMode == that.resetMode;
-    }
-
-    @Override
     public final String toString() {
         return Strings.toString(this);
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MlMetadata that = (MlMetadata) o;
+        return upgradeMode == that.upgradeMode
+            && resetMode == that.resetMode
+            && maxMlNodeSeen == that.maxMlNodeSeen
+            && Double.compare(that.cpuRatio, cpuRatio) == 0;
+    }
+
+    @Override
     public int hashCode() {
-        return Objects.hash(upgradeMode, resetMode);
+        return Objects.hash(upgradeMode, resetMode, maxMlNodeSeen, cpuRatio);
     }
 
     public static class Builder {
@@ -281,6 +292,10 @@ public class MlMetadata implements Metadata.Custom {
         public Builder setMaxMlNodeSeen(Long maxMlNodeSeen) {
             this.maxMlNodeSeen = maxMlNodeSeen;
             return this;
+        }
+
+        public long getMaxMlNodeSeen() {
+            return Optional.ofNullable(maxMlNodeSeen).orElse(-1L);
         }
 
         public Builder setCpuRatio(Double cpuRatio) {

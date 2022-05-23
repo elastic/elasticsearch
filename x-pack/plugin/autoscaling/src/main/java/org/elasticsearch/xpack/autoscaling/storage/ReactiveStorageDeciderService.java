@@ -791,7 +791,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             builder.field("unassigned_shards", unassignedShardIds.stream().limit(MAX_AMOUNT_OF_SHARDS).toList());
             builder.field("unassigned_shards_count", unassignedShardIds.size());
             builder.field("assigned", assigned);
-            builder.field("assigned_shards", assignedShardIds.stream().limit(MAX_AMOUNT_OF_SHARDS).collect(Collectors.toList()));
+            builder.field("assigned_shards", assignedShardIds.stream().limit(MAX_AMOUNT_OF_SHARDS).toList());
             builder.field("assigned_shards_count", assignedShardIds.size());
             builder.endObject();
             return builder;

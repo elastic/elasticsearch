@@ -74,7 +74,7 @@ public class ReactiveReasonTests extends ESTestCase {
                     .collect(Collectors.toList()),
                 xContentAssignedShardIds
             );
-            assertSorted(xContentAssignedShardIds.stream().map(ShardId::fromString).collect(Collectors.toList()));
+            assertSorted(xContentAssignedShardIds.stream().map(ShardId::fromString).toList());
             assertEquals(assignedShardIds.size(), map.get("assigned_shards_count"));
         }
     }

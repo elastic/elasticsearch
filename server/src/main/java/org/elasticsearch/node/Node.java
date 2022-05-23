@@ -984,7 +984,6 @@ public class Node implements Closeable {
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
                 b.bind(HealthService.class).toInstance(healthService);
                 b.bind(MasterHistoryService.class).toInstance(masterHistoryService);
-                b.bind(StatsRequestLimiter.class).toInstance(statsRequestLimiter);
                 if (HealthNodeSelector.isEnabled()) {
                     b.bind(HealthNodeSelectorTaskExecutor.class).toInstance(healthNodeSelectorTaskExecutor);
                     b.bind(HealthNodeSelectorLifecycleHandler.class).toInstance(healthNodeSelectorLifecycleHandler);

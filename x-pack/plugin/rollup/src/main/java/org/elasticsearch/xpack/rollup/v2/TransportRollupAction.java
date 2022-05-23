@@ -191,13 +191,18 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         client.fieldCaps(fieldCapsRequest, ActionListener.wrap(fieldCapsResponse -> {
             final Map<String, FieldCapabilities> dimensionFieldCaps = new HashMap<>();
             final Map<String, FieldCapabilities> metricFieldCaps = new HashMap<>();
-            /*
-             * Rollup runs on a single index, and we do not expect multiple mappings for the same
-             * field. So, it is safe to select the first and only value of the FieldCapsResponse
-             * by running: e.getValue().values().iterator().next()
-             */
             for (Map.Entry<String, Map<String, FieldCapabilities>> e : fieldCapsResponse.get().entrySet()) {
                 String field = e.getKey();
+                /*
+                 * Rollup runs on a single index, and we do not expect multiple mappings for the same
+                 * field. So, it is safe to select the first and only value of the FieldCapsResponse
+                 * by running: e.getValue().values().iterator().next()
+                 */
+                if (e.getValue().size() != 1) {
+                    throw new IllegalStateException(
+                        "Cannot parse mapping for field [" + field + "] at source index [" + sourceIndexName + "]"
+                    );
+                }
                 FieldCapabilities fieldCaps = e.getValue().values().iterator().next();
                 if (fieldCaps.isDimension()) {
                     dimensionFieldCaps.put(field, fieldCaps);
@@ -214,6 +219,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             }
             if (metricFieldCaps.isEmpty()) {
                 validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any metric fields");
+            }
+
+            if (validationException.validationErrors().isEmpty() == false) {
+                listener.onFailure(validationException);
+                return;
             }
 
             final String mapping;

@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.junit.Before;
 
@@ -239,6 +240,40 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(config, sourceIndex, sourceIndexClone, rollupIndex);
+    }
+
+    public void testCannotRollupIndexWithNoMetrics() {
+        // Create a source index that contains no metric fields in its mapping
+        sourceIndex = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        sourceIndexClone = sourceIndex + "-clone";
+        client().admin()
+            .indices()
+            .prepareCreate(sourceIndex)
+            .setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", numOfShards)
+                    .put("index.number_of_replicas", numOfReplicas)
+                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTime).toString())
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+                    .build()
+            )
+            .setMapping(
+                FIELD_TIMESTAMP,
+                "type=date",
+                FIELD_DIMENSION_1,
+                "type=keyword,time_series_dimension=true",
+                FIELD_DIMENSION_2,
+                "type=long,time_series_dimension=true"
+            )
+            .get();
+
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        // Source index has been created in the setup() method
+        prepareSourceIndex(sourceIndex);
+        Exception exception = expectThrows(RollupActionRequestValidationException.class, () -> rollup(sourceIndex, rollupIndex, config));
+        assertThat(exception.getMessage(), containsString("does not contain any metric fields"));
     }
 
     public void testCannotRollupWriteableIndex() {

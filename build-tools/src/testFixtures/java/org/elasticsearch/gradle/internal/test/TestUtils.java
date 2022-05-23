@@ -19,6 +19,7 @@ public class TestUtils {
             String cannonicalNormalizedPathPrefix = projectRootDir.getCanonicalPath().replace("\\", "/");
             String normalizedPathPrefix = projectRootDir.getAbsolutePath().replace("\\", "/");
             return input.lines()
+                .filter(it -> it.startsWith("Picked up JAVA_TOOL_OPTIONS") == false)
                 .map(it -> it.replace("\\", "/"))
                 .map(it -> it.replaceAll("\\d+\\.\\d\\ds", "0.00s"))
                 .map(it -> it.replaceAll(cannonicalNormalizedPathPrefix, "."))

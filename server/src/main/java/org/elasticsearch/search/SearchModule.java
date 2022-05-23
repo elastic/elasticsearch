@@ -217,6 +217,7 @@ import org.elasticsearch.search.aggregations.timeseries.InternalTimeSeries;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.InternalTimeSeriesAggregation;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregationAggregationBuilder;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesCountValues;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesLast;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TSIDInternalAggregation;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesIRate;
@@ -685,6 +686,7 @@ public class SearchModule {
                     .addResultReader(TimeSeriesIRate.NAME, TimeSeriesIRate::new)
                     .addResultReader(TimeSeriesLineAggreagation.NAME, TimeSeriesLineAggreagation::new)
                     .addResultReader(TimeSeriesTopk.NAME, TimeSeriesTopk::new)
+                    .addResultReader(TimeSeriesCountValues.NAME, TimeSeriesCountValues::new)
                     .setAggregatorRegistrar(TimeSeriesAggregationAggregationBuilder::registerAggregators),
                 builder
             );

@@ -8,24 +8,25 @@
 
 package org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction;
 
-import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLogPlusPlus;
-import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus;
-import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TimeSeriesCountValues;
 
+import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class CountValuesBucketFunction implements AggregatorBucketFunction<Double> {
 
-    private HyperLogLogPlusPlus counts;
+    private ObjectArray<Map<Long, AtomicInteger>> values; // TODO change hashmap
+    private BigArrays bigArrays;
 
     public CountValuesBucketFunction(BigArrays bigArrays) {
-        counts = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.DEFAULT_PRECISION, bigArrays, 1);
+        this.bigArrays = bigArrays;
+        this.values = bigArrays.newObjectArray(1);
     }
 
     @Override
@@ -35,8 +36,20 @@ public class CountValuesBucketFunction implements AggregatorBucketFunction<Doubl
 
     @Override
     public void collect(Double number, long bucket) {
-        long value = BitMixer.mix64(java.lang.Double.doubleToLongBits(number));
-        counts.collect(bucket, value);
+        values = bigArrays.grow(values, bucket + 1);
+        long value = java.lang.Double.doubleToLongBits(number);
+        Map<Long, AtomicInteger> valueCount = values.get(bucket);
+        if (valueCount == null) {
+            valueCount = new HashMap<>();
+            values.set(bucket, valueCount);
+        }
+
+        AtomicInteger count = valueCount.get(value);
+        if (count == null) {
+            count = new AtomicInteger(0);
+            valueCount.put(value, count);
+        }
+        count.incrementAndGet();
     }
 
     @Override
@@ -46,12 +59,11 @@ public class CountValuesBucketFunction implements AggregatorBucketFunction<Doubl
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) {
-        AbstractHyperLogLogPlusPlus copy = counts.clone(bucket, BigArrays.NON_RECYCLING_INSTANCE);
-        return new InternalCardinality(CardinalityAggregationBuilder.NAME, copy, metadata);
+        return new TimeSeriesCountValues(TimeSeriesCountValues.NAME, values.get(bucket), formatter, metadata);
     }
 
     @Override
     public void close() {
-        Releasables.close(counts);
+        Releasables.close(values);
     }
 }
